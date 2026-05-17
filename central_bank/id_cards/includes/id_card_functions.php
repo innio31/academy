@@ -1,9 +1,12 @@
 <?php
 // /central_bank/id_cards/includes/id_card_functions.php
+// Remove the require_once lines at the top since config is already included
 
-require_once '../../includes/config.php';
-require_once '../../includes/auth.php';
+// Do NOT add these lines here (they are already in the parent files):
+// require_once '../../includes/config.php';
+// require_once '../../includes/auth.php';
 
+// Just add the functions directly
 use setasign\Fpdi\Fpdi;
 
 /**
@@ -19,7 +22,7 @@ function generateStudentQRCode($student_id, $admission_number, $school_id, $scho
         'verification_url' => "https://acad.com.ng/verify/$school_code/$admission_number"
     ]);
 
-    // Use Google Charts API for QR code (free, no library needed)
+    // Use Google Charts API for QR code
     $qr_url = "https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=" . urlencode($qr_data) . "&choe=UTF-8";
 
     return $qr_url;
@@ -157,25 +160,21 @@ function logIDCardGeneration($school_id, $student_id, $admin_id, $file_path = nu
 }
 
 /**
- * Get profile picture path (checks local file or database)
+ * Get profile picture path
  */
 function getProfilePicturePath($student, $school_code)
 {
-    // Check if profile picture exists in student record
     if (!empty($student['profile_picture'])) {
-        // Try local file path
         $local_path = "../.." . $student['profile_picture'];
         if (file_exists($local_path)) {
             return $local_path;
         }
 
-        // Try school folder structure
         $school_path = "../../uploads/schools/$school_code/students/" . $student['profile_picture'];
         if (file_exists($school_path)) {
             return $school_path;
         }
     }
 
-    // Return default avatar
     return __DIR__ . '/../assets/default-avatar.png';
 }

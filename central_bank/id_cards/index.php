@@ -1,9 +1,9 @@
 <?php
-// /central_bank/id_cards/index.php - ID Card Dashboard
+// /central_bank/id_cards/index.php
 
-require_once '../includes/config.php';
-require_once '../includes/auth.php';
-require_once 'includes/id_card_functions.php';
+require_once dirname(__DIR__) . '/includes/config.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once __DIR__ . '/includes/id_card_functions.php';
 
 require_super_admin();
 

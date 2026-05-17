@@ -1,12 +1,12 @@
 <?php
-// /central_bank/id_cards/bulk_generate.php - Bulk generate ID cards for a class
+// /central_bank/id_cards/bulk_generate.php
 
-require_once '../includes/config.php';
-require_once '../includes/auth.php';
-require_once 'includes/id_card_functions.php';
-require_once 'templates/card_front.php';
-require_once 'templates/card_back.php';
-require_once 'templates/card_style.php';
+require_once dirname(__DIR__) . '/includes/config.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once __DIR__ . '/includes/id_card_functions.php';
+require_once __DIR__ . '/templates/card_front.php';
+require_once __DIR__ . '/templates/card_back.php';
+require_once __DIR__ . '/templates/card_style.php';
 
 require_super_admin();
 

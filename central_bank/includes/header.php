@@ -368,7 +368,7 @@ if (!isset($page_title)) $page_title = 'Central Bank';
             <li><a href="manage_subjects.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'manage_subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Manage Subjects</a></li>
             <li><a href="manage_topics.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'manage_topics.php' ? 'active' : ''; ?>"><i class="fas fa-list"></i> Manage Topics</a></li>
             <li><a href="manage_questions.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'manage_questions.php' ? 'active' : ''; ?>"><i class="fas fa-question-circle"></i> Manage Questions</a></li>
-            <li><a href="../id_cards/index.php" class="<?php echo strpos($_SERVER['REQUEST_URI'], 'id_cards') !== false ? 'active' : ''; ?>"><i class="fas fa-id-card"></i> ID Cards</a></li>
+            <li><a href="..central_bank/id_cards/index.php" class="<?php echo strpos($_SERVER['REQUEST_URI'], 'id_cards') !== false ? 'active' : ''; ?>"><i class="fas fa-id-card"></i> ID Cards</a></li>
             <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>

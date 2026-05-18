@@ -25,6 +25,12 @@ if (!$student_data) {
     exit();
 }
 
+
+// Make sure $student is available
+$student = $student ?? null;
+include '../includes/student_sidebar.php';
+
+
 $student_class = $student_data['class']; // This is the class name string
 $admission_number = $student_data['admission_number'];
 

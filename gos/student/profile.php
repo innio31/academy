@@ -1,5 +1,8 @@
 <?php
 // gos/student/profile.php - Student Profile with Profile Picture
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
@@ -15,10 +18,20 @@ $primary_color = SCHOOL_PRIMARY;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
 
+$student = $student ?? null;
+include '../includes/student_sidebar.php';
+
+
 // Create uploads directory if not exists
-$upload_dir = '../uploads/profiles/';
+$upload_dir = dirname(__DIR__, 2) . '/uploads/profiles/';
 if (!file_exists($upload_dir)) {
     mkdir($upload_dir, 0777, true);
+}
+
+// Create assets directory if not exists for default avatar
+$assets_dir = dirname(__DIR__, 2) . '/assets/images/';
+if (!file_exists($assets_dir)) {
+    mkdir($assets_dir, 0777, true);
 }
 
 // Get student details
@@ -26,19 +39,24 @@ $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
 $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
+if (!$student) {
+    header("Location: /gos/login.php");
+    exit();
+}
+
 // Update profile
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $parent_phone = trim($_POST['parent_phone']);
-    $parent_email = trim($_POST['parent_email']);
-    $address = trim($_POST['address']);
-    $guardian_name = trim($_POST['guardian_name']);
-    $guardian_phone = trim($_POST['guardian_phone']);
+    $parent_phone = trim($_POST['parent_phone'] ?? '');
+    $parent_email = trim($_POST['parent_email'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $guardian_name = trim($_POST['guardian_name'] ?? '');
+    $guardian_phone = trim($_POST['guardian_phone'] ?? '');
 
     $stmt = $pdo->prepare("UPDATE students SET parent_phone = ?, parent_email = ?, address = ?, guardian_name = ?, guardian_phone = ? WHERE id = ? AND school_id = ?");
     $stmt->execute([$parent_phone, $parent_email, $address, $guardian_name, $guardian_phone, $student_id, $school_id]);
 
     $message = "Profile updated successfully!";
-    
+
     // Refresh student data
     $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
     $stmt->execute([$student_id, $school_id]);
@@ -51,25 +69,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_picture'])) {
         $file = $_FILES['profile_picture'];
         $allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
         $max_size = 2 * 1024 * 1024; // 2MB
-        
+
         if (in_array($file['type'], $allowed_types)) {
             if ($file['size'] <= $max_size) {
                 $file_ext = pathinfo($file['name'], PATHINFO_EXTENSION);
                 $file_name = 'student_' . $student_id . '_' . time() . '.' . $file_ext;
                 $target_file = $upload_dir . $file_name;
                 $relative_path = 'uploads/profiles/' . $file_name;
-                
+
                 if (move_uploaded_file($file['tmp_name'], $target_file)) {
                     // Delete old profile picture if exists
-                    if ($student['profile_picture'] && file_exists('../' . $student['profile_picture'])) {
-                        unlink('../' . $student['profile_picture']);
+                    if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/' . $student['profile_picture'])) {
+                        @unlink(dirname(__DIR__, 2) . '/' . $student['profile_picture']);
                     }
-                    
+
                     $stmt = $pdo->prepare("UPDATE students SET profile_picture = ? WHERE id = ?");
                     $stmt->execute([$relative_path, $student_id]);
-                    
+
                     $message = "Profile picture updated successfully!";
-                    
+
                     // Refresh student data
                     $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
                     $stmt->execute([$student_id, $school_id]);
@@ -90,14 +108,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_picture'])) {
 
 // Remove profile picture
 if (isset($_GET['remove_picture'])) {
-    if ($student['profile_picture'] && file_exists('../' . $student['profile_picture'])) {
-        unlink('../' . $student['profile_picture']);
+    if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/' . $student['profile_picture'])) {
+        @unlink(dirname(__DIR__, 2) . '/' . $student['profile_picture']);
     }
     $stmt = $pdo->prepare("UPDATE students SET profile_picture = NULL WHERE id = ?");
     $stmt->execute([$student_id]);
-    
+
     $message = "Profile picture removed successfully!";
-    
+
     // Refresh student data
     $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
     $stmt->execute([$student_id, $school_id]);
@@ -106,9 +124,9 @@ if (isset($_GET['remove_picture'])) {
 
 // Change password
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
-    $current_password = $_POST['current_password'];
-    $new_password = $_POST['new_password'];
-    $confirm_password = $_POST['confirm_password'];
+    $current_password = $_POST['current_password'] ?? '';
+    $new_password = $_POST['new_password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
 
     if (password_verify($current_password, $student['password'])) {
         if ($new_password === $confirm_password && strlen($new_password) >= 6) {
@@ -126,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 
 // Get QR code
 $qr_url = null;
-if ($student['qr_code']) {
+if (!empty($student['qr_code'])) {
     $qr_url = $student['qr_code'];
 } else {
     // Generate QR code if not exists
@@ -137,12 +155,12 @@ if ($student['qr_code']) {
         'class' => $student['class'],
         'type' => 'student'
     ]);
-    $qr_url = "https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=" . urlencode($qr_data);
+    $qr_url = "https://quickchart.io/qr?text=" . urlencode($qr_data) . "&size=250";
 }
 
-// Get profile picture URL
-$profile_picture_url = '/gos/assets/images/default-avatar.png';
-if ($student['profile_picture'] && file_exists('../' . $student['profile_picture'])) {
+// Get profile picture URL - use a reliable default
+$profile_picture_url = null;
+if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/' . $student['profile_picture'])) {
     $profile_picture_url = '/gos/' . $student['profile_picture'];
 }
 ?>
@@ -184,6 +202,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             padding: 20px 0;
             z-index: 100;
             transform: translateX(-100%);
+            overflow-y: auto;
         }
 
         .sidebar.active {
@@ -243,6 +262,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
         .main-content {
             margin-left: 0;
             padding: 20px;
+            min-height: 100vh;
         }
 
         .mobile-menu-btn {
@@ -317,7 +337,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             position: relative;
             cursor: pointer;
             border: 3px solid var(--primary-color);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
 
         .profile-avatar img {
@@ -336,7 +356,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0, 0, 0, 0.6);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -359,6 +379,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             gap: 10px;
             margin-top: 10px;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .info-grid {
@@ -484,13 +505,22 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             display: none;
         }
 
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
         @media (min-width: 769px) {
             .sidebar {
                 transform: translateX(0);
             }
+
             .main-content {
                 margin-left: var(--sidebar-width);
             }
+
             .mobile-menu-btn {
                 display: none;
             }
@@ -501,17 +531,21 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
                 flex-direction: column;
                 text-align: center;
             }
+
             .info-row {
                 flex-direction: column;
             }
+
             .info-label {
                 width: 100%;
                 margin-bottom: 5px;
             }
+
             .profile-avatar {
                 width: 120px;
                 height: 120px;
             }
+
             .profile-avatar i {
                 font-size: 3rem;
             }
@@ -572,8 +606,8 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
             </div>
             <div class="profile-section">
                 <div class="profile-avatar" onclick="document.getElementById('profile_picture_input').click();">
-                    <?php if ($student['profile_picture'] && file_exists('../' . $student['profile_picture'])): ?>
-                        <img src="/gos/<?php echo $student['profile_picture']; ?>" alt="Profile Picture">
+                    <?php if ($profile_picture_url): ?>
+                        <img src="<?php echo $profile_picture_url; ?>" alt="Profile Picture">
                     <?php else: ?>
                         <i class="fas fa-user-graduate"></i>
                     <?php endif; ?>
@@ -589,11 +623,11 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
                             <i class="fas fa-upload"></i> Upload Photo
                         </button>
                     </form>
-                    <?php if ($student['profile_picture']): ?>
+                    <?php if ($profile_picture_url): ?>
                         <a href="?remove_picture=1" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to remove your profile picture?')">
                             <i class="fas fa-trash"></i> Remove
                         </a>
-                    <?php endif; %}
+                    <?php endif; ?>
                 </div>
                 <p style="font-size: 12px; color: #666; margin-top: 10px;">Click on the avatar to upload. Max size: 2MB (JPG, PNG, GIF, WebP)</p>
             </div>
@@ -635,7 +669,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
                     <div class="info-row">
                         <div class="info-label">Status:</div>
                         <div class="info-value">
-                            <span class="status-badge" style="background: <?php echo $student['status'] == 'active' ? '#d5f4e6' : '#f8d7da'; ?>; color: <?php echo $student['status'] == 'active' ? '#27ae60' : '#e74c3c'; ?>; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
+                            <span class="status-badge" style="background: <?php echo $student['status'] == 'active' ? '#d5f4e6' : '#f8d7da'; ?>; color: <?php echo $student['status'] == 'active' ? '#27ae60' : '#e74c3c'; ?>;">
                                 <?php echo ucfirst($student['status']); ?>
                             </span>
                         </div>
@@ -731,7 +765,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
 
     <script>
         document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
-        
+
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(e) {
             if (window.innerWidth <= 768) {
@@ -742,7 +776,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
                 }
             }
         });
-        
+
         // Auto-submit profile picture form when file is selected
         document.getElementById('profile_picture_input')?.addEventListener('change', function() {
             if (this.files.length > 0) {
@@ -763,7 +797,7 @@ if ($student['profile_picture'] && file_exists('../' . $student['profile_picture
                 this.form.submit();
             }
         });
-        
+
         // Download QR Code function
         function downloadQRCode() {
             const qrImg = document.querySelector('.qr-code img');

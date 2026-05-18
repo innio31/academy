@@ -17,135 +17,132 @@ $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 $staff_role = $_SESSION['staff_role'] ?? 'staff';
 
-// Get the staff_id string from the staff table
-$stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
-$stmt->execute([$staff_id, $school_id]);
-$staff_id_string = $stmt->fetchColumn();
-
-if (!$staff_id_string) {
-    // Handle error - staff not found
-    $error = "Staff record not found. Please contact administrator.";
-    $assigned_subjects = [];
-    $assigned_classes = [];
-    $class_names = [];
-    $total_students = 0;
-    $total_exams = 0;
-    $pending_grading = 0;
-    $recent_activities = [];
-    $upcoming_deadlines = [];
-    $recent_results = [];
-}
-
-// Get staff assigned subjects and classes (using staff_id string)
-$staff_id_string = $staff_id;
+// Initialize variables with default values
+$error = null;
+$assigned_subjects = [];
+$assigned_classes = [];
+$class_names = [];
+$total_students = 0;
+$total_exams = 0;
+$pending_grading = 0;
+$recent_activities = [];
+$upcoming_deadlines = [];
+$recent_results = [];
 
 try {
-    // Get assigned subjects
-    $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name 
-        FROM subjects s
-        JOIN staff_subjects ss ON s.id = ss.subject_id
-        WHERE ss.staff_id = ? AND ss.school_id = ?
-        ORDER BY s.subject_name
-    ");
-    $stmt->execute([$staff_id_string, $school_id]);
-    $assigned_subjects = $stmt->fetchAll();
-
-    // Get assigned classes
-    $stmt = $pdo->prepare("
-        SELECT DISTINCT class 
-        FROM staff_classes 
-        WHERE staff_id = ? AND school_id = ?
-        ORDER BY class
-    ");
-    $stmt->execute([$staff_id_string, $school_id]);
-    $assigned_classes = $stmt->fetchAll();
-    $class_names = array_column($assigned_classes, 'class');
-
-    // Total Students in assigned classes
-    $total_students = 0;
-    if (!empty($class_names)) {
-        $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM students 
-            WHERE school_id = ? AND status = 'active' 
-            AND class IN ($placeholders)
-        ");
-        $stmt->execute(array_merge([$school_id], $class_names));
-        $total_students = $stmt->fetch()['total'];
-    }
-
-    // Total Exams
-    $total_exams = 0;
-    if (!empty($assigned_subjects) && !empty($class_names)) {
-        $subject_ids = array_column($assigned_subjects, 'id');
-        $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
-        $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM exams 
-            WHERE school_id = ? 
-            AND subject_id IN ($subject_placeholders)
-            AND class IN ($class_placeholders)
-        ");
-        $stmt->execute(array_merge([$school_id], $subject_ids, $class_names));
-        $total_exams = $stmt->fetch()['total'];
-    }
-
-    // Pending grading
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) as total 
-        FROM assignment_submissions 
-        WHERE status = 'submitted' AND school_id = ?
-        AND assignment_id IN (SELECT id FROM assignments WHERE school_id = ? AND staff_id = ?)
-    ");
-    $stmt->execute([$school_id, $school_id, $staff_id_string]);
-    $pending_grading = $stmt->fetch()['total'];
-
-    // Recent activities
-    $stmt = $pdo->prepare("
-        SELECT activity, created_at 
-        FROM activity_logs 
-        WHERE user_id = ? AND user_type = 'staff' AND school_id = ?
-        ORDER BY created_at DESC 
-        LIMIT 10
-    ");
+    // Get the staff_id string from the staff table (this is what's stored in staff_subjects/staff_classes)
+    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
-    $recent_activities = $stmt->fetchAll();
+    $staff_id_string = $stmt->fetchColumn();
 
-    // Upcoming deadlines
-    $stmt = $pdo->prepare("
-        SELECT a.*, s.subject_name,
-               DATEDIFF(a.deadline, NOW()) as days_left
-        FROM assignments a
-        JOIN subjects s ON a.subject_id = s.id
-        WHERE a.school_id = ? AND a.staff_id = ?
-        AND a.deadline > NOW()
-        ORDER BY a.deadline ASC
-        LIMIT 5
-    ");
-    $stmt->execute([$school_id, $staff_id_string]);
-    $upcoming_deadlines = $stmt->fetchAll();
-
-    // Recent results
-    $recent_results = [];
-    if (!empty($class_names)) {
-        $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+    if (!$staff_id_string) {
+        $error = "Staff record not found. Please contact administrator.";
+    } else {
+        // Get assigned subjects using the string staff_id
         $stmt = $pdo->prepare("
-            SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class
-            FROM results r 
-            JOIN students stu ON r.student_id = stu.id 
-            JOIN exams e ON r.exam_id = e.id 
-            WHERE stu.school_id = ? AND stu.class IN ($placeholders)
-            ORDER BY r.submitted_at DESC 
+            SELECT s.id, s.subject_name 
+            FROM subjects s
+            JOIN staff_subjects ss ON s.id = ss.subject_id
+            WHERE ss.staff_id = ? AND ss.school_id = ?
+            ORDER BY s.subject_name
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_subjects = $stmt->fetchAll();
+
+        // Get assigned classes using the string staff_id
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT class 
+            FROM staff_classes 
+            WHERE staff_id = ? AND school_id = ?
+            ORDER BY class
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_classes = $stmt->fetchAll();
+        $class_names = array_column($assigned_classes, 'class');
+
+        // Total Students in assigned classes
+        if (!empty($class_names)) {
+            $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as total 
+                FROM students 
+                WHERE school_id = ? AND status = 'active' 
+                AND class IN ($placeholders)
+            ");
+            $stmt->execute(array_merge([$school_id], $class_names));
+            $total_students = $stmt->fetch()['total'];
+        }
+
+        // Total Exams
+        if (!empty($assigned_subjects) && !empty($class_names)) {
+            $subject_ids = array_column($assigned_subjects, 'id');
+            $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
+            $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as total 
+                FROM exams 
+                WHERE school_id = ? 
+                AND subject_id IN ($subject_placeholders)
+                AND class IN ($class_placeholders)
+            ");
+            $stmt->execute(array_merge([$school_id], $subject_ids, $class_names));
+            $total_exams = $stmt->fetch()['total'];
+        }
+
+        // Pending grading - assignments that need to be graded
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total 
+            FROM assignment_submissions 
+            WHERE status = 'submitted' AND school_id = ?
+            AND assignment_id IN (SELECT id FROM assignments WHERE school_id = ? AND staff_id = ?)
+        ");
+        $stmt->execute([$school_id, $school_id, $staff_id_string]);
+        $pending_grading = $stmt->fetch()['total'];
+
+        // Recent activities
+        $stmt = $pdo->prepare("
+            SELECT activity, created_at 
+            FROM activity_logs 
+            WHERE user_id = ? AND user_type = 'staff' AND school_id = ?
+            ORDER BY created_at DESC 
+            LIMIT 10
+        ");
+        $stmt->execute([$staff_id, $school_id]);
+        $recent_activities = $stmt->fetchAll();
+
+        // Upcoming deadlines
+        $stmt = $pdo->prepare("
+            SELECT a.*, s.subject_name,
+                   DATEDIFF(a.deadline, NOW()) as days_left
+            FROM assignments a
+            JOIN subjects s ON a.subject_id = s.id
+            WHERE a.school_id = ? AND a.staff_id = ?
+            AND a.deadline > NOW()
+            ORDER BY a.deadline ASC
             LIMIT 5
         ");
-        $stmt->execute(array_merge([$school_id], $class_names));
-        $recent_results = $stmt->fetchAll();
+        $stmt->execute([$school_id, $staff_id_string]);
+        $upcoming_deadlines = $stmt->fetchAll();
+
+        // Recent results from students in assigned classes
+        if (!empty($class_names)) {
+            $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class
+                FROM results r 
+                JOIN students stu ON r.student_id = stu.id 
+                JOIN exams e ON r.exam_id = e.id 
+                WHERE stu.school_id = ? AND stu.class IN ($placeholders)
+                ORDER BY r.submitted_at DESC 
+                LIMIT 5
+            ");
+            $stmt->execute(array_merge([$school_id], $class_names));
+            $recent_results = $stmt->fetchAll();
+        }
     }
 } catch (Exception $e) {
     error_log("Staff dashboard error: " . $e->getMessage());
+    $error = "An error occurred while loading the dashboard. Please try again later.";
 }
 ?>
 
@@ -452,6 +449,15 @@ try {
             color: var(--primary-color);
         }
 
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -504,7 +510,7 @@ try {
         </div>
         <div class="staff-info">
             <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-            <p>Staff ID: <?php echo htmlspecialchars($staff_id_string); ?></p>
+            <p>Staff ID: <?php echo htmlspecialchars($staff_id_string ?? $staff_id); ?></p>
         </div>
         <ul class="nav-links">
             <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -527,16 +533,30 @@ try {
             <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
+        <?php if ($error): ?>
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+            </div>
+        <?php endif; ?>
+
         <!-- Assigned Info -->
         <div class="content-card">
             <h3><i class="fas fa-book"></i> My Assignments</h3>
             <div class="info-items">
-                <?php foreach ($assigned_subjects as $subject): ?>
-                    <span class="info-item">📖 <?php echo htmlspecialchars($subject['subject_name']); ?></span>
-                <?php endforeach; ?>
-                <?php foreach ($assigned_classes as $class): ?>
-                    <span class="info-item">🏫 <?php echo htmlspecialchars($class['class']); ?></span>
-                <?php endforeach; ?>
+                <?php if (!empty($assigned_subjects)): ?>
+                    <?php foreach ($assigned_subjects as $subject): ?>
+                        <span class="info-item">📖 <?php echo htmlspecialchars($subject['subject_name']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item">No subjects assigned yet</span>
+                <?php endif; ?>
+                <?php if (!empty($assigned_classes)): ?>
+                    <?php foreach ($assigned_classes as $class): ?>
+                        <span class="info-item">🏫 <?php echo htmlspecialchars($class['class']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item">No classes assigned yet</span>
+                <?php endif; ?>
             </div>
         </div>
 

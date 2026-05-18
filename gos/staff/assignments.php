@@ -1,5 +1,5 @@
 <?php
-// gos/staff/assignments.php - Staff Assignments Management
+// gos/staff/assignments.php - Staff Assignments Management with File Attachments
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
@@ -21,6 +21,12 @@ $classes = [];
 $assignments = [];
 $message = null;
 $message_type = null;
+
+// Create uploads directory if not exists
+$upload_dir = '../uploads/assignments/';
+if (!file_exists($upload_dir)) {
+    mkdir($upload_dir, 0777, true);
+}
 
 try {
     // Get the staff_id string from the staff table
@@ -54,7 +60,7 @@ try {
     $message_type = "error";
 }
 
-// Handle assignment creation
+// Handle assignment creation with file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment'])) {
     $title = trim($_POST['title']);
     $subject_id = intval($_POST['subject_id']);
@@ -62,19 +68,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment']))
     $instructions = trim($_POST['instructions']);
     $deadline = $_POST['deadline'];
     $max_marks = intval($_POST['max_marks'] ?? 0);
+    $file_path = null;
 
+    // Handle file upload
+    if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['attachment'];
+        $file_name = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
+        $target_file = $upload_dir . $file_name;
+
+        // Get file extension
+        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        $allowed_extensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'zip', 'rar', 'jpg', 'jpeg', 'png'];
+
+        // Validate file type
+        if (in_array($file_ext, $allowed_extensions)) {
+            // Validate file size (max 10MB)
+            if ($file['size'] <= 10 * 1024 * 1024) {
+                if (move_uploaded_file($file['tmp_name'], $target_file)) {
+                    $file_path = 'uploads/assignments/' . $file_name;
+                } else {
+                    $message = "Failed to upload file. Please check directory permissions.";
+                    $message_type = "error";
+                }
+            } else {
+                $message = "File is too large. Maximum size is 10MB.";
+                $message_type = "error";
+            }
+        } else {
+            $message = "File type not allowed. Allowed types: " . implode(', ', $allowed_extensions);
+            $message_type = "error";
+        }
+    }
+
+    // Only proceed if no file upload error
+    if (!isset($message) || $message_type !== 'error') {
+        try {
+            $stmt = $pdo->prepare("
+                INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, file_path, staff_id, school_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([
+                $title,
+                $subject_id,
+                $class,
+                $instructions,
+                $deadline,
+                $max_marks,
+                $file_path,
+                $staff_id_string,
+                $school_id
+            ]);
+
+            $message = "Assignment created successfully!";
+            $message_type = "success";
+        } catch (Exception $e) {
+            error_log("Assignment creation error: " . $e->getMessage());
+            $message = "Failed to create assignment: " . $e->getMessage();
+            $message_type = "error";
+        }
+    }
+}
+
+// Handle assignment deletion
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $assignment_id = intval($_GET['delete']);
     try {
-        $stmt = $pdo->prepare("
-            INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, staff_id, school_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$title, $subject_id, $class, $instructions, $deadline, $max_marks, $staff_id_string, $school_id]);
+        // Get file path before deleting
+        $stmt = $pdo->prepare("SELECT file_path FROM assignments WHERE id = ? AND school_id = ? AND staff_id = ?");
+        $stmt->execute([$assignment_id, $school_id, $staff_id_string]);
+        $assignment = $stmt->fetch();
 
-        $message = "Assignment created successfully!";
-        $message_type = "success";
+        if ($assignment) {
+            // Delete file if exists
+            if ($assignment['file_path'] && file_exists('../' . $assignment['file_path'])) {
+                unlink('../' . $assignment['file_path']);
+            }
+
+            // Delete assignment
+            $stmt = $pdo->prepare("DELETE FROM assignments WHERE id = ? AND school_id = ? AND staff_id = ?");
+            $stmt->execute([$assignment_id, $school_id, $staff_id_string]);
+
+            $message = "Assignment deleted successfully!";
+            $message_type = "success";
+        }
     } catch (Exception $e) {
-        error_log("Assignment creation error: " . $e->getMessage());
-        $message = "Failed to create assignment: " . $e->getMessage();
+        error_log("Assignment deletion error: " . $e->getMessage());
+        $message = "Failed to delete assignment.";
         $message_type = "error";
     }
 }
@@ -295,6 +374,11 @@ if (!empty($classes)) {
             color: white;
         }
 
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 12px;
@@ -337,6 +421,34 @@ if (!empty($classes)) {
             text-align: center;
             padding: 30px;
             color: #999;
+        }
+
+        .file-attachment {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #f0f0f0;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+        }
+
+        .file-attachment i {
+            font-size: 12px;
+        }
+
+        .file-attachment a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .deadline-past {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .deadline-upcoming {
+            color: #27ae60;
         }
 
         @media (min-width: 769px) {
@@ -403,6 +515,7 @@ if (!empty($classes)) {
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-tasks"></i> Assignments</h1>
+                <p>Create and manage assignments with file attachments</p>
             </div>
             <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
@@ -426,11 +539,11 @@ if (!empty($classes)) {
                     <p style="margin-top: 10px;">Please contact the administrator to assign you to classes and subjects.</p>
                 </div>
             <?php else: ?>
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label>Title *</label>
-                            <input type="text" name="title" class="form-control" required>
+                            <label>Assignment Title *</label>
+                            <input type="text" name="title" class="form-control" placeholder="e.g., Mathematics Assignment 1" required>
                         </div>
                         <div class="form-group">
                             <label>Subject *</label>
@@ -455,13 +568,18 @@ if (!empty($classes)) {
                             <input type="datetime-local" name="deadline" class="form-control" required>
                         </div>
                         <div class="form-group">
-                            <label>Max Marks</label>
-                            <input type="number" name="max_marks" class="form-control" value="100">
+                            <label>Maximum Marks</label>
+                            <input type="number" name="max_marks" class="form-control" value="100" min="0" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Attachment (Optional)</label>
+                            <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png">
+                            <small style="color: #666; margin-top: 5px;">Max size: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, RAR, Images</small>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Instructions</label>
-                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter assignment instructions..."></textarea>
+                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter assignment instructions, guidelines, or additional information..."></textarea>
                     </div>
                     <button type="submit" name="create_assignment" class="btn btn-primary">
                         <i class="fas fa-save"></i> Create Assignment
@@ -490,25 +608,59 @@ if (!empty($classes)) {
                                 <th>Subject</th>
                                 <th>Class</th>
                                 <th>Deadline</th>
+                                <th>Attachment</th>
                                 <th>Submissions</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($assignments as $assignment): ?>
+                            <?php foreach ($assignments as $assignment):
+                                $is_deadline_past = strtotime($assignment['deadline']) < time();
+                            ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($assignment['title']); ?></strong></td>
                                     <td><?php echo htmlspecialchars($assignment['subject_name']); ?></td>
                                     <td><?php echo htmlspecialchars($assignment['class']); ?></td>
-                                    <td><?php echo date('M d, Y H:i', strtotime($assignment['deadline'])); ?></td>
-                                    <td><?php echo $assignment['submissions_count']; ?> submissions</td>
+                                    <td><?php
+                                        echo date('M d, Y H:i', strtotime($assignment['deadline']));
+                                        if ($is_deadline_past) {
+                                            echo '<br><small class="deadline-past">Past Deadline</small>';
+                                        } else {
+                                            $days_left = ceil((strtotime($assignment['deadline']) - time()) / (60 * 60 * 24));
+                                            echo '<br><small class="deadline-upcoming">' . $days_left . ' days left</small>';
+                                        }
+                                        ?></td>
                                     <td>
-                                        <a href="view-submissions.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
-                                        <a href="edit-assignment.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
-                                            <i class="fas fa-edit"></i> Edit
-                                        </a>
+                                        <?php if ($assignment['file_path']): ?>
+                                            <div class="file-attachment">
+                                                <i class="fas fa-paperclip"></i>
+                                                <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank">
+                                                    <?php
+                                                    $file_name = basename($assignment['file_path']);
+                                                    echo strlen($file_name) > 20 ? substr($file_name, 0, 20) . '...' : $file_name;
+                                                    ?>
+                                                </a>
+                                            </div>
+                                        <?php else: ?>
+                                            <span style="color: #999;">No attachment</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php echo $assignment['submissions_count']; ?>
+                                        <?php echo $assignment['submissions_count'] == 1 ? 'submission' : 'submissions'; ?>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                            <a href="view-submissions.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            <a href="edit-assignment.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="?delete=<?php echo $assignment['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this assignment? This action cannot be undone.')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -532,6 +684,15 @@ if (!empty($classes)) {
                 }
             }
         });
+
+        // Set minimum date for deadline to today
+        const deadlineInput = document.querySelector('input[name="deadline"]');
+        if (deadlineInput) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            const minDateTime = now.toISOString().slice(0, 16);
+            deadlineInput.min = minDateTime;
+        }
     </script>
 </body>
 

@@ -12,7 +12,7 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
-$staff_id = $_SESSION['user_id'];
+$staff_id = $_SESSION['user_id'];  // This is the numeric ID from staff table
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 
 // Initialize variables
@@ -29,7 +29,7 @@ if (!file_exists($upload_dir)) {
 }
 
 try {
-    // Get the staff_id string from the staff table
+    // Get the staff_id string for querying staff_subjects and staff_classes
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
     $staff_id_string = $stmt->fetchColumn();
@@ -68,64 +68,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment']))
     $instructions = trim($_POST['instructions']);
     $deadline = $_POST['deadline'];
     $max_marks = intval($_POST['max_marks'] ?? 0);
+    $submission_type = $_POST['submission_type'] ?? 'online';
+    $allow_attachment = isset($_POST['allow_attachment']) ? intval($_POST['allow_attachment']) : 1;
     $file_path = null;
 
-    // Handle file upload
+    // Handle file upload (assignment material)
     if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['attachment'];
         $file_name = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
         $target_file = $upload_dir . $file_name;
 
-        // Get file extension
         $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
         $allowed_extensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'zip', 'rar', 'jpg', 'jpeg', 'png'];
 
-        // Validate file type
-        if (in_array($file_ext, $allowed_extensions)) {
-            // Validate file size (max 10MB)
-            if ($file['size'] <= 10 * 1024 * 1024) {
-                if (move_uploaded_file($file['tmp_name'], $target_file)) {
-                    $file_path = 'uploads/assignments/' . $file_name;
-                } else {
-                    $message = "Failed to upload file. Please check directory permissions.";
-                    $message_type = "error";
-                }
-            } else {
-                $message = "File is too large. Maximum size is 10MB.";
-                $message_type = "error";
+        if (in_array($file_ext, $allowed_extensions) && $file['size'] <= 10 * 1024 * 1024) {
+            if (move_uploaded_file($file['tmp_name'], $target_file)) {
+                $file_path = 'uploads/assignments/' . $file_name;
             }
-        } else {
-            $message = "File type not allowed. Allowed types: " . implode(', ', $allowed_extensions);
-            $message_type = "error";
         }
     }
 
-    // Only proceed if no file upload error
-    if (!isset($message) || $message_type !== 'error') {
-        try {
-            $stmt = $pdo->prepare("
-                INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, file_path, staff_id, school_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([
-                $title,
-                $subject_id,
-                $class,
-                $instructions,
-                $deadline,
-                $max_marks,
-                $file_path,
-                $staff_id_string,
-                $school_id
-            ]);
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, 
+                                    submission_type, allow_attachment, file_path, staff_id, school_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $title,
+            $subject_id,
+            $class,
+            $instructions,
+            $deadline,
+            $max_marks,
+            $submission_type,
+            $allow_attachment,
+            $file_path,
+            $staff_id,
+            $school_id
+        ]);
 
-            $message = "Assignment created successfully!";
-            $message_type = "success";
-        } catch (Exception $e) {
-            error_log("Assignment creation error: " . $e->getMessage());
-            $message = "Failed to create assignment: " . $e->getMessage();
-            $message_type = "error";
-        }
+        $message = "Assignment created successfully!";
+        $message_type = "success";
+
+        header("Location: assignments.php?message=" . urlencode($message) . "&type=success");
+        exit();
+    } catch (Exception $e) {
+        error_log("Assignment creation error: " . $e->getMessage());
+        $message = "Failed to create assignment: " . $e->getMessage();
+        $message_type = "error";
     }
 }
 
@@ -135,7 +126,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     try {
         // Get file path before deleting
         $stmt = $pdo->prepare("SELECT file_path FROM assignments WHERE id = ? AND school_id = ? AND staff_id = ?");
-        $stmt->execute([$assignment_id, $school_id, $staff_id_string]);
+        $stmt->execute([$assignment_id, $school_id, $staff_id]);
         $assignment = $stmt->fetch();
 
         if ($assignment) {
@@ -146,7 +137,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 
             // Delete assignment
             $stmt = $pdo->prepare("DELETE FROM assignments WHERE id = ? AND school_id = ? AND staff_id = ?");
-            $stmt->execute([$assignment_id, $school_id, $staff_id_string]);
+            $stmt->execute([$assignment_id, $school_id, $staff_id]);
 
             $message = "Assignment deleted successfully!";
             $message_type = "success";
@@ -158,7 +149,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     }
 }
 
-// Get assignments
+// Get assignments (using numeric staff_id)
 if (!empty($classes)) {
     try {
         $placeholders = str_repeat('?,', count($classes) - 1) . '?';
@@ -170,12 +161,18 @@ if (!empty($classes)) {
             WHERE a.school_id = ? AND a.staff_id = ? AND a.class IN ($placeholders)
             ORDER BY a.created_at DESC
         ");
-        $stmt->execute(array_merge([$school_id, $staff_id_string], $classes));
+        $stmt->execute(array_merge([$school_id, $staff_id], $classes));
         $assignments = $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Assignments fetch error: " . $e->getMessage());
         $assignments = [];
     }
+}
+
+// Get success/error message from URL
+if (isset($_GET['message'])) {
+    $message = $_GET['message'];
+    $message_type = $_GET['type'] ?? 'success';
 }
 ?>
 
@@ -527,7 +524,7 @@ if (!empty($classes)) {
             </div>
         <?php endif; ?>
 
-        <!-- Create Assignment -->
+        <!-- Create Assignment Form - Updated with Submission Type Options -->
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-plus-circle"></i> Create New Assignment</h3>
@@ -571,22 +568,91 @@ if (!empty($classes)) {
                             <label>Maximum Marks</label>
                             <input type="number" name="max_marks" class="form-control" value="100" min="0" step="1">
                         </div>
-                        <div class="form-group">
-                            <label>Attachment (Optional)</label>
-                            <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png">
-                            <small style="color: #666; margin-top: 5px;">Max size: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, RAR, Images</small>
+                    </div>
+
+                    <!-- Submission Type Section -->
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label><i class="fas fa-laptop"></i> Submission Type *</label>
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap; padding: 10px; background: #f8f9fa; border-radius: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="submission_type" value="online" checked onchange="toggleSubmissionOptions()">
+                                <i class="fas fa-globe" style="color: #3498db;"></i>
+                                <strong>Online Submission</strong>
+                                <small style="color: #666;">(Students submit via portal)</small>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="submission_type" value="written" onchange="toggleSubmissionOptions()">
+                                <i class="fas fa-pen-fancy" style="color: #e74c3c;"></i>
+                                <strong>Written Submission</strong>
+                                <small style="color: #666;">(Students submit physically in class)</small>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="submission_type" value="both" onchange="toggleSubmissionOptions()">
+                                <i class="fas fa-exchange-alt" style="color: #27ae60;"></i>
+                                <strong>Both Options</strong>
+                                <small style="color: #666;">(Students can choose either method)</small>
+                            </label>
                         </div>
                     </div>
+
+                    <!-- Online Submission Options (shown by default) -->
+                    <div id="onlineOptions" class="form-group" style="margin-top: 15px;">
+                        <label><i class="fas fa-paperclip"></i> Allow File Attachments?</label>
+                        <div style="display: flex; gap: 20px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="radio" name="allow_attachment" value="1" checked> Yes, allow attachments
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="radio" name="allow_attachment" value="0"> No, text only
+                            </label>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">If enabled, students can upload PDF, DOC, or image files.</small>
+                    </div>
+
+                    <!-- Written Submission Info (hidden initially) -->
+                    <div id="writtenInfo" class="form-group" style="margin-top: 15px; display: none; padding: 15px; background: #fff3cd; border-radius: 10px;">
+                        <i class="fas fa-info-circle" style="color: #f39c12;"></i>
+                        <strong>Written Submission Instructions:</strong>
+                        <p style="margin-top: 5px; font-size: 13px;">Students will submit this assignment physically in class. No online submission will be accepted through the portal.</p>
+                        <p style="margin-top: 5px; font-size: 13px;">Make sure to collect the physical copies during class.</p>
+                    </div>
+
                     <div class="form-group">
                         <label>Instructions</label>
-                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter assignment instructions, guidelines, or additional information..."></textarea>
+                        <textarea name="instructions" class="form-control" rows="4" placeholder="Enter assignment instructions, guidelines, or additional information..."></textarea>
                     </div>
+
+                    <div class="form-group">
+                        <label>Attachment (Optional)</label>
+                        <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png">
+                        <small style="color: #666; margin-top: 5px;">Max size: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, RAR, Images</small>
+                    </div>
+
                     <button type="submit" name="create_assignment" class="btn btn-primary">
                         <i class="fas fa-save"></i> Create Assignment
                     </button>
                 </form>
             <?php endif; ?>
         </div>
+
+        <script>
+            function toggleSubmissionOptions() {
+                const submissionType = document.querySelector('input[name="submission_type"]:checked').value;
+                const onlineOptions = document.getElementById('onlineOptions');
+                const writtenInfo = document.getElementById('writtenInfo');
+
+                if (submissionType === 'online') {
+                    onlineOptions.style.display = 'block';
+                    writtenInfo.style.display = 'none';
+                } else if (submissionType === 'written') {
+                    onlineOptions.style.display = 'none';
+                    writtenInfo.style.display = 'block';
+                } else if (submissionType === 'both') {
+                    onlineOptions.style.display = 'block';
+                    writtenInfo.style.display = 'block';
+                }
+            }
+        </script>
 
         <!-- Assignments List -->
         <div class="card">

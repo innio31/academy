@@ -25,14 +25,15 @@ if (!$student_data) {
     exit();
 }
 
-
-// Make sure $student is available
-$student = $student ?? null;
-include '../includes/student_sidebar.php';
-
-
 $student_class = $student_data['class']; // This is the class name string
 $admission_number = $student_data['admission_number'];
+
+// Get profile picture path
+$profile_picture = !empty($student_data['profile_picture']) ? $student_data['profile_picture'] : '/assets/uploads/default-avatar.png';
+// If the path doesn't start with /, add the base path
+if (!empty($student_data['profile_picture']) && strpos($student_data['profile_picture'], '/') !== 0) {
+    $profile_picture = '/uploads/' . $student_data['profile_picture'];
+}
 
 $assignment_id = $_GET['id'] ?? 0;
 $view_submission = $_GET['submission'] ?? 0;
@@ -554,10 +555,28 @@ $completed_assignments = $stmt->fetchAll();
                 width: 94%;
             }
         }
+
+        .student-chip {
+            background: var(--gray-100);
+            padding: 6px 12px 6px 8px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .student-chip:hover {
+            background: var(--gray-200);
+        }
     </style>
 </head>
 
 <body>
+
 
     <!-- Bottom Navigation (mobile friendly) -->
     <div class="bottom-nav">
@@ -576,8 +595,12 @@ $completed_assignments = $stmt->fetchAll();
                 <p><?php echo htmlspecialchars($student_class); ?> • <?php echo htmlspecialchars($admission_number); ?></p>
             </div>
             <div class="student-chip">
-                <i class="fas fa-user-graduate"></i>
+                <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                    alt="Profile"
+                    style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); background: #f0f0f0;"
+                    onerror="this.src='/assets/uploads/default-avatar.png'">
                 <span><?php echo htmlspecialchars($student_name); ?></span>
+                <i class="fas fa-chevron-down" style="font-size: 12px; opacity: 0.7;"></i>
             </div>
         </div>
     </div>
@@ -706,6 +729,9 @@ $completed_assignments = $stmt->fetchAll();
                 <div class="card-header">
                     <h3><i class="fas fa-hourglass-half"></i> Pending</h3>
                     <span class="badge-count"><?php echo count($pending_assignments); ?></span>
+                </div>
+                <div style="padding: 8px 18px; background: var(--gray-50); font-size: 0.7rem; color: var(--gray-600); border-bottom: 1px solid var(--gray-100);">
+                    <i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?>
                 </div>
                 <?php if (empty($pending_assignments)): ?>
                     <div class="empty-state"><i class="fas fa-check-circle fa-2x"></i>

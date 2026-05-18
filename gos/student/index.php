@@ -459,6 +459,13 @@ $stats = $stmt->fetch();
                 text-align: center;
             }
         }
+
+        .student-details i {
+            width: 18px;
+            margin-right: 4px;
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
     </style>
 </head>
 
@@ -480,8 +487,8 @@ $stats = $stmt->fetch();
                 class="student-avatar"
                 onerror="this.src='/assets/uploads/default-avatar.png'">
             <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
-            <div class="student-details"><?php echo htmlspecialchars($student['admission_number']); ?></div>
-            <div class="student-details"><?php echo htmlspecialchars($student_class); ?></div>
+            <div class="student-details"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></div>
+            <div class="student-details"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?></div>
         </div>
         <ul class="nav-links">
             <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -504,7 +511,7 @@ $stats = $stmt->fetch();
                     onerror="this.src='/assets/uploads/default-avatar.png'">
                 <div class="welcome-text">
                     <h1>Welcome, <?php echo htmlspecialchars($student_name); ?>!</h1>
-                    <p><i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
+                    <p><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
                 </div>
             </div>
         </div>

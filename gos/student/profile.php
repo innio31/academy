@@ -18,10 +18,6 @@ $primary_color = SCHOOL_PRIMARY;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
 
-$student = $student ?? null;
-include '../includes/student_sidebar.php';
-
-
 // Create uploads directory if not exists
 $upload_dir = dirname(__DIR__, 2) . '/uploads/profiles/';
 if (!file_exists($upload_dir)) {

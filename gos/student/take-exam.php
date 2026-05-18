@@ -8,9 +8,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
 }
 
 require_once '../includes/config.php';
-$student = $student ?? null;
-include '../includes/student_sidebar.php';
-
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;

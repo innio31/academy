@@ -15,8 +15,8 @@ $primary_color = SCHOOL_PRIMARY;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
 
-// Get student class from database (not just session)
-$stmt = $pdo->prepare("SELECT class, admission_number FROM students WHERE id = ? AND school_id = ?");
+// Get student details
+$stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
 $stmt->execute([$student_id, $school_id]);
 $student_data = $stmt->fetch();
 
@@ -25,21 +25,17 @@ if (!$student_data) {
     exit();
 }
 
-$student_class = $student_data['class']; // This is the class name string
+$student_class = $student_data['class'];
 $admission_number = $student_data['admission_number'];
 
 // Get profile picture path
 $profile_picture = !empty($student_data['profile_picture']) ? $student_data['profile_picture'] : '/assets/uploads/default-avatar.png';
-// If the path doesn't start with /, add the base path
 if (!empty($student_data['profile_picture']) && strpos($student_data['profile_picture'], '/') !== 0) {
     $profile_picture = '/uploads/' . $student_data['profile_picture'];
 }
 
 $assignment_id = $_GET['id'] ?? 0;
 $view_submission = $_GET['submission'] ?? 0;
-
-// Debug - uncomment to check if class is being retrieved
-// error_log("Student ID: $student_id, Class: $student_class");
 
 // Handle assignment submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment'])) {
@@ -85,7 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment']))
 $assignment = null;
 $existing_submission = null;
 if ($assignment_id) {
-    // Use class name directly (both are strings)
     $stmt = $pdo->prepare("
         SELECT a.*, s.subject_name 
         FROM assignments a
@@ -104,7 +99,6 @@ if ($assignment_id) {
         $stmt->execute([$student_id, $assignment_id]);
         $existing_submission = $stmt->fetch();
     } else {
-        // Assignment not found for this class
         $error_message = "Assignment not found or not available for your class.";
     }
 }
@@ -156,12 +150,6 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$student_id, $school_id]);
 $completed_assignments = $stmt->fetchAll();
-
-// Debug info - uncomment to see what's happening
-// if (empty($pending_assignments) && empty($completed_assignments)) {
-//     error_log("No assignments found for class: $student_class");
-//     $debug_info = "Class: $student_class, School ID: $school_id";
-// }
 ?>
 
 <!DOCTYPE html>
@@ -169,21 +157,14 @@ $completed_assignments = $stmt->fetchAll();
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($school_name); ?> - Assignments</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
         :root {
-            --primary: <?php echo $primary_color; ?>;
-            --primary-dark: #1a2a3a;
+            --primary-color: <?php echo $primary_color; ?>;
+            --sidebar-width: 260px;
             --success: #10b981;
             --danger: #ef4444;
             --warning: #f59e0b;
@@ -199,128 +180,206 @@ $completed_assignments = $stmt->fetchAll();
             --radius-md: 0.75rem;
         }
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background: var(--gray-50);
-            padding-bottom: 80px;
+            font-family: 'Poppins', sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
         }
 
-        /* Mobile-First Bottom Navigation */
-        .bottom-nav {
+        /* Sidebar Styles */
+        .sidebar {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            backdrop-filter: blur(20px);
-            background: rgba(255, 255, 255, 0.96);
-            border-top: 1px solid var(--gray-200);
-            padding: 8px 20px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.03);
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            text-decoration: none;
-            color: var(--gray-600);
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            padding: 6px 12px;
-            border-radius: 40px;
-        }
-
-        .nav-item i {
-            font-size: 22px;
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-            background: rgba(<?php echo hexdec(substr($primary_color, 1, 2)); ?>, <?php echo hexdec(substr($primary_color, 3, 2)); ?>, <?php echo hexdec(substr($primary_color, 5, 2)); ?>, 0.1);
-        }
-
-        /* Header */
-        .app-header {
-            background: white;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-200);
-            position: sticky;
             top: 0;
-            z-index: 99;
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(12px);
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
+            color: white;
+            padding: 20px 0;
+            z-index: 100;
+            overflow-y: auto;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
         }
 
-        .header-row {
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .logo {
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 0 20px;
+            margin-bottom: 15px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: #d4af7a;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-text h3 {
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .logo-text p {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        .student-info {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 0 15px 20px;
+        }
+
+        .student-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d4af7a;
+            margin: 0 auto 12px auto;
+            display: block;
+            background: #f0f0f0;
+        }
+
+        .student-name {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .student-details {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin: 2px 0;
+        }
+
+        .student-details i {
+            width: 18px;
+            margin-right: 4px;
+            font-size: 0.7rem;
+        }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
+        .nav-links a {
+            display: flex;
             align-items: center;
             gap: 12px;
+            padding: 12px 15px;
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-content {
+            margin-left: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .mobile-menu-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 101;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            display: block;
+        }
+
+        .top-header {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary-color), #2c3e50);
+            color: white;
+        }
+
+        .welcome-banner {
+            display: flex;
+            align-items: center;
+            gap: 20px;
             flex-wrap: wrap;
         }
 
-        .greeting h1 {
+        .welcome-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d4af7a;
+            background: #f0f0f0;
+        }
+
+        .welcome-text h1 {
             font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-dark);
-            line-height: 1.2;
+            margin-bottom: 5px;
         }
 
-        .greeting p {
-            font-size: 0.75rem;
-            color: var(--gray-600);
-            margin-top: 4px;
-        }
-
-        .student-chip {
-            background: var(--gray-100);
-            padding: 8px 12px;
-            border-radius: 40px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.75rem;
-            font-weight: 500;
+        .welcome-text p {
+            opacity: 0.9;
+            font-size: 0.9rem;
         }
 
         /* Cards & containers */
-        .container {
-            padding: 16px 16px 24px;
-            max-width: 640px;
-            margin: 0 auto;
-        }
-
-        .card {
+        .content-card {
             background: white;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 20px;
-            overflow: hidden;
-            border: 1px solid var(--gray-200);
-            transition: transform 0.1s ease;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .card-header {
-            padding: 16px 18px 8px 18px;
             display: flex;
             justify-content: space-between;
-            align-items: baseline;
-            flex-wrap: wrap;
-            gap: 8px;
-            border-bottom: 1px solid var(--gray-100);
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
         }
 
         .card-header h3 {
+            color: var(--primary-color);
             font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--gray-800);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -332,21 +391,25 @@ $completed_assignments = $stmt->fetchAll();
             border-radius: 40px;
             font-size: 0.7rem;
             font-weight: 500;
+            color: var(--gray-600);
         }
 
-        /* Assignment item */
         .assignment-item {
-            padding: 16px 18px;
-            border-bottom: 1px solid var(--gray-100);
+            padding: 15px;
+            border-bottom: 1px solid #eee;
             transition: background 0.2s;
         }
 
-        .assignment-item:active {
+        .assignment-item:last-child {
+            border-bottom: none;
+        }
+
+        .assignment-item:hover {
             background: var(--gray-50);
         }
 
         .assignment-title {
-            font-weight: 700;
+            font-weight: 600;
             font-size: 1rem;
             margin-bottom: 8px;
             display: flex;
@@ -356,16 +419,16 @@ $completed_assignments = $stmt->fetchAll();
             gap: 8px;
         }
 
-        .meta-row {
+        .assignment-meta {
+            font-size: 0.75rem;
+            color: #666;
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
-            font-size: 0.7rem;
-            color: var(--gray-600);
             margin-bottom: 10px;
         }
 
-        .meta-row span {
+        .assignment-meta span {
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -385,22 +448,19 @@ $completed_assignments = $stmt->fetchAll();
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 10px 18px;
-            border-radius: 60px;
-            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
             font-size: 0.8rem;
             border: none;
-            background: transparent;
             cursor: pointer;
             transition: all 0.2s;
             text-decoration: none;
-            width: auto;
         }
 
         .btn-primary {
-            background: var(--primary);
+            background: var(--primary-color);
             color: white;
-            box-shadow: var(--shadow-sm);
         }
 
         .btn-success {
@@ -414,13 +474,13 @@ $completed_assignments = $stmt->fetchAll();
         }
 
         .btn-outline {
-            border: 1px solid var(--gray-200);
+            border: 1px solid #e0e0e0;
             background: white;
             color: var(--gray-800);
         }
 
         .btn-sm {
-            padding: 6px 14px;
+            padding: 5px 12px;
             font-size: 0.7rem;
         }
 
@@ -458,7 +518,7 @@ $completed_assignments = $stmt->fetchAll();
             width: 100%;
             padding: 12px 14px;
             border: 1.5px solid var(--gray-200);
-            border-radius: 16px;
+            border-radius: 12px;
             font-family: inherit;
             font-size: 0.9rem;
             background: white;
@@ -491,9 +551,9 @@ $completed_assignments = $stmt->fetchAll();
         }
 
         .type-option.active {
-            background: var(--primary);
+            background: var(--primary-color);
             color: white;
-            border-color: var(--primary);
+            border-color: var(--primary-color);
         }
 
         .file-attachment {
@@ -508,7 +568,7 @@ $completed_assignments = $stmt->fetchAll();
 
         .alert {
             padding: 14px 16px;
-            border-radius: 20px;
+            border-radius: 12px;
             margin-bottom: 20px;
             font-size: 0.85rem;
             display: flex;
@@ -528,84 +588,108 @@ $completed_assignments = $stmt->fetchAll();
             border-left: 4px solid var(--danger);
         }
 
+        .alert-info {
+            background: #eef2ff;
+            color: #1e3a8a;
+            border-left: 4px solid var(--info);
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px 24px;
-            color: var(--gray-600);
+            color: #999;
         }
 
         .submission-detail {
             background: var(--gray-50);
             padding: 16px;
-            border-radius: 20px;
+            border-radius: 16px;
             margin-top: 12px;
         }
 
-        @media (min-width: 640px) {
-            .container {
-                padding: 20px 24px;
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.8rem;
+            border-top: 1px solid #ecf0f1;
+            margin-top: 20px;
+        }
+
+        @media (min-width: 769px) {
+            .sidebar {
+                transform: translateX(0);
             }
 
-            .bottom-nav {
-                max-width: 500px;
-                left: 50%;
-                transform: translateX(-50%);
-                border-radius: 40px 40px 0 0;
-                bottom: 8px;
-                width: 94%;
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
             }
         }
 
-        .student-chip {
-            background: var(--gray-100);
-            padding: 6px 12px 6px 8px;
-            border-radius: 40px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+        @media (max-width: 768px) {
+            .welcome-banner {
+                flex-direction: column;
+                text-align: center;
+            }
 
-        .student-chip:hover {
-            background: var(--gray-200);
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
         }
     </style>
 </head>
 
 <body>
+    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-
-    <!-- Bottom Navigation (mobile friendly) -->
-    <div class="bottom-nav">
-        <a href="index.php" class="nav-item"><i class="fas fa-tachometer-alt"></i><span>Home</span></a>
-        <a href="take-exam.php" class="nav-item"><i class="fas fa-file-alt"></i><span>Exam</span></a>
-        <a href="assignments.php" class="nav-item active"><i class="fas fa-tasks"></i><span>Tasks</span></a>
-        <a href="view-results.php" class="nav-item"><i class="fas fa-chart-line"></i><span>Results</span></a>
-        <a href="profile.php" class="nav-item"><i class="fas fa-user"></i><span>Profile</span></a>
-    </div>
-
-    <!-- Header -->
-    <div class="app-header">
-        <div class="header-row">
-            <div class="greeting">
-                <h1>📚 Assignments</h1>
-                <p><?php echo htmlspecialchars($student_class); ?> • <?php echo htmlspecialchars($admission_number); ?></p>
-            </div>
-            <div class="student-chip">
-                <img src="<?php echo htmlspecialchars($profile_picture); ?>"
-                    alt="Profile"
-                    style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); background: #f0f0f0;"
-                    onerror="this.src='/assets/uploads/default-avatar.png'">
-                <span><?php echo htmlspecialchars($student_name); ?></span>
-                <i class="fas fa-chevron-down" style="font-size: 12px; opacity: 0.7;"></i>
+    <div class="sidebar" id="sidebar">
+        <div class="logo">
+            <div class="logo-icon"><i class="fas fa-tasks"></i></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Student Portal</p>
             </div>
         </div>
+        <div class="student-info">
+            <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                alt="Profile Picture"
+                class="student-avatar"
+                onerror="this.src='/assets/uploads/default-avatar.png'">
+            <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
+            <div class="student-details"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?></div>
+            <div class="student-details"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="take-exam.php"><i class="fas fa-file-alt"></i> Take Exam</a></li>
+            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> My Results</a></li>
+            <li><a href="assignments.php" class="active"><i class="fas fa-tasks"></i> Assignments</a></li>
+            <li><a href="library.php"><i class="fas fa-book"></i> E-Library</a></li>
+            <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
+            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
     </div>
 
-    <main class="container">
+    <div class="main-content">
+        <div class="top-header">
+            <div class="welcome-banner">
+                <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                    alt="Profile Picture"
+                    class="welcome-avatar"
+                    onerror="this.src='/assets/uploads/default-avatar.png'">
+                <div class="welcome-text">
+                    <h1>📚 My Assignments</h1>
+                    <p><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?></p>
+                </div>
+            </div>
+        </div>
+
         <!-- Flash messages -->
         <?php if (isset($message)): ?>
             <div class="alert alert-<?php echo $message_type; ?>">
@@ -619,15 +703,15 @@ $completed_assignments = $stmt->fetchAll();
 
         <!-- ========== SINGLE ASSIGNMENT VIEW (SUBMISSION) ========== -->
         <?php if ($assignment && !$existing_submission && !$view_submission): ?>
-            <div class="card">
+            <div class="content-card">
                 <div class="card-header">
                     <h3><i class="fas fa-pen-alt"></i> <?php echo htmlspecialchars($assignment['title']); ?></h3>
                     <?php if (strtotime($assignment['deadline']) < time()): ?>
                         <span class="grade-badge" style="background:#fee2e2; color:#b91c1c;"><i class="fas fa-hourglass-end"></i> Expired</span>
                     <?php endif; ?>
                 </div>
-                <div style="padding: 0 18px 12px 18px;">
-                    <div class="meta-row" style="margin-bottom: 12px;">
+                <div style="margin-bottom: 15px;">
+                    <div class="assignment-meta" style="margin-bottom: 12px;">
                         <span><i class="fas fa-book-open"></i> <?php echo htmlspecialchars($assignment['subject_name']); ?></span>
                         <span><i class="fas fa-calendar-alt"></i> Due: <?php echo date('M d, Y g:i A', strtotime($assignment['deadline'])); ?></span>
                         <span><i class="fas fa-star"></i> Max: <?php echo $assignment['max_marks']; ?></span>
@@ -636,22 +720,22 @@ $completed_assignments = $stmt->fetchAll();
                         <p style="margin-top: 8px; line-height:1.5;"><?php echo nl2br(htmlspecialchars($assignment['instructions'])); ?></p>
                     </div>
                     <?php if ($assignment['file_path']): ?>
-                        <div class="file-attachment" style="margin: 12px 0;"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank" style="color:var(--primary);">📄 Assignment file</a> <a href="/gos/<?php echo $assignment['file_path']; ?>" download class="btn btn-sm btn-outline" style="margin-left:8px;"><i class="fas fa-download"></i></a></div>
+                        <div class="file-attachment" style="margin: 12px 0;"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank" style="color:var(--primary-color);">📄 Assignment file</a> <a href="/gos/<?php echo $assignment['file_path']; ?>" download class="btn btn-outline btn-sm" style="margin-left:8px;"><i class="fas fa-download"></i></a></div>
                     <?php endif; ?>
                 </div>
 
                 <?php if ($assignment['submission_type'] == 'written'): ?>
-                    <div class="alert alert-info" style="margin:0 18px 18px 18px; background:#eef2ff; color:#1e3a8a;">
+                    <div class="alert alert-info">
                         <i class="fas fa-pen-fancy"></i> Written only: Submit physically to teacher.
                     </div>
-                    <div style="padding:0 18px 18px 18px;"><a href="assignments.php" class="btn btn-warning"><i class="fas fa-arrow-left"></i> Back</a></div>
+                    <a href="assignments.php" class="btn btn-warning"><i class="fas fa-arrow-left"></i> Back</a>
                 <?php elseif ($assignment['submission_type'] == 'online' || $assignment['submission_type'] == 'both'): ?>
                     <?php $is_expired = strtotime($assignment['deadline']) < time(); ?>
                     <?php if ($is_expired): ?>
-                        <div class="alert alert-error" style="margin:0 18px 18px 18px;">Submission deadline passed.</div>
-                        <div style="padding:0 18px 18px 18px;"><a href="assignments.php" class="btn btn-warning">Back</a></div>
+                        <div class="alert alert-error">Submission deadline passed.</div>
+                        <a href="assignments.php" class="btn btn-warning">Back</a>
                     <?php else: ?>
-                        <form method="POST" enctype="multipart/form-data" style="padding: 0 18px 20px 18px;">
+                        <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="assignment_id" value="<?php echo $assignment['id']; ?>">
                             <input type="hidden" name="submission_method" id="finalMethod" value="online">
                             <?php if ($assignment['submission_type'] == 'both'): ?>
@@ -674,7 +758,7 @@ $completed_assignments = $stmt->fetchAll();
                                 <button type="submit" name="submit_assignment" class="btn btn-success" style="width:100%;"><i class="fas fa-paper-plane"></i> Submit online</button>
                             </div>
                             <div id="writtenBox" style="display:none;">
-                                <div class="alert alert-info" style="margin:10px 0;">📌 You’ve selected written submission. Please submit on paper in class.</div>
+                                <div class="alert alert-info" style="margin:10px 0;">📌 You've selected written submission. Please submit on paper in class.</div>
                                 <button type="button" id="confirmWrittenBtn" class="btn btn-primary" style="width:100%;"><i class="fas fa-check"></i> Confirm written submission</button>
                             </div>
                             <a href="assignments.php" class="btn btn-outline" style="margin-top:12px; width:100%;">Cancel</a>
@@ -686,15 +770,18 @@ $completed_assignments = $stmt->fetchAll();
 
         <!-- Already submitted view -->
         <?php if ($assignment && $existing_submission && !$view_submission): ?>
-            <div class="card">
+            <div class="content-card">
                 <div class="card-header">
                     <h3><?php echo htmlspecialchars($assignment['title']); ?></h3>
                 </div>
-                <div style="padding: 0 18px 18px 18px;">
+                <div>
                     <div class="alert alert-success"><i class="fas fa-check-circle"></i> Already submitted on <?php echo date('M d, Y', strtotime($existing_submission['submitted_at'])); ?></div>
-                    <div class="submission-detail"><strong>Status:</strong> <span class="grade-badge grade-<?php echo $existing_submission['status']; ?>"><?php echo ucfirst($existing_submission['status']); ?></span>
-                        <?php if ($existing_submission['status'] === 'graded'): ?><p><strong>Grade:</strong> <?php echo $existing_submission['grade']; ?>/<?php echo $assignment['max_marks']; ?></p>
-                            <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($existing_submission['teacher_feedback'])); ?></p><?php endif; ?>
+                    <div class="submission-detail">
+                        <strong>Status:</strong> <span class="grade-badge grade-<?php echo $existing_submission['status']; ?>"><?php echo ucfirst($existing_submission['status']); ?></span>
+                        <?php if ($existing_submission['status'] === 'graded'): ?>
+                            <p><strong>Grade:</strong> <?php echo $existing_submission['grade']; ?>/<?php echo $assignment['max_marks']; ?></p>
+                            <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($existing_submission['teacher_feedback'])); ?></p>
+                        <?php endif; ?>
                     </div>
                     <a href="assignments.php" class="btn btn-primary" style="margin-top:16px;">← Back to list</a>
                 </div>
@@ -703,19 +790,26 @@ $completed_assignments = $stmt->fetchAll();
 
         <!-- View single submission details -->
         <?php if ($submission): ?>
-            <div class="card">
+            <div class="content-card">
                 <div class="card-header">
                     <h3><i class="fas fa-eye"></i> <?php echo htmlspecialchars($submission['title']); ?></h3>
                 </div>
-                <div style="padding: 0 18px 18px;">
-                    <div class="meta-row"><span><i class="fas fa-book"></i> <?php echo htmlspecialchars($submission['subject_name']); ?></span><span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($submission['submitted_at'])); ?></span></div>
+                <div>
+                    <div class="assignment-meta">
+                        <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($submission['subject_name']); ?></span>
+                        <span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($submission['submitted_at'])); ?></span>
+                    </div>
                     <div class="submission-detail">
                         <p><strong>Status:</strong> <span class="grade-badge grade-<?php echo $submission['status']; ?>"><?php echo ucfirst($submission['status']); ?></span></p>
-                        <?php if ($submission['status'] === 'graded'): ?><p><strong>Grade:</strong> <?php echo $submission['grade']; ?>/<?php echo $submission['max_marks']; ?></p>
-                            <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($submission['teacher_feedback'])); ?></p><?php endif; ?>
+                        <?php if ($submission['status'] === 'graded'): ?>
+                            <p><strong>Grade:</strong> <?php echo $submission['grade']; ?>/<?php echo $submission['max_marks']; ?></p>
+                            <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($submission['teacher_feedback'])); ?></p>
+                        <?php endif; ?>
                         <p style="margin-top:12px;"><strong>Your answer:</strong></p>
-                        <div style="background:white; padding:12px; border-radius:16px;"><?php echo nl2br(htmlspecialchars($submission['submitted_text'])); ?></div>
-                        <?php if ($submission['file_path']): ?><div class="file-attachment" style="margin-top:12px;"><i class="fas fa-file"></i> <a href="/gos/<?php echo $submission['file_path']; ?>" target="_blank">View attachment</a></div><?php endif; ?>
+                        <div style="background:white; padding:12px; border-radius:12px;"><?php echo nl2br(htmlspecialchars($submission['submitted_text'])); ?></div>
+                        <?php if ($submission['file_path']): ?>
+                            <div class="file-attachment" style="margin-top:12px;"><i class="fas fa-file"></i> <a href="/gos/<?php echo $submission['file_path']; ?>" target="_blank">View attachment</a></div>
+                        <?php endif; ?>
                     </div>
                     <a href="assignments.php" class="btn btn-outline" style="margin-top:16px;">← Back</a>
                 </div>
@@ -725,16 +819,14 @@ $completed_assignments = $stmt->fetchAll();
         <!-- ========== DASHBOARD: Pending & Completed ========== -->
         <?php if (!$assignment_id && !$view_submission): ?>
             <!-- Pending assignments -->
-            <div class="card">
+            <div class="content-card">
                 <div class="card-header">
-                    <h3><i class="fas fa-hourglass-half"></i> Pending</h3>
+                    <h3><i class="fas fa-hourglass-half"></i> Pending Assignments</h3>
                     <span class="badge-count"><?php echo count($pending_assignments); ?></span>
                 </div>
-                <div style="padding: 8px 18px; background: var(--gray-50); font-size: 0.7rem; color: var(--gray-600); border-bottom: 1px solid var(--gray-100);">
-                    <i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?>
-                </div>
                 <?php if (empty($pending_assignments)): ?>
-                    <div class="empty-state"><i class="fas fa-check-circle fa-2x"></i>
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle fa-2x"></i>
                         <p>All caught up! 🎉</p>
                     </div>
                     <?php else: foreach ($pending_assignments as $task):
@@ -742,10 +834,23 @@ $completed_assignments = $stmt->fetchAll();
                         $urgentClass = $expired ? 'deadline-expired' : ($task['urgency'] === 'urgent' ? 'deadline-urgent' : ($task['urgency'] === 'near' ? 'deadline-near' : ''));
                     ?>
                         <div class="assignment-item">
-                            <div class="assignment-title"><?php echo htmlspecialchars($task['title']); ?> <?php if ($expired): ?><span class="grade-badge" style="background:#fee2e2;">Expired</span><?php endif; ?></div>
-                            <div class="meta-row"><span><i class="fas fa-book"></i> <?php echo htmlspecialchars($task['subject_name']); ?></span><span><i class="fas fa-calendar"></i> <?php echo date('M d, g:i A', strtotime($task['deadline'])); ?></span><span class="<?php echo $urgentClass; ?>"><?php if (!$expired && $task['days_left'] > 0) echo $task['days_left'] . 'd left';
-                                                                                                                                                                                                                                                                                                        elseif (!$expired) echo 'Due today'; ?></span></div>
-                            <?php if ($task['file_path']): ?><div class="file-attachment"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $task['file_path']; ?>" target="_blank">Attachment</a></div><?php endif; ?>
+                            <div class="assignment-title">
+                                <?php echo htmlspecialchars($task['title']); ?>
+                                <?php if ($expired): ?>
+                                    <span class="grade-badge" style="background:#fee2e2;">Expired</span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="assignment-meta">
+                                <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($task['subject_name']); ?></span>
+                                <span><i class="fas fa-calendar"></i> <?php echo date('M d, g:i A', strtotime($task['deadline'])); ?></span>
+                                <span class="<?php echo $urgentClass; ?>">
+                                    <?php if (!$expired && $task['days_left'] > 0) echo $task['days_left'] . 'd left';
+                                    elseif (!$expired) echo 'Due today'; ?>
+                                </span>
+                            </div>
+                            <?php if ($task['file_path']): ?>
+                                <div class="file-attachment"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $task['file_path']; ?>" target="_blank">Attachment</a></div>
+                            <?php endif; ?>
                             <?php if (!$expired && $task['submission_type'] != 'written'): ?>
                                 <a href="assignments.php?id=<?php echo $task['id']; ?>" class="btn btn-primary btn-sm" style="margin-top:10px;"><i class="fas fa-arrow-right"></i> Submit</a>
                             <?php elseif ($task['submission_type'] == 'written' && !$expired): ?>
@@ -759,20 +864,25 @@ $completed_assignments = $stmt->fetchAll();
             </div>
 
             <!-- Completed assignments -->
-            <div class="card">
+            <div class="content-card">
                 <div class="card-header">
-                    <h3><i class="fas fa-check-double"></i> Completed</h3>
+                    <h3><i class="fas fa-check-double"></i> Completed Assignments</h3>
                     <span class="badge-count"><?php echo count($completed_assignments); ?></span>
                 </div>
                 <?php if (empty($completed_assignments)): ?>
-                    <div class="empty-state"><i class="fas fa-folder-open"></i>
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
                         <p>No submissions yet</p>
                     </div>
                     <?php else: foreach ($completed_assignments as $comp): ?>
                         <div class="assignment-item">
                             <div class="assignment-title"><?php echo htmlspecialchars($comp['title']); ?></div>
-                            <div class="meta-row"><span><i class="fas fa-book"></i> <?php echo htmlspecialchars($comp['subject_name']); ?></span><span><i class="fas fa-calendar-check"></i> <?php echo date('M d', strtotime($comp['submitted_at'])); ?></span>
-                                <?php if ($comp['status'] === 'graded'): ?><span><i class="fas fa-star"></i> <?php echo $comp['grade']; ?>/<?php echo $comp['max_marks']; ?></span><?php endif; ?>
+                            <div class="assignment-meta">
+                                <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($comp['subject_name']); ?></span>
+                                <span><i class="fas fa-calendar-check"></i> <?php echo date('M d', strtotime($comp['submitted_at'])); ?></span>
+                                <?php if ($comp['status'] === 'graded'): ?>
+                                    <span><i class="fas fa-star"></i> <?php echo $comp['grade']; ?>/<?php echo $comp['max_marks']; ?></span>
+                                <?php endif; ?>
                                 <span class="grade-badge grade-<?php echo $comp['status']; ?>"><?php echo ucfirst($comp['status']); ?></span>
                             </div>
                             <a href="assignments.php?submission=<?php echo $comp['id']; ?>" class="btn btn-outline btn-sm" style="margin-top:8px;"><i class="fas fa-eye"></i> Details</a>
@@ -781,9 +891,24 @@ $completed_assignments = $stmt->fetchAll();
                 endif; ?>
             </div>
         <?php endif; ?>
-    </main>
+
+        <div class="footer">
+            <p>&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> - Student Portal</p>
+        </div>
+    </div>
 
     <script>
+        // Mobile sidebar toggle
+        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
+
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 &&
+                !document.getElementById('sidebar').contains(e.target) &&
+                !document.getElementById('mobileMenuBtn').contains(e.target)) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        });
+
         // Method toggle for both submission types
         const methodDivs = document.querySelectorAll('.type-option');
         const onlineBox = document.getElementById('onlineBox');
@@ -801,7 +926,6 @@ $completed_assignments = $stmt->fetchAll();
                 if (writtenBox) writtenBox.style.display = 'block';
                 if (finalMethodInput) finalMethodInput.value = 'written';
             }
-            // update active ui
             if (methodDivs.length) {
                 methodDivs.forEach(opt => {
                     const m = opt.getAttribute('data-method');
@@ -823,7 +947,6 @@ $completed_assignments = $stmt->fetchAll();
         if (confirmWrittenBtn) {
             confirmWrittenBtn.addEventListener('click', () => {
                 if (confirm('Confirm written submission? You will submit physically in class.')) {
-                    // create hidden form to record written intent? we just submit a flag via POST or just store status? original code uses confirmWrittenSubmission JS but we can also create a form with written method.
                     const form = document.querySelector('form');
                     if (form) {
                         const hiddenMethod = document.createElement('input');
@@ -832,8 +955,6 @@ $completed_assignments = $stmt->fetchAll();
                         hiddenMethod.value = 'written';
                         form.appendChild(hiddenMethod);
                         form.submit();
-                    } else {
-                        alert('Please refresh and try again');
                     }
                 }
             });
@@ -850,10 +971,6 @@ $completed_assignments = $stmt->fetchAll();
                 }
             });
         }
-
-        // Mobile sidebar simulation removed (we use bottom nav) but keep closing if exists
-        const menuBtn = document.getElementById('mobileMenuBtn');
-        if (menuBtn) menuBtn.style.display = 'none';
     </script>
 </body>
 

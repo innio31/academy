@@ -15,12 +15,15 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
-$student_class = $_SESSION['user_class'] ?? '';
 
-// Get student details
+// Get student details (including class from database)
 $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
 $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
+
+// Set class from database, not session
+$student_class = $student['class'] ?? '';
+$admission_number = $student['admission_number'] ?? '';
 
 // Get profile picture path
 $profile_picture = !empty($student['profile_picture']) ? $student['profile_picture'] : '/assets/uploads/default-avatar.png';
@@ -511,7 +514,7 @@ $stats = $stmt->fetch();
                     onerror="this.src='/assets/uploads/default-avatar.png'">
                 <div class="welcome-text">
                     <h1>Welcome, <?php echo htmlspecialchars($student_name); ?>!</h1>
-                    <p><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
+                    <p><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?></p>
                 </div>
             </div>
         </div>

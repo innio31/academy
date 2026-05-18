@@ -561,9 +561,13 @@ if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/'
             </div>
         </div>
         <div class="student-info">
-            <h4><?php echo htmlspecialchars($student_name); ?></h4>
-            <p><?php echo htmlspecialchars($student['admission_number']); ?></p>
-            <p><?php echo htmlspecialchars($student['class']); ?></p>
+            <img src="<?php echo $profile_picture_url ?: '/assets/uploads/default-avatar.png'; ?>"
+                alt="Profile Picture"
+                style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #d4af7a; margin: 0 auto 12px auto; display: block; background: #f0f0f0;"
+                onerror="this.src='/assets/uploads/default-avatar.png'">
+            <h4 style="margin: 10px 0 5px;"><?php echo htmlspecialchars($student_name); ?></h4>
+            <p style="font-size: 0.75rem; opacity: 0.8;"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
+            <p style="font-size: 0.75rem; opacity: 0.8;"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student['class']); ?></p>
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>

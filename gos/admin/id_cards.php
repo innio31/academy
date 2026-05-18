@@ -76,7 +76,7 @@ if (isset($_GET['action'])) {
             $params[] = "%$search%";
             $params[] = "%$search%";
         }
-        $stmt = $pdo->prepare("SELECT s.id, s.full_name, s.admission_number, s.class, s.profile_picture, s.qr_code, s.dob, s.gender FROM students s $where ORDER BY s.full_name LIMIT 200");
+        $stmt = $pdo->prepare("SELECT s.id, s.full_name, s.admission_number, s.class, s.profile_picture, s.dob, s.gender FROM students s $where ORDER BY s.full_name LIMIT 200");
         $stmt->execute($params);
         echo json_encode(['success' => true, 'students' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
         exit();
@@ -118,8 +118,6 @@ if (isset($_GET['action'])) {
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-    <!-- QR Code library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- html2canvas for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- jsPDF -->
@@ -855,6 +853,51 @@ if (isset($_GET['action'])) {
             background: linear-gradient(90deg, var(--card-primary, #722F37), var(--card-secondary, #d4af7a), var(--card-primary, #722F37));
         }
 
+        /* ── Watermark ── */
+        .card-watermark {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .card-watermark span {
+            font-size: .95rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .18em;
+            color: var(--card-primary, #722F37);
+            opacity: .07;
+            white-space: nowrap;
+            transform: rotate(-30deg);
+            /* Repeat via text-shadow to tile across card */
+            text-shadow:
+                -90px -30px 0 var(--card-primary, #722F37),
+                90px -30px 0 var(--card-primary, #722F37),
+                -90px 30px 0 var(--card-primary, #722F37),
+                90px 30px 0 var(--card-primary, #722F37),
+                0px -60px 0 var(--card-primary, #722F37),
+                0px 60px 0 var(--card-primary, #722F37),
+                -180px 0px 0 var(--card-primary, #722F37),
+                180px 0px 0 var(--card-primary, #722F37);
+        }
+
+        /* Make card-body and card contents sit above watermark */
+        .id-front .card-header,
+        .id-front .card-body,
+        .id-front .card-footer,
+        .id-back .back-header,
+        .id-back .back-body,
+        .id-back .back-footer,
+        .front-qr-wrap {
+            position: relative;
+            z-index: 1;
+        }
+
         /* QR area on front */
         .front-qr-wrap {
             position: absolute;
@@ -1214,7 +1257,7 @@ if (isset($_GET['action'])) {
             <div class="logo">
                 <div class="logo-icon">
                     <?php if (!empty($school['logo_path'])): ?>
-                        <img src="<?= htmlspecialchars($school['logo_path']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                        <img src="/gos/assets/logos/gos001.png" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                         <i class="fas fa-graduation-cap" style="display:none;"></i>
                     <?php else: ?>
                         <i class="fas fa-graduation-cap"></i>
@@ -1397,7 +1440,7 @@ if (isset($_GET['action'])) {
         const SCHOOL = {
             name: <?= json_encode($school_name) ?>,
             motto: <?= json_encode($school['motto'] ?? '') ?>,
-            logo: <?= json_encode($school['logo_path'] ?? '') ?>,
+            logo: '/gos/assets/logos/gos001.png',
             email: <?= json_encode($school['contact_email'] ?? '') ?>,
             phone: <?= json_encode($school['contact_phone'] ?? '') ?>,
             school_id: <?= (int)$school_id ?>
@@ -1459,8 +1502,9 @@ if (isset($_GET['action'])) {
             }
             grid.innerHTML = allStudents.map(s => {
                 const initials = s.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-                const avatar = s.profile_picture ?
-                    `<img class="student-avatar" src="${s.profile_picture}" onerror="this.outerHTML='<div class=student-avatar-placeholder>${initials}</div>'" alt="${s.full_name}">` :
+                const photoSrc = s.profile_picture ? `/gos/uploads/students/${s.profile_picture}` : null;
+                const avatar = photoSrc ?
+                    `<img class="student-avatar" src="${photoSrc}" onerror="this.outerHTML='<div class=student-avatar-placeholder>${initials}</div>'" alt="${s.full_name}">` :
                     `<div class="student-avatar-placeholder">${initials}</div>`;
                 const isSel = selected.has(s.id);
                 return `
@@ -1573,35 +1617,31 @@ if (isset($_GET['action'])) {
 
             // Generate QR codes after DOM insert
             students.forEach(s => {
-                const qrData = s.qr_code || `${SCHOOL.name}|${s.admission_number}|${s.full_name}`;
+                // Use the pre-generated QR image saved by the system
+                const qrSrc = `/gos/uploads/qrcodes/student_${s.id}.png`;
                 const frontEl = document.getElementById(`qr-front-${s.id}`);
                 const backEl = document.getElementById(`qr-back-${s.id}`);
-                if (frontEl && CARD_SETTINGS.show_qr) makeQR(frontEl, qrData, 46);
-                if (backEl) makeQR(backEl, qrData, 54);
+                if (frontEl && CARD_SETTINGS.show_qr) {
+                    frontEl.innerHTML = `<img src="${qrSrc}" onerror="this.style.opacity='.3'" alt="QR">`;
+                }
+                if (backEl) {
+                    backEl.innerHTML = `<img src="${qrSrc}" onerror="this.style.opacity='.3'" alt="QR">`;
+                }
             });
 
             openModal('preview-modal');
         }
 
-        function makeQR(el, data, size) {
-            el.innerHTML = '';
-            new QRCode(el, {
-                text: data,
-                width: size,
-                height: size,
-                colorDark: '#000',
-                colorLight: '#fff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
-        }
+        // (QR codes are loaded from pre-generated images at /gos/uploads/qrcodes/student_[id].png)
 
         // ─── Build card HTML ──────────────────────────────────────────────
         function buildFrontHTML(s) {
             const p = CARD_SETTINGS.primary;
             const sec = CARD_SETTINGS.secondary;
             const initials = s.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-            const photoHTML = s.profile_picture ?
-                `<img class="student-photo" src="${esc(s.profile_picture)}" alt="${esc(s.full_name)}" onerror="this.outerHTML='<div class=student-photo-ph style=background:linear-gradient(135deg,${p},${sec})>${initials}</div>'">` :
+            const photoSrc = s.profile_picture ? `/gos/uploads/students/${s.profile_picture}` : null;
+            const photoHTML = photoSrc ?
+                `<img class="student-photo" src="${photoSrc}" alt="${esc(s.full_name)}" onerror="this.outerHTML='<div class=student-photo-ph style=background:linear-gradient(135deg,${p},${sec})>${initials}</div>'">` :
                 `<div class="student-photo-ph" style="background:linear-gradient(135deg,${p},${sec})">${initials}</div>`;
             const logoHTML = SCHOOL.logo ?
                 `<img class="school-logo-img" src="${esc(SCHOOL.logo)}" onerror="this.outerHTML='<div class=school-logo-placeholder>🎓</div>'">` :
@@ -1611,8 +1651,11 @@ if (isset($_GET['action'])) {
                 `<div class="motto">${esc(SCHOOL.motto)}</div>` : '';
             const admDate = s.date_of_admission ? new Date(s.date_of_admission).getFullYear() : '';
 
+            const wmText = SCHOOL.name.length > 20 ? SCHOOL.name.split(' ').slice(0, 3).join(' ') : SCHOOL.name;
+
             return `
     <div class="id-card id-front" style="--card-primary:${p};--card-secondary:${sec};">
+        <div class="card-watermark"><span>${esc(wmText)}</span></div>
         <div class="card-header">
             ${logoHTML}
             <div class="school-info">
@@ -1645,6 +1688,7 @@ if (isset($_GET['action'])) {
         function buildBackHTML(s) {
             const p = CARD_SETTINGS.primary;
             const sec = CARD_SETTINGS.secondary;
+            const wmText = SCHOOL.name.length > 20 ? SCHOOL.name.split(' ').slice(0, 3).join(' ') : SCHOOL.name;
             const logoHTML = SCHOOL.logo ?
                 `<img class="back-logo" src="${esc(SCHOOL.logo)}" onerror="this.outerHTML='<div class=back-logo-ph style=background:linear-gradient(135deg,${p},${sec})>🎓</div>'">` :
                 `<div class="back-logo-ph" style="background:linear-gradient(135deg,${p},${sec})">🎓</div>`;
@@ -1656,6 +1700,7 @@ if (isset($_GET['action'])) {
 
             return `
     <div class="id-card id-back" style="--card-primary:${p};--card-secondary:${sec};">
+        <div class="card-watermark"><span>${esc(wmText)}</span></div>
         <div class="back-header"></div>
         <div class="back-body">
             <div class="back-logo-wrap">

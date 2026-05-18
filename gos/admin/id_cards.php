@@ -1713,7 +1713,7 @@ if (isset($_GET['action'])) {
         <div class="back-body">
             <div class="back-logo-wrap">
                 ${logoHTML}
-                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;"></div>
+                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;width:54px;height:54px;overflow:hidden;flex-shrink:0;"></div>
             </div>
             <div class="back-divider"></div>
             <div class="back-text-area">

@@ -1338,12 +1338,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 scan_type: currentScanType
             };
 
-            fetch(window.location.href, {
+            fetch('attendance_api.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify(requestData)
                 })
@@ -1384,11 +1383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         function loadTodayStats() {
-            fetch(window.location.href + '?action=get_today_stats', {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+            fetch('attendance_api.php?action=get_today_stats')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1404,11 +1399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         function loadRecentScans() {
-            fetch(window.location.href + '?action=get_recent_scans', {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+            fetch('attendance_api.php?action=get_recent_scans')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.scans) {
@@ -1441,11 +1432,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             const classId = document.getElementById('classFilter').value;
             const today = new Date().toISOString().split('T')[0];
 
-            fetch(`${window.location.href}?action=get_daily_stats&date=${today}&class_id=${classId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+            fetch(`attendance_api.php?action=get_daily_stats&date=${today}&class_id=${classId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1483,11 +1470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             const classId = document.getElementById('classFilter').value;
             const today = new Date().toISOString().split('T')[0];
 
-            fetch(`${window.location.href}?action=get_daily_stats&date=${today}&class_id=${classId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
+            fetch(`attendance_api.php?action=get_daily_stats&date=${today}&class_id=${classId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

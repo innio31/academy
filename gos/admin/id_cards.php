@@ -916,6 +916,7 @@ if (isset($_GET['action'])) {
             display: block;
         }
 
+
         /* ── BACK FACE ── */
         .id-back {
             background: #fff;
@@ -1502,7 +1503,7 @@ if (isset($_GET['action'])) {
             }
             grid.innerHTML = allStudents.map(s => {
                 const initials = s.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-                const photoSrc = s.profile_picture ? `/gos/uploads/students/${s.profile_picture}` : null;
+                const photoSrc = s.profile_picture ? `${s.profile_picture}` : null;
                 const avatar = photoSrc ?
                     `<img class="student-avatar" src="${photoSrc}" onerror="this.outerHTML='<div class=student-avatar-placeholder>${initials}</div>'" alt="${s.full_name}">` :
                     `<div class="student-avatar-placeholder">${initials}</div>`;
@@ -1705,7 +1706,7 @@ if (isset($_GET['action'])) {
         <div class="back-body">
             <div class="back-logo-wrap">
                 ${logoHTML}
-                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;"></div>
+                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;width:54px;height:54px;overflow:hidden;flex-shrink:0;"></div>
             </div>
             <div class="back-divider"></div>
             <div class="back-text-area">

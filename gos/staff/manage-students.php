@@ -15,13 +15,24 @@ $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 
-// Get staff assigned classes
-$stmt = $pdo->prepare("
-    SELECT class FROM staff_classes 
-    WHERE staff_id = ? AND school_id = ?
-");
+// Get the staff_id string from the staff table
+$stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
 $stmt->execute([$staff_id, $school_id]);
-$assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$staff_id_string = $stmt->fetchColumn();
+
+if (!$staff_id_string) {
+    $error = "Staff record not found. Please contact administrator.";
+    $students = [];
+    $assigned_classes = [];
+} else {
+    // Get staff assigned classes using the string version
+    $stmt = $pdo->prepare("
+        SELECT class FROM staff_classes 
+        WHERE staff_id = ? AND school_id = ?
+    ");
+    $stmt->execute([$staff_id_string, $school_id]);
+    $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
 // If no classes assigned
 if (empty($assigned_classes)) {

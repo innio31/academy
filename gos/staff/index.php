@@ -17,6 +17,25 @@ $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 $staff_role = $_SESSION['staff_role'] ?? 'staff';
 
+// Get the staff_id string from the staff table
+$stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
+$stmt->execute([$staff_id, $school_id]);
+$staff_id_string = $stmt->fetchColumn();
+
+if (!$staff_id_string) {
+    // Handle error - staff not found
+    $error = "Staff record not found. Please contact administrator.";
+    $assigned_subjects = [];
+    $assigned_classes = [];
+    $class_names = [];
+    $total_students = 0;
+    $total_exams = 0;
+    $pending_grading = 0;
+    $recent_activities = [];
+    $upcoming_deadlines = [];
+    $recent_results = [];
+}
+
 // Get staff assigned subjects and classes (using staff_id string)
 $staff_id_string = $staff_id;
 

@@ -22,6 +22,13 @@ $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
 $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
+// Get profile picture path
+$profile_picture = !empty($student['profile_picture']) ? $student['profile_picture'] : '/assets/uploads/default-avatar.png';
+// If the path doesn't start with /, add the base path
+if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '/') !== 0) {
+    $profile_picture = '/uploads/' . $student['profile_picture'];
+}
+
 // Get available exams for this student's class
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
@@ -167,6 +174,30 @@ $stats = $stmt->fetch();
             margin: 0 15px 20px;
         }
 
+        /* Student profile picture in sidebar */
+        .student-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d4af7a;
+            margin: 0 auto 12px auto;
+            display: block;
+            background: #f0f0f0;
+        }
+
+        .student-name {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .student-details {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin: 2px 0;
+        }
+
         .nav-links {
             list-style: none;
             padding: 0 15px;
@@ -221,12 +252,29 @@ $stats = $stmt->fetch();
             color: white;
         }
 
-        .welcome-banner h1 {
+        .welcome-banner {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Profile picture in welcome banner */
+        .welcome-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d4af7a;
+            background: #f0f0f0;
+        }
+
+        .welcome-text h1 {
             font-size: 1.5rem;
             margin-bottom: 5px;
         }
 
-        .welcome-banner p {
+        .welcome-text p {
             opacity: 0.9;
             font-size: 0.9rem;
         }
@@ -405,6 +453,11 @@ $stats = $stmt->fetch();
             .quick-actions {
                 grid-template-columns: repeat(2, 1fr);
             }
+
+            .welcome-banner {
+                flex-direction: column;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -421,9 +474,14 @@ $stats = $stmt->fetch();
             </div>
         </div>
         <div class="student-info">
-            <h4><?php echo htmlspecialchars($student_name); ?></h4>
-            <p><?php echo htmlspecialchars($student['admission_number']); ?></p>
-            <p><?php echo htmlspecialchars($student_class); ?></p>
+            <!-- Student Profile Picture in Sidebar -->
+            <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                alt="Profile Picture"
+                class="student-avatar"
+                onerror="this.src='/assets/uploads/default-avatar.png'">
+            <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
+            <div class="student-details"><?php echo htmlspecialchars($student['admission_number']); ?></div>
+            <div class="student-details"><?php echo htmlspecialchars($student_class); ?></div>
         </div>
         <ul class="nav-links">
             <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -439,8 +497,15 @@ $stats = $stmt->fetch();
     <div class="main-content">
         <div class="top-header">
             <div class="welcome-banner">
-                <h1>Welcome, <?php echo htmlspecialchars($student_name); ?>!</h1>
-                <p><i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
+                <!-- Student Profile Picture in Welcome Banner -->
+                <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                    alt="Profile Picture"
+                    class="welcome-avatar"
+                    onerror="this.src='/assets/uploads/default-avatar.png'">
+                <div class="welcome-text">
+                    <h1>Welcome, <?php echo htmlspecialchars($student_name); ?>!</h1>
+                    <p><i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></p>
+                </div>
             </div>
         </div>
 

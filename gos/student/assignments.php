@@ -14,16 +14,31 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
-$student_class = $_SESSION['user_class'] ?? '';
+
+// Get student class from database (not just session)
+$stmt = $pdo->prepare("SELECT class, admission_number FROM students WHERE id = ? AND school_id = ?");
+$stmt->execute([$student_id, $school_id]);
+$student_data = $stmt->fetch();
+
+if (!$student_data) {
+    header("Location: /gos/login.php");
+    exit();
+}
+
+$student_class = $student_data['class']; // This is the class name string
+$admission_number = $student_data['admission_number'];
 
 $assignment_id = $_GET['id'] ?? 0;
 $view_submission = $_GET['submission'] ?? 0;
+
+// Debug - uncomment to check if class is being retrieved
+// error_log("Student ID: $student_id, Class: $student_class");
 
 // Handle assignment submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment'])) {
     $assignment_id = $_POST['assignment_id'];
     $submitted_text = trim($_POST['submitted_text']);
-    $submission_type = $_POST['submission_type'] ?? 'online';
+    $submission_method = $_POST['submission_method'] ?? 'online';
 
     // Handle file upload
     $file_path = null;
@@ -63,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment']))
 $assignment = null;
 $existing_submission = null;
 if ($assignment_id) {
+    // Use class name directly (both are strings)
     $stmt = $pdo->prepare("
         SELECT a.*, s.subject_name 
         FROM assignments a
@@ -80,6 +96,9 @@ if ($assignment_id) {
         ");
         $stmt->execute([$student_id, $assignment_id]);
         $existing_submission = $stmt->fetch();
+    } else {
+        // Assignment not found for this class
+        $error_message = "Assignment not found or not available for your class.";
     }
 }
 
@@ -97,7 +116,7 @@ if ($view_submission) {
     $submission = $stmt->fetch();
 }
 
-// Get pending assignments
+// Get pending assignments (not submitted yet)
 $stmt = $pdo->prepare("
     SELECT a.*, s.subject_name,
            DATEDIFF(a.deadline, NOW()) as days_left,
@@ -130,6 +149,12 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$student_id, $school_id]);
 $completed_assignments = $stmt->fetchAll();
+
+// Debug info - uncomment to see what's happening
+// if (empty($pending_assignments) && empty($completed_assignments)) {
+//     error_log("No assignments found for class: $student_class");
+//     $debug_info = "Class: $student_class, School ID: $school_id";
+// }
 ?>
 
 <!DOCTYPE html>
@@ -439,6 +464,12 @@ $completed_assignments = $stmt->fetchAll();
             border-left: 4px solid var(--danger-color);
         }
 
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid var(--info-color);
+        }
+
         .file-attachment {
             display: inline-flex;
             align-items: center;
@@ -472,6 +503,17 @@ $completed_assignments = $stmt->fetchAll();
             align-items: center;
             gap: 8px;
             cursor: pointer;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
         }
 
         @media (min-width: 769px) {
@@ -521,6 +563,7 @@ $completed_assignments = $stmt->fetchAll();
         <div class="student-info">
             <h4><?php echo htmlspecialchars($student_name); ?></h4>
             <p><?php echo htmlspecialchars($student_class); ?></p>
+            <p><?php echo htmlspecialchars($admission_number); ?></p>
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -536,7 +579,7 @@ $completed_assignments = $stmt->fetchAll();
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-tasks"></i> Assignments</h1>
-                <p>View and submit your assignments</p>
+                <p>View and submit your assignments for <?php echo htmlspecialchars($student_class); ?></p>
             </div>
             <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
@@ -545,6 +588,12 @@ $completed_assignments = $stmt->fetchAll();
             <div class="alert alert-<?php echo $message_type; ?>">
                 <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($error_message)): ?>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
             </div>
         <?php endif; ?>
 
@@ -576,8 +625,28 @@ $completed_assignments = $stmt->fetchAll();
                     </span>
                 </div>
 
+                <div style="margin-bottom: 20px;">
+                    <strong><i class="fas fa-info-circle"></i> Instructions:</strong>
+                    <p style="margin-top: 8px; line-height: 1.6;"><?php echo nl2br(htmlspecialchars($assignment['instructions'])); ?></p>
+                </div>
+
+                <?php if ($assignment['file_path']): ?>
+                    <div style="margin-bottom: 20px;">
+                        <strong><i class="fas fa-paperclip"></i> Assignment File:</strong>
+                        <div class="file-attachment" style="margin-top: 8px;">
+                            <i class="fas fa-file"></i>
+                            <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank">
+                                <?php echo basename($assignment['file_path']); ?>
+                            </a>
+                            <a href="/gos/<?php echo $assignment['file_path']; ?>" download class="btn btn-info btn-sm">
+                                <i class="fas fa-download"></i> Download
+                            </a>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($assignment['submission_type'] == 'written'): ?>
-                    <div class="alert alert-info" style="background: #fff3cd; color: #856404; border-left-color: #f39c12;">
+                    <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
                         <strong>Written Submission Required:</strong>
                         <p style="margin-top: 5px;">This assignment requires a written submission. Please complete it on paper and submit it to your teacher in class.</p>
@@ -587,39 +656,17 @@ $completed_assignments = $stmt->fetchAll();
 
                 <?php elseif ($assignment['submission_type'] == 'online' || $assignment['submission_type'] == 'both'): ?>
 
-                    <div style="margin-bottom: 20px;">
-                        <strong><i class="fas fa-info-circle"></i> Instructions:</strong>
-                        <p style="margin-top: 8px; line-height: 1.6;"><?php echo nl2br(htmlspecialchars($assignment['instructions'])); ?></p>
-                    </div>
-
-                    <?php if ($assignment['file_path']): ?>
-                        <div style="margin-bottom: 20px;">
-                            <strong><i class="fas fa-paperclip"></i> Assignment File:</strong>
-                            <div class="file-attachment" style="margin-top: 8px;">
-                                <i class="fas fa-file"></i>
-                                <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank">
-                                    <?php echo basename($assignment['file_path']); ?>
-                                </a>
-                                <a href="/gos/<?php echo $assignment['file_path']; ?>" download class="btn btn-info btn-sm">
-                                    <i class="fas fa-download"></i> Download
-                                </a>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
                     <?php if ($assignment['submission_type'] == 'both'): ?>
                         <div class="form-group">
                             <label><i class="fas fa-laptop"></i> How would you like to submit?</label>
                             <div class="submission-type">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <label>
                                     <input type="radio" name="submission_method" value="online" checked onchange="toggleSubmissionMethod()">
-                                    <i class="fas fa-globe" style="color: #3498db;"></i>
-                                    Online Submission (Submit via portal)
+                                    <i class="fas fa-globe"></i> Online Submission (Submit via portal)
                                 </label>
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <label>
                                     <input type="radio" name="submission_method" value="written" onchange="toggleSubmissionMethod()">
-                                    <i class="fas fa-pen-fancy" style="color: #e74c3c;"></i>
-                                    Written Submission (Submit physically in class)
+                                    <i class="fas fa-pen-fancy"></i> Written Submission (Submit physically in class)
                                 </label>
                             </div>
                         </div>
@@ -662,13 +709,13 @@ $completed_assignments = $stmt->fetchAll();
                     </div>
 
                     <div id="writtenSubmissionForm" style="display: none;">
-                        <div class="alert alert-info" style="background: #fff3cd; color: #856404; border-left-color: #f39c12;">
+                        <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
                             <strong>You've chosen Written Submission:</strong>
                             <p style="margin-top: 5px;">Please complete this assignment on paper and submit it to your teacher in class.</p>
                             <p style="margin-top: 5px;">Make sure to write your name, admission number, and assignment title on your submission.</p>
                         </div>
-                        <a href="assignments.php" class="btn btn-success" onclick="return confirm('Confirm you will submit this assignment physically in class?')">
+                        <a href="assignments.php" class="btn btn-success" onclick="return confirmWrittenSubmission(<?php echo $assignment['id']; ?>)">
                             <i class="fas fa-check-circle"></i> Confirm Written Submission
                         </a>
                         <button type="button" class="btn btn-warning" onclick="document.querySelector('input[name=\" submission_method\"][value=\"online\"]').checked=true; toggleSubmissionMethod();">
@@ -762,8 +809,8 @@ $completed_assignments = $stmt->fetchAll();
                     <span class="assignment-meta" style="margin:0;"><?php echo count($pending_assignments); ?> pending</span>
                 </div>
                 <?php if (empty($pending_assignments)): ?>
-                    <div style="text-align:center; padding:30px; color:#999;">
-                        <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 10px;"></i>
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
                         <p>No pending assignments. Great job!</p>
                     </div>
                 <?php else: ?>
@@ -791,6 +838,15 @@ $completed_assignments = $stmt->fetchAll();
                                         <?php endif; ?>
                                     </span>
                                 <?php endif; ?>
+                                <span>
+                                    <?php if ($assignment['submission_type'] == 'online'): ?>
+                                        <i class="fas fa-globe"></i> Online
+                                    <?php elseif ($assignment['submission_type'] == 'written'): ?>
+                                        <i class="fas fa-pen-fancy"></i> Written
+                                    <?php else: ?>
+                                        <i class="fas fa-exchange-alt"></i> Online/Written
+                                    <?php endif; ?>
+                                </span>
                             </div>
                             <?php if ($assignment['file_path']): ?>
                                 <div class="file-attachment" style="margin-bottom: 8px;">
@@ -798,11 +854,15 @@ $completed_assignments = $stmt->fetchAll();
                                     <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank">View Attachment</a>
                                 </div>
                             <?php endif; ?>
-                            <?php if (!$is_expired): ?>
+                            <?php if (!$is_expired && $assignment['submission_type'] != 'written'): ?>
                                 <a href="assignments.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary" style="margin-top: 8px;">
                                     <i class="fas fa-arrow-right"></i> Submit Assignment
                                 </a>
-                            <?php else: ?>
+                            <?php elseif ($assignment['submission_type'] == 'written' && !$is_expired): ?>
+                                <span class="btn btn-info" style="margin-top: 8px; opacity:0.7;">
+                                    <i class="fas fa-pen-fancy"></i> Written Submission Required
+                                </span>
+                            <?php elseif ($is_expired): ?>
                                 <span class="btn btn-danger" style="margin-top: 8px; opacity:0.6;" disabled>
                                     <i class="fas fa-hourglass-end"></i> Submission Closed
                                 </span>
@@ -819,8 +879,8 @@ $completed_assignments = $stmt->fetchAll();
                     <span class="assignment-meta" style="margin:0;"><?php echo count($completed_assignments); ?> completed</span>
                 </div>
                 <?php if (empty($completed_assignments)): ?>
-                    <div style="text-align:center; padding:30px; color:#999;">
-                        <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 10px;"></i>
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
                         <p>No completed assignments yet.</p>
                     </div>
                 <?php else: ?>
@@ -865,6 +925,41 @@ $completed_assignments = $stmt->fetchAll();
             }
         });
 
+        // Toggle between online and written submission methods
+        function toggleSubmissionMethod() {
+            const methodRadios = document.querySelectorAll('input[name="submission_method"]');
+            let method = 'online';
+            for (let radio of methodRadios) {
+                if (radio.checked) {
+                    method = radio.value;
+                    break;
+                }
+            }
+
+            const onlineForm = document.getElementById('onlineSubmissionForm');
+            const writtenForm = document.getElementById('writtenSubmissionForm');
+            const methodInput = document.getElementById('submissionMethodInput');
+
+            if (method === 'online') {
+                if (onlineForm) onlineForm.style.display = 'block';
+                if (writtenForm) writtenForm.style.display = 'none';
+                if (methodInput) methodInput.value = 'online';
+            } else {
+                if (onlineForm) onlineForm.style.display = 'none';
+                if (writtenForm) writtenForm.style.display = 'block';
+                if (methodInput) methodInput.value = 'written';
+            }
+        }
+
+        // Confirm written submission
+        function confirmWrittenSubmission(assignmentId) {
+            if (confirm('Confirm that you will submit this assignment physically in class? You will not be able to submit online after this.')) {
+                // You can implement an AJAX call here to record the written submission intent
+                return true;
+            }
+            return false;
+        }
+
         // File size validation
         document.querySelector('input[type="file"]')?.addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -873,47 +968,6 @@ $completed_assignments = $stmt->fetchAll();
                 this.value = '';
             }
         });
-    </script>
-
-    <script>
-        // Toggle between online and written submission methods
-        function toggleSubmissionMethod() {
-            const method = document.querySelector('input[name="submission_method"]:checked').value;
-            const onlineForm = document.getElementById('onlineSubmissionForm');
-            const writtenForm = document.getElementById('writtenSubmissionForm');
-            const methodInput = document.getElementById('submissionMethodInput');
-
-            if (method === 'online') {
-                onlineForm.style.display = 'block';
-                writtenForm.style.display = 'none';
-                if (methodInput) methodInput.value = 'online';
-            } else {
-                onlineForm.style.display = 'none';
-                writtenForm.style.display = 'block';
-                if (methodInput) methodInput.value = 'written';
-            }
-        }
-
-        // Handle written submission confirmation
-        function confirmWrittenSubmission(assignmentId) {
-            if (confirm('Confirm that you will submit this assignment physically in class? You will not be able to submit online after this.')) {
-                fetch('submit_written_confirmation.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            assignment_id: assignmentId,
-                            submission_type: 'written'
-                        })
-                    }).then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            window.location.href = 'assignments.php?message=Written+submission+confirmed&type=success';
-                        }
-                    });
-            }
-        }
     </script>
 </body>
 

@@ -15,14 +15,44 @@ $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 
-// Get staff assigned subjects and classes
-$stmt = $pdo->prepare("SELECT subject_id, subject_name FROM subjects s JOIN staff_subjects ss ON s.id = ss.subject_id WHERE ss.staff_id = ? AND ss.school_id = ?");
-$stmt->execute([$staff_id, $school_id]);
-$subjects = $stmt->fetchAll();
+// Initialize variables
+$subjects = [];
+$classes = [];
+$assignments = [];
+$message = null;
+$message_type = null;
 
-$stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
-$stmt->execute([$staff_id, $school_id]);
-$classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+try {
+    // Get the staff_id string from the staff table
+    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
+    $stmt->execute([$staff_id, $school_id]);
+    $staff_id_string = $stmt->fetchColumn();
+
+    if (!$staff_id_string) {
+        $message = "Staff record not found. Please contact administrator.";
+        $message_type = "error";
+    } else {
+        // Get staff assigned subjects using the string staff_id
+        $stmt = $pdo->prepare("
+            SELECT s.id as subject_id, s.subject_name 
+            FROM subjects s 
+            JOIN staff_subjects ss ON s.id = ss.subject_id 
+            WHERE ss.staff_id = ? AND ss.school_id = ?
+            ORDER BY s.subject_name
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $subjects = $stmt->fetchAll();
+
+        // Get staff assigned classes using the string staff_id
+        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? ORDER BY class");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+} catch (Exception $e) {
+    error_log("Staff data fetch error: " . $e->getMessage());
+    $message = "An error occurred while loading your data.";
+    $message_type = "error";
+}
 
 // Handle assignment creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment'])) {
@@ -33,30 +63,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment']))
     $deadline = $_POST['deadline'];
     $max_marks = intval($_POST['max_marks'] ?? 0);
 
-    $stmt = $pdo->prepare("
-        INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, staff_id, school_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    ");
-    $stmt->execute([$title, $subject_id, $class, $instructions, $deadline, $max_marks, $staff_id, $school_id]);
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, staff_id, school_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$title, $subject_id, $class, $instructions, $deadline, $max_marks, $staff_id_string, $school_id]);
 
-    $message = "Assignment created successfully!";
-    $message_type = "success";
+        $message = "Assignment created successfully!";
+        $message_type = "success";
+    } catch (Exception $e) {
+        error_log("Assignment creation error: " . $e->getMessage());
+        $message = "Failed to create assignment: " . $e->getMessage();
+        $message_type = "error";
+    }
 }
 
 // Get assignments
-$assignments = [];
 if (!empty($classes)) {
-    $placeholders = str_repeat('?,', count($classes) - 1) . '?';
-    $stmt = $pdo->prepare("
-        SELECT a.*, s.subject_name,
-               (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submissions_count
-        FROM assignments a
-        JOIN subjects s ON a.subject_id = s.id
-        WHERE a.school_id = ? AND a.staff_id = ? AND a.class IN ($placeholders)
-        ORDER BY a.created_at DESC
-    ");
-    $stmt->execute(array_merge([$school_id, $staff_id], $classes));
-    $assignments = $stmt->fetchAll();
+    try {
+        $placeholders = str_repeat('?,', count($classes) - 1) . '?';
+        $stmt = $pdo->prepare("
+            SELECT a.*, s.subject_name,
+                   (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submissions_count
+            FROM assignments a
+            JOIN subjects s ON a.subject_id = s.id
+            WHERE a.school_id = ? AND a.staff_id = ? AND a.class IN ($placeholders)
+            ORDER BY a.created_at DESC
+        ");
+        $stmt->execute(array_merge([$school_id, $staff_id_string], $classes));
+        $assignments = $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("Assignments fetch error: " . $e->getMessage());
+        $assignments = [];
+    }
 }
 ?>
 
@@ -181,6 +221,8 @@ if (!empty($classes)) {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .header-title h1 {
@@ -253,6 +295,11 @@ if (!empty($classes)) {
             color: white;
         }
 
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 12px;
+        }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
@@ -270,22 +317,26 @@ if (!empty($classes)) {
             font-weight: 600;
         }
 
-        .status-pending {
-            background: #fff3cd;
-            color: #f39c12;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            display: inline-block;
+        .alert-success {
+            background: #d5f4e6;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #27ae60;
         }
 
-        .status-graded {
-            background: #d5f4e6;
-            color: #27ae60;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            display: inline-block;
+        .alert-error {
+            background: #f8d7da;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #e74c3c;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #999;
         }
 
         @media (min-width: 769px) {
@@ -309,10 +360,16 @@ if (!empty($classes)) {
 
             .top-header {
                 flex-direction: column;
+                text-align: center;
             }
 
             .data-table {
                 font-size: 12px;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px;
             }
         }
     </style>
@@ -336,6 +393,7 @@ if (!empty($classes)) {
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
             <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
+            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="assignments.php" class="active"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
@@ -350,7 +408,10 @@ if (!empty($classes)) {
         </div>
 
         <?php if (isset($message)): ?>
-            <div class="alert" style="background:#d5f4e6; padding:15px; border-radius:10px; margin-bottom:20px;"><?php echo $message; ?></div>
+            <div class="alert-<?php echo $message_type; ?>">
+                <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
+                <?php echo htmlspecialchars($message); ?>
+            </div>
         <?php endif; ?>
 
         <!-- Create Assignment -->
@@ -358,17 +419,55 @@ if (!empty($classes)) {
             <div class="card-header">
                 <h3><i class="fas fa-plus-circle"></i> Create New Assignment</h3>
             </div>
-            <form method="POST">
-                <div class="form-grid">
-                    <div class="form-group"><label>Title *</label><input type="text" name="title" class="form-control" required></div>
-                    <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-select" required><?php foreach ($subjects as $subject): ?><option value="<?php echo $subject['subject_id']; ?>"><?php echo htmlspecialchars($subject['subject_name']); ?></option><?php endforeach; ?></select></div>
-                    <div class="form-group"><label>Class *</label><select name="class" class="form-select" required><?php foreach ($classes as $class): ?><option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option><?php endforeach; ?></select></div>
-                    <div class="form-group"><label>Deadline *</label><input type="datetime-local" name="deadline" class="form-control" required></div>
-                    <div class="form-group"><label>Max Marks</label><input type="number" name="max_marks" class="form-control" value="100"></div>
+            <?php if (empty($classes) || empty($subjects)): ?>
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>You need to be assigned to classes and subjects before creating assignments.</p>
+                    <p style="margin-top: 10px;">Please contact the administrator to assign you to classes and subjects.</p>
                 </div>
-                <div class="form-group"><label>Instructions</label><textarea name="instructions" class="form-control" rows="3" placeholder="Enter assignment instructions..."></textarea></div>
-                <button type="submit" name="create_assignment" class="btn btn-primary"><i class="fas fa-save"></i> Create Assignment</button>
-            </form>
+            <?php else: ?>
+                <form method="POST">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Title *</label>
+                            <input type="text" name="title" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Subject *</label>
+                            <select name="subject_id" class="form-select" required>
+                                <option value="">Select Subject</option>
+                                <?php foreach ($subjects as $subject): ?>
+                                    <option value="<?php echo $subject['subject_id']; ?>"><?php echo htmlspecialchars($subject['subject_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Class *</label>
+                            <select name="class" class="form-select" required>
+                                <option value="">Select Class</option>
+                                <?php foreach ($classes as $class): ?>
+                                    <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Deadline *</label>
+                            <input type="datetime-local" name="deadline" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Max Marks</label>
+                            <input type="number" name="max_marks" class="form-control" value="100">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Instructions</label>
+                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter assignment instructions..."></textarea>
+                    </div>
+                    <button type="submit" name="create_assignment" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Create Assignment
+                    </button>
+                </form>
+            <?php endif; ?>
         </div>
 
         <!-- Assignments List -->
@@ -377,39 +476,62 @@ if (!empty($classes)) {
                 <h3><i class="fas fa-list"></i> My Assignments</h3>
             </div>
             <?php if (empty($assignments)): ?>
-                <p style="text-align:center; padding:30px; color:#999;">No assignments created yet.</p>
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <p>No assignments created yet.</p>
+                    <p style="margin-top: 10px;">Use the form above to create your first assignment.</p>
+                </div>
             <?php else: ?>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Subject</th>
-                            <th>Class</th>
-                            <th>Deadline</th>
-                            <th>Submissions</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($assignments as $assignment): ?>
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($assignment['title']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($assignment['subject_name']); ?></td>
-                                <td><?php echo htmlspecialchars($assignment['class']); ?></td>
-                                <td><?php echo date('M d, Y H:i', strtotime($assignment['deadline'])); ?></td>
-                                <td><?php echo $assignment['submissions_count']; ?> submissions</td>
-                                <td><a href="view-submissions.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-eye"></i> View</a>
-                                    <a href="edit-assignment.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> Edit</a>
-                                </td>
+                                <th>Title</th>
+                                <th>Subject</th>
+                                <th>Class</th>
+                                <th>Deadline</th>
+                                <th>Submissions</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($assignments as $assignment): ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($assignment['title']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($assignment['subject_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($assignment['class']); ?></td>
+                                    <td><?php echo date('M d, Y H:i', strtotime($assignment['deadline'])); ?></td>
+                                    <td><?php echo $assignment['submissions_count']; ?> submissions</td>
+                                    <td>
+                                        <a href="view-submissions.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                        <a href="edit-assignment.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php endif; ?>
         </div>
     </div>
+
     <script>
         document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                const menuBtn = document.getElementById('mobileMenuBtn');
+                if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
+                    sidebar.classList.remove('active');
+                }
+            }
+        });
     </script>
 </body>
 

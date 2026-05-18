@@ -742,14 +742,17 @@ if (isset($_GET['action'])) {
         }
 
         .school-info .sname {
-            font-size: .62rem;
-            font-weight: 700;
+            font-size: .72rem;
+            font-weight: 800;
             color: #fff;
             text-transform: uppercase;
-            letter-spacing: .04em;
-            white-space: nowrap;
+            letter-spacing: .03em;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 1.25;
         }
 
         .school-info .motto {
@@ -820,11 +823,17 @@ if (isset($_GET['action'])) {
         }
 
         .std-name {
-            font-size: .72rem;
-            font-weight: 700;
+            font-size: .82rem;
+            font-weight: 800;
             color: #1a1a2e;
             line-height: 1.2;
-            word-break: break-word;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
 
         .detail-row {
@@ -867,14 +876,13 @@ if (isset($_GET['action'])) {
 
         .card-watermark span {
             font-size: .95rem;
-            font-weight: 900;
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: .18em;
             color: var(--card-primary, #722F37);
-            opacity: .07;
+            opacity: .04;
             white-space: nowrap;
             transform: rotate(-30deg);
-            /* Repeat via text-shadow to tile across card */
             text-shadow:
                 -90px -30px 0 var(--card-primary, #722F37),
                 90px -30px 0 var(--card-primary, #722F37),
@@ -915,7 +923,6 @@ if (isset($_GET['action'])) {
             height: 46px !important;
             display: block;
         }
-
 
         /* ── BACK FACE ── */
         .id-back {
@@ -1503,7 +1510,7 @@ if (isset($_GET['action'])) {
             }
             grid.innerHTML = allStudents.map(s => {
                 const initials = s.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-                const photoSrc = s.profile_picture ? `${s.profile_picture}` : null;
+                const photoSrc = s.profile_picture ? s.profile_picture : null;
                 const avatar = photoSrc ?
                     `<img class="student-avatar" src="${photoSrc}" onerror="this.outerHTML='<div class=student-avatar-placeholder>${initials}</div>'" alt="${s.full_name}">` :
                     `<div class="student-avatar-placeholder">${initials}</div>`;
@@ -1640,7 +1647,7 @@ if (isset($_GET['action'])) {
             const p = CARD_SETTINGS.primary;
             const sec = CARD_SETTINGS.secondary;
             const initials = s.full_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-            const photoSrc = s.profile_picture ? `/gos/uploads/students/${s.profile_picture}` : null;
+            const photoSrc = s.profile_picture ? s.profile_picture : null;
             const photoHTML = photoSrc ?
                 `<img class="student-photo" src="${photoSrc}" alt="${esc(s.full_name)}" onerror="this.outerHTML='<div class=student-photo-ph style=background:linear-gradient(135deg,${p},${sec})>${initials}</div>'">` :
                 `<div class="student-photo-ph" style="background:linear-gradient(135deg,${p},${sec})">${initials}</div>`;
@@ -1706,7 +1713,7 @@ if (isset($_GET['action'])) {
         <div class="back-body">
             <div class="back-logo-wrap">
                 ${logoHTML}
-                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;width:54px;height:54px;overflow:hidden;flex-shrink:0;"></div>
+                <div id="qr-back-${s.id}" style="background:#fff;padding:2px;border-radius:4px;"></div>
             </div>
             <div class="back-divider"></div>
             <div class="back-text-area">

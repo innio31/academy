@@ -28,6 +28,7 @@ $pending_grading = 0;
 $recent_activities = [];
 $upcoming_deadlines = [];
 $recent_results = [];
+$staff_id_string = null;
 
 try {
     // Get the staff_id string from the staff table (this is what's stored in staff_subjects/staff_classes)
@@ -90,59 +91,101 @@ try {
         }
 
         // Pending grading - assignments that need to be graded
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM assignment_submissions 
-            WHERE status = 'submitted' AND school_id = ?
-            AND assignment_id IN (SELECT id FROM assignments WHERE school_id = ? AND staff_id = ?)
-        ");
-        $stmt->execute([$school_id, $school_id, $staff_id_string]);
-        $pending_grading = $stmt->fetch()['total'];
+        // Check if assignment_submissions table exists and has the expected structure
+        try {
+            // First check if the assignment_submissions table exists
+            $stmt = $pdo->query("SHOW TABLES LIKE 'assignment_submissions'");
+            if ($stmt->rowCount() > 0) {
+                // Check if assignment_id column exists
+                $stmt = $pdo->query("SHOW COLUMNS FROM assignment_submissions LIKE 'assignment_id'");
+                if ($stmt->rowCount() > 0) {
+                    $stmt = $pdo->prepare("
+                        SELECT COUNT(*) as total 
+                        FROM assignment_submissions 
+                        WHERE status = 'submitted' AND school_id = ?
+                        AND assignment_id IN (SELECT id FROM assignments WHERE school_id = ? AND staff_id = ?)
+                    ");
+                    $stmt->execute([$school_id, $school_id, $staff_id_string]);
+                    $pending_grading = $stmt->fetch()['total'];
+                } else {
+                    // Table exists but no assignment_id column, skip
+                    $pending_grading = 0;
+                }
+            } else {
+                // Table doesn't exist, skip
+                $pending_grading = 0;
+            }
+        } catch (Exception $e) {
+            // If there's an error with this query, just set to 0
+            $pending_grading = 0;
+            error_log("Pending grading query error: " . $e->getMessage());
+        }
 
         // Recent activities
-        $stmt = $pdo->prepare("
-            SELECT activity, created_at 
-            FROM activity_logs 
-            WHERE user_id = ? AND user_type = 'staff' AND school_id = ?
-            ORDER BY created_at DESC 
-            LIMIT 10
-        ");
-        $stmt->execute([$staff_id, $school_id]);
-        $recent_activities = $stmt->fetchAll();
+        try {
+            $stmt = $pdo->prepare("
+                SELECT activity, created_at 
+                FROM activity_logs 
+                WHERE user_id = ? AND user_type = 'staff' AND school_id = ?
+                ORDER BY created_at DESC 
+                LIMIT 10
+            ");
+            $stmt->execute([$staff_id, $school_id]);
+            $recent_activities = $stmt->fetchAll();
+        } catch (Exception $e) {
+            $recent_activities = [];
+            error_log("Recent activities query error: " . $e->getMessage());
+        }
 
         // Upcoming deadlines
-        $stmt = $pdo->prepare("
-            SELECT a.*, s.subject_name,
-                   DATEDIFF(a.deadline, NOW()) as days_left
-            FROM assignments a
-            JOIN subjects s ON a.subject_id = s.id
-            WHERE a.school_id = ? AND a.staff_id = ?
-            AND a.deadline > NOW()
-            ORDER BY a.deadline ASC
-            LIMIT 5
-        ");
-        $stmt->execute([$school_id, $staff_id_string]);
-        $upcoming_deadlines = $stmt->fetchAll();
+        try {
+            // First check if assignments table exists
+            $stmt = $pdo->query("SHOW TABLES LIKE 'assignments'");
+            if ($stmt->rowCount() > 0) {
+                $stmt = $pdo->prepare("
+                    SELECT a.*, s.subject_name,
+                           DATEDIFF(a.deadline, NOW()) as days_left
+                    FROM assignments a
+                    LEFT JOIN subjects s ON a.subject_id = s.id
+                    WHERE a.school_id = ? AND a.staff_id = ?
+                    AND a.deadline > NOW()
+                    ORDER BY a.deadline ASC
+                    LIMIT 5
+                ");
+                $stmt->execute([$school_id, $staff_id_string]);
+                $upcoming_deadlines = $stmt->fetchAll();
+            } else {
+                $upcoming_deadlines = [];
+            }
+        } catch (Exception $e) {
+            $upcoming_deadlines = [];
+            error_log("Upcoming deadlines query error: " . $e->getMessage());
+        }
 
         // Recent results from students in assigned classes
         if (!empty($class_names)) {
-            $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-            $stmt = $pdo->prepare("
-                SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class
-                FROM results r 
-                JOIN students stu ON r.student_id = stu.id 
-                JOIN exams e ON r.exam_id = e.id 
-                WHERE stu.school_id = ? AND stu.class IN ($placeholders)
-                ORDER BY r.submitted_at DESC 
-                LIMIT 5
-            ");
-            $stmt->execute(array_merge([$school_id], $class_names));
-            $recent_results = $stmt->fetchAll();
+            try {
+                $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+                $stmt = $pdo->prepare("
+                    SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class
+                    FROM results r 
+                    JOIN students stu ON r.student_id = stu.id 
+                    JOIN exams e ON r.exam_id = e.id 
+                    WHERE stu.school_id = ? AND stu.class IN ($placeholders)
+                    ORDER BY r.submitted_at DESC 
+                    LIMIT 5
+                ");
+                $stmt->execute(array_merge([$school_id], $class_names));
+                $recent_results = $stmt->fetchAll();
+            } catch (Exception $e) {
+                $recent_results = [];
+                error_log("Recent results query error: " . $e->getMessage());
+            }
         }
     }
 } catch (Exception $e) {
     error_log("Staff dashboard error: " . $e->getMessage());
-    $error = "An error occurred while loading the dashboard. Please try again later.";
+    $error = "An error occurred while loading the dashboard: " . $e->getMessage();
 }
 ?>
 

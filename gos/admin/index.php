@@ -93,7 +93,6 @@ try {
     ");
     $stmt->execute([$school_id]);
     $recent_results = $stmt->fetchAll();
-
 } catch (Exception $e) {
     error_log("Admin dashboard error: " . $e->getMessage());
     $error_message = "Error loading dashboard data";
@@ -101,6 +100,7 @@ try {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -332,10 +332,21 @@ try {
             border-top: 4px solid;
         }
 
-        .stat-card.students { border-top-color: var(--secondary-color); }
-        .stat-card.staff { border-top-color: var(--warning-color); }
-        .stat-card.exams { border-top-color: var(--success-color); }
-        .stat-card.subjects { border-top-color: var(--accent-color); }
+        .stat-card.students {
+            border-top-color: var(--secondary-color);
+        }
+
+        .stat-card.staff {
+            border-top-color: var(--warning-color);
+        }
+
+        .stat-card.exams {
+            border-top-color: var(--success-color);
+        }
+
+        .stat-card.subjects {
+            border-top-color: var(--accent-color);
+        }
 
         .stat-card-header {
             display: flex;
@@ -355,10 +366,21 @@ try {
             color: white;
         }
 
-        .stat-card.students .stat-icon { background: var(--secondary-color); }
-        .stat-card.staff .stat-icon { background: var(--warning-color); }
-        .stat-card.exams .stat-icon { background: var(--success-color); }
-        .stat-card.subjects .stat-icon { background: var(--accent-color); }
+        .stat-card.students .stat-icon {
+            background: var(--secondary-color);
+        }
+
+        .stat-card.staff .stat-icon {
+            background: var(--warning-color);
+        }
+
+        .stat-card.exams .stat-icon {
+            background: var(--success-color);
+        }
+
+        .stat-card.subjects .stat-icon {
+            background: var(--accent-color);
+        }
 
         .stat-value {
             font-size: 2rem;
@@ -535,13 +557,16 @@ try {
         }
 
         @media (min-width: 768px) {
+
             .mobile-menu-toggle,
             .sidebar-overlay {
                 display: none;
             }
+
             .sidebar {
                 transform: translateX(0);
             }
+
             .main-content {
                 margin-left: var(--sidebar-width);
             }
@@ -551,15 +576,18 @@ try {
             .main-content {
                 padding-top: 70px;
             }
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+
             .content-grid {
                 grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
@@ -591,11 +619,12 @@ try {
                 <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
                 <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
                 <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-<li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
+                <li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
                 <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
                 <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-				<li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-				<li><a href="report_card_dashboard.php"><i class="fas fa-calendar-check"></i> Process Results</a></li>
+                <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
+                <li><a href="report_card_dashboard.php"><i class="fas fa-calendar-check"></i> Process Results</a></li>
+                <li><a href="ai-tools.php"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
                 <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
@@ -731,7 +760,12 @@ try {
             <div class="table-container">
                 <table class="data-table">
                     <thead>
-                        <tr><th>Exam Name</th><th>Subject</th><th>Class</th><th>Status</th></tr>
+                        <tr>
+                            <th>Exam Name</th>
+                            <th>Subject</th>
+                            <th>Class</th>
+                            <th>Status</th>
+                        </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($recent_exams)): ?>
@@ -744,7 +778,9 @@ try {
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr><td colspan="4" style="text-align:center;">No exams found</td></tr>
+                            <tr>
+                                <td colspan="4" style="text-align:center;">No exams found</td>
+                            </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -789,4 +825,5 @@ try {
         });
     </script>
 </body>
+
 </html>

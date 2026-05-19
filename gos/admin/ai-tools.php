@@ -1,5 +1,5 @@
 <?php
-// admin/ai-tools.php - AI Teaching Tools
+// admin/ai-tools.php - AI Teaching Tools with Gemini API
 session_start();
 
 // ── Auth check (same pattern as your index.php) ──────────────────────────────
@@ -14,11 +14,16 @@ require_once '../includes/auth.php';
 $admin_name = $_SESSION['admin_name'] ?? 'Administrator';
 $admin_role = $_SESSION['admin_role'] ?? 'super_admin';
 
-// ── API Key ───────────────────────────────────────────────────────────────────
-// IMPORTANT: Move this to your includes/config.php as a constant:
-//   define('ANTHROPIC_API_KEY', 'sk-ant-xxxxxxxxxxxx');
-// Then use:  $api_key = ANTHROPIC_API_KEY;
-$api_key = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : 'sk-ant-YOUR-KEY-HERE';
+// ── AI Configuration ─────────────────────────────────────────────────────────
+// Options: 'gemini', 'mock' (for testing without API)
+define('AI_PROVIDER', 'gemini');  // Change to 'mock' for offline testing
+
+// Google Gemini API Key - Get from https://makersuite.google.com/app/apikey
+// For production, move this to your config.php file:
+define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY_HERE'); // Replace with your actual key
+
+// Mock mode setting - overrides everything when true
+$USE_MOCK = false; // Set to true to test without any API calls
 
 // ── System Prompts (one per tool) ─────────────────────────────────────────────
 $system_prompts = [
@@ -130,6 +135,221 @@ Rules:
 
 ];
 
+// ── Mock responses for testing without API ────────────────────────────────────
+function getMockResponse($tool, $message)
+{
+    $mock_responses = [
+        'lesson' => "LESSON NOTE
+Subject: Mathematics | Topic: Quadratic Equations | Class: SS 2 | Duration: 40 minutes
+
+BEHAVIOURAL OBJECTIVES:
+By the end of this lesson, students should be able to:
+1. Define quadratic equations
+2. Solve quadratic equations using factorization method
+3. Apply quadratic equations to real-life problems
+
+INSTRUCTIONAL MATERIALS:
+- Whiteboard and markers
+- Quadratic equation flashcards
+- Algebra tiles (if available)
+
+ENTRY BEHAVIOUR:
+Students already know how to solve simple linear equations and basic factorization.
+
+INTRODUCTION / SET INDUCTION (5 mins):
+Ask students: \"If a rectangle has length (x+2) and width (x-1), and area 6cm², what equation would you write?\" This leads to quadratic equations.
+
+PRESENTATION / DEVELOPMENT:
+
+Step 1 — Definition of Quadratic Equations
+A quadratic equation is an equation of the form ax² + bx + c = 0, where a, b, c are constants and a ≠ 0.
+
+Step 2 — Solving by Factorization
+Example: x² - 5x + 6 = 0
+Look for two numbers that multiply to +6 and add to -5: (-2) and (-3)
+Therefore: (x-2)(x-3) = 0
+So x = 2 or x = 3
+
+Step 3 — Real-life Application
+Projectile motion: h = -16t² + vt + h₀
+
+WORKED EXAMPLES:
+1. Solve x² - 7x + 10 = 0
+   Factors: -5 and -2
+   (x-5)(x-2)=0
+   x=5 or x=2
+
+2. Solve 2x² - 5x + 2 = 0
+   Multiply: 2x² - 4x - x + 2 = 0
+   2x(x-2) -1(x-2)=0
+   (2x-1)(x-2)=0
+   x=½ or x=2
+
+CLASS ACTIVITY:
+In groups of 4, solve: x² + 5x + 6 = 0 and 2x² - 3x - 2 = 0
+
+EVALUATION:
+1. What is a quadratic equation?
+2. Solve x² - 4x - 12 = 0
+3. The product of two consecutive numbers is 56. Find the numbers.
+
+ASSIGNMENT:
+Solve: x² + 8x + 15 = 0 and x² - 2x - 24 = 0
+
+CONCLUSION:
+We learned quadratic equations and factorization method. Next class: Completing the square method.
+
+[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]",
+
+        'explain' => "CONCEPT: Photosynthesis
+Level: JSS 2
+
+1. SIMPLE DEFINITION
+Photosynthesis is how plants make their own food using sunlight, water, and air.
+
+2. REAL-LIFE ANALOGY
+Think of a plant as a small bakery. The leaves are the kitchen, sunlight is the electricity, water is the main ingredient, and carbon dioxide from air is like flour. The bread (food) the plant makes is called glucose, and the oven releases oxygen just like our bakery releases steam!
+
+3. STEP-BY-STEP BREAKDOWN
+Step 1: Plant roots absorb water from the soil
+Step 2: Water travels up to the leaves through tubes
+Step 3: Leaves open tiny pores to take in carbon dioxide from air
+Step 4: Chlorophyll (the green color) captures sunlight energy
+Step 5: The plant combines water + carbon dioxide + sunlight to make glucose (food) and oxygen
+
+4. VISUAL DESCRIPTION
+Picture a green leaf as a solar panel. On top, sunlight beams down. Inside are tiny green spheres (chloroplasts) like mini factories. Water comes in through pipes (veins) and air enters through small windows (stomata). The factory produces sugar cubes (glucose) and releases bubbles of oxygen out the windows.
+
+5. COMMON MISTAKES STUDENTS MAKE
+• Thinking plants get food from soil (they only get water and minerals)
+• Believing photosynthesis happens at night (needs sunlight!)
+• Confusing respiration with photosynthesis (plants do both)
+
+6. MEMORY TRICK
+\"Water + Air + Sunlight = Food + Oxygen\"
+Remember: W + A + S = F + O
+\"WAS FO\" - WAS FOr plants to make food!
+
+7. COMPREHENSION CHECK (for the teacher)
+1. What three things does a plant need for photosynthesis?
+2. Why do plants need chlorophyll?
+
+[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]",
+
+        'questions' => "BIOLOGY — Photosynthesis | JSS 2 | Objectives & Theory | Medium
+
+OBJECTIVE QUESTIONS:
+
+1. The process by which plants manufacture their food is called?
+   A. Respiration   B. Photosynthesis   C. Transpiration   D. Fermentation
+   Answer: B — Photosynthesis is the food-making process in plants
+
+2. Which of these is NOT needed for photosynthesis?
+   A. Sunlight   B. Water   C. Oxygen   D. Carbon dioxide
+   Answer: C — Oxygen is released, not needed for photosynthesis
+
+3. The green pigment that traps sunlight is called?
+   A. Chlorophyll   B. Hemoglobin   C. Melanin   D. Carotene
+   Answer: A — Chlorophyll gives plants their green color and traps sunlight
+
+4. Where does photosynthesis mainly occur in a plant?
+   A. Roots   B. Stem   C. Leaves   D. Flowers
+   Answer: C — Leaves contain most of the chloroplasts
+
+5. The tiny pores on leaves that allow gas exchange are called?
+   A. Stomata   B. Lenticels   C. Cuticle   D. Veins
+   Answer: A — Stomata open and close to allow CO₂ in and O₂ out
+
+THEORY QUESTIONS:
+
+1. (a) Define photosynthesis. (3 marks)
+   (b) List four things needed for photosynthesis. (4 marks)
+   (c) State two importance of photosynthesis to humans. (3 marks)
+   
+   Model Answer:
+   (a) Photosynthesis is the process by which green plants use sunlight energy to combine carbon dioxide and water to produce glucose (food) and oxygen.
+   (b) Four things needed: 1) Sunlight, 2) Water, 3) Carbon dioxide, 4) Chlorophyll
+   (c) Importance to humans: 1) Produces oxygen for breathing, 2) Provides food directly or indirectly through plants
+
+2. Write the word equation for photosynthesis. (5 marks)
+   
+   Model Answer:
+   Carbon dioxide + Water --(sunlight/chlorophyll)--> Glucose + Oxygen
+   
+   OR
+   CO₂ + H₂O → C₆H₁₂O₆ + O₂
+
+[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]"
+    ];
+
+    return $mock_responses[$tool] ?? "Mock response for testing. Replace with actual Gemini API key when ready for production.";
+}
+
+// ── Function to call Google Gemini API ────────────────────────────────────────
+function callGeminiAPI($system_prompt, $user_message, $api_key)
+{
+    // Prepare the full prompt by combining system prompt and user message
+    $full_prompt = $system_prompt . "\n\nUser Request:\n" . $user_message;
+
+    $payload = json_encode([
+        'contents' => [
+            [
+                'parts' => [
+                    ['text' => $full_prompt]
+                ]
+            ]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.7,
+            'maxOutputTokens' => 2000,
+            'topP' => 0.95,
+            'topK' => 40
+        ],
+        'safetySettings' => [
+            [
+                'category' => 'HARM_CATEGORY_HARASSMENT',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+            ],
+            [
+                'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+            ]
+        ]
+    ]);
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $api_key;
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\n",
+            'content' => $payload,
+            'timeout' => 60,
+            'ignore_errors' => true
+        ]
+    ]);
+
+    $raw = @file_get_contents($url, false, $context);
+
+    if ($raw === false) {
+        return ['success' => false, 'error' => 'Could not reach Google Gemini API. Check your internet connection or API key.'];
+    }
+
+    $data = json_decode($raw, true);
+
+    // Check for errors in response
+    if (isset($data['error'])) {
+        return ['success' => false, 'error' => $data['error']['message'] ?? 'Unknown API error'];
+    }
+
+    // Extract the response text from Gemini's response structure
+    if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+        return ['success' => true, 'result' => $data['candidates'][0]['content']['parts'][0]['text']];
+    } else {
+        return ['success' => false, 'error' => 'Unexpected response format from Gemini API.'];
+    }
+}
+
 // ── Handle AJAX POST from the page's fetch() call ─────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['ajax'] === '1') {
 
@@ -143,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         exit();
     }
 
-    // ── Optional: log usage to your activity_logs table ──────────────────────
+    // ── Log usage to activity_logs table ──────────────────────────────────────
     try {
         $log_stmt = $pdo->prepare("
             INSERT INTO activity_logs (user_id, user_type, action, description, created_at)
@@ -157,46 +377,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         // Non-fatal — continue even if logging fails
     }
 
-    // ── Call Anthropic API ────────────────────────────────────────────────────
-    $payload = json_encode([
-        'model'      => 'claude-sonnet-4-20250514',
-        'max_tokens' => 1500,
-        'system'     => $system_prompts[$tool],
-        'messages'   => [
-            ['role' => 'user', 'content' => $message]
-        ]
-    ]);
-
-    $context = stream_context_create([
-        'http' => [
-            'method'        => 'POST',
-            'header'        =>
-            "Content-Type: application/json\r\n" .
-                "x-api-key: $api_key\r\n" .
-                "anthropic-version: 2023-06-01\r\n",
-            'content'       => $payload,
-            'timeout'       => 60,
-            'ignore_errors' => true,
-        ]
-    ]);
-
-    $raw = @file_get_contents('https://api.anthropic.com/v1/messages', false, $context);
-
-    if ($raw === false) {
-        echo json_encode(['success' => false, 'error' => 'Could not reach the AI server. Check your internet connection or API key.']);
+    // ── Check if we're using mock mode ─────────────────────────────────────────
+    if ($USE_MOCK || AI_PROVIDER === 'mock') {
+        // Return mock response for testing
+        $mock_result = getMockResponse($tool, $message);
+        echo json_encode(['success' => true, 'result' => $mock_result]);
         exit();
     }
 
-    $data = json_decode($raw, true);
+    // ── Call appropriate API based on configuration ───────────────────────────
+    if (AI_PROVIDER === 'gemini') {
+        if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+            echo json_encode(['success' => false, 'error' => 'Please set your Gemini API key in the configuration. Get one free from https://makersuite.google.com/app/apikey']);
+            exit();
+        }
 
-    if (isset($data['content'][0]['text'])) {
-        echo json_encode(['success' => true, 'result' => $data['content'][0]['text']]);
+        $response = callGeminiAPI($system_prompts[$tool], $message, GEMINI_API_KEY);
+        echo json_encode($response);
+        exit();
     } else {
-        $err = $data['error']['message'] ?? 'Unexpected API response.';
-        echo json_encode(['success' => false, 'error' => $err]);
+        // Unknown provider
+        echo json_encode(['success' => false, 'error' => 'Invalid AI provider configured. Please set AI_PROVIDER to "gemini" or "mock"']);
+        exit();
     }
-
-    exit();
 }
 ?>
 <!DOCTYPE html>
@@ -477,6 +680,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             display: flex;
             align-items: center;
             gap: 6px;
+        }
+
+        /* ── Status indicator ───────────────────────────────────────────────── */
+        .status-indicator {
+            background: #f0f9ff;
+            border: 1px solid #3498db;
+            border-radius: var(--radius-sm);
+            padding: 6px 12px;
+            font-size: .75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 12px;
+        }
+
+        .status-indicator.mock {
+            background: #fff8e1;
+            border-color: #f39c12;
+            color: #7d6608;
+        }
+
+        .status-indicator.gemini {
+            background: #e8f5e9;
+            border-color: #27ae60;
+            color: #1b5e20;
         }
 
         /* ── Disclaimer banner ──────────────────────────────────────────────── */
@@ -881,7 +1109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="report_card_dashboard.php"><i class="fas fa-cog"></i> Process Result</a></li>
-                <!-- ✅ NEW AI TOOLS LINK -->
                 <li><a href="ai-tools.php" class="active"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
                 <li><a href="updater.php"><i class="fas fa-sync-alt"></i> System Update</a></li>
                 <li><a href="db_update.php"><i class="fas fa-database"></i> Database Update</a></li>
@@ -896,16 +1123,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         <!-- Top Header -->
         <div class="top-header">
             <div class="header-title">
-                <h1><i class="fas fa-robot" style="color:var(--secondary-color);margin-right:8px;"></i>AI Teaching Tools</h1>
+                <h1><i class="fas fa-robot" style="color:var(--secondary-color);margin-right:8px;"></i>AI Teaching Tools
+                    <span class="status-indicator <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'mock' : 'gemini'; ?>">
+                        <i class="fas <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'fa-flask' : 'fa-cloud-upload-alt'; ?>"></i>
+                        <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'MOCK MODE (Testing)' : 'Powered by Google Gemini'; ?>
+                    </span>
+                </h1>
                 <p>Generate lesson notes, explain concepts and create exam questions instantly</p>
             </div>
-            <div class="ai-badge"><i class="fas fa-sparkles"></i> Powered by AI</div>
+            <div class="ai-badge"><i class="fas fa-sparkles"></i> Free AI Tools</div>
         </div>
 
         <!-- Disclaimer -->
         <div class="disclaimer">
             <i class="fas fa-exclamation-triangle"></i>
-            <span><strong>Note:</strong> All AI-generated content is a <em>draft</em>. Please review for accuracy before use in class or examinations. The AI follows Nigerian curriculum standards but teacher judgment is always final.</span>
+            <span><strong>Note:</strong> All AI-generated content is a <em>draft</em>. Please review for accuracy before use in class or examinations. The AI follows Nigerian curriculum standards but teacher judgment is always final.
+                <?php if ($USE_MOCK || AI_PROVIDER === 'mock'): ?>
+                    <br><strong>💡 Testing Mode:</strong> Mock responses are being used. To use real AI, get a free Gemini API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> and update the configuration.
+                <?php endif; ?>
+            </span>
         </div>
 
         <!-- Tool Tabs -->
@@ -931,19 +1167,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 <div id="form-lesson">
                     <div class="card-title"><i class="fas fa-book-open" style="color:var(--ai-lesson);"></i> Lesson Note Details</div>
                     <div class="form-group">
-                        <label>Subject</label>
+                        <label>Subject <span style="color:red;">*</span></label>
                         <input type="text" id="l-subject" placeholder="e.g. Mathematics, Biology, Economics...">
                     </div>
                     <div class="form-group">
-                        <label>Topic</label>
+                        <label>Topic <span style="color:red;">*</span></label>
                         <input type="text" id="l-topic" placeholder="e.g. Quadratic Equations, Photosynthesis...">
                     </div>
                     <div class="form-group">
-                        <label>Class / Level</label>
+                        <label>Class / Level <span style="color:red;">*</span></label>
                         <input type="text" id="l-level" placeholder="e.g. JSS 2, SS 3, Primary 5...">
                     </div>
                     <div class="form-group">
-                        <label>Lesson Duration</label>
+                        <label>Lesson Duration <span style="color:red;">*</span></label>
                         <input type="text" id="l-duration" placeholder="e.g. 40 minutes, 1 hour...">
                     </div>
                     <button class="btn-generate btn-lesson" onclick="generate('lesson')">
@@ -955,15 +1191,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 <div id="form-explain" style="display:none;">
                     <div class="card-title"><i class="fas fa-lightbulb" style="color:var(--ai-explain);"></i> Concept Details</div>
                     <div class="form-group">
-                        <label>Concept to Explain</label>
+                        <label>Concept to Explain <span style="color:red;">*</span></label>
                         <input type="text" id="e-concept" placeholder="e.g. Osmosis, Democracy, Newton's Laws...">
                     </div>
                     <div class="form-group">
-                        <label>Subject Area</label>
+                        <label>Subject Area <span style="color:red;">*</span></label>
                         <input type="text" id="e-subject" placeholder="e.g. Biology, Civic Education, Physics...">
                     </div>
                     <div class="form-group">
-                        <label>Student Level</label>
+                        <label>Student Level <span style="color:red;">*</span></label>
                         <input type="text" id="e-level" placeholder="e.g. JSS 1, SS 2, Primary 4...">
                     </div>
                     <div class="form-group">
@@ -984,15 +1220,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 <div id="form-question" style="display:none;">
                     <div class="card-title"><i class="fas fa-question-circle" style="color:var(--ai-question);"></i> Exam / Test Details</div>
                     <div class="form-group">
-                        <label>Subject</label>
+                        <label>Subject <span style="color:red;">*</span></label>
                         <input type="text" id="q-subject" placeholder="e.g. Chemistry, English Language...">
                     </div>
                     <div class="form-group">
-                        <label>Topic</label>
+                        <label>Topic <span style="color:red;">*</span></label>
                         <input type="text" id="q-topic" placeholder="e.g. Acids & Bases, Essay Writing...">
                     </div>
                     <div class="form-group">
-                        <label>Class / Level</label>
+                        <label>Class / Level <span style="color:red;">*</span></label>
                         <input type="text" id="q-level" placeholder="e.g. SS 3, JSS 2...">
                     </div>
                     <div class="form-group">
@@ -1062,7 +1298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
 
         <div class="dashboard-footer">
             <p>&copy; <?php echo date('Y'); ?> <?php echo defined('SCHOOL_NAME') ? SCHOOL_NAME : 'The Climax Brains Academy'; ?> &mdash; Digital CBT System</p>
-            <p style="margin-top:5px;font-size:.8rem;color:#aaa;">AI Teaching Tools &mdash; Powered by Claude AI</p>
+            <p style="margin-top:5px;font-size:.8rem;color:#aaa;">AI Teaching Tools &mdash; Powered by <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'Mock Mode (Testing)' : 'Google Gemini AI'; ?></p>
         </div>
 
     </div><!-- /main-content -->
@@ -1134,7 +1370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 const c = v('e-concept'),
                     s = v('e-subject'),
                     l = v('e-level'),
-                    st = v('e-style');
+                    st = document.getElementById('e-style')?.value || 'Simple analogy and real-life examples';
                 if (!c || !s || !l) return null;
                 return `Concept: ${c}\nSubject: ${s}\nStudent Level: ${l}\nExplanation Style: ${st}`;
             }
@@ -1142,9 +1378,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 const s = v('q-subject'),
                     t = v('q-topic'),
                     l = v('q-level');
-                const n = v('q-count'),
-                    tp = v('q-type'),
-                    d = v('q-difficulty');
+                const n = document.getElementById('q-count')?.value || '10',
+                    tp = document.getElementById('q-type')?.value || 'Objectives (MCQ with 4 options A B C D)',
+                    d = document.getElementById('q-difficulty')?.value || 'Medium';
                 if (!s || !t || !l) return null;
                 return `Subject: ${s}\nTopic: ${t}\nClass Level: ${l}\nNumber of Questions: ${n}\nQuestion Type: ${tp}\nDifficulty: ${d}`;
             }
@@ -1193,21 +1429,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 } else {
                     box.className = 'output-box empty';
                     box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i>
-                    <p style="color:#e74c3c;"><strong>Error:</strong><br>${data.error}</p>`;
+                    <p style="color:#e74c3c;"><strong>Error:</strong><br>${escapeHtml(data.error)}</p>`;
                 }
             } catch (err) {
                 document.getElementById('spinner').classList.remove('active');
                 box.style.display = 'block';
                 box.className = 'output-box empty';
                 box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i>
-                <p style="color:#e74c3c;"><strong>Network Error:</strong><br>${err.message}</p>`;
+                <p style="color:#e74c3c;"><strong>Network Error:</strong><br>${escapeHtml(err.message)}</p>`;
             }
         }
 
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // ── Copy & Print ──────────────────────────────────────────────────────────
-        function copyOutput() {
+        async function copyOutput() {
             const text = document.getElementById('outputBox').textContent;
-            navigator.clipboard.writeText(text).then(() => {
+            try {
+                await navigator.clipboard.writeText(text);
                 const btn = document.getElementById('btnCopy');
                 btn.classList.add('copied');
                 btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
@@ -1215,7 +1459,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                     btn.classList.remove('copied');
                     btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
                 }, 2500);
-            });
+            } catch (err) {
+                alert('Could not copy text. Please select and copy manually.');
+            }
         }
 
         function printOutput() {

@@ -2,28 +2,40 @@
 // admin/ai-tools.php - AI Teaching Tools with Gemini API
 session_start();
 
-// ── Auth check (same pattern as your index.php) ──────────────────────────────
+// ── Debug logging (remove in production) ──────────────────────────────────────
+error_log("AI Tools - Session check: " . print_r($_SESSION, true));
+
+// ── Auth check with better error handling ─────────────────────────────────────
 if (!isset($_SESSION['admin_id']) || !isset($_SESSION['admin_username'])) {
-    header("Location: ../login.php");
+    error_log("AI Tools - Auth failed. Session data: " . print_r($_SESSION, true));
+    header("Location: ../login.php?error=session_expired");
     exit();
 }
 
 require_once '../includes/config.php';
 require_once '../includes/auth.php';
 
+// Verify the config file loaded correctly
+if (!isset($pdo)) {
+    error_log("AI Tools - Database connection not established");
+    // Don't logout, just continue without DB logging
+}
+
 $admin_name = $_SESSION['admin_name'] ?? 'Administrator';
 $admin_role = $_SESSION['admin_role'] ?? 'super_admin';
 
 // ── AI Configuration ─────────────────────────────────────────────────────────
 // Options: 'gemini', 'mock' (for testing without API)
-define('AI_PROVIDER', 'gemini');  // Change to 'mock' for offline testing
+$ai_provider = 'mock';  // Start with mock mode for testing
+$use_mock = true;       // Set to false when you have API key
 
 // Google Gemini API Key - Get from https://makersuite.google.com/app/apikey
-// For production, move this to your config.php file:
-define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY_HERE'); // Replace with your actual key
+$gemini_api_key = 'YOUR_GEMINI_API_KEY_HERE'; // Replace with your actual key
 
-// Mock mode setting - overrides everything when true
-$USE_MOCK = false; // Set to true to test without any API calls
+// Only use Gemini if we have a valid API key and mock mode is off
+if (!$use_mock && $gemini_api_key !== 'YOUR_GEMINI_API_KEY_HERE') {
+    $ai_provider = 'gemini';
+}
 
 // ── System Prompts (one per tool) ─────────────────────────────────────────────
 $system_prompts = [
@@ -140,155 +152,114 @@ function getMockResponse($tool, $message)
 {
     $mock_responses = [
         'lesson' => "LESSON NOTE
-Subject: Mathematics | Topic: Quadratic Equations | Class: SS 2 | Duration: 40 minutes
+Subject: Sample Subject | Topic: Sample Topic | Class: Sample Class | Duration: 40 minutes
 
 BEHAVIOURAL OBJECTIVES:
 By the end of this lesson, students should be able to:
-1. Define quadratic equations
-2. Solve quadratic equations using factorization method
-3. Apply quadratic equations to real-life problems
+1. Understand the key concepts
+2. Apply knowledge to real situations
+3. Analyze related problems
 
 INSTRUCTIONAL MATERIALS:
 - Whiteboard and markers
-- Quadratic equation flashcards
-- Algebra tiles (if available)
+- Handouts
+- Visual aids
 
 ENTRY BEHAVIOUR:
-Students already know how to solve simple linear equations and basic factorization.
+Students have basic understanding of prerequisite concepts.
 
 INTRODUCTION / SET INDUCTION (5 mins):
-Ask students: \"If a rectangle has length (x+2) and width (x-1), and area 6cm², what equation would you write?\" This leads to quadratic equations.
+Engaging question to capture attention and relate to prior knowledge.
 
 PRESENTATION / DEVELOPMENT:
 
-Step 1 — Definition of Quadratic Equations
-A quadratic equation is an equation of the form ax² + bx + c = 0, where a, b, c are constants and a ≠ 0.
+Step 1 — Introduction to Concept
+Clear explanation of the main concept.
 
-Step 2 — Solving by Factorization
-Example: x² - 5x + 6 = 0
-Look for two numbers that multiply to +6 and add to -5: (-2) and (-3)
-Therefore: (x-2)(x-3) = 0
-So x = 2 or x = 3
+Step 2 — Key Principles
+Breakdown of important principles with examples.
 
-Step 3 — Real-life Application
-Projectile motion: h = -16t² + vt + h₀
+Step 3 — Practical Application
+How this applies in real-world Nigerian context.
 
 WORKED EXAMPLES:
-1. Solve x² - 7x + 10 = 0
-   Factors: -5 and -2
-   (x-5)(x-2)=0
-   x=5 or x=2
-
-2. Solve 2x² - 5x + 2 = 0
-   Multiply: 2x² - 4x - x + 2 = 0
-   2x(x-2) -1(x-2)=0
-   (2x-1)(x-2)=0
-   x=½ or x=2
+1. Example one with step-by-step solution
+2. Example two showing different application
 
 CLASS ACTIVITY:
-In groups of 4, solve: x² + 5x + 6 = 0 and 2x² - 3x - 2 = 0
+Group work or individual exercise to practice the concept.
 
 EVALUATION:
-1. What is a quadratic equation?
-2. Solve x² - 4x - 12 = 0
-3. The product of two consecutive numbers is 56. Find the numbers.
+1. Question to check understanding
+2. Application-based question
+3. Analysis question
 
 ASSIGNMENT:
-Solve: x² + 8x + 15 = 0 and x² - 2x - 24 = 0
+Take-home task to reinforce learning.
 
 CONCLUSION:
-We learned quadratic equations and factorization method. Next class: Completing the square method.
+Summary and preview of next lesson.
 
-[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]",
+[📝 MOCK MODE: This is a sample response. To get real AI-generated content, get a free Gemini API key from https://makersuite.google.com/app/apikey and update the configuration.]",
 
-        'explain' => "CONCEPT: Photosynthesis
-Level: JSS 2
+        'explain' => "CONCEPT: Sample Concept
+Level: Sample Level
 
 1. SIMPLE DEFINITION
-Photosynthesis is how plants make their own food using sunlight, water, and air.
+A clear, child-friendly explanation of the concept.
 
 2. REAL-LIFE ANALOGY
-Think of a plant as a small bakery. The leaves are the kitchen, sunlight is the electricity, water is the main ingredient, and carbon dioxide from air is like flour. The bread (food) the plant makes is called glucose, and the oven releases oxygen just like our bakery releases steam!
+A relatable Nigerian context example (market, home, school, etc.)
 
 3. STEP-BY-STEP BREAKDOWN
-Step 1: Plant roots absorb water from the soil
-Step 2: Water travels up to the leaves through tubes
-Step 3: Leaves open tiny pores to take in carbon dioxide from air
-Step 4: Chlorophyll (the green color) captures sunlight energy
-Step 5: The plant combines water + carbon dioxide + sunlight to make glucose (food) and oxygen
+Step 1: First thing to understand
+Step 2: Second key point
+Step 3: How it all connects
 
 4. VISUAL DESCRIPTION
-Picture a green leaf as a solar panel. On top, sunlight beams down. Inside are tiny green spheres (chloroplasts) like mini factories. Water comes in through pipes (veins) and air enters through small windows (stomata). The factory produces sugar cubes (glucose) and releases bubbles of oxygen out the windows.
+Description of how to picture or draw this concept.
 
 5. COMMON MISTAKES STUDENTS MAKE
-• Thinking plants get food from soil (they only get water and minerals)
-• Believing photosynthesis happens at night (needs sunlight!)
-• Confusing respiration with photosynthesis (plants do both)
+Typical misunderstandings and how to avoid them.
 
 6. MEMORY TRICK
-\"Water + Air + Sunlight = Food + Oxygen\"
-Remember: W + A + S = F + O
-\"WAS FO\" - WAS FOr plants to make food!
+Easy way to remember the key points.
 
-7. COMPREHENSION CHECK (for the teacher)
-1. What three things does a plant need for photosynthesis?
-2. Why do plants need chlorophyll?
+7. COMPREHENSION CHECK
+Two questions teachers can ask students.
 
-[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]",
+[📝 MOCK MODE: This is a sample response. To get real AI-generated content, get a free Gemini API key from https://makersuite.google.com/app/apikey and update the configuration.]",
 
-        'questions' => "BIOLOGY — Photosynthesis | JSS 2 | Objectives & Theory | Medium
+        'questions' => "SUBJECT — TOPIC | LEVEL | MIXED | MEDIUM
 
 OBJECTIVE QUESTIONS:
 
-1. The process by which plants manufacture their food is called?
-   A. Respiration   B. Photosynthesis   C. Transpiration   D. Fermentation
-   Answer: B — Photosynthesis is the food-making process in plants
+1. What is the capital of Nigeria?
+   A. Lagos   B. Abuja   C. Kano   D. Ibadan
+   Answer: B — Abuja is the federal capital territory
 
-2. Which of these is NOT needed for photosynthesis?
-   A. Sunlight   B. Water   C. Oxygen   D. Carbon dioxide
-   Answer: C — Oxygen is released, not needed for photosynthesis
-
-3. The green pigment that traps sunlight is called?
-   A. Chlorophyll   B. Hemoglobin   C. Melanin   D. Carotene
-   Answer: A — Chlorophyll gives plants their green color and traps sunlight
-
-4. Where does photosynthesis mainly occur in a plant?
-   A. Roots   B. Stem   C. Leaves   D. Flowers
-   Answer: C — Leaves contain most of the chloroplasts
-
-5. The tiny pores on leaves that allow gas exchange are called?
-   A. Stomata   B. Lenticels   C. Cuticle   D. Veins
-   Answer: A — Stomata open and close to allow CO₂ in and O₂ out
+2. Which of the following is a primary color?
+   A. Green   B. Purple   C. Red   D. Orange
+   Answer: C — Red, blue, and yellow are primary colors
 
 THEORY QUESTIONS:
 
-1. (a) Define photosynthesis. (3 marks)
-   (b) List four things needed for photosynthesis. (4 marks)
-   (c) State two importance of photosynthesis to humans. (3 marks)
-   
-   Model Answer:
-   (a) Photosynthesis is the process by which green plants use sunlight energy to combine carbon dioxide and water to produce glucose (food) and oxygen.
-   (b) Four things needed: 1) Sunlight, 2) Water, 3) Carbon dioxide, 4) Chlorophyll
-   (c) Importance to humans: 1) Produces oxygen for breathing, 2) Provides food directly or indirectly through plants
+1. Define the term and give two examples. (5 marks)
+   Model Answer: A clear definition with relevant examples.
 
-2. Write the word equation for photosynthesis. (5 marks)
-   
-   Model Answer:
-   Carbon dioxide + Water --(sunlight/chlorophyll)--> Glucose + Oxygen
-   
-   OR
-   CO₂ + H₂O → C₆H₁₂O₆ + O₂
+2. Explain the importance of this concept in daily life. (5 marks)
+   Model Answer: Practical applications and real-world significance.
 
-[MOCK RESPONSE - Replace with actual Gemini API key for real AI responses]"
+[📝 MOCK MODE: This is a sample response. To get real AI-generated content, get a free Gemini API key from https://makersuite.google.com/app/apikey and update the configuration.]"
     ];
 
-    return $mock_responses[$tool] ?? "Mock response for testing. Replace with actual Gemini API key when ready for production.";
+    return $mock_responses[$tool] ?? "Mock response for testing. Please fill in all required fields.\n\n[📝 MOCK MODE: This is a sample response.]";
 }
 
 // ── Function to call Google Gemini API ────────────────────────────────────────
 function callGeminiAPI($system_prompt, $user_message, $api_key)
 {
-    // Prepare the full prompt by combining system prompt and user message
+    // Prepare the full prompt
     $full_prompt = $system_prompt . "\n\nUser Request:\n" . $user_message;
 
     $payload = json_encode([
@@ -304,22 +275,12 @@ function callGeminiAPI($system_prompt, $user_message, $api_key)
             'maxOutputTokens' => 2000,
             'topP' => 0.95,
             'topK' => 40
-        ],
-        'safetySettings' => [
-            [
-                'category' => 'HARM_CATEGORY_HARASSMENT',
-                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-            ],
-            [
-                'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-            ]
         ]
     ]);
 
     $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $api_key;
 
-    $context = stream_context_create([
+    $options = [
         'http' => [
             'method' => 'POST',
             'header' => "Content-Type: application/json\r\n",
@@ -327,22 +288,24 @@ function callGeminiAPI($system_prompt, $user_message, $api_key)
             'timeout' => 60,
             'ignore_errors' => true
         ]
-    ]);
+    ];
 
+    $context = stream_context_create($options);
     $raw = @file_get_contents($url, false, $context);
 
     if ($raw === false) {
-        return ['success' => false, 'error' => 'Could not reach Google Gemini API. Check your internet connection or API key.'];
+        return ['success' => false, 'error' => 'Could not reach Google Gemini API. Check your internet connection.'];
     }
 
     $data = json_decode($raw, true);
 
-    // Check for errors in response
+    // Check for errors
     if (isset($data['error'])) {
-        return ['success' => false, 'error' => $data['error']['message'] ?? 'Unknown API error'];
+        $error_msg = $data['error']['message'] ?? 'Unknown API error';
+        return ['success' => false, 'error' => 'Gemini API Error: ' . $error_msg];
     }
 
-    // Extract the response text from Gemini's response structure
+    // Extract response
     if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
         return ['success' => true, 'result' => $data['candidates'][0]['content']['parts'][0]['text']];
     } else {
@@ -350,7 +313,7 @@ function callGeminiAPI($system_prompt, $user_message, $api_key)
     }
 }
 
-// ── Handle AJAX POST from the page's fetch() call ─────────────────────────────
+// ── Handle AJAX POST ─────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['ajax'] === '1') {
 
     header('Content-Type: application/json');
@@ -359,45 +322,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
     $message = $_POST['message'] ?? '';
 
     if (!$tool || !$message || !isset($system_prompts[$tool])) {
-        echo json_encode(['success' => false, 'error' => 'Invalid request.']);
+        echo json_encode(['success' => false, 'error' => 'Invalid request. Please fill in all fields.']);
         exit();
     }
 
-    // ── Log usage to activity_logs table ──────────────────────────────────────
-    try {
-        $log_stmt = $pdo->prepare("
-            INSERT INTO activity_logs (user_id, user_type, action, description, created_at)
-            VALUES (?, 'admin', 'ai_tool_used', ?, NOW())
-        ");
-        $log_stmt->execute([
-            $_SESSION['admin_id'],
-            "AI Tool: $tool | " . substr($message, 0, 100)
-        ]);
-    } catch (Exception $e) {
-        // Non-fatal — continue even if logging fails
+    // ── Log usage (only if PDO is available) ──────────────────────────────────
+    if (isset($pdo)) {
+        try {
+            $log_stmt = $pdo->prepare("
+                INSERT INTO activity_logs (user_id, user_type, action, description, created_at)
+                VALUES (?, 'admin', 'ai_tool_used', ?, NOW())
+            ");
+            $log_stmt->execute([
+                $_SESSION['admin_id'],
+                "AI Tool: $tool | " . substr($message, 0, 100)
+            ]);
+        } catch (Exception $e) {
+            // Non-fatal - log error but continue
+            error_log("Failed to log AI usage: " . $e->getMessage());
+        }
     }
 
-    // ── Check if we're using mock mode ─────────────────────────────────────────
-    if ($USE_MOCK || AI_PROVIDER === 'mock') {
-        // Return mock response for testing
+    // ── Use mock mode or real API ─────────────────────────────────────────────
+    global $use_mock, $ai_provider, $gemini_api_key;
+
+    if ($use_mock) {
+        // Return mock response
         $mock_result = getMockResponse($tool, $message);
         echo json_encode(['success' => true, 'result' => $mock_result]);
         exit();
-    }
-
-    // ── Call appropriate API based on configuration ───────────────────────────
-    if (AI_PROVIDER === 'gemini') {
-        if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-            echo json_encode(['success' => false, 'error' => 'Please set your Gemini API key in the configuration. Get one free from https://makersuite.google.com/app/apikey']);
-            exit();
-        }
-
-        $response = callGeminiAPI($system_prompts[$tool], $message, GEMINI_API_KEY);
+    } elseif ($ai_provider === 'gemini' && $gemini_api_key !== 'YOUR_GEMINI_API_KEY_HERE') {
+        $response = callGeminiAPI($system_prompts[$tool], $message, $gemini_api_key);
         echo json_encode($response);
         exit();
     } else {
-        // Unknown provider
-        echo json_encode(['success' => false, 'error' => 'Invalid AI provider configured. Please set AI_PROVIDER to "gemini" or "mock"']);
+        echo json_encode(['success' => false, 'error' => 'No AI provider configured. Please set up Gemini API key or enable mock mode.']);
         exit();
     }
 }
@@ -407,14 +366,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>AI Teaching Tools - Digital CBT System</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        /* ── CSS variables match your existing portal exactly ──────────────── */
+        /* ── CSS variables ──────────────────────────────────────────────────── */
         :root {
             --primary-color: #2c3e50;
             --secondary-color: #3498db;
@@ -425,16 +384,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             --light-color: #ecf0f1;
             --dark-color: #2c3e50;
             --sidebar-width: 260px;
-            --header-height: 70px;
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, .08);
             --shadow-md: 0 4px 12px rgba(0, 0, 0, .1);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, .12);
             --radius-sm: 8px;
             --radius-md: 12px;
-            --radius-lg: 16px;
             --transition: all 0.3s ease;
-
-            /* AI tool accent colours */
             --ai-lesson: #27ae60;
             --ai-explain: #3498db;
             --ai-question: #9b59b6;
@@ -444,7 +398,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -452,10 +405,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             background: #f5f6fa;
             color: #333;
             min-height: 100vh;
-            overflow-x: hidden;
         }
 
-        /* ── Mobile toggle (copy of your index.php) ────────────────────────── */
+        /* Mobile Toggle */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -467,21 +419,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             color: white;
             border: none;
             border-radius: var(--radius-md);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             font-size: 20px;
             cursor: pointer;
             box-shadow: var(--shadow-md);
-            transition: var(--transition);
         }
 
-        .mobile-menu-toggle:hover {
-            background: #1a252f;
-            transform: scale(1.05);
-        }
-
-        /* ── Sidebar (copy of your index.php) ──────────────────────────────── */
+        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -491,17 +437,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
             color: white;
             padding: 20px 0 0;
-            transition: transform 0.3s cubic-bezier(.4, 0, .2, 1);
             z-index: 1000;
-            box-shadow: 2px 0 15px rgba(0, 0, 0, .1);
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
         }
 
         .sidebar-header {
@@ -524,18 +463,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             align-items: center;
             justify-content: center;
             font-size: 20px;
-            flex-shrink: 0;
         }
 
         .logo-text h3 {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
-            margin-bottom: 2px;
-            line-height: 1.2;
         }
 
         .logo-text p {
-            font-size: .8rem;
+            font-size: .75rem;
             opacity: .8;
         }
 
@@ -545,35 +481,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             background: rgba(255, 255, 255, .1);
             border-radius: var(--radius-md);
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, .05);
-        }
-
-        .admin-info h4 {
-            font-size: .95rem;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .admin-info p {
-            font-size: .8rem;
-            opacity: .8;
-            text-transform: capitalize;
-        }
-
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 0 0 20px;
-        }
-
-        .sidebar-content::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .sidebar-content::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, .2);
-            border-radius: 10px;
         }
 
         .nav-links {
@@ -589,61 +496,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             display: flex;
             align-items: center;
             gap: 14px;
-            padding: 14px 16px;
+            padding: 12px 16px;
             color: rgba(255, 255, 255, .9);
             text-decoration: none;
-            transition: var(--transition);
             border-radius: var(--radius-sm);
-            border-left: 3px solid transparent;
-            font-size: .95rem;
-            font-weight: 500;
+            transition: var(--transition);
         }
 
         .nav-links a:hover {
             background: rgba(255, 255, 255, .1);
-            color: white;
-            border-left-color: var(--secondary-color);
-            transform: translateX(4px);
         }
 
         .nav-links a.active {
             background: rgba(255, 255, 255, .15);
-            color: white;
-            border-left-color: var(--secondary-color);
             font-weight: 600;
         }
 
-        .nav-links i {
-            width: 20px;
-            text-align: center;
-            font-size: 18px;
-        }
-
-        /* ── Overlay ────────────────────────────────────────────────────────── */
-        .sidebar-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: var(--transition);
-            backdrop-filter: blur(2px);
-        }
-
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        /* ── Main content ───────────────────────────────────────────────────── */
+        /* Main Content */
         .main-content {
+            margin-left: var(--sidebar-width);
             min-height: 100vh;
-            padding: 80px 20px 20px;
-            transition: var(--transition);
+            padding: 20px;
         }
 
-        /* ── Top header (matches your portal style) ─────────────────────────── */
         .top-header {
             background: white;
             padding: 20px;
@@ -661,12 +536,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             color: var(--primary-color);
             font-size: 1.5rem;
             font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .header-title p {
-            color: #666;
-            font-size: .9rem;
         }
 
         .ai-badge {
@@ -675,67 +544,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             padding: 6px 14px;
             border-radius: 20px;
             font-size: .8rem;
-            font-weight: 600;
-            letter-spacing: .5px;
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        /* ── Status indicator ───────────────────────────────────────────────── */
         .status-indicator {
-            background: #f0f9ff;
-            border: 1px solid #3498db;
+            background: #fff8e1;
+            border: 1px solid #f39c12;
             border-radius: var(--radius-sm);
-            padding: 6px 12px;
-            font-size: .75rem;
+            padding: 4px 10px;
+            font-size: .7rem;
             display: inline-flex;
             align-items: center;
             gap: 6px;
             margin-left: 12px;
-        }
-
-        .status-indicator.mock {
-            background: #fff8e1;
-            border-color: #f39c12;
             color: #7d6608;
         }
 
-        .status-indicator.gemini {
-            background: #e8f5e9;
-            border-color: #27ae60;
-            color: #1b5e20;
-        }
-
-        /* ── Disclaimer banner ──────────────────────────────────────────────── */
         .disclaimer {
             background: #fff8e1;
-            border: 1px solid #f39c12;
             border-left: 4px solid #f39c12;
             border-radius: var(--radius-sm);
             padding: 12px 16px;
             margin-bottom: 24px;
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
             font-size: .85rem;
             color: #7d6608;
-            line-height: 1.5;
         }
 
-        .disclaimer i {
-            color: #f39c12;
-            margin-top: 2px;
-            flex-shrink: 0;
-        }
-
-        /* ── Tool tabs ──────────────────────────────────────────────────────── */
         .tool-tabs {
             display: flex;
             gap: 8px;
             margin-bottom: 24px;
-            overflow-x: auto;
-            padding-bottom: 4px;
+            flex-wrap: wrap;
         }
 
         .tool-tab {
@@ -744,7 +585,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             gap: 8px;
             padding: 12px 20px;
             border-radius: var(--radius-sm);
-            border: 2px solid transparent;
             background: white;
             cursor: pointer;
             font-family: 'Poppins', sans-serif;
@@ -752,13 +592,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             font-weight: 500;
             color: #666;
             box-shadow: var(--shadow-sm);
+            border: 2px solid transparent;
             transition: var(--transition);
-            white-space: nowrap;
-        }
-
-        .tool-tab:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
         }
 
         .tool-tab.active[data-tool="lesson"] {
@@ -779,25 +614,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             color: var(--ai-question);
         }
 
-        /* ── Two-column workspace ───────────────────────────────────────────── */
         .workspace {
             display: grid;
             grid-template-columns: 1fr 1.5fr;
             gap: 20px;
-            align-items: start;
         }
 
-        /* ── Card (shared) ──────────────────────────────────────────────────── */
         .card {
             background: white;
             border-radius: var(--radius-md);
             padding: 24px;
             box-shadow: var(--shadow-sm);
-            transition: var(--transition);
-        }
-
-        .card:hover {
-            box-shadow: var(--shadow-md);
         }
 
         .card-title {
@@ -812,7 +639,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             gap: 8px;
         }
 
-        /* ── Form fields ────────────────────────────────────────────────────── */
         .form-group {
             margin-bottom: 16px;
         }
@@ -829,31 +655,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         .form-group select,
         .form-group textarea {
             width: 100%;
-            padding: 11px 14px;
+            padding: 10px 12px;
             border: 1.5px solid #dde1e7;
             border-radius: var(--radius-sm);
             font-family: 'Poppins', sans-serif;
             font-size: .9rem;
-            color: #333;
-            background: #fafbfc;
-            transition: var(--transition);
             outline: none;
         }
 
         .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
+        .form-group select:focus {
             border-color: var(--secondary-color);
-            background: white;
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, .1);
         }
 
-        .form-group textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        /* ── Generate button ────────────────────────────────────────────────── */
         .btn-generate {
             width: 100%;
             padding: 14px;
@@ -871,12 +685,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             margin-top: 8px;
         }
 
-        .btn-generate:disabled {
-            background: #ccc !important;
-            color: #888;
-            cursor: not-allowed;
-        }
-
         .btn-lesson {
             background: var(--ai-lesson);
             color: white;
@@ -892,18 +700,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             color: white;
         }
 
-        .btn-generate:not(:disabled):hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        /* ── Output panel ───────────────────────────────────────────────────── */
-        .output-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-        }
-
         .output-toolbar {
             display: flex;
             justify-content: space-between;
@@ -913,31 +709,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             gap: 8px;
         }
 
-        .output-label {
-            font-size: .8rem;
-            font-weight: 600;
-            color: #888;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .output-actions {
-            display: flex;
-            gap: 8px;
-        }
-
         .btn-action {
-            padding: 7px 14px;
+            padding: 6px 12px;
             border-radius: var(--radius-sm);
-            font-family: 'Poppins', sans-serif;
             font-size: .8rem;
-            font-weight: 500;
             cursor: pointer;
             border: 1.5px solid #dde1e7;
             background: white;
-            color: #555;
             transition: var(--transition);
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 5px;
         }
@@ -947,12 +727,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             color: var(--secondary-color);
         }
 
-        .btn-action.copied {
-            border-color: var(--success-color);
-            color: var(--success-color);
-            background: #e8f8f0;
-        }
-
         .output-box {
             background: #f8fafc;
             border: 1.5px solid #dde1e7;
@@ -960,11 +734,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             padding: 20px;
             min-height: 400px;
             font-size: .9rem;
-            line-height: 1.85;
-            color: #2c3e50;
+            line-height: 1.6;
             white-space: pre-wrap;
             overflow-y: auto;
-            max-height: 70vh;
+            max-height: 60vh;
         }
 
         .output-box.empty {
@@ -973,20 +746,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             align-items: center;
             justify-content: center;
             color: #bdc3c7;
-            gap: 12px;
-        }
-
-        .output-box.empty i {
-            font-size: 3rem;
-        }
-
-        .output-box.empty p {
-            font-size: .9rem;
             text-align: center;
-            line-height: 1.6;
         }
 
-        /* Loading spinner */
         .spinner {
             display: none;
             flex-direction: column;
@@ -994,8 +756,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             justify-content: center;
             gap: 16px;
             min-height: 400px;
-            color: #888;
-            font-size: .9rem;
         }
 
         .spinner.active {
@@ -1005,9 +765,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         .spin-ring {
             width: 48px;
             height: 48px;
-            border-radius: 50%;
             border: 4px solid #ecf0f1;
             border-top-color: var(--secondary-color);
+            border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
 
@@ -1017,35 +777,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             }
         }
 
-        /* ── Footer ─────────────────────────────────────────────────────────── */
         .dashboard-footer {
             text-align: center;
             padding: 20px;
             color: #888;
-            font-size: .85rem;
+            font-size: .8rem;
             margin-top: 24px;
         }
 
-        /* ── Responsive ─────────────────────────────────────────────────────── */
-        @media (max-width:767px) {
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding-top: 70px;
+            }
+
             .workspace {
                 grid-template-columns: 1fr;
-            }
-
-            .tool-tabs {
-                flex-wrap: nowrap;
-            }
-
-            .output-box {
-                max-height: 50vh;
-            }
-        }
-
-        @supports (padding: max(0px)) {
-            .main-content {
-                padding-left: max(16px, env(safe-area-inset-left));
-                padding-right: max(16px, env(safe-area-inset-right));
-                padding-top: max(80px, calc(env(safe-area-inset-top) + 60px));
             }
         }
 
@@ -1055,18 +815,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             .mobile-menu-toggle,
             .tool-tabs,
             .card:first-child,
-            .output-toolbar,
-            .disclaimer {
-                display: none !important;
+            .output-toolbar {
+                display: none;
             }
 
-            .workspace {
-                grid-template-columns: 1fr;
-            }
-
-            .output-box {
-                border: none;
-                max-height: none;
+            .main-content {
+                margin-left: 0;
+                padding: 0;
             }
         }
     </style>
@@ -1074,15 +829,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
 
 <body>
 
-    <!-- Mobile Toggle -->
-    <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
     </button>
 
-    <!-- Overlay -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
@@ -1110,23 +860,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="report_card_dashboard.php"><i class="fas fa-cog"></i> Process Result</a></li>
                 <li><a href="ai-tools.php" class="active"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
-                <li><a href="updater.php"><i class="fas fa-sync-alt"></i> System Update</a></li>
-                <li><a href="db_update.php"><i class="fas fa-database"></i> Database Update</a></li>
                 <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="main-content" id="mainContent">
-
-        <!-- Top Header -->
+    <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-robot" style="color:var(--secondary-color);margin-right:8px;"></i>AI Teaching Tools
-                    <span class="status-indicator <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'mock' : 'gemini'; ?>">
-                        <i class="fas <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'fa-flask' : 'fa-cloud-upload-alt'; ?>"></i>
-                        <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'MOCK MODE (Testing)' : 'Powered by Google Gemini'; ?>
+                    <span class="status-indicator">
+                        <i class="fas fa-flask"></i> MOCK MODE (Testing)
                     </span>
                 </h1>
                 <p>Generate lesson notes, explain concepts and create exam questions instantly</p>
@@ -1134,17 +878,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             <div class="ai-badge"><i class="fas fa-sparkles"></i> Free AI Tools</div>
         </div>
 
-        <!-- Disclaimer -->
         <div class="disclaimer">
-            <i class="fas fa-exclamation-triangle"></i>
-            <span><strong>Note:</strong> All AI-generated content is a <em>draft</em>. Please review for accuracy before use in class or examinations. The AI follows Nigerian curriculum standards but teacher judgment is always final.
-                <?php if ($USE_MOCK || AI_PROVIDER === 'mock'): ?>
-                    <br><strong>💡 Testing Mode:</strong> Mock responses are being used. To use real AI, get a free Gemini API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> and update the configuration.
-                <?php endif; ?>
-            </span>
+            <i class="fas fa-info-circle"></i>
+            <strong>Testing Mode Active:</strong> Currently using mock responses. To use real AI, get a free Gemini API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> and update the configuration.
         </div>
 
-        <!-- Tool Tabs -->
         <div class="tool-tabs">
             <button class="tool-tab active" data-tool="lesson" onclick="switchTool('lesson')">
                 <i class="fas fa-book-open"></i> Lesson Note Drafter
@@ -1157,50 +895,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
             </button>
         </div>
 
-        <!-- Workspace -->
         <div class="workspace">
-
-            <!-- LEFT: Input Form -->
             <div class="card">
-
-                <!-- LESSON NOTE FORM -->
                 <div id="form-lesson">
                     <div class="card-title"><i class="fas fa-book-open" style="color:var(--ai-lesson);"></i> Lesson Note Details</div>
                     <div class="form-group">
-                        <label>Subject <span style="color:red;">*</span></label>
-                        <input type="text" id="l-subject" placeholder="e.g. Mathematics, Biology, Economics...">
+                        <label>Subject *</label>
+                        <input type="text" id="l-subject" placeholder="e.g. Mathematics, Biology, Economics">
                     </div>
                     <div class="form-group">
-                        <label>Topic <span style="color:red;">*</span></label>
-                        <input type="text" id="l-topic" placeholder="e.g. Quadratic Equations, Photosynthesis...">
+                        <label>Topic *</label>
+                        <input type="text" id="l-topic" placeholder="e.g. Quadratic Equations, Photosynthesis">
                     </div>
                     <div class="form-group">
-                        <label>Class / Level <span style="color:red;">*</span></label>
-                        <input type="text" id="l-level" placeholder="e.g. JSS 2, SS 3, Primary 5...">
+                        <label>Class / Level *</label>
+                        <input type="text" id="l-level" placeholder="e.g. JSS 2, SS 3, Primary 5">
                     </div>
                     <div class="form-group">
-                        <label>Lesson Duration <span style="color:red;">*</span></label>
-                        <input type="text" id="l-duration" placeholder="e.g. 40 minutes, 1 hour...">
+                        <label>Lesson Duration *</label>
+                        <input type="text" id="l-duration" placeholder="e.g. 40 minutes, 1 hour">
                     </div>
                     <button class="btn-generate btn-lesson" onclick="generate('lesson')">
                         <i class="fas fa-magic"></i> Generate Lesson Note
                     </button>
                 </div>
 
-                <!-- CONCEPT EXPLAINER FORM -->
                 <div id="form-explain" style="display:none;">
                     <div class="card-title"><i class="fas fa-lightbulb" style="color:var(--ai-explain);"></i> Concept Details</div>
                     <div class="form-group">
-                        <label>Concept to Explain <span style="color:red;">*</span></label>
-                        <input type="text" id="e-concept" placeholder="e.g. Osmosis, Democracy, Newton's Laws...">
+                        <label>Concept to Explain *</label>
+                        <input type="text" id="e-concept" placeholder="e.g. Osmosis, Democracy, Newton's Laws">
                     </div>
                     <div class="form-group">
-                        <label>Subject Area <span style="color:red;">*</span></label>
-                        <input type="text" id="e-subject" placeholder="e.g. Biology, Civic Education, Physics...">
+                        <label>Subject Area *</label>
+                        <input type="text" id="e-subject" placeholder="e.g. Biology, Civic Education, Physics">
                     </div>
                     <div class="form-group">
-                        <label>Student Level <span style="color:red;">*</span></label>
-                        <input type="text" id="e-level" placeholder="e.g. JSS 1, SS 2, Primary 4...">
+                        <label>Student Level *</label>
+                        <input type="text" id="e-level" placeholder="e.g. JSS 1, SS 2, Primary 4">
                     </div>
                     <div class="form-group">
                         <label>Preferred Style</label>
@@ -1208,7 +940,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                             <option value="Simple analogy and real-life examples">Simple analogy & real-life examples</option>
                             <option value="Story-based narrative">Story-based narrative</option>
                             <option value="Step-by-step with diagrams described">Step-by-step with diagrams described</option>
-                            <option value="Question and answer format">Question & answer format</option>
                         </select>
                     </div>
                     <button class="btn-generate btn-explain" onclick="generate('explain')">
@@ -1216,20 +947,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                     </button>
                 </div>
 
-                <!-- QUESTION GENERATOR FORM -->
                 <div id="form-question" style="display:none;">
-                    <div class="card-title"><i class="fas fa-question-circle" style="color:var(--ai-question);"></i> Exam / Test Details</div>
+                    <div class="card-title"><i class="fas fa-question-circle" style="color:var(--ai-question);"></i> Exam Details</div>
                     <div class="form-group">
-                        <label>Subject <span style="color:red;">*</span></label>
-                        <input type="text" id="q-subject" placeholder="e.g. Chemistry, English Language...">
+                        <label>Subject *</label>
+                        <input type="text" id="q-subject" placeholder="e.g. Chemistry, English Language">
                     </div>
                     <div class="form-group">
-                        <label>Topic <span style="color:red;">*</span></label>
-                        <input type="text" id="q-topic" placeholder="e.g. Acids & Bases, Essay Writing...">
+                        <label>Topic *</label>
+                        <input type="text" id="q-topic" placeholder="e.g. Acids & Bases, Essay Writing">
                     </div>
                     <div class="form-group">
-                        <label>Class / Level <span style="color:red;">*</span></label>
-                        <input type="text" id="q-level" placeholder="e.g. SS 3, JSS 2...">
+                        <label>Class / Level *</label>
+                        <input type="text" id="q-level" placeholder="e.g. SS 3, JSS 2">
                     </div>
                     <div class="form-group">
                         <label>Number of Questions</label>
@@ -1237,40 +967,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                             <option value="5">5 questions</option>
                             <option value="10" selected>10 questions</option>
                             <option value="20">20 questions</option>
-                            <option value="30">30 questions</option>
-                            <option value="40">40 questions</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Question Type</label>
                         <select id="q-type">
-                            <option value="Objectives (MCQ with 4 options A B C D)">Objectives (MCQ)</option>
-                            <option value="Theory (with model answers)">Theory</option>
-                            <option value="Mixed (Objectives then Theory)">Mixed</option>
+                            <option value="Objectives (MCQ)">Objectives (MCQ)</option>
+                            <option value="Theory">Theory</option>
+                            <option value="Mixed">Mixed</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Difficulty Level</label>
+                        <label>Difficulty</label>
                         <select id="q-difficulty">
                             <option value="Easy">Easy</option>
                             <option value="Medium" selected>Medium</option>
                             <option value="Hard">Hard</option>
-                            <option value="Mixed (Easy, Medium and Hard)">Mixed</option>
                         </select>
                     </div>
                     <button class="btn-generate btn-question" onclick="generate('question')">
                         <i class="fas fa-magic"></i> Generate Questions
                     </button>
                 </div>
+            </div>
 
-            </div><!-- /card -->
-
-            <!-- RIGHT: Output -->
-            <div class="card output-panel">
-
+            <div class="card">
                 <div class="output-toolbar">
-                    <span class="output-label"><i class="fas fa-file-alt"></i> &nbsp;AI Output</span>
-                    <div class="output-actions">
+                    <span><i class="fas fa-file-alt"></i> AI Output</span>
+                    <div>
                         <button class="btn-action" id="btnCopy" onclick="copyOutput()" style="display:none;">
                             <i class="fas fa-copy"></i> Copy
                         </button>
@@ -1280,125 +1004,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                     </div>
                 </div>
 
-                <!-- Spinner -->
                 <div class="spinner" id="spinner">
                     <div class="spin-ring"></div>
-                    <span>AI is preparing your content&hellip;</span>
+                    <span>Generating content...</span>
                 </div>
 
-                <!-- Output Box -->
                 <div class="output-box empty" id="outputBox">
-                    <i class="fas fa-robot"></i>
-                    <p>Select a tool, fill in the details<br>and click <strong>Generate</strong><br><br>
-                        Your content will appear here.</p>
+                    <i class="fas fa-robot" style="font-size: 3rem;"></i>
+                    <p>Select a tool, fill in the details<br>and click <strong>Generate</strong></p>
                 </div>
-
-            </div><!-- /card -->
-        </div><!-- /workspace -->
-
-        <div class="dashboard-footer">
-            <p>&copy; <?php echo date('Y'); ?> <?php echo defined('SCHOOL_NAME') ? SCHOOL_NAME : 'The Climax Brains Academy'; ?> &mdash; Digital CBT System</p>
-            <p style="margin-top:5px;font-size:.8rem;color:#aaa;">AI Teaching Tools &mdash; Powered by <?php echo ($USE_MOCK || AI_PROVIDER === 'mock') ? 'Mock Mode (Testing)' : 'Google Gemini AI'; ?></p>
+            </div>
         </div>
 
-    </div><!-- /main-content -->
+        <div class="dashboard-footer">
+            <p>&copy; <?php echo date('Y'); ?> <?php echo defined('SCHOOL_NAME') ? SCHOOL_NAME : 'The Climax Brains Academy'; ?> - AI Teaching Tools (Mock Mode)</p>
+        </div>
+    </div>
 
     <script>
-        // ── Sidebar (identical to your index.php) ─────────────────────────────────
-        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        // Mobile menu
+        const toggleBtn = document.getElementById('mobileMenuToggle');
         const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-        function toggleSidebar() {
+        toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
-            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-        }
-
-        function closeSidebar() {
-            sidebar.classList.remove('active');
-            sidebarOverlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-        mobileMenuToggle.addEventListener('click', toggleSidebar);
-        sidebarOverlay.addEventListener('click', closeSidebar);
-        document.querySelectorAll('.nav-links a').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 767) closeSidebar();
-            });
         });
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') closeSidebar();
-        });
-
-        // ── Tool switcher ─────────────────────────────────────────────────────────
-        let currentTool = 'lesson';
 
         function switchTool(tool) {
-            currentTool = tool;
             document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.tool-tab[data-tool="${tool}"]`).classList.add('active');
 
-            ['lesson', 'explain', 'question'].forEach(t => {
-                document.getElementById(`form-${t}`).style.display = t === tool ? 'block' : 'none';
-            });
+            document.getElementById('form-lesson').style.display = tool === 'lesson' ? 'block' : 'none';
+            document.getElementById('form-explain').style.display = tool === 'explain' ? 'block' : 'none';
+            document.getElementById('form-question').style.display = tool === 'question' ? 'block' : 'none';
 
-            // Reset output
             resetOutput();
         }
 
         function resetOutput() {
             const box = document.getElementById('outputBox');
             box.className = 'output-box empty';
-            box.innerHTML = '<i class="fas fa-robot"></i><p>Select a tool, fill in the details<br>and click <strong>Generate</strong><br><br>Your content will appear here.</p>';
+            box.innerHTML = '<i class="fas fa-robot" style="font-size: 3rem;"></i><p>Select a tool, fill in the details<br>and click <strong>Generate</strong></p>';
             document.getElementById('btnCopy').style.display = 'none';
             document.getElementById('btnPrint').style.display = 'none';
-            document.getElementById('spinner').classList.remove('active');
         }
 
-        // ── Build user message from form ──────────────────────────────────────────
         function buildMessage(tool) {
             if (tool === 'lesson') {
-                const s = v('l-subject'),
-                    t = v('l-topic'),
-                    l = v('l-level'),
-                    d = v('l-duration');
+                const s = document.getElementById('l-subject')?.value.trim();
+                const t = document.getElementById('l-topic')?.value.trim();
+                const l = document.getElementById('l-level')?.value.trim();
+                const d = document.getElementById('l-duration')?.value.trim();
                 if (!s || !t || !l || !d) return null;
                 return `Subject: ${s}\nTopic: ${t}\nClass Level: ${l}\nDuration: ${d}`;
             }
             if (tool === 'explain') {
-                const c = v('e-concept'),
-                    s = v('e-subject'),
-                    l = v('e-level'),
-                    st = document.getElementById('e-style')?.value || 'Simple analogy and real-life examples';
+                const c = document.getElementById('e-concept')?.value.trim();
+                const s = document.getElementById('e-subject')?.value.trim();
+                const l = document.getElementById('e-level')?.value.trim();
+                const st = document.getElementById('e-style')?.value;
                 if (!c || !s || !l) return null;
-                return `Concept: ${c}\nSubject: ${s}\nStudent Level: ${l}\nExplanation Style: ${st}`;
+                return `Concept: ${c}\nSubject: ${s}\nStudent Level: ${l}\nStyle: ${st}`;
             }
             if (tool === 'question') {
-                const s = v('q-subject'),
-                    t = v('q-topic'),
-                    l = v('q-level');
-                const n = document.getElementById('q-count')?.value || '10',
-                    tp = document.getElementById('q-type')?.value || 'Objectives (MCQ with 4 options A B C D)',
-                    d = document.getElementById('q-difficulty')?.value || 'Medium';
+                const s = document.getElementById('q-subject')?.value.trim();
+                const t = document.getElementById('q-topic')?.value.trim();
+                const l = document.getElementById('q-level')?.value.trim();
                 if (!s || !t || !l) return null;
-                return `Subject: ${s}\nTopic: ${t}\nClass Level: ${l}\nNumber of Questions: ${n}\nQuestion Type: ${tp}\nDifficulty: ${d}`;
+                const n = document.getElementById('q-count')?.value;
+                const tp = document.getElementById('q-type')?.value;
+                const d = document.getElementById('q-difficulty')?.value;
+                return `Subject: ${s}\nTopic: ${t}\nClass: ${l}\nQuestions: ${n}\nType: ${tp}\nDifficulty: ${d}`;
             }
+            return null;
         }
 
-        function v(id) {
-            return document.getElementById(id)?.value?.trim() || '';
-        }
-
-        // ── Generate ──────────────────────────────────────────────────────────────
         async function generate(tool) {
             const message = buildMessage(tool);
             if (!message) {
-                alert('Please fill in all required fields before generating.');
+                alert('Please fill in all required fields.');
                 return;
             }
 
-            // Show spinner
             const spinner = document.getElementById('spinner');
             const box = document.getElementById('outputBox');
             spinner.classList.add('active');
@@ -1412,11 +1099,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 formData.append('tool', tool);
                 formData.append('message', message);
 
-                const resp = await fetch('ai-tools.php', {
+                const response = await fetch(window.location.href, {
                     method: 'POST',
                     body: formData
                 });
-                const data = await resp.json();
+
+                const data = await response.json();
 
                 spinner.classList.remove('active');
                 box.style.display = 'block';
@@ -1424,55 +1112,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
                 if (data.success) {
                     box.className = 'output-box';
                     box.textContent = data.result;
-                    document.getElementById('btnCopy').style.display = 'flex';
-                    document.getElementById('btnPrint').style.display = 'flex';
+                    document.getElementById('btnCopy').style.display = 'inline-flex';
+                    document.getElementById('btnPrint').style.display = 'inline-flex';
                 } else {
                     box.className = 'output-box empty';
-                    box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i>
-                    <p style="color:#e74c3c;"><strong>Error:</strong><br>${escapeHtml(data.error)}</p>`;
+                    box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;font-size:2rem;"></i>
+                    <p style="color:#e74c3c;">Error: ${data.error}</p>`;
                 }
             } catch (err) {
-                document.getElementById('spinner').classList.remove('active');
+                spinner.classList.remove('active');
                 box.style.display = 'block';
                 box.className = 'output-box empty';
-                box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i>
-                <p style="color:#e74c3c;"><strong>Network Error:</strong><br>${escapeHtml(err.message)}</p>`;
+                box.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#e74c3c;font-size:2rem;"></i>
+                <p style="color:#e74c3c;">Network Error: ${err.message}</p>`;
             }
         }
 
-        // Helper function to escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // ── Copy & Print ──────────────────────────────────────────────────────────
         async function copyOutput() {
             const text = document.getElementById('outputBox').textContent;
             try {
                 await navigator.clipboard.writeText(text);
                 const btn = document.getElementById('btnCopy');
-                btn.classList.add('copied');
+                const originalHtml = btn.innerHTML;
                 btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
                 setTimeout(() => {
-                    btn.classList.remove('copied');
-                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
-                }, 2500);
+                    btn.innerHTML = originalHtml;
+                }, 2000);
             } catch (err) {
-                alert('Could not copy text. Please select and copy manually.');
+                alert('Could not copy. Please select and copy manually.');
             }
         }
 
         function printOutput() {
             window.print();
         }
-
-        // Touch feedback (matches your index.php)
-        document.querySelectorAll('.btn-generate, .btn-action, .tool-tab').forEach(el => {
-            el.addEventListener('touchstart', () => el.style.opacity = '.8');
-            el.addEventListener('touchend', () => el.style.opacity = '1');
-        });
     </script>
 </body>
 

@@ -16,7 +16,7 @@ if (!defined('SCHOOL_ID')) {
     define('SCHOOL_NAME', 'Great Optimist School');
     define('SCHOOL_PRIMARY', '#1B2A4A');
     define('SCHOOL_SECONDARY', '#2E7D32');
-    define('SCHOOL_LOGO', '/assets/logos/logo.png');
+    define('SCHOOL_LOGO', 'gos/assets/logos/logo.png');
 }
 
 // Global PDO variable

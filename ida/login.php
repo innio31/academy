@@ -678,9 +678,9 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             const usernameField = document.getElementById('username');
             const userType = this.value;
             if (userType === 'student') {
-                usernameField.placeholder = 'Admission Number (e.g., GOS/2024/001)';
+                usernameField.placeholder = 'Admission Number (e.g., IDA/2024/001)';
             } else if (userType === 'staff') {
-                usernameField.placeholder = 'Staff ID (e.g., MSV0001)';
+                usernameField.placeholder = 'Staff ID (e.g., IDA0001)';
             } else {
                 usernameField.placeholder = 'Username (e.g., admin)';
             }

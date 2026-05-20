@@ -65,6 +65,13 @@ $class   = $record['class'];
 $session = $record['session'];
 $term    = $record['term'];
 
+// ── Load principal comments per grade and default class teacher name ──────────
+$principal_comments_map = [];
+if (!empty($record['principal_comments_per_grade'])) {
+    $principal_comments_map = json_decode($record['principal_comments_per_grade'], true) ?: [];
+}
+$default_class_teacher = $record['default_class_teacher_name'] ?? '';
+
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
@@ -84,7 +91,7 @@ $total_students = count($students);
 
 // ── Active student ─────────────────────────────────────────────────────────────
 $student_ids    = array_column($students, 'id');
-$active_idx     = 0;                              // index in $students array
+$active_idx     = 0;
 
 if (isset($_GET['student_id'])) {
     $req_id = (int)$_GET['student_id'];
@@ -123,6 +130,11 @@ $saved_psychomotor = [];
 $saved_comments   = [];
 $saved_position   = [];
 
+// Calculate student's overall grade for auto principal comment
+$student_grade = '';
+$student_average = 0;
+$auto_principal_comment = '';
+
 if ($active_sid) {
     try {
         // Affective traits
@@ -156,6 +168,51 @@ if ($active_sid) {
         ");
         $stmt->execute([$school_id, $active_sid, $session, $term]);
         $saved_position = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        // Get student's average for auto principal comment
+        if ($saved_position && $saved_position['average'] > 0) {
+            $student_average = floatval($saved_position['average']);
+        } else {
+            // Calculate from student_scores if not in positions
+            $stmt = $pdo->prepare("
+                SELECT AVG(percentage) as avg_score FROM student_scores 
+                WHERE school_id=? AND student_id=? AND session=? AND term=?
+            ");
+            $stmt->execute([$school_id, $active_sid, $session, $term]);
+            $avg_data = $stmt->fetch(PDO::FETCH_ASSOC);
+            $student_average = floatval($avg_data['avg_score'] ?? 0);
+        }
+
+        // Get grading scale from record
+        $grading_data = [];
+        if (!empty($record['score_types'])) {
+            $decoded = json_decode($record['score_types'], true);
+            $grading_data = $decoded['grading_scale'] ?? [];
+        }
+
+        // Fallback grading if none found
+        if (empty($grading_data)) {
+            $grading_data = [
+                ['grade' => 'A', 'min' => 75, 'max' => 100],
+                ['grade' => 'B', 'min' => 65, 'max' => 74],
+                ['grade' => 'C', 'min' => 50, 'max' => 64],
+                ['grade' => 'D', 'min' => 40, 'max' => 49],
+                ['grade' => 'F', 'min' => 0, 'max' => 39],
+            ];
+        }
+
+        // Determine grade based on average
+        foreach ($grading_data as $grade_range) {
+            if ($student_average >= $grade_range['min'] && $student_average <= $grade_range['max']) {
+                $student_grade = $grade_range['grade'];
+                break;
+            }
+        }
+
+        // Get auto principal comment based on grade
+        if ($student_grade && isset($principal_comments_map[$student_grade])) {
+            $auto_principal_comment = $principal_comments_map[$student_grade];
+        }
     } catch (Exception $e) {
         error_log("traits load: " . $e->getMessage());
     }
@@ -187,7 +244,7 @@ $rating_labels = ['A' => 'Excellent', 'B' => 'Very Good', 'C' => 'Good', 'D' => 
 // ── Next class options (for promoted_to) ──────────────────────────────────────
 $classes_list = [];
 try {
-    $stmt = $pdo->prepare("SELECT class_name FROM school_classes WHERE school_id=? AND status='active' ORDER BY sort_order, class_name");
+    $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE school_id=? AND status='active' ORDER BY sort_order, class_name");
     $stmt->execute([$school_id]);
     $classes_list = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) { /* non-fatal */
@@ -698,6 +755,12 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             border-left: 4px solid var(--danger);
         }
 
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
         .alert i {
             flex-shrink: 0;
             margin-top: 2px;
@@ -1027,12 +1090,10 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             color: #721c24;
         }
 
-        /* Hidden radios backing each group */
         .rating-group input[type="radio"] {
             display: none;
         }
 
-        /* Key legend */
         .rating-legend {
             display: flex;
             gap: 10px;
@@ -1056,7 +1117,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             border-radius: 3px;
         }
 
-        /* Text areas & inputs */
+        /* Form elements */
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1107,7 +1168,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             min-height: 70px;
         }
 
-        /* Attendance calc helper */
         .attend-hint {
             font-size: .76rem;
             color: var(--warning);
@@ -1189,7 +1249,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             flex-wrap: wrap;
         }
 
-        /* Empty state */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -1201,6 +1260,20 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             margin-bottom: 14px;
             opacity: .3;
             display: block;
+        }
+
+        .suggestion-box {
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            background: #e8f4f8;
+            border-radius: 8px;
+            border-left: 3px solid #17a2b8;
+            font-size: .85rem;
+        }
+
+        .suggestion-box i {
+            color: #17a2b8;
+            margin-right: 6px;
         }
 
         @media(min-width:768px) {
@@ -1584,7 +1657,10 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                             <label class="fg-lbl">Class teacher's name</label>
                                             <input type="text" name="class_teachers_name"
                                                 placeholder="e.g. Mrs. Okonkwo Ngozi"
-                                                value="<?php echo htmlspecialchars($saved_comments['class_teachers_name'] ?? ''); ?>">
+                                                value="<?php echo htmlspecialchars($saved_comments['class_teachers_name'] ?? $default_class_teacher); ?>">
+                                            <?php if ($default_class_teacher): ?>
+                                                <small style="color:#666; font-size:0.7rem;">Default from setup: <?php echo htmlspecialchars($default_class_teacher); ?></small>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="form-group">
                                             <label class="fg-lbl">Principal's name</label>
@@ -1605,8 +1681,26 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                     <div class="form-row full" style="margin-bottom:14px;">
                                         <div class="form-group">
                                             <label class="fg-lbl">Principal's comment</label>
-                                            <textarea name="principals_comment"
-                                                placeholder="Write the principal's comment here..."><?php echo htmlspecialchars($saved_comments['principals_comment'] ?? ''); ?></textarea>
+
+                                            <?php if ($student_grade && $auto_principal_comment): ?>
+                                                <div class="suggestion-box">
+                                                    <i class="fas fa-magic"></i>
+                                                    <strong>Auto-suggested for grade <?php echo htmlspecialchars($student_grade); ?></strong>
+                                                    (Avg: <?php echo number_format($student_average, 1); ?>%):
+                                                    <em>"<?php echo htmlspecialchars($auto_principal_comment); ?>"</em>
+                                                    <button type="button" onclick="useSuggestedComment()" class="btn btn-secondary btn-sm" style="margin-left:8px; padding:3px 10px;">
+                                                        <i class="fas fa-check"></i> Use this
+                                                    </button>
+                                                </div>
+                                            <?php endif; ?>
+
+                                            <textarea name="principals_comment" id="principalsComment"
+                                                placeholder="Principal's comment will be auto-generated based on student's grade..."
+                                                rows="3"><?php echo htmlspecialchars($saved_comments['principals_comment'] ?? $auto_principal_comment); ?></textarea>
+                                            <small style="color:#666; font-size:0.7rem;">
+                                                <i class="fas fa-info-circle"></i>
+                                                The system suggests a comment based on the student's grade. You can edit or keep it.
+                                            </small>
                                         </div>
                                     </div>
 
@@ -1645,9 +1739,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                         <?php endif; ?>
                                     </div>
                                     <div class="right">
-                                        <button type="submit" name="stay" value="1" class="btn btn-secondary" onclick="document.getElementById('gotoNext').value='0';">
-                                            <i class="fas fa-save"></i> Save only
-                                        </button>
                                         <button type="submit" class="btn btn-primary" id="saveNextBtn">
                                             <?php if ($next_student): ?>
                                                 <i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i>
@@ -1694,7 +1785,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
     </div><!-- /main -->
 
     <script>
-        // ── Sidebar ───────────────────────────────────────────────────────────────────
+        // Sidebar
         const sb = document.getElementById('sidebar');
         const ov = document.getElementById('overlay');
         const btn = document.getElementById('menuBtn');
@@ -1709,38 +1800,30 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             document.body.style.overflow = '';
         });
 
-        // ── Rating button click ───────────────────────────────────────────────────────
+        // Rating button click
         function selectRating(btn, radioId) {
-            // Find the parent rating-group
             const group = btn.closest('.rating-group');
             const grade = btn.dataset.grade;
-
-            // Check if already selected — clicking again deselects
             const radio = document.getElementById(radioId);
+
             if (radio.checked) {
                 radio.checked = false;
                 group.querySelectorAll('.rating-btn').forEach(b => b.className = 'rating-btn');
                 return;
             }
 
-            // Check the radio
             radio.checked = true;
-
-            // Reset all buttons in this group, then highlight selected
             group.querySelectorAll('.rating-btn').forEach(b => b.className = 'rating-btn');
             btn.className = `rating-btn sel-${grade}`;
         }
 
-        // ── Clear all ratings in a section ───────────────────────────────────────────
+        // Clear all ratings in a section
         function clearRatings(section) {
-            const prefix = section === 'affective' ? 'af_' : 'pm_';
-            // Uncheck all radios in that section
             document.querySelectorAll(`input[name^="${section}["]`).forEach(r => r.checked = false);
-            // Reset all buttons in that section
             document.querySelectorAll(`.rating-group[data-field^="${section}"] .rating-btn`).forEach(b => b.className = 'rating-btn');
         }
 
-        // ── Attendance: compute absent ────────────────────────────────────────────────
+        // Attendance: compute absent
         const daysOpened = <?php echo (int)($record['days_school_opened'] ?? 0); ?>;
 
         function calcAbsent(inp) {
@@ -1751,7 +1834,19 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             hint.className = `attend-hint${absent < 0 ? '' : ' ok'}`;
         }
 
-        // ── Form submit guard ─────────────────────────────────────────────────────────
+        // Auto-fill principal's suggested comment
+        function useSuggestedComment() {
+            const suggestionBox = document.querySelector('.suggestion-box');
+            if (suggestionBox) {
+                const em = suggestionBox.querySelector('em');
+                if (em) {
+                    const suggestedText = em.innerText.replace(/"/g, '');
+                    document.getElementById('principalsComment').value = suggestedText;
+                }
+            }
+        }
+
+        // Form submit guard
         document.getElementById('traitsForm')?.addEventListener('submit', function(e) {
             const dp = parseInt(document.getElementById('daysPresent')?.value) || 0;
             if (dp > daysOpened) {
@@ -1759,8 +1854,8 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                 alert(`Days present (${dp}) cannot exceed days school opened (${daysOpened}).`);
                 return;
             }
-            const submitBtn = document.activeElement;
-            if (submitBtn && submitBtn.tagName === 'BUTTON') {
+            const submitBtn = document.getElementById('saveNextBtn');
+            if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             }

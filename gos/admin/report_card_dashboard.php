@@ -431,7 +431,7 @@ $students_with_comments = $stmt->fetch()['count'];
             <li><a href="enter_scores.php"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
-            <li><a href="generate_report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
+            <li><a href="generate_report_card.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
             <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>

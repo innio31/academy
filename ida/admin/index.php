@@ -623,7 +623,7 @@ try {
                 <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
                 <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
                 <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-                <li><a href="report_card_dashboard.php"><i class="fas fa-calendar-check"></i> Process Results</a></li>
+                <li><a href="exam_record_setup.php"><i class="fas fa-calendar-check"></i> Process Results</a></li>
                 <li><a href="ai-tools.php"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>

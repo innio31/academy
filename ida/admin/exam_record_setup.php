@@ -59,9 +59,9 @@ $error_message     = '';
 try {
     // Active classes for this school
     $stmt = $pdo->prepare(
-        "SELECT class_name FROM school_classes
-          WHERE school_id = ? AND status = 'active'
-          ORDER BY sort_order ASC, class_name ASC"
+        "SELECT class_name FROM classes
+      WHERE school_id = ? AND status = 'active'
+      ORDER BY sort_order ASC, class_name ASC"
     );
     $stmt->execute([$school_id]);
     $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);

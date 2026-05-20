@@ -594,7 +594,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
                 <span>Get the App</span>
             </div>
 
-            <button class="install-btn" id="installBtn">
+            <button class="install-btn" id="installBtn" style="display: none;">
                 <i class="fas fa-download"></i> Install App
             </button>
         </div>
@@ -691,27 +691,42 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             document.getElementById('user_type').dispatchEvent(new Event('change'));
         }
 
-        // Install button handler
+        // PWA Installation - Updated code
         window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
+            // Stash the event so it can be triggered later
             deferredPrompt = e;
+            // Update UI to notify the user they can install the PWA
             const installBtn = document.getElementById('installBtn');
-            installBtn.innerHTML = '<i class="fas fa-download"></i> Install Now';
-        });
-
-        document.getElementById('installBtn').addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const {
-                    outcome
-                } = await deferredPrompt.userChoice;
-                console.log(`Install: ${outcome}`);
-                deferredPrompt = null;
-            } else {
-                alert('To install:\n• Chrome: Tap menu (⋮) → Install App\n• Safari: Share → Add to Home Screen');
+            if (installBtn) {
+                installBtn.style.display = 'flex';
+                installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
             }
+            console.log('Install prompt ready');
         });
 
+        // Function to handle the install button click
+        function installPWA() {
+            if (deferredPrompt) {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+
+        // Make sure the install button calls this function
+        document.getElementById('installBtn')?.addEventListener('click', installPWA);
+
+        // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('SW registered'))

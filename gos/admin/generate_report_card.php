@@ -771,7 +771,7 @@ function showTemplatePicker($student, $session, $term, $primary_color, $secondar
 
     <body>
 
-        <a href="report_cards.php" class="back-link">← Back to Report Cards</a>
+        <a href="report_card_dashboard.php" class="back-link">← Back to Report Cards</a>
 
         <div class="page-header">
             <?php if ($school_logo): ?>
@@ -1139,7 +1139,7 @@ function tpl_classic($d)
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>" class="btn btn-tpl">⊞ Change Template</a>
             <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>&template=<?php echo $template; ?>&format=pdf" class="btn btn-pdf">⬇ Download PDF</a>
-            <a href="report_cards.php" class="btn btn-back">← Back</a>
+            <a href="report_card_dashboard.php" class="btn btn-back">← Back</a>
         </div>
 
         <div class="page">
@@ -1700,7 +1700,7 @@ function tpl_modern($d)
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>" class="btn btn-tpl">⊞ Change Template</a>
             <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>&template=<?php echo $template; ?>&format=pdf" class="btn btn-pdf">⬇ Download PDF</a>
-            <a href="report_cards.php" class="btn btn-back">← Back</a>
+            <a href="report_card_dashboard.php" class="btn btn-back">← Back</a>
         </div>
 
         <div class="page">
@@ -2212,7 +2212,7 @@ function tpl_elegant($d)
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>" class="btn btn-tpl">⊞ Change Template</a>
             <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>&template=<?php echo $template; ?>&format=pdf" class="btn btn-pdf">⬇ Download PDF</a>
-            <a href="report_cards.php" class="btn btn-back">← Back</a>
+            <a href="report_card_dashboard.php" class="btn btn-back">← Back</a>
         </div>
 
         <div class="page">
@@ -2701,7 +2701,7 @@ function tpl_minimal($d)
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>" class="btn btn-tpl">⊞ Change Template</a>
             <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>&template=<?php echo $template; ?>&format=pdf" class="btn btn-pdf">⬇ Download PDF</a>
-            <a href="report_cards.php" class="btn btn-back">← Back</a>
+            <a href="report_card_dashboard.php" class="btn btn-back">← Back</a>
         </div>
 
         <div class="page">
@@ -3299,7 +3299,7 @@ function tpl_bold($d)
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>" class="btn btn-tpl">⊞ Change Template</a>
             <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
             <a href="?student_id=<?php echo $student['id']; ?>&session=<?php echo urlencode($session); ?>&term=<?php echo urlencode($term); ?>&template=<?php echo $template; ?>&format=pdf" class="btn btn-pdf">⬇ Download PDF</a>
-            <a href="report_cards.php" class="btn btn-back">← Back</a>
+            <a href="report_card_dashboard.php" class="btn btn-back">← Back</a>
         </div>
 
         <div class="page">

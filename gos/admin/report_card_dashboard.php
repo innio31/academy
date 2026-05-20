@@ -474,7 +474,7 @@ $students_with_comments = $stmt->fetch()['count'];
                 <div class="step">
                     <h3>5. Generate Reports</h3>
                     <p>Produce final report cards</p>
-                    <a href="generate_report_card.php" class="btn btn-success">Generate</a>
+                    <a href="generate_report_cards.php" class="btn btn-success">Generate</a>
                 </div>
             </div>
         </div>
@@ -521,7 +521,7 @@ $students_with_comments = $stmt->fetch()['count'];
                 <a href="calculate_positions.php" class="action-card"><span class="action-icon">📊</span>
                     <div class="action-title">Calculate Positions</div>
                 </a>
-                <a href="generate_report_card.php" class="action-card"><span class="action-icon">📄</span>
+                <a href="generate_report_cards.php" class="action-card"><span class="action-icon">📄</span>
                     <div class="action-title">Generate Report Cards</div>
                 </a>
             </div>

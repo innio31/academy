@@ -11,7 +11,9 @@
 //   ADD COLUMN IF NOT EXISTS `show_attendance`       TINYINT(1)    DEFAULT 1,
 //   ADD COLUMN IF NOT EXISTS `show_affective_traits` TINYINT(1)    DEFAULT 1,
 //   ADD COLUMN IF NOT EXISTS `show_psychomotor`      TINYINT(1)    DEFAULT 1,
-//   ADD COLUMN IF NOT EXISTS `created_by`            INT(11)       DEFAULT NULL;
+//   ADD COLUMN IF NOT EXISTS `created_by`            INT(11)       DEFAULT NULL,
+//   ADD COLUMN IF NOT EXISTS `default_class_teacher_name` VARCHAR(150) DEFAULT NULL,
+//   ADD COLUMN IF NOT EXISTS `principal_comments_per_grade` LONGTEXT DEFAULT NULL;
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -19,7 +21,7 @@ ini_set('display_errors', 1);
 session_start();
 require_once '../includes/config.php';
 
-// ── Auth check (matches existing portal style) ────────────────────────────────
+// ── Auth check ────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header("Location: /gos/login.php");
     exit();
@@ -57,16 +59,16 @@ $success_message   = '';
 $error_message     = '';
 
 try {
-    // Active classes for this school
+    // Active classes for this school (using 'classes' table, NOT 'school_classes')
     $stmt = $pdo->prepare(
         "SELECT class_name FROM classes
-      WHERE school_id = ? AND status = 'active'
-      ORDER BY sort_order ASC, class_name ASC"
+          WHERE school_id = ? AND status = 'active'
+          ORDER BY sort_order ASC, class_name ASC"
     );
     $stmt->execute([$school_id]);
     $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // Distinct academic years already used (for the dropdown helper)
+    // Distinct academic years already used
     $stmt = $pdo->prepare(
         "SELECT DISTINCT session FROM report_card_settings
           WHERE school_id = ?
@@ -138,7 +140,8 @@ if (
     $class           = trim($_POST['class'] ?? '');
     $template        = $_POST['template'] ?? 'classic';
     $grading_system  = $_POST['grading_system'] ?? 'simple';
-    $save_as         = $_POST['save_as'] ?? 'draft'; // 'draft' | 'active'
+    $save_as         = $_POST['save_as'] ?? 'draft';
+    $default_class_teacher = trim($_POST['default_class_teacher_name'] ?? '');
 
     // Dates
     $resumption_date      = $_POST['current_resumption_date'] ?? null;
@@ -158,7 +161,7 @@ if (
     $show_affective       = isset($_POST['show_affective_traits'])   ? 1 : 0;
     $show_psychomotor     = isset($_POST['show_psychomotor'])        ? 1 : 0;
 
-    // ── Score types (dynamic rows) ────────────────────────────────────────────
+    // ── Score types ───────────────────────────────────────────────────────────
     $score_labels = $_POST['score_label'] ?? [];
     $score_maxes  = $_POST['score_max']   ?? [];
     $score_types  = [];
@@ -173,8 +176,7 @@ if (
         }
     }
 
-    // ── Grading rows (custom or preset selected) ──────────────────────────────
-    // grading_system='custom' means user edited the table rows in the form
+    // ── Grading rows ──────────────────────────────────────────────────────────
     $grading_data = [];
     if ($grading_system === 'custom' || isset($_POST['grade_letter'])) {
         $grade_letters  = $_POST['grade_letter']  ?? [];
@@ -197,6 +199,18 @@ if (
             ?? $grading_presets['simple'];
     }
 
+    // ── Principal comments per grade ──────────────────────────────────────────
+    $principal_grades = $_POST['principal_grade'] ?? [];
+    $principal_comments = $_POST['principal_comment'] ?? [];
+    $principal_comments_map = [];
+    foreach ($principal_grades as $idx => $grade) {
+        $grade = trim($grade);
+        if ($grade !== '') {
+            $principal_comments_map[$grade] = trim($principal_comments[$idx] ?? '');
+        }
+    }
+    $principal_comments_json = json_encode($principal_comments_map);
+
     // ── Validation ────────────────────────────────────────────────────────────
     $errors = [];
     if ($record_name === '')  $errors[] = "Record name is required.";
@@ -208,8 +222,10 @@ if (
     if (empty($grading_data)) $errors[] = "Grading scale cannot be empty.";
 
     if (empty($errors)) {
-        $score_types_json  = json_encode($score_types);
-        $grading_json      = json_encode($grading_data);
+        $combined = json_encode([
+            'score_types'   => $score_types,
+            'grading_scale' => $grading_data,
+        ]);
 
         try {
             $status = ($save_as === 'active') ? 'active' : 'draft';
@@ -226,6 +242,8 @@ if (
                         max_score                = ?,
                         score_types              = ?,
                         grading_system           = ?,
+                        default_class_teacher_name = ?,
+                        principal_comments_per_grade = ?,
                         current_resumption_date  = ?,
                         current_closing_date     = ?,
                         next_resumption_date     = ?,
@@ -251,8 +269,10 @@ if (
                     $class,
                     $template,
                     $max_score,
-                    $score_types_json,
+                    $combined,
                     $grading_system,
+                    $default_class_teacher,
+                    $principal_comments_json,
                     $resumption_date ?: null,
                     $closing_date ?: null,
                     $next_resumption ?: null,
@@ -271,27 +291,10 @@ if (
                     $edit_id,
                     $school_id
                 ]);
-
-                // Store custom grading JSON alongside grading_system key
-                // (grading_system column stores the preset name or 'custom';
-                //  score_types column holds the breakdown; we reuse score_types
-                //  pattern: store grading JSON in a separate call or embed it)
-                // For simplicity we store grading in score_types as a combined JSON.
-                // Actually, let's update using a dedicated column if it exists,
-                // otherwise fall back to embedding in score_types JSON.
-                // We embed both in score_types for portability:
-                $combined = json_encode([
-                    'score_types'   => $score_types,
-                    'grading_scale' => $grading_data,
-                ]);
-                $pdo->prepare("UPDATE report_card_settings SET score_types = ? WHERE id = ? AND school_id = ?")
-                    ->execute([$combined, $edit_id, $school_id]);
-
-                $success_message = "Exam record updated successfully.";
                 $record_id = $edit_id;
+                $success_message = "Exam record updated successfully.";
             } else {
                 // ── INSERT new record ─────────────────────────────────────────
-                // Check for duplicate session+term+class combination
                 $stmt = $pdo->prepare("
                     SELECT id FROM report_card_settings
                      WHERE school_id = ? AND session = ? AND term = ? AND class = ?
@@ -302,17 +305,13 @@ if (
 
                 if ($existing) {
                     $error_message = "An exam record for <strong>{$class} — {$term} Term — {$session}</strong> already exists. 
-                                      <a href='exam_record_setup.php?edit={$existing['id']}' class='alert-link'>Edit it instead &rarr;</a>";
+                                      <a href='exam_record_setup.php?edit={$existing['id']}' class='alert-link'>Edit it instead →</a>";
                 } else {
-                    $combined = json_encode([
-                        'score_types'   => $score_types,
-                        'grading_scale' => $grading_data,
-                    ]);
-
                     $stmt = $pdo->prepare("
                         INSERT INTO report_card_settings
                             (school_id, record_name, session, term, class, template,
                              max_score, score_types, grading_system,
+                             default_class_teacher_name, principal_comments_per_grade,
                              current_resumption_date, current_closing_date,
                              next_resumption_date, days_school_opened,
                              show_class_position, show_subject_position,
@@ -324,6 +323,7 @@ if (
                         VALUES
                             (?, ?, ?, ?, ?, ?,
                              ?, ?, ?,
+                             ?, ?,
                              ?, ?,
                              ?, ?,
                              ?, ?,
@@ -343,6 +343,8 @@ if (
                         $max_score,
                         $combined,
                         $grading_system,
+                        $default_class_teacher,
+                        $principal_comments_json,
                         $resumption_date ?: null,
                         $closing_date ?: null,
                         $next_resumption ?: null,
@@ -396,18 +398,24 @@ if (
 // ── Decode saved values when editing ─────────────────────────────────────────
 $saved_score_types  = [];
 $saved_grading      = [];
+$saved_principal_comments = [];
+
 if ($record) {
     $decoded = json_decode($record['score_types'] ?? '{}', true);
     if (isset($decoded['score_types'])) {
         $saved_score_types = $decoded['score_types'];
         $saved_grading     = $decoded['grading_scale'] ?? [];
     } else {
-        // Legacy flat JSON array
         $saved_score_types = $decoded ?? [];
     }
     if (empty($saved_grading)) {
         $gs = $record['grading_system'] ?? 'simple';
         $saved_grading = $grading_presets[$gs] ?? $grading_presets['simple'];
+    }
+
+    // Load principal comments
+    if (!empty($record['principal_comments_per_grade'])) {
+        $saved_principal_comments = json_decode($record['principal_comments_per_grade'], true) ?: [];
     }
 }
 
@@ -468,7 +476,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             overflow-x: hidden;
         }
 
-        /* ── Sidebar (identical to index.php) ─────────────────────────────── */
+        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -562,7 +570,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             text-align: center;
         }
 
-        /* ── Layout ───────────────────────────────────────────────────────── */
+        /* Layout */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -599,7 +607,6 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             transition: var(--transition);
         }
 
-        /* ── Top header ───────────────────────────────────────────────────── */
         .top-header {
             background: white;
             padding: 20px;
@@ -639,7 +646,6 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             text-decoration: none;
         }
 
-        /* ── Alerts ───────────────────────────────────────────────────────── */
         .alert {
             padding: 14px 18px;
             border-radius: var(--radius-sm);
@@ -662,6 +668,12 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             border-left: 4px solid var(--danger-color);
         }
 
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
         .alert-link {
             color: inherit;
             font-weight: 600;
@@ -672,7 +684,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             flex-shrink: 0;
         }
 
-        /* ── Progress steps ───────────────────────────────────────────────── */
+        /* Step bar */
         .step-bar {
             display: flex;
             background: white;
@@ -743,7 +755,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             text-align: center;
         }
 
-        /* ── Content card ─────────────────────────────────────────────────── */
+        /* Form cards */
         .form-card {
             background: white;
             border-radius: var(--radius-md);
@@ -780,7 +792,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             flex-shrink: 0;
         }
 
-        /* ── Form elements ────────────────────────────────────────────────── */
+        /* Form elements */
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -836,11 +848,11 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             background: #fff;
         }
 
-        input[type="number"] {
-            text-align: center;
+        textarea {
+            resize: vertical;
         }
 
-        /* ── Template chooser ─────────────────────────────────────────────── */
+        /* Template chooser */
         .template-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -908,7 +920,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             color: #333;
         }
 
-        /* ── Score builder ────────────────────────────────────────────────── */
+        /* Score builder */
         .score-builder {
             display: flex;
             flex-direction: column;
@@ -920,11 +932,6 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             grid-template-columns: 1fr 110px auto;
             gap: 10px;
             align-items: center;
-        }
-
-        .score-row input[type="text"],
-        .score-row input[type="number"] {
-            margin: 0;
         }
 
         .score-total-bar {
@@ -951,17 +958,12 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             color: var(--danger-color);
         }
 
-        /* ── Grading table ────────────────────────────────────────────────── */
+        /* Grading table */
         .grading-select-row {
             display: flex;
             align-items: center;
             gap: 14px;
             margin-bottom: 16px;
-        }
-
-        .grading-select-row label {
-            white-space: nowrap;
-            margin-bottom: 0;
         }
 
         .grading-select-row select {
@@ -971,944 +973,4 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
         .grading-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-
-        .grading-table th {
-            background: var(--light-color);
-            padding: 9px 12px;
-            font-weight: 600;
-            text-align: left;
-            border-bottom: 2px solid #ddd;
-            font-size: 0.82rem;
-        }
-
-        .grading-table td {
-            padding: 7px 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .grading-table td input {
-            padding: 5px 8px;
-            font-size: 0.82rem;
-        }
-
-        .grade-pill {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .g-a {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .g-b {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .g-c {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .g-d {
-            background: #ffe5cc;
-            color: #7d4000;
-        }
-
-        .g-f {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        /* ── Toggle switches ──────────────────────────────────────────────── */
-        .toggle-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .toggle-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            background: #f9f9f9;
-            border-radius: var(--radius-sm);
-            border: 1px solid #eee;
-        }
-
-        .toggle-row .toggle-label {
-            font-size: 0.83rem;
-            color: #444;
-        }
-
-        .switch {
-            position: relative;
-            width: 38px;
-            height: 20px;
-            flex-shrink: 0;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-            position: absolute;
-        }
-
-        .slider {
-            position: absolute;
-            inset: 0;
-            background: #ccc;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .slider::before {
-            content: '';
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            left: 3px;
-            top: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: transform 0.2s;
-        }
-
-        .switch input:checked+.slider {
-            background: var(--primary-color);
-        }
-
-        .switch input:checked+.slider::before {
-            transform: translateX(18px);
-        }
-
-        /* ── Icon buttons ─────────────────────────────────────────────────── */
-        .btn {
-            padding: 10px 20px;
-            border-radius: var(--radius-sm);
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.88rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            transition: var(--transition);
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            opacity: 0.9;
-        }
-
-        .btn-secondary {
-            background: white;
-            color: var(--primary-color);
-            border: 1.5px solid var(--primary-color);
-        }
-
-        .btn-secondary:hover {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.8rem;
-        }
-
-        .btn-icon {
-            width: 34px;
-            height: 34px;
-            padding: 0;
-            justify-content: center;
-            border: 1px solid #e0e0e0;
-            background: white;
-            color: var(--danger-color);
-            border-radius: var(--radius-sm);
-        }
-
-        .btn-icon:hover {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        /* ── Footer action bar ────────────────────────────────────────────── */
-        .action-bar {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            padding: 20px 0;
-            flex-wrap: wrap;
-        }
-
-        /* ── Existing records table ───────────────────────────────────────── */
-        .records-card {
-            background: white;
-            border-radius: var(--radius-md);
-            padding: 24px;
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 20px;
-        }
-
-        .records-card h2 {
-            font-size: 1rem;
-            color: var(--primary-color);
-            margin-bottom: 16px;
-            font-weight: 600;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-
-        .data-table th {
-            background: var(--light-color);
-            padding: 10px 12px;
-            font-weight: 600;
-            text-align: left;
-            border-bottom: 2px solid #ddd;
-        }
-
-        .data-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .data-table tr:hover td {
-            background: #f9f9f9;
-        }
-
-        .status-badge {
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-            font-weight: 600;
-        }
-
-        .badge-draft {
-            background: #ecf0f1;
-            color: #666;
-        }
-
-        .badge-active {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .badge-published {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .badge-archived {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        /* ── Responsive ───────────────────────────────────────────────────── */
-        @media (min-width: 768px) {
-
-            .mobile-menu-toggle,
-            .sidebar-overlay {
-                display: none;
-            }
-
-            .sidebar {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-        }
-
-        @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row-3 {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row-4 {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .template-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-
-            .toggle-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .score-row {
-                grid-template-columns: 1fr 80px auto;
-            }
-        }
-    </style>
-</head>
-
-<body>
-
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">
-        <i class="fas fa-bars"></i>
-    </button>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <!-- ── Sidebar ──────────────────────────────────────────────────────────────── -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-                <div class="logo-text">
-                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-        <div class="sidebar-content">
-            <ul class="nav-links">
-                <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-                <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-                <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-                <li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
-                <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-                <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-                <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-                <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-                <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- ── Main content ──────────────────────────────────────────────────────────── -->
-    <div class="main-content" id="mainContent">
-
-        <!-- Top header -->
-        <div class="top-header">
-            <div>
-                <h1><?php echo $page_title; ?></h1>
-                <p><?php echo $edit_id > 0
-                        ? "Editing: " . htmlspecialchars($record['record_name'] ?? '')
-                        : "Set up a new exam record — template, scoring, grading, and options"; ?>
-                </p>
-            </div>
-            <a href="report_card_dashboard.php" class="back-btn">
-                <i class="fas fa-arrow-left"></i> Back to dashboard
-            </a>
-        </div>
-
-        <?php if ($success_message): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                <span><?php echo $success_message; ?></span>
-            </div>
-        <?php endif; ?>
-        <?php if ($error_message): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle"></i>
-                <span><?php echo $error_message; ?></span>
-            </div>
-        <?php endif; ?>
-
-        <!-- Step progress bar -->
-        <div class="step-bar">
-            <div class="step-item">
-                <div class="step-circle current">1</div>
-                <div class="step-label">Setup record</div>
-            </div>
-            <div class="step-item">
-                <div class="step-circle todo">2</div>
-                <div class="step-label">Enter scores</div>
-            </div>
-            <div class="step-item">
-                <div class="step-circle todo">3</div>
-                <div class="step-label">Traits &amp; comments</div>
-            </div>
-            <div class="step-item">
-                <div class="step-circle todo">4</div>
-                <div class="step-label">Generate cards</div>
-            </div>
-            <div class="step-item">
-                <div class="step-circle todo">5</div>
-                <div class="step-label">Publish</div>
-            </div>
-        </div>
-
-        <form method="POST" id="setupForm">
-            <input type="hidden" name="action" value="save_exam_record">
-
-            <!-- ① Template selection ──────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-palette"></i></div>
-                    <h2>Report card template</h2>
-                </div>
-                <div class="template-grid">
-                    <?php
-                    $templates = [
-                        'classic' => 'Classic',
-                        'modern'  => 'Modern',
-                        'vibrant' => 'Vibrant',
-                        'minimal' => 'Minimal',
-                        'elegant' => 'Elegant',
-                    ];
-                    $selected_tpl = $record['template'] ?? 'classic';
-                    $tpl_icons = [
-                        'classic' => '<div style="width:30px;height:4px;background:rgba(255,255,255,0.5);border-radius:2px;margin-bottom:5px"></div><div style="width:42px;height:34px;border:1.5px solid rgba(255,255,255,0.4);border-radius:3px"></div>',
-                        'modern'  => '<div style="width:20px;height:20px;background:rgba(255,255,255,0.25);border-radius:50%;margin-bottom:4px"></div><div style="width:36px;height:2px;background:rgba(255,255,255,0.5);border-radius:2px"></div>',
-                        'vibrant' => '<div style="display:flex;gap:3px;align-items:flex-end"><div style="width:9px;height:30px;background:rgba(255,255,255,0.3);border-radius:2px"></div><div style="width:9px;height:22px;background:rgba(255,255,255,0.2);border-radius:2px"></div><div style="width:9px;height:26px;background:rgba(255,255,255,0.25);border-radius:2px"></div></div>',
-                        'minimal' => '<div style="width:36px;height:1px;background:rgba(255,255,255,0.6)"></div><div style="width:26px;height:1px;background:rgba(255,255,255,0.35);margin-top:7px"></div><div style="width:30px;height:1px;background:rgba(255,255,255,0.35);margin-top:5px"></div>',
-                        'elegant' => '<div style="width:30px;height:30px;border:2px solid rgba(255,255,255,0.5);border-radius:50%;display:flex;align-items:center;justify-content:center"><div style="width:13px;height:13px;background:rgba(255,255,255,0.4);border-radius:50%"></div></div>',
-                    ];
-                    foreach ($templates as $key => $label):
-                    ?>
-                        <div class="tpl-option tpl-<?php echo $key; ?>">
-                            <input type="radio" name="template" id="tpl_<?php echo $key; ?>"
-                                value="<?php echo $key; ?>"
-                                <?php echo $selected_tpl === $key ? 'checked' : ''; ?>>
-                            <label class="tpl-label-wrap" for="tpl_<?php echo $key; ?>">
-                                <div class="tpl-preview">
-                                    <?php echo $tpl_icons[$key]; ?>
-                                </div>
-                                <div class="tpl-name"><?php echo $label; ?></div>
-                            </label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <!-- ② Record details ─────────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-info-circle"></i></div>
-                    <h2>Exam record details</h2>
-                </div>
-
-                <div class="form-row" style="margin-bottom:16px">
-                    <div class="form-group full">
-                        <label for="record_name">Record name <span style="color:red">*</span></label>
-                        <input type="text" id="record_name" name="record_name"
-                            placeholder="e.g. 2024/2025 Second Term Examination — JSS 3"
-                            value="<?php echo htmlspecialchars($record['record_name'] ?? ''); ?>"
-                            required>
-                    </div>
-                </div>
-
-                <div class="form-row form-row-3">
-                    <div class="form-group">
-                        <label for="session">Academic year <span style="color:red">*</span></label>
-                        <input type="text" id="session" name="session"
-                            placeholder="e.g. 2024/2025"
-                            list="session_list"
-                            value="<?php echo htmlspecialchars($record['session'] ?? ''); ?>"
-                            required>
-                        <datalist id="session_list">
-                            <?php foreach ($existing_sessions as $s): ?>
-                                <option value="<?php echo htmlspecialchars($s); ?>">
-                                <?php endforeach; ?>
-                        </datalist>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="term">Term <span style="color:red">*</span></label>
-                        <select id="term" name="term" required>
-                            <option value="">— Select term —</option>
-                            <?php foreach (['First', 'Second', 'Third'] as $t): ?>
-                                <option value="<?php echo $t; ?>"
-                                    <?php echo ($record['term'] ?? '') === $t ? 'selected' : ''; ?>>
-                                    <?php echo $t; ?> Term
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="class">Class <span style="color:red">*</span></label>
-                        <select id="class" name="class" required>
-                            <option value="">— Select class —</option>
-                            <?php foreach ($classes as $c): ?>
-                                <option value="<?php echo htmlspecialchars($c); ?>"
-                                    <?php echo ($record['class'] ?? '') === $c ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($c); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ③ Score settings ─────────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-sliders-h"></i></div>
-                    <h2>Score settings &nbsp;
-                        <small style="font-weight:400;font-size:0.82rem;color:#888">
-                            — must total exactly 100
-                        </small>
-                    </h2>
-                </div>
-
-                <div class="score-builder" id="scoreBuilder">
-                    <?php foreach ($saved_score_types as $i => $st): ?>
-                        <div class="score-row" id="scoreRow<?php echo $i; ?>">
-                            <input type="text" name="score_label[]"
-                                placeholder="Score label e.g. CA 1 (Test)"
-                                value="<?php echo htmlspecialchars($st['label']); ?>"
-                                oninput="recalcTotal()">
-                            <input type="number" name="score_max[]" min="1" max="100"
-                                value="<?php echo (int)$st['max']; ?>"
-                                oninput="recalcTotal()">
-                            <button type="button" class="btn btn-icon" onclick="removeScoreRow(this)"
-                                title="Remove this score type">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div style="margin-top:12px;display:flex;align-items:center;gap:12px">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addScoreRow()">
-                        <i class="fas fa-plus"></i> Add score type
-                    </button>
-                </div>
-
-                <div class="score-total-bar" style="margin-top:14px">
-                    <span style="font-size:0.85rem;color:#555">Total obtainable score</span>
-                    <div>
-                        <span id="scoreSum" class="score-sum ok">100</span>
-                        <span style="font-size:0.8rem;color:#999"> / 100</span>
-                        <span id="scoreSumError" style="color:#e74c3c;font-size:0.78rem;margin-left:8px;display:none">
-                            <i class="fas fa-exclamation-triangle"></i> Must equal 100
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ④ Grading system ─────────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-award"></i></div>
-                    <h2>Grading system</h2>
-                </div>
-
-                <div class="grading-select-row">
-                    <label for="grading_system">Grading scale:</label>
-                    <select id="grading_system" name="grading_system"
-                        onchange="loadGradingPreset(this.value)">
-                        <option value="simple" <?php echo ($record['grading_system'] ?? 'simple') === 'simple'   ? 'selected' : ''; ?>>Simple letter grading (A – F)</option>
-                        <option value="waec" <?php echo ($record['grading_system'] ?? '') === 'waec'     ? 'selected' : ''; ?>>WAEC grading (A1 – F9)</option>
-                        <option value="american" <?php echo ($record['grading_system'] ?? '') === 'american' ? 'selected' : ''; ?>>American GPA grading</option>
-                        <option value="custom" <?php echo ($record['grading_system'] ?? '') === 'custom'   ? 'selected' : ''; ?>>Custom (edit table below)</option>
-                    </select>
-                </div>
-
-                <div style="overflow-x:auto">
-                    <table class="grading-table" id="gradingTable">
-                        <thead>
-                            <tr>
-                                <th style="width:90px">Grade</th>
-                                <th style="width:110px">Min score</th>
-                                <th style="width:110px">Max score</th>
-                                <th>Remark</th>
-                                <th style="width:50px"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="gradingBody">
-                            <?php foreach ($saved_grading as $row): ?>
-                                <tr>
-                                    <td>
-                                        <input type="text" name="grade_letter[]"
-                                            value="<?php echo htmlspecialchars($row['grade']); ?>"
-                                            style="width:70px;text-align:center;font-weight:600">
-                                    </td>
-                                    <td>
-                                        <input type="number" name="grade_min[]" min="0" max="100"
-                                            value="<?php echo (int)$row['min']; ?>">
-                                    </td>
-                                    <td>
-                                        <input type="number" name="grade_max[]" min="0" max="100"
-                                            value="<?php echo (int)$row['max']; ?>">
-                                    </td>
-                                    <td>
-                                        <input type="text" name="grade_remark[]"
-                                            value="<?php echo htmlspecialchars($row['remark']); ?>">
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-icon btn-sm"
-                                            onclick="this.closest('tr').remove()"
-                                            title="Remove grade row">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div style="margin-top:10px">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addGradeRow()">
-                        <i class="fas fa-plus"></i> Add grade row
-                    </button>
-                </div>
-            </div>
-
-            <!-- ⑤ Dates ──────────────────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
-                    <h2>Term dates</h2>
-                </div>
-                <div class="form-row form-row-4">
-                    <div class="form-group">
-                        <label for="current_resumption_date">Term resumption date</label>
-                        <input type="date" id="current_resumption_date" name="current_resumption_date"
-                            value="<?php echo htmlspecialchars($record['current_resumption_date'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="current_closing_date">Term closing date</label>
-                        <input type="date" id="current_closing_date" name="current_closing_date"
-                            value="<?php echo htmlspecialchars($record['current_closing_date'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="next_resumption_date">Next term resumption</label>
-                        <input type="date" id="next_resumption_date" name="next_resumption_date"
-                            value="<?php echo htmlspecialchars($record['next_resumption_date'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="days_school_opened">Days school opened</label>
-                        <input type="number" id="days_school_opened" name="days_school_opened"
-                            min="1" max="300"
-                            value="<?php echo (int)($record['days_school_opened'] ?? 62); ?>">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ⑥ Display options ────────────────────────────────────────────── -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-cog"></i></div>
-                    <h2>Report card display options</h2>
-                </div>
-
-                <?php
-                $toggles = [
-                    'show_class_position'      => ['label' => 'Show class position',                  'default' => 1],
-                    'show_subject_position'    => ['label' => 'Show subject position',                'default' => 1],
-                    'show_promoted_to'         => ['label' => 'Show "promoted to" next class',        'default' => 1],
-                    'show_cumulative_avg'      => ['label' => 'Show cumulative average',              'default' => 1],
-                    'show_lowest_highest_avg'  => ['label' => 'Show lowest & highest average',        'default' => 1],
-                    'show_lowest_highest_class' => ['label' => 'Show lowest & highest in class',       'default' => 0],
-                    'sequential_positions'     => ['label' => 'Sequential positions (1st, 1st, 2nd)', 'default' => 0],
-                    'show_attendance'          => ['label' => 'Show attendance record',               'default' => 1],
-                    'show_affective_traits'    => ['label' => 'Show affective traits',                'default' => 1],
-                    'show_psychomotor'         => ['label' => 'Show psychomotor skills',              'default' => 1],
-                ];
-                ?>
-                <div class="toggle-grid">
-                    <?php foreach ($toggles as $name => $cfg):
-                        $checked = $record ? (int)($record[$name] ?? $cfg['default']) : $cfg['default'];
-                    ?>
-                        <div class="toggle-row">
-                            <span class="toggle-label"><?php echo htmlspecialchars($cfg['label']); ?></span>
-                            <label class="switch">
-                                <input type="checkbox" name="<?php echo $name; ?>"
-                                    value="1" <?php echo $checked ? 'checked' : ''; ?>>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <!-- ── Action bar ─────────────────────────────────────────────────── -->
-            <div class="action-bar">
-                <button type="submit" name="save_as" value="draft" class="btn btn-secondary">
-                    <i class="fas fa-save"></i>
-                    <?php echo $edit_id > 0 ? 'Update draft' : 'Save as draft'; ?>
-                </button>
-                <button type="submit" name="save_as" value="active" class="btn btn-primary">
-                    <i class="fas fa-arrow-right"></i>
-                    <?php echo $edit_id > 0 ? 'Update & go to scores' : 'Save & proceed to score entry'; ?>
-                </button>
-            </div>
-
-        </form><!-- /setupForm -->
-
-        <!-- ── Existing exam records for this school ───────────────────────────── -->
-        <?php
-        try {
-            $stmt = $pdo->prepare("
-            SELECT id, record_name, session, term, class, template,
-                   status, created_at, updated_at
-              FROM report_card_settings
-             WHERE school_id = ?
-             ORDER BY created_at DESC
-             LIMIT 20
-        ");
-            $stmt->execute([$school_id]);
-            $all_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $all_records = [];
-        }
-        if (!empty($all_records)):
-        ?>
-            <div class="records-card">
-                <h2><i class="fas fa-list" style="color:var(--primary-color);margin-right:8px"></i>Exam records for this school</h2>
-                <div style="overflow-x:auto">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Record name</th>
-                                <th>Session</th>
-                                <th>Term</th>
-                                <th>Class</th>
-                                <th>Template</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                                <th style="width:130px">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($all_records as $r):
-                                $badge_class = 'badge-' . ($r['status'] ?? 'draft');
-                            ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></td>
-                                    <td><?php echo htmlspecialchars($r['session']); ?></td>
-                                    <td><?php echo htmlspecialchars($r['term']); ?> Term</td>
-                                    <td><?php echo htmlspecialchars($r['class']); ?></td>
-                                    <td><?php echo ucfirst($r['template'] ?? 'classic'); ?></td>
-                                    <td>
-                                        <span class="status-badge <?php echo htmlspecialchars($badge_class); ?>">
-                                            <?php echo ucfirst($r['status'] ?? 'draft'); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
-                                    <td>
-                                        <div style="display:flex;gap:6px">
-                                            <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>"
-                                                class="btn btn-secondary btn-sm" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>"
-                                                class="btn btn-primary btn-sm" title="Enter scores">
-                                                <i class="fas fa-pencil-alt"></i>
-                                            </a>
-                                            <?php if (in_array($r['status'], ['draft', 'active'])): ?>
-                                                <button type="button" class="btn btn-icon btn-sm"
-                                                    onclick="deleteRecord(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'] ?? 'this record')); ?>')"
-                                                    title="Delete">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <div style="text-align:center;padding:20px;color:#999;font-size:0.8rem;border-top:1px solid var(--light-color);margin-top:10px">
-            &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
-        </div>
-
-    </div><!-- /main-content -->
-
-    <!-- ── Delete confirmation ─────────────────────────────────────────────────── -->
-    <form id="deleteForm" method="POST" action="exam_record_delete.php">
-        <input type="hidden" name="record_id" id="deleteRecordId">
-        <input type="hidden" name="school_id" value="<?php echo $school_id; ?>">
-    </form>
-
-    <script>
-        // ── Grading presets from PHP ──────────────────────────────────────────────────
-        const GRADING_PRESETS = <?php echo json_encode($grading_presets); ?>;
-
-        // ── Sidebar toggle ────────────────────────────────────────────────────────────
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        const menuToggle = document.getElementById('mobileMenuToggle');
-
-        menuToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
-            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-        });
-        sidebarOverlay.addEventListener('click', () => {
-            sidebar.classList.remove('active');
-            sidebarOverlay.classList.remove('active');
-            document.body.style.overflow = '';
-        });
-
-        // ── Score total calculator ────────────────────────────────────────────────────
-        function recalcTotal() {
-            const maxInputs = document.querySelectorAll('#scoreBuilder input[name="score_max[]"]');
-            let total = 0;
-            maxInputs.forEach(i => total += parseInt(i.value) || 0);
-
-            const sumEl = document.getElementById('scoreSum');
-            const errEl = document.getElementById('scoreSumError');
-            sumEl.textContent = total;
-            sumEl.className = 'score-sum ' + (total === 100 ? 'ok' : 'error');
-            errEl.style.display = total !== 100 ? 'inline' : 'none';
-        }
-
-        // Add a new score row
-        let scoreRowCount = <?php echo count($saved_score_types); ?>;
-
-        function addScoreRow() {
-            const builder = document.getElementById('scoreBuilder');
-            const div = document.createElement('div');
-            div.className = 'score-row';
-            div.id = 'scoreRow' + scoreRowCount++;
-            div.innerHTML = `
-        <input type="text"   name="score_label[]" placeholder="Score label e.g. CA 3" oninput="recalcTotal()">
-        <input type="number" name="score_max[]"   min="1" max="100" value="10" oninput="recalcTotal()">
-        <button type="button" class="btn btn-icon" onclick="removeScoreRow(this)" title="Remove">
-            <i class="fas fa-trash-alt"></i>
-        </button>`;
-            builder.appendChild(div);
-            recalcTotal();
-        }
-
-        function removeScoreRow(btn) {
-            const rows = document.querySelectorAll('#scoreBuilder .score-row');
-            if (rows.length <= 1) {
-                alert('You must have at least one score type.');
-                return;
-            }
-            btn.closest('.score-row').remove();
-            recalcTotal();
-        }
-
-        // ── Grading preset loader ─────────────────────────────────────────────────────
-        function loadGradingPreset(system) {
-            if (system === 'custom') return; // user edits the table manually
-            const rows = GRADING_PRESETS[system] || GRADING_PRESETS['simple'];
-            const tbody = document.getElementById('gradingBody');
-            tbody.innerHTML = rows.map(r => `
-        <tr>
-            <td><input type="text"   name="grade_letter[]"  value="${r.grade}"  style="width:70px;text-align:center;font-weight:600"></td>
-            <td><input type="number" name="grade_min[]"     value="${r.min}"    min="0" max="100"></td>
-            <td><input type="number" name="grade_max[]"     value="${r.max}"    min="0" max="100"></td>
-            <td><input type="text"   name="grade_remark[]"  value="${r.remark}"></td>
-            <td>
-                <button type="button" class="btn btn-icon btn-sm"
-                        onclick="this.closest('tr').remove()" title="Remove">
-                    <i class="fas fa-times"></i>
-                </button>
-            </td>
-        </tr>`).join('');
-        }
-
-        function addGradeRow() {
-            const tbody = document.getElementById('gradingBody');
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-        <td><input type="text"   name="grade_letter[]"  placeholder="F+" style="width:70px;text-align:center;font-weight:600"></td>
-        <td><input type="number" name="grade_min[]"     value="0"  min="0" max="100"></td>
-        <td><input type="number" name="grade_max[]"     value="49" min="0" max="100"></td>
-        <td><input type="text"   name="grade_remark[]"  placeholder="Remark"></td>
-        <td>
-            <button type="button" class="btn btn-icon btn-sm"
-                    onclick="this.closest('tr').remove()" title="Remove">
-                <i class="fas fa-times"></i>
-            </button>
-        </td>`;
-            tbody.appendChild(tr);
-        }
-
-        // ── Delete record confirmation ────────────────────────────────────────────────
-        function deleteRecord(id, name) {
-            if (!confirm(`Delete exam record "${name}"?\n\nThis will permanently remove the record and cannot be undone.`)) return;
-            document.getElementById('deleteRecordId').value = id;
-            document.getElementById('deleteForm').submit();
-        }
-
-        // ── Form submit guard (validate score total = 100) ────────────────────────────
-        document.getElementById('setupForm').addEventListener('submit', function(e) {
-            const maxInputs = document.querySelectorAll('#scoreBuilder input[name="score_max[]"]');
-            let total = 0;
-            maxInputs.forEach(i => total += parseInt(i.value) || 0);
-            if (total !== 100) {
-                e.preventDefault();
-                document.getElementById('scoreSumError').style.display = 'inline';
-                document.getElementById('scoreSum').scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-                alert(`Score types must add up to exactly 100. Current total: ${total}`);
-            }
-        });
-
-        // ── Auto-generate record name ─────────────────────────────────────────────────
-        function autoFillName() {
-            const nameEl = document.getElementById('record_name');
-            const sessionEl = document.getElementById('session');
-            const termEl = document.getElementById('term');
-            const classEl = document.getElementById('class');
-            if (nameEl.value.trim() !== '') return; // don't overwrite user input
-            const parts = [
-                sessionEl.value.trim(),
-                termEl.options[termEl.selectedIndex]?.text || '',
-                classEl.options[classEl.selectedIndex]?.text || '',
-                'Examination'
-            ].filter(Boolean);
-            if (parts.length >= 3) nameEl.value = parts.join(' — ');
-        }
-        document.getElementById('session').addEventListener('change', autoFillName);
-        document.getElementById('term').addEventListener('change', autoFillName);
-        document.getElementById('class').addEventListener('change', autoFillName);
-
-        // ── Init ──────────────────────────────────────────────────────────────────────
-        recalcTotal();
-    </script>
-
-</body>
-
-</html>
+            font

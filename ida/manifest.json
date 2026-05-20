@@ -12,14 +12,35 @@
         {
             "src": "/ida/assets/logos/ida-192.png",
             "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
+            "type": "image/png"
         },
         {
             "src": "/ida/assets/logos/ida-512.png",
             "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/ida/assets/screenshots/mobile-home.png",
+            "sizes": "1080x1920",
             "type": "image/png",
-            "purpose": "any maskable"
+            "form_factor": "narrow",
+            "label": "Home Screen"
+        },
+        {
+            "src": "/ida/assets/screenshots/mobile-dashboard.png",
+            "sizes": "1080x1920",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Student Dashboard"
+        },
+        {
+            "src": "/ida/assets/screenshots/desktop-home.png",
+            "sizes": "1280x720",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "Desktop View"
         }
     ]
 }

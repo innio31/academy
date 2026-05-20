@@ -47,6 +47,7 @@ $students_with_comments = $stmt->fetch()['count'];
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -71,7 +72,12 @@ $students_with_comments = $stmt->fetch()['count'];
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -93,7 +99,10 @@ $students_with_comments = $stmt->fetch()['count'];
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -102,6 +111,7 @@ $students_with_comments = $stmt->fetch()['count'];
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -112,25 +122,38 @@ $students_with_comments = $stmt->fetch()['count'];
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -138,6 +161,7 @@ $students_with_comments = $stmt->fetch()['count'];
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -152,6 +176,7 @@ $students_with_comments = $stmt->fetch()['count'];
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 20px 30px;
@@ -163,7 +188,13 @@ $students_with_comments = $stmt->fetch()['count'];
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 10px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -179,6 +210,7 @@ $students_with_comments = $stmt->fetch()['count'];
             padding: 30px;
             margin-bottom: 30px;
         }
+
         .dashboard-card h2 {
             color: var(--primary-color);
             margin-bottom: 25px;
@@ -195,6 +227,7 @@ $students_with_comments = $stmt->fetch()['count'];
             margin: 30px 0;
             counter-reset: step;
         }
+
         .step {
             flex: 1;
             min-width: 180px;
@@ -204,6 +237,7 @@ $students_with_comments = $stmt->fetch()['count'];
             text-align: center;
             border: 2px solid transparent;
         }
+
         .step:before {
             counter-increment: step;
             content: counter(step);
@@ -217,11 +251,32 @@ $students_with_comments = $stmt->fetch()['count'];
             margin: 0 auto 15px;
             font-weight: bold;
         }
-        .step.completed:before { background: var(--success-color); color: white; }
-        .step.current:before { background: var(--warning-color); color: white; }
-        .step h3 { margin-bottom: 10px; font-size: 1rem; }
-        .step p { font-size: 0.8rem; color: #666; margin-bottom: 15px; }
-        .step .btn { padding: 8px 16px; font-size: 0.8rem; }
+
+        .step.completed:before {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .step.current:before {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .step h3 {
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .step p {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .step .btn {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+        }
 
         .progress-section {
             background: white;
@@ -229,6 +284,7 @@ $students_with_comments = $stmt->fetch()['count'];
             padding: 30px;
             margin-bottom: 30px;
         }
+
         .progress-bar {
             background: #e0e0e0;
             border-radius: 10px;
@@ -236,6 +292,7 @@ $students_with_comments = $stmt->fetch()['count'];
             overflow: hidden;
             margin: 15px 0;
         }
+
         .progress-fill {
             background: var(--success-color);
             height: 100%;
@@ -243,24 +300,33 @@ $students_with_comments = $stmt->fetch()['count'];
             border-radius: 10px;
             transition: width 0.5s ease;
         }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
+
         .stat-card {
             background: #f8f9fa;
             padding: 20px;
             border-radius: 12px;
             text-align: center;
         }
-        .stat-number { font-size: 2rem; font-weight: 700; color: var(--primary-color); }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
         .quick-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
         }
+
         .action-card {
             background: white;
             padding: 25px;
@@ -271,12 +337,22 @@ $students_with_comments = $stmt->fetch()['count'];
             border: 2px solid #e0e0e0;
             transition: all 0.3s ease;
         }
+
         .action-card:hover {
             border-color: var(--primary-color);
             transform: translateY(-5px);
         }
-        .action-icon { font-size: 2rem; margin-bottom: 15px; display: block; }
-        .action-title { font-weight: 600; margin-bottom: 8px; }
+
+        .action-icon {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .action-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
 
         .btn {
             padding: 10px 20px;
@@ -291,21 +367,47 @@ $students_with_comments = $stmt->fetch()['count'];
             background: var(--info-color);
             color: white;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .workflow-steps { flex-direction: column; }
-            .stats-grid { grid-template-columns: 1fr; }
-            .quick-actions { grid-template-columns: 1fr; }
+            .workflow-steps {
+                flex-direction: column;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -313,7 +415,10 @@ $students_with_comments = $stmt->fetch()['count'];
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -321,12 +426,12 @@ $students_with_comments = $stmt->fetch()['count'];
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-			<li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-contract"></i> Report Cards</a></li>
+            <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-contract"></i> Report Cards</a></li>
             <li><a href="report_card_settings.php"><i class="fas fa-users"></i> Settings</a></li>
             <li><a href="enter_scores.php"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
-            <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
+            <li><a href="generate_report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
             <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
@@ -377,24 +482,48 @@ $students_with_comments = $stmt->fetch()['count'];
         <div class="progress-section">
             <h2><i class="fas fa-chart-line"></i> Progress Overview</h2>
             <div class="progress-text">Overall Completion: <?php echo $completion_percentage; ?>%</div>
-            <div class="progress-bar"><div class="progress-fill" style="width: <?php echo $completion_percentage; ?>%;"></div></div>
-            
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: <?php echo $completion_percentage; ?>%;"></div>
+            </div>
+
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-number"><?php echo $total_students; ?></div><div>Total Students</div></div>
-                <div class="stat-card"><div class="stat-number"><?php echo $students_with_scores; ?></div><div>With Scores</div></div>
-                <div class="stat-card"><div class="stat-number"><?php echo $students_with_comments; ?></div><div>With Comments</div></div>
-                <div class="stat-card"><div class="stat-number"><?php echo $settings_exist ? '✓' : '✗'; ?></div><div>Settings</div></div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo $total_students; ?></div>
+                    <div>Total Students</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo $students_with_scores; ?></div>
+                    <div>With Scores</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo $students_with_comments; ?></div>
+                    <div>With Comments</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo $settings_exist ? '✓' : '✗'; ?></div>
+                    <div>Settings</div>
+                </div>
             </div>
         </div>
 
         <div class="dashboard-card">
             <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
             <div class="quick-actions">
-                <a href="report_card_settings.php" class="action-card"><span class="action-icon">⚙️</span><div class="action-title">Settings</div></a>
-                <a href="enter_scores.php" class="action-card"><span class="action-icon">📝</span><div class="action-title">Enter Scores</div></a>
-                <a href="enter_comments.php" class="action-card"><span class="action-icon">💬</span><div class="action-title">Comments & Traits</div></a>
-                <a href="calculate_positions.php" class="action-card"><span class="action-icon">📊</span><div class="action-title">Calculate Positions</div></a>
-                <a href="report_cards.php" class="action-card"><span class="action-icon">📄</span><div class="action-title">Generate Report Cards</div></a>
+                <a href="report_card_settings.php" class="action-card"><span class="action-icon">⚙️</span>
+                    <div class="action-title">Settings</div>
+                </a>
+                <a href="enter_scores.php" class="action-card"><span class="action-icon">📝</span>
+                    <div class="action-title">Enter Scores</div>
+                </a>
+                <a href="enter_comments.php" class="action-card"><span class="action-icon">💬</span>
+                    <div class="action-title">Comments & Traits</div>
+                </a>
+                <a href="calculate_positions.php" class="action-card"><span class="action-icon">📊</span>
+                    <div class="action-title">Calculate Positions</div>
+                </a>
+                <a href="report_cards.php" class="action-card"><span class="action-icon">📄</span>
+                    <div class="action-title">Generate Report Cards</div>
+                </a>
             </div>
         </div>
     </div>
@@ -402,8 +531,8 @@ $students_with_comments = $stmt->fetch()['count'];
     <script>
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
-        
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
                 if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
@@ -413,4 +542,5 @@ $students_with_comments = $stmt->fetch()['count'];
         });
     </script>
 </body>
+
 </html>

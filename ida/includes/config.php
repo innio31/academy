@@ -30,7 +30,7 @@ define('SCHOOL_NAME', 'Impact Digital Academy');
 define('SCHOOL_PRIMARY', '#1a3a8f');
 define('SCHOOL_SECONDARY', '#d4500a');
 define('SCHOOL_ACCENT', '#ffffff');
-define('SCHOOL_LOGO', '/assets/logos/logo.png');  // Added back
+define('SCHOOL_LOGO', 'ida/assets/logos/logo.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
 define('SCHOOL_ADDRESS', 'Impact Digital Academy');  // Added back
 define('SCHOOL_PHONE', '09035448295');  // Added back

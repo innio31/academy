@@ -30,7 +30,7 @@ define('SCHOOL_NAME', 'Great Optimist School, Ota');
 define('SCHOOL_PRIMARY', '#722F37');
 define('SCHOOL_SECONDARY', '#d4af7a');
 define('SCHOOL_ACCENT', '#ffffff');
-define('SCHOOL_LOGO', '/assets/logos/ida.png');  // Added back
+define('SCHOOL_LOGO', '/assets/logos/logo.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
 define('SCHOOL_ADDRESS', 'Great Optimist School, Ota, Lagos, Nigeria');  // Added back
 define('SCHOOL_PHONE', '09035448295');  // Added back

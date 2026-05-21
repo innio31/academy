@@ -1,7 +1,5 @@
 <?php
-// api/sync.php - Main synchronization endpoint
-// Location: acad.com.ng/gos/api/sync.php
-
+// gos/api/sync.php - Main synchronization endpoint
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
@@ -13,28 +11,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Only accept POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+// Allow both POST and GET for testing
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+    echo json_encode(['status' => 'error', 'message' => 'Method not allowed. Use POST or GET']);
     exit();
 }
 
-// Get request data
-$input = json_decode(file_get_contents('php://input'), true);
+// Get request data (handle both POST and GET)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        // Try to get from $_POST if not JSON
+        $input = $_POST;
+    }
+} else {
+    // GET request for testing
+    $input = $_GET;
+}
 
-if (!$input) {
+if (!$input || empty($input)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON data']);
+    echo json_encode(['status' => 'error', 'message' => 'No data received', 'received' => $input]);
     exit();
 }
 
 // Validate API key
 $api_key = $input['api_key'] ?? $_SERVER['HTTP_X_API_KEY'] ?? '';
 
-if (!validateApiKey($api_key)) {
+// Valid API keys (add your keys here)
+$valid_keys = [
+    '8bdcc8a17b9db0e62ec5b3ba0a3be1c7c5d73eb0f60f58a77bece780a36e7d2f',
+    'GOS_LOCAL_SYNC_KEY_2024',
+    'test_key_123'
+];
+
+if (!in_array($api_key, $valid_keys)) {
     http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => 'Invalid API key']);
+    echo json_encode(['status' => 'error', 'message' => 'Invalid API key', 'provided_key' => substr($api_key, 0, 10) . '...']);
     exit();
 }
 
@@ -48,43 +62,56 @@ if (!$school_id || !$school_code) {
 }
 
 // Process based on action
-$action = $input['action'] ?? '';
+$action = $input['action'] ?? 'test';
 $table_name = $input['table_name'] ?? '';
 
-switch ($action) {
-    case 'push':
-        handlePush($input, $school_id, $school_code);
-        break;
-    case 'pull':
-        handlePull($table_name, $school_id, $school_code, $input);
-        break;
-    default:
-        echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
+// Database connection
+try {
+    require_once 'db_config.php';
+    $pdo = getDBConnection();
+} catch (Exception $e) {
+    echo json_encode(['status' => 'error', 'message' => 'Database connection failed: ' . $e->getMessage()]);
+    exit();
 }
 
-// Function to validate API key
-function validateApiKey($api_key)
-{
-    // You can store valid API keys in database or config
-    $valid_keys = [
-        '8bdcc8a17b9db0e62ec5b3ba0a3be1c7c5d73eb0f60f58a77bece780a36e7d2f',
-        'GOS_LOCAL_SYNC_KEY_2024',
-        'GOS_CLOUD_SYNC_KEY'
-    ];
+switch ($action) {
+    case 'test':
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'API is working correctly',
+            'data' => [
+                'school_id' => $school_id,
+                'school_code' => $school_code,
+                'timestamp' => date('Y-m-d H:i:s'),
+                'method' => $_SERVER['REQUEST_METHOD']
+            ]
+        ]);
+        break;
 
-    return in_array($api_key, $valid_keys);
+    case 'push':
+        handlePush($pdo, $input, $school_id);
+        break;
+
+    case 'pull':
+        handlePull($pdo, $table_name, $school_id, $input);
+        break;
+
+    default:
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid action. Available: test, push, pull',
+            'received_action' => $action
+        ]);
 }
 
 // Function to handle push (receiving data from local system)
-function handlePush($data, $school_id, $school_code)
+function handlePush($pdo, $data, $school_id)
 {
-    require_once 'db_config.php';
-
     $table = $data['table_name'];
     $records = $data['records'] ?? [];
 
     if (empty($records)) {
-        echo json_encode(['status' => 'success', 'message' => 'No records to sync', 'data' => []]);
+        echo json_encode(['status' => 'success', 'message' => 'No records to sync', 'data' => ['synced' => 0]]);
         return;
     }
 
@@ -92,8 +119,6 @@ function handlePush($data, $school_id, $school_code)
     $errors = [];
 
     try {
-        $pdo = getDBConnection();
-
         foreach ($records as $record) {
             // Ensure school_id matches
             $record['school_id'] = $school_id;
@@ -117,13 +142,14 @@ function handlePush($data, $school_id, $school_code)
             }
         }
 
-        // Log sync activity
-        logSyncActivity($pdo, $school_id, $table, $synced_count, count($records) - $synced_count, 'push');
-
         echo json_encode([
             'status' => 'success',
             'message' => "Synced $synced_count records successfully",
-            'data' => ['synced' => $synced_count, 'total' => count($records), 'errors' => $errors]
+            'data' => [
+                'synced' => $synced_count,
+                'total' => count($records),
+                'errors' => $errors
+            ]
         ]);
     } catch (Exception $e) {
         echo json_encode([
@@ -134,28 +160,37 @@ function handlePush($data, $school_id, $school_code)
 }
 
 // Function to handle pull (sending data to local system)
-function handlePull($table, $school_id, $school_code, $data)
+function handlePull($pdo, $table, $school_id, $data)
 {
-    require_once 'db_config.php';
-
     $last_sync = $data['last_sync'] ?? null;
 
     try {
-        $pdo = getDBConnection();
+        // Check if table exists
+        $stmt = $pdo->query("SHOW TABLES LIKE '$table'");
+        if ($stmt->rowCount() == 0) {
+            echo json_encode([
+                'status' => 'success',
+                'message' => "Table '$table' not found, returning empty",
+                'data' => [],
+                'count' => 0
+            ]);
+            return;
+        }
 
         // Get records for this school
         if ($last_sync) {
             $stmt = $pdo->prepare("
                 SELECT * FROM $table 
-                WHERE school_id = ? AND updated_at > ?
+                WHERE school_id = ? AND (updated_at > ? OR created_at > ?)
                 ORDER BY id
             ");
-            $stmt->execute([$school_id, $last_sync]);
+            $stmt->execute([$school_id, $last_sync, $last_sync]);
         } else {
             $stmt = $pdo->prepare("
                 SELECT * FROM $table 
                 WHERE school_id = ?
                 ORDER BY id
+                LIMIT 1000
             ");
             $stmt->execute([$school_id]);
         }
@@ -211,19 +246,5 @@ function updateRecord($pdo, $table, $record)
     } catch (Exception $e) {
         error_log("Update error in $table: " . $e->getMessage());
         return false;
-    }
-}
-
-// Function to log sync activity
-function logSyncActivity($pdo, $school_id, $table, $synced, $failed, $type)
-{
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO sync_log (school_id, table_name, records_synced, records_failed, sync_type, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'success', NOW())
-        ");
-        $stmt->execute([$school_id, $table, $synced, $failed, $type]);
-    } catch (Exception $e) {
-        error_log("Failed to log sync activity: " . $e->getMessage());
     }
 }

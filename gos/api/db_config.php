@@ -1,6 +1,5 @@
 <?php
-// api/db_config.php - Database configuration for cloud API
-// Location: acad.com.ng/gos/api/db_config.php
+// gos/api/db_config.php - Database configuration for cloud API
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'impactdi_school_portal');
@@ -23,35 +22,6 @@ function getDBConnection()
         return $pdo;
     } catch (PDOException $e) {
         error_log("Database connection error: " . $e->getMessage());
-        throw new Exception("Database connection failed");
+        throw new Exception("Database connection failed: " . $e->getMessage());
     }
-}
-
-// Ensure sync_log table exists
-function ensureSyncLogTable($pdo)
-{
-    $sql = "
-        CREATE TABLE IF NOT EXISTS sync_log (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            school_id INT NOT NULL,
-            table_name VARCHAR(50),
-            records_synced INT DEFAULT 0,
-            records_failed INT DEFAULT 0,
-            sync_type ENUM('push', 'pull', 'full') DEFAULT 'push',
-            status ENUM('success', 'failed', 'partial') DEFAULT 'success',
-            error_message TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_school_id (school_id),
-            INDEX idx_created_at (created_at)
-        )
-    ";
-    $pdo->exec($sql);
-}
-
-// Initialize on API load
-try {
-    $pdo = getDBConnection();
-    ensureSyncLogTable($pdo);
-} catch (Exception $e) {
-    error_log("Init error: " . $e->getMessage());
 }

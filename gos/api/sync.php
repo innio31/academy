@@ -4,6 +4,7 @@
 // ============================================
 // ALLOWED TABLES FOR SYNC (Security)
 // ============================================
+// Find this section in your sync.php (around line 10-35)
 $ALLOWED_TABLES = [
     // Core Academic
     'students',
@@ -11,6 +12,8 @@ $ALLOWED_TABLES = [
     'classes',
     'subjects',
     'topics',
+    'passages',           // ADD THIS LINE
+    'library_resources',  // ADD THIS LINE
 
     // Exams & Questions
     'exams',

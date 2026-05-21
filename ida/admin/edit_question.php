@@ -5,7 +5,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -111,7 +111,7 @@ try {
         header("Location: manage-questions.php?error=invalid_question_type");
         exit();
     }
-    
+
     $stmt->execute([$question_id, $school_id]);
     $question_data = $stmt->fetch();
 
@@ -142,16 +142,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
             $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
             $new_topic_id = (int)($_POST['topic_id'] ?? $topic_id);
             $class = trim($_POST['class'] ?? $topic_info['class'] ?? '');
-            
+
             // Validate required fields
             if (empty($question_text) || empty($option_a) || empty($option_b) || empty($correct_answer)) {
                 throw new Exception("Please fill in all required fields");
             }
-            
+
             if (!in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
                 throw new Exception("Correct answer must be A, B, C, or D");
             }
-            
+
             // Verify new topic belongs to this school
             if ($new_topic_id != $topic_id) {
                 $verify_stmt = $pdo->prepare("
@@ -162,23 +162,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     throw new Exception("Invalid topic selected");
                 }
             }
-            
+
             // Handle image upload
             $question_image = $question_data['question_image']; // Keep existing image
             if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] == UPLOAD_ERR_OK) {
                 $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                 $filename = $_FILES['question_image']['name'];
                 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-                
+
                 if (in_array($ext, $allowed)) {
                     $upload_dir = '../uploads/questions/';
                     if (!file_exists($upload_dir)) {
                         mkdir($upload_dir, 0777, true);
                     }
-                    
+
                     $new_filename = 'question_' . time() . '_' . $question_id . '.' . $ext;
                     $upload_path = $upload_dir . $new_filename;
-                    
+
                     if (move_uploaded_file($_FILES['question_image']['tmp_name'], $upload_path)) {
                         // Delete old image if exists
                         if ($question_image && file_exists('../' . $question_image)) {
@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     }
                 }
             }
-            
+
             // Remove image if checkbox checked
             if (isset($_POST['remove_image']) && $_POST['remove_image'] == '1') {
                 if ($question_image && file_exists('../' . $question_image)) {
@@ -212,13 +212,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     question_image = ?
                 WHERE id = ? AND school_id = ?
             ");
-            
-            $update_stmt->execute([
-                $question_text, $option_a, $option_b, $option_c, $option_d,
-                $correct_answer, $marks, $difficulty_level, $new_topic_id,
-                $class, $question_image, $question_id, $school_id
-            ]);
 
+            $update_stmt->execute([
+                $question_text,
+                $option_a,
+                $option_b,
+                $option_c,
+                $option_d,
+                $correct_answer,
+                $marks,
+                $difficulty_level,
+                $new_topic_id,
+                $class,
+                $question_image,
+                $question_id,
+                $school_id
+            ]);
         } elseif ($question_type == 'subjective') {
             // Update subjective question
             $question_text = trim($_POST['question_text'] ?? '');
@@ -227,11 +236,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
             $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
             $new_topic_id = (int)($_POST['topic_id'] ?? $topic_id);
             $class = trim($_POST['class'] ?? $topic_info['class'] ?? '');
-            
+
             if (empty($question_text)) {
                 throw new Exception("Question text is required");
             }
-            
+
             // Verify new topic belongs to this school
             if ($new_topic_id != $topic_id) {
                 $verify_stmt = $pdo->prepare("
@@ -253,12 +262,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     class = ?
                 WHERE id = ? AND school_id = ?
             ");
-            
-            $update_stmt->execute([
-                $question_text, $correct_answer, $marks, 
-                $difficulty_level, $new_topic_id, $class, $question_id, $school_id
-            ]);
 
+            $update_stmt->execute([
+                $question_text,
+                $correct_answer,
+                $marks,
+                $difficulty_level,
+                $new_topic_id,
+                $class,
+                $question_id,
+                $school_id
+            ]);
         } elseif ($question_type == 'theory') {
             // Update theory question
             $question_text = trim($_POST['question_text'] ?? '');
@@ -266,11 +280,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
             $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
             $new_topic_id = (int)($_POST['topic_id'] ?? $topic_id);
             $class = trim($_POST['class'] ?? $topic_info['class'] ?? '');
-            
+
             if (empty($question_text)) {
                 throw new Exception("Question text is required");
             }
-            
+
             // Verify new topic belongs to this school
             if ($new_topic_id != $topic_id) {
                 $verify_stmt = $pdo->prepare("
@@ -288,16 +302,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                 $allowed = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png'];
                 $filename = $_FILES['question_file']['name'];
                 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-                
+
                 if (in_array($ext, $allowed)) {
                     $upload_dir = '../uploads/theory/';
                     if (!file_exists($upload_dir)) {
                         mkdir($upload_dir, 0777, true);
                     }
-                    
+
                     $new_filename = 'theory_' . time() . '_' . $question_id . '.' . $ext;
                     $upload_path = $upload_dir . $new_filename;
-                    
+
                     if (move_uploaded_file($_FILES['question_file']['tmp_name'], $upload_path)) {
                         // Delete old file if exists
                         if ($question_file && file_exists('../' . $question_file)) {
@@ -307,7 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     }
                 }
             }
-            
+
             // Remove file if checkbox checked
             if (isset($_POST['remove_file']) && $_POST['remove_file'] == '1') {
                 if ($question_file && file_exists('../' . $question_file)) {
@@ -325,10 +339,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
                     class = ?
                 WHERE id = ? AND school_id = ?
             ");
-            
+
             $update_stmt->execute([
-                $question_text, $question_file, $marks, 
-                $new_topic_id, $class, $question_id, $school_id
+                $question_text,
+                $question_file,
+                $marks,
+                $new_topic_id,
+                $class,
+                $question_id,
+                $school_id
             ]);
         }
 
@@ -338,26 +357,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
             VALUES (?, ?, ?, ?, ?)
         ");
         $log_stmt->execute([
-            $admin_id, 'admin', 
-            "Updated {$question_type} question ID: {$question_id}", 
-            $_SERVER['REMOTE_ADDR'], 
+            $admin_id,
+            'admin',
+            "Updated {$question_type} question ID: {$question_id}",
+            $_SERVER['REMOTE_ADDR'],
             $_SERVER['HTTP_USER_AGENT'] ?? null
         ]);
 
         $pdo->commit();
-        
+
         $message = "Question updated successfully!";
         $message_type = "success";
 
         // Refresh question data
         $stmt->execute([$question_id, $school_id]);
         $question_data = $stmt->fetch();
-        
+
         // If topic changed, update return_topic_id
         if ($new_topic_id != $topic_id) {
             $return_topic_id = $new_topic_id;
         }
-
     } catch (Exception $e) {
         $pdo->rollBack();
         $message = "Error updating question: " . $e->getMessage();
@@ -371,6 +390,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -397,7 +417,12 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -421,7 +446,10 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -430,6 +458,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -440,25 +469,38 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -466,6 +508,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -480,6 +523,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -491,8 +535,18 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
-        .header-title p { color: #666; font-size: 0.9rem; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -512,8 +566,15 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .breadcrumb a { color: var(--primary-color); text-decoration: none; }
-        .breadcrumb a:hover { text-decoration: underline; }
+
+        .breadcrumb a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
 
         /* Content Card */
         .content-card {
@@ -521,8 +582,9 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
+
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -533,16 +595,24 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             flex-wrap: wrap;
             gap: 15px;
         }
-        .card-header h2 { color: var(--primary-color); font-size: 1.5rem; }
+
+        .card-header h2 {
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
 
         /* Form Styles */
-        .form-group { margin-bottom: 20px; }
+        .form-group {
+            margin-bottom: 20px;
+        }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: var(--primary-color);
         }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -551,11 +621,16 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             font-size: 1rem;
             font-family: 'Poppins', sans-serif;
         }
+
         .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
         }
-        textarea.form-control { resize: vertical; min-height: 100px; }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
 
         .options-grid {
             display: grid;
@@ -563,12 +638,14 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             gap: 15px;
             margin-bottom: 20px;
         }
+
         .option-item {
             background: #f8f9fa;
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #e0e0e0;
         }
+
         .option-item label {
             display: flex;
             align-items: center;
@@ -576,7 +653,11 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             margin-bottom: 10px;
             cursor: pointer;
         }
-        .option-item input[type="radio"] { width: auto; margin: 0; }
+
+        .option-item input[type="radio"] {
+            width: auto;
+            margin: 0;
+        }
 
         .form-grid {
             display: grid;
@@ -604,11 +685,31 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             text-decoration: none;
             font-size: 0.9rem;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
 
         .alert {
             padding: 15px;
@@ -618,8 +719,18 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         /* Preview Section */
         .preview-section {
@@ -627,12 +738,14 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             border-radius: 15px;
             padding: 25px;
         }
+
         .preview-section h3 {
             color: var(--primary-color);
             margin-bottom: 15px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--light-color);
         }
+
         .question-preview {
             background: #f8f9fa;
             padding: 20px;
@@ -649,9 +762,22 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             transition: all 0.3s;
             cursor: pointer;
         }
-        .file-upload:hover { border-color: var(--primary-color); background: #f8f9fa; }
-        .file-upload input[type="file"] { display: none; }
-        .file-upload i { font-size: 1.5rem; color: #999; margin-bottom: 8px; }
+
+        .file-upload:hover {
+            border-color: var(--primary-color);
+            background: #f8f9fa;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload i {
+            font-size: 1.5rem;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
         .current-file {
             margin-top: 10px;
             padding: 10px;
@@ -659,7 +785,10 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             border-radius: 6px;
             font-size: 0.85rem;
         }
-        .current-file a { color: var(--primary-color); }
+
+        .current-file a {
+            color: var(--primary-color);
+        }
 
         .checkbox-group {
             display: flex;
@@ -667,6 +796,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             gap: 15px;
             margin-top: 10px;
         }
+
         .checkbox-group label {
             display: flex;
             align-items: center;
@@ -682,21 +812,48 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             font-size: 0.75rem;
             font-weight: 500;
         }
-        .badge-info { background: #e3f2fd; color: #1976d2; }
-        .badge-success { background: #e8f5e9; color: #388e3c; }
+
+        .badge-info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .options-grid { grid-template-columns: 1fr; }
-            .form-actions { flex-direction: column; }
-            .btn { width: 100%; justify-content: center; }
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -704,7 +861,10 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -722,7 +882,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -733,7 +893,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                 <h1>Edit <?php echo ucfirst($question_type); ?> Question</h1>
                 <p><?php echo htmlspecialchars($topic_info['topic_name']); ?> - <?php echo htmlspecialchars($topic_info['subject_name']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -810,7 +970,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                             <label>Topic *</label>
                             <select name="topic_id" class="form-control" required>
                                 <?php foreach ($topics as $topic): ?>
-                                    <option value="<?php echo $topic['id']; ?>" 
+                                    <option value="<?php echo $topic['id']; ?>"
                                         <?php echo ($topic['id'] == $question_data['topic_id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($topic['topic_name']); ?>
                                     </option>
@@ -849,7 +1009,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                         </div>
                         <?php if (!empty($question_data['question_image'])): ?>
                             <div class="current-file">
-                                <i class="fas fa-image"></i> Current image: 
+                                <i class="fas fa-image"></i> Current image:
                                 <a href="../<?php echo $question_data['question_image']; ?>" target="_blank">View</a>
                                 <div class="checkbox-group" style="margin-top: 8px;">
                                     <label>
@@ -878,7 +1038,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                             <label>Topic *</label>
                             <select name="topic_id" class="form-control" required>
                                 <?php foreach ($topics as $topic): ?>
-                                    <option value="<?php echo $topic['id']; ?>" 
+                                    <option value="<?php echo $topic['id']; ?>"
                                         <?php echo ($topic['id'] == $question_data['topic_id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($topic['topic_name']); ?>
                                     </option>
@@ -918,7 +1078,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                             <label>Topic *</label>
                             <select name="topic_id" class="form-control" required>
                                 <?php foreach ($topics as $topic): ?>
-                                    <option value="<?php echo $topic['id']; ?>" 
+                                    <option value="<?php echo $topic['id']; ?>"
                                         <?php echo ($topic['id'] == $question_data['topic_id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($topic['topic_name']); ?>
                                     </option>
@@ -948,7 +1108,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                         </div>
                         <?php if (!empty($question_data['question_file'])): ?>
                             <div class="current-file">
-                                <i class="fas fa-file"></i> Current file: 
+                                <i class="fas fa-file"></i> Current file:
                                 <a href="../<?php echo $question_data['question_file']; ?>" target="_blank">View</a>
                                 <div class="checkbox-group" style="margin-top: 8px;">
                                     <label>
@@ -1020,7 +1180,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                     </div>
                     <?php if (!empty($question_data['question_file'])): ?>
                         <div style="margin-bottom: 15px;">
-                            <i class="fas fa-file"></i> 
+                            <i class="fas fa-file"></i>
                             <a href="../<?php echo $question_data['question_file']; ?>" target="_blank">View attached file</a>
                         </div>
                     <?php endif; ?>
@@ -1036,7 +1196,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
         // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) {
+        if (mobileBtn) {
             mobileBtn.onclick = () => sidebar.classList.toggle('active');
         }
 
@@ -1098,11 +1258,15 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
         // Confirm before leaving with unsaved changes
         let formChanged = false;
         const form = document.querySelector('form');
-        
+
         if (form) {
             form.querySelectorAll('input, textarea, select').forEach(element => {
-                element.addEventListener('change', () => { formChanged = true; });
-                element.addEventListener('input', () => { formChanged = true; });
+                element.addEventListener('change', () => {
+                    formChanged = true;
+                });
+                element.addEventListener('input', () => {
+                    formChanged = true;
+                });
             });
         }
 
@@ -1113,7 +1277,10 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             }
         });
 
-        form?.addEventListener('submit', () => { formChanged = false; });
+        form?.addEventListener('submit', () => {
+            formChanged = false;
+        });
     </script>
 </body>
+
 </html>

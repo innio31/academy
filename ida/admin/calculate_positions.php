@@ -1,10 +1,10 @@
 <?php
-// gos/admin/calculate_positions.php - Calculate Class and Subject Positions
+// ida/admin/calculate_positions.php - Calculate Class and Subject Positions
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculate_positions']
     $selected_class = $_POST['class'];
     $session = $_POST['session'];
     $term = $_POST['term'];
-    
+
     if (empty($selected_class)) {
         $message = "Please select a class to calculate positions.";
         $message_type = "error";
@@ -54,21 +54,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculate_positions']
             ");
             $stmt->execute([$selected_class, $school_id]);
             $students = $stmt->fetchAll();
-            
+
             if (empty($students)) {
                 $message = "No active students found in $selected_class.";
                 $message_type = "warning";
             } else {
                 // Calculate subject positions first
                 $subject_positions_calculated = calculateSubjectPositions($pdo, $selected_class, $session, $term, $school_id);
-                
+
                 // Calculate class positions
                 $class_positions_calculated = calculateClassPositions($pdo, $selected_class, $session, $term, $school_id);
-                
+
                 if ($subject_positions_calculated && $class_positions_calculated) {
                     $message = "Positions calculated successfully for $selected_class!";
                     $message_type = "success";
-                    
+
                     // Log activity
                     $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_type, activity, school_id) VALUES (?, 'admin', ?, ?)");
                     $stmt->execute([$_SESSION['admin_id'] ?? $_SESSION['user_id'], "Calculated positions for $selected_class - $session $term", $school_id]);
@@ -86,7 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculate_positions']
 }
 
 // Function to calculate subject positions
-function calculateSubjectPositions($pdo, $class, $session, $term, $school_id) {
+function calculateSubjectPositions($pdo, $class, $session, $term, $school_id)
+{
     // Get all subjects for this class
     $stmt = $pdo->prepare("
         SELECT DISTINCT ss.subject_id, sub.subject_name 
@@ -97,13 +98,13 @@ function calculateSubjectPositions($pdo, $class, $session, $term, $school_id) {
     ");
     $stmt->execute([$class, $school_id, $session, $term]);
     $subjects = $stmt->fetchAll();
-    
+
     if (empty($subjects)) {
         return false;
     }
-    
+
     $success = true;
-    
+
     foreach ($subjects as $subject) {
         // Get all students with scores for this subject
         $stmt = $pdo->prepare("
@@ -117,12 +118,12 @@ function calculateSubjectPositions($pdo, $class, $session, $term, $school_id) {
         ");
         $stmt->execute([$class, $school_id, $subject['subject_id'], $session, $term]);
         $student_scores = $stmt->fetchAll();
-        
+
         if (!empty($student_scores)) {
             // Assign positions
             $position = 1;
             $prev_percentage = null;
-            
+
             foreach ($student_scores as $index => $student) {
                 // Handle ties (same percentage gets same position)
                 if ($prev_percentage !== null && $student['percentage'] == $prev_percentage) {
@@ -131,14 +132,14 @@ function calculateSubjectPositions($pdo, $class, $session, $term, $school_id) {
                     $current_position = $index + 1;
                     $position = $current_position;
                 }
-                
+
                 // Update or insert position
                 $checkStmt = $pdo->prepare("
                     SELECT id FROM student_subject_positions 
                     WHERE student_id = ? AND subject_id = ? AND session = ? AND term = ?
                 ");
                 $checkStmt->execute([$student['student_id'], $subject['subject_id'], $session, $term]);
-                
+
                 if ($checkStmt->fetch()) {
                     $updateStmt = $pdo->prepare("
                         UPDATE student_subject_positions 
@@ -154,17 +155,18 @@ function calculateSubjectPositions($pdo, $class, $session, $term, $school_id) {
                     ");
                     $insertStmt->execute([$student['student_id'], $subject['subject_id'], $session, $term, $current_position]);
                 }
-                
+
                 $prev_percentage = $student['percentage'];
             }
         }
     }
-    
+
     return $success;
 }
 
 // Function to calculate class positions
-function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
+function calculateClassPositions($pdo, $class, $session, $term, $school_id)
+{
     // Get all students with their total scores and averages
     $stmt = $pdo->prepare("
         SELECT s.id as student_id, s.full_name, s.admission_number,
@@ -178,20 +180,20 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
     ");
     $stmt->execute([$session, $term, $class, $school_id]);
     $students = $stmt->fetchAll();
-    
+
     if (empty($students)) {
         return false;
     }
-    
+
     // Calculate class statistics (highest/lowest average)
     $averages = array_column($students, 'average');
     $highest_average = !empty($averages) ? max($averages) : 0;
     $lowest_average = !empty($averages) ? min($averages) : 0;
-    
+
     // Assign positions
     $position = 1;
     $prev_average = null;
-    
+
     foreach ($students as $index => $student) {
         // Handle ties
         if ($prev_average !== null && $student['average'] == $prev_average) {
@@ -200,21 +202,21 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
             $current_position = $index + 1;
             $position = $current_position;
         }
-        
+
         // Determine promoted to (for promotion logic)
         $promoted_to = null;
         if ($current_position <= 3) {
             // Top 3 students get promotion
             $promoted_to = getNextClass($class);
         }
-        
+
         // Update or insert position
         $checkStmt = $pdo->prepare("
             SELECT id FROM student_positions 
             WHERE student_id = ? AND session = ? AND term = ?
         ");
         $checkStmt->execute([$student['student_id'], $session, $term]);
-        
+
         if ($checkStmt->fetch()) {
             $updateStmt = $pdo->prepare("
                 UPDATE student_positions 
@@ -222,12 +224,12 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
                 WHERE student_id = ? AND session = ? AND term = ?
             ");
             $updateStmt->execute([
-                $current_position, 
-                $student['total_score'], 
-                round($student['average'], 2), 
+                $current_position,
+                $student['total_score'],
+                round($student['average'], 2),
                 $promoted_to,
-                $student['student_id'], 
-                $session, 
+                $student['student_id'],
+                $session,
                 $term
             ]);
         } else {
@@ -237,16 +239,16 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
             $insertStmt->execute([
-                $student['student_id'], 
-                $session, 
-                $term, 
-                $current_position, 
-                $student['total_score'], 
-                round($student['average'], 2), 
+                $student['student_id'],
+                $session,
+                $term,
+                $current_position,
+                $student['total_score'],
+                round($student['average'], 2),
                 $promoted_to
             ]);
         }
-        
+
         // Also update student_scores table with subject positions
         $updateScoreStmt = $pdo->prepare("
             UPDATE student_scores 
@@ -258,10 +260,10 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
             WHERE student_id = ? AND session = ? AND term = ?
         ");
         $updateScoreStmt->execute([$student['student_id'], $session, $term, $student['student_id'], $session, $term]);
-        
+
         $prev_average = $student['average'];
     }
-    
+
     // Update student_scores with class positions
     $updateClassStmt = $pdo->prepare("
         UPDATE student_scores ss
@@ -273,12 +275,13 @@ function calculateClassPositions($pdo, $class, $session, $term, $school_id) {
         )
     ");
     $updateClassStmt->execute([$session, $term, $session, $term]);
-    
+
     return true;
 }
 
 // Helper function to get next class for promotion
-function getNextClass($current_class) {
+function getNextClass($current_class)
+{
     $class_order = [
         'Nursery 1' => 'Nursery 2',
         'Nursery 2' => 'Kindergarten',
@@ -296,7 +299,7 @@ function getNextClass($current_class) {
         'SS 2' => 'SS 3',
         'SS 3' => 'Graduated'
     ];
-    
+
     return $class_order[$current_class] ?? null;
 }
 
@@ -317,7 +320,7 @@ if ($selected_class && $session && $term) {
     ");
     $stmt->execute([$selected_class, $school_id, $session, $term]);
     $position_data = $stmt->fetchAll();
-    
+
     // Get subject positions for a sample student (first one)
     if (!empty($position_data)) {
         $first_student = $position_data[0];
@@ -334,7 +337,7 @@ if ($selected_class && $session && $term) {
         $stmt->execute([$first_student['id'], $session, $term]);
         $subject_positions = $stmt->fetchAll();
     }
-    
+
     // Get class statistics
     $stmt = $pdo->prepare("
         SELECT 
@@ -363,6 +366,7 @@ $available_periods = $stmt->fetchAll();
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -386,7 +390,12 @@ $available_periods = $stmt->fetchAll();
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -407,7 +416,10 @@ $available_periods = $stmt->fetchAll();
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -416,6 +428,7 @@ $available_periods = $stmt->fetchAll();
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -426,31 +439,45 @@ $available_periods = $stmt->fetchAll();
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         .main-content {
             margin-left: 0;
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -465,6 +492,7 @@ $available_periods = $stmt->fetchAll();
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 20px 30px;
@@ -476,7 +504,13 @@ $available_periods = $stmt->fetchAll();
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 10px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -491,8 +525,9 @@ $available_periods = $stmt->fetchAll();
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 25px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
+
         .card h2 {
             color: var(--primary-color);
             margin-bottom: 20px;
@@ -506,20 +541,25 @@ $available_periods = $stmt->fetchAll();
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: #555;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 1rem;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -537,9 +577,21 @@ $available_periods = $stmt->fetchAll();
             background: var(--info-color);
             color: white;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
 
         .alert {
             padding: 15px;
@@ -549,30 +601,63 @@ $available_periods = $stmt->fetchAll();
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
-        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid var(--warning-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
+        }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .data-table th, .data-table td {
+
+        .data-table th,
+        .data-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
+
         .data-table th {
             background: var(--primary-color);
             color: white;
             font-weight: 600;
         }
-        .data-table tr:hover { background: #f9f9f9; }
-        .data-table tr:first-child { background: #fff8e1; font-weight: bold; }
 
-        .position-1 { background: #fff8e1; }
-        .position-2 { background: #f3e5f5; }
-        .position-3 { background: #e8f5e9; }
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .data-table tr:first-child {
+            background: #fff8e1;
+            font-weight: bold;
+        }
+
+        .position-1 {
+            background: #fff8e1;
+        }
+
+        .position-2 {
+            background: #f3e5f5;
+        }
+
+        .position-3 {
+            background: #e8f5e9;
+        }
 
         .stats-grid {
             display: grid;
@@ -580,27 +665,56 @@ $available_periods = $stmt->fetchAll();
             gap: 20px;
             margin-bottom: 20px;
         }
+
         .stat-box {
             background: #f8f9fa;
             padding: 20px;
             border-radius: 10px;
             text-align: center;
         }
-        .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary-color); }
-        .stat-label { color: #666; font-size: 0.85rem; }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.85rem;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .data-table { font-size: 0.85rem; }
-            .data-table th, .data-table td { padding: 8px; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .data-table {
+                font-size: 0.85rem;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -608,21 +722,24 @@ $available_periods = $stmt->fetchAll();
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
             <p><?php echo ucfirst($admin_role); ?></p>
         </div>
         <ul class="nav-links">
-           <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-			<li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
+            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
             <li><a href="report_card_settings.php"><i class="fas fa-users"></i> Settings</a></li>
             <li><a href="enter_scores.php"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
-            <li><a href="calculate_positions.php"  class="active"><i class="fas fa-file-alt"></i> Calculate</a></li>
+            <li><a href="calculate_positions.php" class="active"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -633,7 +750,7 @@ $available_periods = $stmt->fetchAll();
                 <h1><i class="fas fa-chart-bar"></i> Calculate Positions</h1>
                 <p>Calculate class rankings and subject positions for report cards</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -661,12 +778,12 @@ $available_periods = $stmt->fetchAll();
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="session">Session</label>
                         <input type="text" name="session" id="session" class="form-control" value="<?php echo htmlspecialchars($session); ?>" required>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="term">Term</label>
                         <select name="term" id="term" class="form-select" required>
@@ -675,7 +792,7 @@ $available_periods = $stmt->fetchAll();
                             <option value="Third" <?php echo $term == 'Third' ? 'selected' : ''; ?>>Third Term</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group" style="display: flex; align-items: flex-end;">
                         <button type="submit" name="calculate_positions" class="btn btn-primary">
                             <i class="fas fa-calculator"></i> Calculate Positions
@@ -722,7 +839,7 @@ $available_periods = $stmt->fetchAll();
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($position_data as $pos): 
+                            <?php foreach ($position_data as $pos):
                                 $row_class = '';
                                 if ($pos['class_position'] == 1) $row_class = 'position-1';
                                 elseif ($pos['class_position'] == 2) $row_class = 'position-2';
@@ -749,7 +866,11 @@ $available_periods = $stmt->fetchAll();
                     <div style="overflow-x: auto;">
                         <table class="data-table">
                             <thead>
-                                <tr><th>Subject</th><th>Score (%)</th><th>Position in Class</th></tr>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Score (%)</th>
+                                    <th>Position in Class</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($subject_positions as $sub): ?>
@@ -794,8 +915,8 @@ $available_periods = $stmt->fetchAll();
         // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
-        
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
                 if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
@@ -814,13 +935,15 @@ $available_periods = $stmt->fetchAll();
         }, 5000);
     </script>
 </body>
+
 </html>
 
 <?php
 // Helper function for ordinal numbers in PHP
-function ordinal($number) {
+function ordinal($number)
+{
     if (!is_numeric($number)) return $number;
-    
+
     $ends = array('th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th');
     if ((($number % 100) >= 11) && (($number % 100) <= 13))
         return $number . 'th';

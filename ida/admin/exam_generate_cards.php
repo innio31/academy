@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_generate_cards.php — Step 4: Generate & View Report Cards
+// ida/admin/exam_generate_cards.php — Step 4: Generate & View Report Cards
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 if (isset($_SESSION['admin_id'])) {
@@ -106,7 +106,7 @@ try {
     $school_info = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) { /* non-fatal */
 }
-$school_logo  = $school_info['logo_path']   ?? '/assets/logos/default.png';
+$school_logo  = $school_info['logo_path']   ?? '/assets/loida/default.png';
 $school_motto = $school_info['motto']        ?? '';
 $school_email = $school_info['contact_email'] ?? '';
 $school_phone = $school_info['contact_phone'] ?? '';

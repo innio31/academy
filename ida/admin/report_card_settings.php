@@ -1,10 +1,10 @@
 <?php
-// gos/admin/report_card_settings.php - Report Card Settings
+// ida/admin/report_card_settings.php - Report Card Settings
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -36,13 +36,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $current_closing_date = $_POST['current_closing_date'];
     $days_school_opened = intval($_POST['days_school_opened'] ?? 0);
     $template = $_POST['template'] ?? 'default';
-    
+
     $show_class_position = isset($_POST['show_class_position']) ? 1 : 0;
     $show_subject_position = isset($_POST['show_subject_position']) ? 1 : 0;
     $show_promoted_to = isset($_POST['show_promoted_to']) ? 1 : 0;
     $show_lowest_highest_avg = isset($_POST['show_lowest_highest_avg']) ? 1 : 0;
     $show_lowest_highest_class = isset($_POST['show_lowest_highest_class']) ? 1 : 0;
-    
+
     // Get score types
     $score_types = [];
     if (isset($_POST['score_type_name']) && isset($_POST['score_type_max'])) {
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    
+
     // Validate total matches max score
     $total_score_types = array_sum(array_column($score_types, 'max_score'));
     if ($total_score_types != $max_score && $max_score > 0) {
@@ -70,12 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $score_types_json = json_encode($score_types);
             $success_count = 0;
-            
+
             foreach ($classes as $class) {
                 // Check if settings exist
                 $stmt = $pdo->prepare("SELECT id FROM report_card_settings WHERE school_id = ? AND session = ? AND term = ? AND class = ?");
                 $stmt->execute([$school_id, $session, $term, $class]);
-                
+
                 if ($stmt->fetch()) {
                     $stmt = $pdo->prepare("UPDATE report_card_settings SET 
                         max_score = ?, score_types = ?, grading_system = ?,
@@ -85,11 +85,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         show_lowest_highest_class = ?, updated_at = NOW()
                         WHERE school_id = ? AND session = ? AND term = ? AND class = ?");
                     $stmt->execute([
-                        $max_score, $score_types_json, $grading_system,
-                        $next_resumption_date, $current_resumption_date, $current_closing_date,
-                        $days_school_opened, $template, $show_class_position,
-                        $show_subject_position, $show_promoted_to, $show_lowest_highest_avg,
-                        $show_lowest_highest_class, $school_id, $session, $term, $class
+                        $max_score,
+                        $score_types_json,
+                        $grading_system,
+                        $next_resumption_date,
+                        $current_resumption_date,
+                        $current_closing_date,
+                        $days_school_opened,
+                        $template,
+                        $show_class_position,
+                        $show_subject_position,
+                        $show_promoted_to,
+                        $show_lowest_highest_avg,
+                        $show_lowest_highest_class,
+                        $school_id,
+                        $session,
+                        $term,
+                        $class
                     ]);
                 } else {
                     $stmt = $pdo->prepare("INSERT INTO report_card_settings (
@@ -100,15 +112,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
                     $stmt->execute([
-                        $school_id, $session, $term, $class, $max_score, $score_types_json, $grading_system,
-                        $next_resumption_date, $current_resumption_date, $current_closing_date,
-                        $days_school_opened, $template, $show_class_position, $show_subject_position,
-                        $show_promoted_to, $show_lowest_highest_avg, $show_lowest_highest_class
+                        $school_id,
+                        $session,
+                        $term,
+                        $class,
+                        $max_score,
+                        $score_types_json,
+                        $grading_system,
+                        $next_resumption_date,
+                        $current_resumption_date,
+                        $current_closing_date,
+                        $days_school_opened,
+                        $template,
+                        $show_class_position,
+                        $show_subject_position,
+                        $show_promoted_to,
+                        $show_lowest_highest_avg,
+                        $show_lowest_highest_class
                     ]);
                 }
                 $success_count++;
             }
-            
+
             $message = "Settings saved successfully for $success_count class(es)!";
             $message_type = "success";
         } catch (Exception $e) {
@@ -142,7 +167,7 @@ if ($selected_class) {
     $stmt = $pdo->prepare("SELECT * FROM report_card_settings WHERE school_id = ? AND session = ? AND term = ? AND class = ?");
     $stmt->execute([$school_id, $current_session, $current_term, $selected_class]);
     $current_settings = $stmt->fetch();
-    
+
     if ($current_settings) {
         $max_score = $current_settings['max_score'];
         $score_types = json_decode($current_settings['score_types'], true) ?: $score_types;
@@ -163,6 +188,7 @@ if ($selected_class) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -187,7 +213,12 @@ if ($selected_class) {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -208,7 +239,10 @@ if ($selected_class) {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -217,6 +251,7 @@ if ($selected_class) {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -227,31 +262,45 @@ if ($selected_class) {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         .main-content {
             margin-left: 0;
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -266,6 +315,7 @@ if ($selected_class) {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 20px 30px;
@@ -277,7 +327,13 @@ if ($selected_class) {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 10px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -293,6 +349,7 @@ if ($selected_class) {
             padding: 30px;
             margin-bottom: 30px;
         }
+
         .settings-card h2 {
             color: var(--primary-color);
             margin-bottom: 25px;
@@ -306,6 +363,7 @@ if ($selected_class) {
             padding-bottom: 20px;
             border-bottom: 1px solid #eee;
         }
+
         .form-section h3 {
             color: var(--primary-color);
             margin-bottom: 15px;
@@ -314,14 +372,17 @@ if ($selected_class) {
             align-items: center;
             gap: 10px;
         }
+
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
         }
+
         .form-group {
             margin-bottom: 15px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
@@ -329,7 +390,9 @@ if ($selected_class) {
             color: #555;
             font-size: 0.85rem;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e0e0e0;
@@ -337,7 +400,9 @@ if ($selected_class) {
             font-size: 0.9rem;
             font-family: 'Poppins', sans-serif;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -348,13 +413,24 @@ if ($selected_class) {
             gap: 10px;
             margin-top: 10px;
         }
+
         .class-option {
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .class-option input { width: 18px; height: 18px; cursor: pointer; }
-        .class-option label { margin: 0; cursor: pointer; font-weight: normal; }
+
+        .class-option input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .class-option label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
 
         .score-breakdown {
             background: #f8f9fa;
@@ -362,6 +438,7 @@ if ($selected_class) {
             border-radius: 10px;
             margin: 15px 0;
         }
+
         .score-item {
             display: flex;
             align-items: center;
@@ -371,8 +448,15 @@ if ($selected_class) {
             background: white;
             border-radius: 8px;
         }
-        .score-item input[type="text"] { flex: 2; }
-        .score-item input[type="number"] { flex: 1; text-align: center; }
+
+        .score-item input[type="text"] {
+            flex: 2;
+        }
+
+        .score-item input[type="number"] {
+            flex: 1;
+            text-align: center;
+        }
 
         .score-total {
             text-align: center;
@@ -381,14 +465,23 @@ if ($selected_class) {
             margin-top: 15px;
             font-weight: 600;
         }
-        .score-total.valid { background: #d5f4e6; color: var(--success-color); }
-        .score-total.invalid { background: #f8d7da; color: var(--danger-color); }
+
+        .score-total.valid {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .score-total.invalid {
+            background: #f8d7da;
+            color: var(--danger-color);
+        }
 
         .toggle-options {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
         }
+
         .toggle-option {
             display: flex;
             align-items: center;
@@ -397,8 +490,17 @@ if ($selected_class) {
             background: #f8f9fa;
             border-radius: 8px;
         }
-        .toggle-option input { width: 18px; height: 18px; cursor: pointer; }
-        .toggle-option label { margin: 0; cursor: pointer; }
+
+        .toggle-option input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .toggle-option label {
+            margin: 0;
+            cursor: pointer;
+        }
 
         .btn {
             padding: 12px 24px;
@@ -411,10 +513,26 @@ if ($selected_class) {
             align-items: center;
             gap: 8px;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
 
         .alert {
             padding: 12px 20px;
@@ -424,8 +542,18 @@ if ($selected_class) {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .grading-info {
             background: #e7f3ff;
@@ -446,19 +574,43 @@ if ($selected_class) {
         }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .class-grid { grid-template-columns: 1fr; }
-            .toggle-options { grid-template-columns: 1fr; }
-            .score-item { flex-direction: column; }
-            .score-item input { width: 100%; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .class-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .toggle-options {
+                grid-template-columns: 1fr;
+            }
+
+            .score-item {
+                flex-direction: column;
+            }
+
+            .score-item input {
+                width: 100%;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -466,7 +618,10 @@ if ($selected_class) {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -474,13 +629,13 @@ if ($selected_class) {
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-			<li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
-            <li><a href="report_card_settings.php"  class="active"><i class="fas fa-users"></i> Settings</a></li>
+            <li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
+            <li><a href="report_card_settings.php" class="active"><i class="fas fa-users"></i> Settings</a></li>
             <li><a href="enter_scores.php"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -491,7 +646,7 @@ if ($selected_class) {
                 <h1><i class="fas fa-cogs"></i> Report Card Settings</h1>
                 <p>Configure grading system, score types, and display options</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -582,7 +737,7 @@ if ($selected_class) {
                             <?php endforeach; ?>
                         </div>
                         <button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="addScoreType()"><i class="fas fa-plus"></i> Add Score Type</button>
-                        
+
                         <div class="score-total" id="score-total-display">
                             Total: <span id="total-score-types">0</span> / <span id="max-score-display"><?php echo $max_score; ?></span>
                         </div>
@@ -657,7 +812,7 @@ if ($selected_class) {
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
 
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
@@ -699,11 +854,13 @@ if ($selected_class) {
             const maxScore = parseInt(document.getElementById('max_score').value) || 0;
             const scoreInputs = document.querySelectorAll('.score-type-max');
             let total = 0;
-            scoreInputs.forEach(input => { total += parseInt(input.value) || 0; });
-            
+            scoreInputs.forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
+
             document.getElementById('total-score-types').textContent = total;
             document.getElementById('max-score-display').textContent = maxScore;
-            
+
             const display = document.getElementById('score-total-display');
             if (total === maxScore && maxScore > 0) {
                 display.className = 'score-total valid';
@@ -732,12 +889,14 @@ if ($selected_class) {
                 alert('Please select at least one class.');
                 return false;
             }
-            
+
             const maxScore = parseInt(document.getElementById('max_score').value) || 0;
             const scoreInputs = document.querySelectorAll('.score-type-max');
             let total = 0;
-            scoreInputs.forEach(input => { total += parseInt(input.value) || 0; });
-            
+            scoreInputs.forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
+
             if (total !== maxScore) {
                 e.preventDefault();
                 alert(`Total score types (${total}) must equal maximum score (${maxScore}).`);
@@ -750,10 +909,11 @@ if ($selected_class) {
         document.getElementById('max_score').addEventListener('input', updateTotalScoreTypes);
         document.getElementById('grading_system').addEventListener('change', updateGradingInfo);
         document.querySelectorAll('.score-type-max').forEach(input => input.addEventListener('input', updateTotalScoreTypes));
-        
+
         // Initialize
         updateTotalScoreTypes();
         updateGradingInfo();
     </script>
 </body>
+
 </html>

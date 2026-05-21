@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_score_entry.php — Enter exam scores per subject
+// ida/admin/exam_score_entry.php — Enter exam scores per subject
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -1188,7 +1188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

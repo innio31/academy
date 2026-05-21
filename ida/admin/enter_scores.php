@@ -1,10 +1,10 @@
 <?php
-// gos/admin/enter_scores.php - Enter Student Scores with Multi-School Support
+// ida/admin/enter_scores.php - Enter Student Scores with Multi-School Support
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -66,7 +66,7 @@ if ($selected_class) {
             ];
         }
     }
-    
+
     // Get students only if subject is selected
     if ($selected_subject_id) {
         $stmt = $pdo->prepare("SELECT id, full_name, admission_number FROM students WHERE class = ? AND school_id = ? AND status = 'active' ORDER BY full_name");
@@ -169,7 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
     }
 }
 
-function calculateGrade($percentage, $grading_system) {
+function calculateGrade($percentage, $grading_system)
+{
     switch ($grading_system) {
         case 'simple':
             if ($percentage >= 80) return 'A';
@@ -229,6 +230,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -253,7 +255,12 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -275,7 +282,10 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -284,6 +294,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -294,25 +305,38 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -320,6 +344,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -334,6 +359,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 20px 30px;
@@ -345,7 +371,13 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 10px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -361,25 +393,31 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             padding: 25px;
             margin-bottom: 25px;
         }
+
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: var(--primary-color);
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-family: 'Poppins', sans-serif;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -391,12 +429,14 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             border-radius: 10px;
             margin-bottom: 20px;
         }
+
         .score-types {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
             margin-top: 10px;
         }
+
         .score-type-badge {
             background: white;
             padding: 5px 12px;
@@ -411,19 +451,34 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             overflow-x: auto;
             display: block;
         }
-        .scores-table th, .scores-table td {
+
+        .scores-table th,
+        .scores-table td {
             padding: 12px;
             text-align: center;
             border-bottom: 1px solid #eee;
         }
+
         .scores-table th {
             background: var(--primary-color);
             color: white;
             font-weight: 600;
         }
-        .scores-table tr:hover { background: #f9f9f9; }
-        .student-name { text-align: left; font-weight: 500; }
-        .student-admission { font-size: 0.7rem; color: #999; margin-top: 3px; }
+
+        .scores-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .student-name {
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .student-admission {
+            font-size: 0.7rem;
+            color: #999;
+            margin-top: 3px;
+        }
 
         .score-input {
             width: 90px;
@@ -432,13 +487,24 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             border: 2px solid #e0e0e0;
             border-radius: 6px;
         }
+
         .score-input:focus {
             border-color: var(--primary-color);
             outline: none;
         }
-        .total-cell { font-weight: 600; color: var(--primary-color); }
-        .percentage-cell { font-weight: 600; }
-        .grade-cell { font-weight: 600; }
+
+        .total-cell {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .percentage-cell {
+            font-weight: 600;
+        }
+
+        .grade-cell {
+            font-weight: 600;
+        }
 
         .btn {
             padding: 10px 20px;
@@ -451,9 +517,21 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             align-items: center;
             gap: 8px;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
 
         .alert {
             padding: 15px;
@@ -463,22 +541,55 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
-        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid var(--warning-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .scores-table { font-size: 0.8rem; }
-            .score-input { width: 60px; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .scores-table {
+                font-size: 0.8rem;
+            }
+
+            .score-input {
+                width: 60px;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -486,7 +597,10 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -494,13 +608,13 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-			<li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
+            <li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
             <li><a href="report_card_settings.php"><i class="fas fa-users"></i> Settings</a></li>
             <li><a href="enter_scores.php" class="active"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -511,7 +625,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                 <h1><i class="fas fa-edit"></i> Enter Student Scores</h1>
                 <p>Enter scores for students by class and subject</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -572,7 +686,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
         <?php if ($selected_class && !$settings): ?>
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
-                No report card settings found for <strong><?php echo htmlspecialchars($selected_class); ?></strong>. 
+                No report card settings found for <strong><?php echo htmlspecialchars($selected_class); ?></strong>.
                 <a href="report_card_settings.php" style="color: var(--warning-color);">Configure settings first →</a>
             </div>
         <?php elseif ($selected_class && $settings && $selected_subject_id): ?>
@@ -580,7 +694,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             <!-- Settings Info -->
             <div class="settings-info">
                 <strong><i class="fas fa-info-circle"></i> Settings for <?php echo htmlspecialchars($selected_class); ?></strong><br>
-                Max Score: <?php echo $settings['max_score']; ?> | 
+                Max Score: <?php echo $settings['max_score']; ?> |
                 Grading: <?php echo ucfirst($settings['grading_system']); ?>
                 <div class="score-types">
                     <?php foreach ($score_types as $type): ?>
@@ -592,7 +706,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             <!-- Scores Entry -->
             <div class="form-section">
                 <h2 style="margin-bottom: 20px;"><i class="fas fa-user-graduate"></i> Scores for <?php echo htmlspecialchars($selected_class); ?></h2>
-                
+
                 <?php if (empty($students)): ?>
                     <div style="text-align:center; padding: 40px;">
                         <i class="fas fa-users" style="font-size: 48px; color: #ccc; margin-bottom: 15px;"></i>
@@ -604,7 +718,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                         <input type="hidden" name="subject_id" value="<?php echo $selected_subject_id; ?>">
                         <input type="hidden" name="session" value="<?php echo htmlspecialchars($session); ?>">
                         <input type="hidden" name="term" value="<?php echo htmlspecialchars($term); ?>">
-                        
+
                         <div style="overflow-x: auto;">
                             <table class="scores-table">
                                 <thead>
@@ -652,7 +766,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                                 </tbody>
                             </table>
                         </div>
-                        
+
                         <div style="margin-top: 30px; display: flex; gap: 15px; justify-content: center;">
                             <button type="submit" name="save_scores" class="btn btn-success"><i class="fas fa-save"></i> Save All Scores</button>
                             <button type="button" class="btn btn-warning" onclick="clearAllScores()"><i class="fas fa-trash-alt"></i> Clear All</button>
@@ -676,17 +790,17 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                 let val = parseFloat(inp.value);
                 if (!isNaN(val)) total += val;
             });
-            
+
             document.getElementById(`total_${studentId}`).textContent = total.toFixed(1);
-            
+
             const percentage = (total / maxScore) * 100;
             const percentDisplay = percentage.toFixed(1);
             document.getElementById(`percent_${studentId}`).textContent = percentDisplay + '%';
-            
+
             const grade = calculateGrade(percentage);
             document.getElementById(`grade_${studentId}`).textContent = grade;
         }
-        
+
         function calculateGrade(percentage) {
             const system = '<?php echo $settings['grading_system'] ?? 'simple'; ?>';
             if (system === 'simple') {
@@ -723,7 +837,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             }
             return 'F';
         }
-        
+
         function clearAllScores() {
             if (confirm('Clear all scores on this page? This cannot be undone.')) {
                 document.querySelectorAll('.score-input').forEach(inp => inp.value = '');
@@ -732,12 +846,12 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                 document.querySelectorAll('[id^="grade_"]').forEach(span => span.textContent = 'F');
             }
         }
-        
+
         // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
-        
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
                 if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
@@ -747,4 +861,5 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
         });
     </script>
 </body>
+
 </html>

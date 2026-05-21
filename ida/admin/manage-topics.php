@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -69,16 +69,16 @@ if ($view_topic_id) {
         ");
         $stmt->execute([$view_topic_id, $school_id]);
         $view_topic = $stmt->fetch();
-        
+
         if ($view_topic) {
             $obj_stmt = $pdo->prepare("SELECT * FROM objective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
             $obj_stmt->execute([$view_topic_id, $school_id]);
             $objective_questions = $obj_stmt->fetchAll();
-            
+
             $sub_stmt = $pdo->prepare("SELECT * FROM subjective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
             $sub_stmt->execute([$view_topic_id, $school_id]);
             $subjective_questions = $sub_stmt->fetchAll();
-            
+
             $theory_stmt = $pdo->prepare("SELECT * FROM theory_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
             $theory_stmt->execute([$view_topic_id, $school_id]);
             $theory_questions = $theory_stmt->fetchAll();
@@ -108,20 +108,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$stmt->fetch()) {
                     throw new Exception("Invalid subject selected");
                 }
-                
+
                 // Check for duplicate
                 $stmt = $pdo->prepare("SELECT id FROM topics WHERE topic_name = ? AND subject_id = ? AND school_id = ?");
                 $stmt->execute([$topic_name, $subject_id_post, $school_id]);
                 if ($stmt->fetch()) {
                     throw new Exception("Topic already exists for this subject!");
                 }
-                
+
                 $stmt = $pdo->prepare("INSERT INTO topics (topic_name, subject_id, description, school_id) VALUES (?, ?, ?, ?)");
                 $stmt->execute([$topic_name, $subject_id_post, $description, $school_id]);
-                
+
                 $message = "Topic added successfully!";
                 $message_type = "success";
-                
+
                 // Log activity
                 $log_stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_type, activity, ip_address) VALUES (?, ?, ?, ?)");
                 $log_stmt->execute([$admin_id, 'admin', "Added topic: $topic_name", $_SERVER['REMOTE_ADDR']]);
@@ -131,14 +131,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    
+
     // Edit topic
     if (isset($_POST['edit_topic'])) {
         $topic_id_edit = (int)$_POST['edit_topic_id'];
         $topic_name = trim($_POST['edit_topic_name']);
         $description = trim($_POST['edit_description']);
         $subject_id_edit = (int)$_POST['edit_subject_id'];
-        
+
         if (empty($topic_name)) {
             $message = "Topic name is required!";
             $message_type = "error";
@@ -150,20 +150,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$stmt->fetch()) {
                     throw new Exception("Topic not found or access denied");
                 }
-                
+
                 // Check duplicate
                 $stmt = $pdo->prepare("SELECT id FROM topics WHERE topic_name = ? AND subject_id = ? AND school_id = ? AND id != ?");
                 $stmt->execute([$topic_name, $subject_id_edit, $school_id, $topic_id_edit]);
                 if ($stmt->fetch()) {
                     throw new Exception("Another topic with this name already exists!");
                 }
-                
+
                 $stmt = $pdo->prepare("UPDATE topics SET topic_name = ?, description = ? WHERE id = ? AND school_id = ?");
                 $stmt->execute([$topic_name, $description, $topic_id_edit, $school_id]);
-                
+
                 $message = "Topic updated successfully!";
                 $message_type = "success";
-                
+
                 $log_stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_type, activity, ip_address) VALUES (?, ?, ?, ?)");
                 $log_stmt->execute([$admin_id, 'admin', "Updated topic: $topic_name", $_SERVER['REMOTE_ADDR']]);
             } catch (Exception $e) {
@@ -172,35 +172,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    
+
     // Delete topic
     if (isset($_POST['delete_topic'])) {
         $topic_id_del = (int)$_POST['topic_id'];
-        
+
         try {
             // Verify topic belongs to this school
             $stmt = $pdo->prepare("SELECT topic_name FROM topics WHERE id = ? AND school_id = ?");
             $stmt->execute([$topic_id_del, $school_id]);
             $topic_info = $stmt->fetch();
-            
+
             if (!$topic_info) {
                 throw new Exception("Topic not found or access denied");
             }
-            
+
             // Delete associated questions
             $pdo->prepare("DELETE FROM objective_questions WHERE topic_id = ? AND school_id = ?")->execute([$topic_id_del, $school_id]);
             $pdo->prepare("DELETE FROM subjective_questions WHERE topic_id = ? AND school_id = ?")->execute([$topic_id_del, $school_id]);
             $pdo->prepare("DELETE FROM theory_questions WHERE topic_id = ? AND school_id = ?")->execute([$topic_id_del, $school_id]);
-            
+
             // Delete topic
             $pdo->prepare("DELETE FROM topics WHERE id = ? AND school_id = ?")->execute([$topic_id_del, $school_id]);
-            
+
             $message = "Topic and all associated questions deleted successfully!";
             $message_type = "success";
-            
+
             $log_stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_type, activity, ip_address) VALUES (?, ?, ?, ?)");
             $log_stmt->execute([$admin_id, 'admin', "Deleted topic: {$topic_info['topic_name']}", $_SERVER['REMOTE_ADDR']]);
-            
+
             // Redirect if viewing deleted topic
             if ($view_topic_id == $topic_id_del) {
                 header("Location: manage-topics.php?subject_id=$subject_id&message=Topic+deleted");
@@ -211,28 +211,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message_type = "error";
         }
     }
-    
+
     // Delete individual question
     if (isset($_POST['delete_question'])) {
         $question_id = (int)$_POST['question_id'];
         $question_type = $_POST['question_type'];
         $topic_id_q = (int)$_POST['topic_id'];
-        
+
         try {
             $table = '';
             switch ($question_type) {
-                case 'objective': $table = 'objective_questions'; break;
-                case 'subjective': $table = 'subjective_questions'; break;
-                case 'theory': $table = 'theory_questions'; break;
-                default: throw new Exception("Invalid type");
+                case 'objective':
+                    $table = 'objective_questions';
+                    break;
+                case 'subjective':
+                    $table = 'subjective_questions';
+                    break;
+                case 'theory':
+                    $table = 'theory_questions';
+                    break;
+                default:
+                    throw new Exception("Invalid type");
             }
-            
+
             $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ? AND school_id = ? AND topic_id = ?");
             $stmt->execute([$question_id, $school_id, $topic_id_q]);
-            
+
             $message = "Question deleted successfully!";
             $message_type = "success";
-            
+
             header("Location: manage-topics.php?view_topic=$topic_id_q&subject_id=$subject_id");
             exit();
         } catch (Exception $e) {
@@ -291,6 +298,7 @@ try {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -311,7 +319,12 @@ try {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -334,7 +347,11 @@ try {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
         .logo {
             display: flex;
             align-items: center;
@@ -342,6 +359,7 @@ try {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -352,31 +370,45 @@ try {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         .main-content {
             margin-left: 0;
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -391,6 +423,7 @@ try {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -402,7 +435,13 @@ try {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -414,21 +453,37 @@ try {
             align-items: center;
             gap: 8px;
         }
+
         .breadcrumb {
             background: white;
             padding: 12px 20px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .breadcrumb a { color: var(--primary-color); text-decoration: none; }
+
+        .breadcrumb a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
         .form-container {
             background: white;
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 30px;
         }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--primary-color); }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -436,28 +491,43 @@ try {
             border-radius: 8px;
             font-size: 1rem;
         }
-        .form-control:focus { outline: none; border-color: var(--primary-color); }
-        textarea.form-control { resize: vertical; min-height: 100px; }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
 
         .table-container {
             background: white;
             border-radius: 15px;
             overflow-x: auto;
         }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .data-table th, .data-table td {
+
+        .data-table th,
+        .data-table td {
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
+
         .data-table th {
             background: var(--light-color);
             font-weight: 600;
         }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         .badge {
             display: inline-block;
@@ -466,12 +536,33 @@ try {
             font-size: 0.75rem;
             font-weight: 500;
         }
-        .badge-primary { background: #e3f2fd; color: #1976d2; }
-        .badge-success { background: #e8f5e9; color: #388e3c; }
-        .badge-warning { background: #fff3e0; color: #f57c00; }
-        .badge-info { background: #e3f2fd; color: #0288d1; }
 
-        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge-primary {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .badge-warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .badge-info {
+            background: #e3f2fd;
+            color: #0288d1;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .btn {
             padding: 8px 15px;
             border-radius: 6px;
@@ -483,12 +574,35 @@ try {
             gap: 5px;
             font-size: 0.85rem;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-info { background: var(--secondary-color); color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
-        .btn-icon { padding: 6px 10px; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-info {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+        }
 
         .alert {
             padding: 15px;
@@ -498,8 +612,18 @@ try {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .empty-state {
             text-align: center;
@@ -518,16 +642,19 @@ try {
             gap: 15px;
             align-items: center;
         }
+
         .search-box {
             position: relative;
             display: inline-block;
         }
+
         .search-box input {
             padding: 10px 35px 10px 40px;
             border: 2px solid #ddd;
             border-radius: 8px;
             width: 250px;
         }
+
         .search-box i {
             position: absolute;
             left: 12px;
@@ -535,6 +662,7 @@ try {
             transform: translateY(-50%);
             color: #999;
         }
+
         .search-clear-btn {
             position: absolute;
             right: 8px;
@@ -553,22 +681,44 @@ try {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
             width: 90%;
             max-width: 500px;
         }
-        .modal-header, .modal-footer { padding: 15px 20px; }
-        .modal-header { border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
-        .modal-body { padding: 20px; }
-        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+
+        .modal-header,
+        .modal-footer {
+            padding: 15px 20px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
 
         .topic-info-card {
             background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
@@ -586,6 +736,7 @@ try {
             padding-bottom: 10px;
             flex-wrap: wrap;
         }
+
         .tab-btn {
             padding: 10px 20px;
             background: none;
@@ -595,31 +746,57 @@ try {
             color: #666;
             border-radius: 5px;
         }
+
         .tab-btn.active {
             background: var(--primary-color);
             color: white;
         }
-        .question-panel { display: none; }
-        .question-panel.active { display: block; }
+
+        .question-panel {
+            display: none;
+        }
+
+        .question-panel.active {
+            display: block;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .filter-section { flex-direction: column; align-items: stretch; }
-            .search-box input { width: 100%; }
+            .filter-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box input {
+                width: 100%;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -637,7 +814,7 @@ try {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -647,7 +824,7 @@ try {
                 <h1><?php echo $view_topic ? 'View Questions: ' . htmlspecialchars($view_topic['topic_name']) : 'Manage Topics'; ?></h1>
                 <p><?php echo $view_topic ? htmlspecialchars($view_topic['subject_name']) . ' - ' . count($objective_questions) + count($subjective_questions) + count($theory_questions) . ' total questions' : 'Add, edit, and manage topics for subjects'; ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <div class="breadcrumb">
@@ -672,7 +849,7 @@ try {
             <a href="manage-topics.php?subject_id=<?php echo $subject_id; ?>" class="btn btn-primary" style="margin-bottom: 20px;">
                 <i class="fas fa-arrow-left"></i> Back to Topics
             </a>
-            
+
             <div class="topic-info-card">
                 <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($view_topic['topic_name']); ?></h2>
                 <p><i class="fas fa-book"></i> Subject: <?php echo htmlspecialchars($view_topic['subject_name']); ?></p>
@@ -703,28 +880,38 @@ try {
                 <div id="objective-panel" class="question-panel active">
                     <div class="table-container">
                         <?php if (empty($objective_questions)): ?>
-                            <div class="empty-state"><i class="fas fa-check-circle" style="font-size: 48px; color: #ccc;"></i><h3>No Objective Questions</h3><p>Click "Add New Question" to get started.</p></div>
+                            <div class="empty-state"><i class="fas fa-check-circle" style="font-size: 48px; color: #ccc;"></i>
+                                <h3>No Objective Questions</h3>
+                                <p>Click "Add New Question" to get started.</p>
+                            </div>
                         <?php else: ?>
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Question</th><th>Options</th><th>Actions</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>Options</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php foreach ($objective_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                        <td><span class="badge badge-info">A: <?php echo htmlspecialchars(substr($q['option_a'], 0, 20)); ?></span> <span class="badge badge-success">✓ <?php echo $q['correct_answer']; ?></span></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <a href="manage-questions.php?topic_id=<?php echo $view_topic_id; ?>&type=objective" class="btn btn-primary btn-sm btn-icon" title="Add More"><i class="fas fa-plus"></i></a>
-                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                    <input type="hidden" name="question_type" value="objective">
-                                                    <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
-                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                            <td><span class="badge badge-info">A: <?php echo htmlspecialchars(substr($q['option_a'], 0, 20)); ?></span> <span class="badge badge-success">✓ <?php echo $q['correct_answer']; ?></span></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="manage-questions.php?topic_id=<?php echo $view_topic_id; ?>&type=objective" class="btn btn-primary btn-sm btn-icon" title="Add More"><i class="fas fa-plus"></i></a>
+                                                    <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                        <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                        <input type="hidden" name="question_type" value="objective">
+                                                        <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
+                                                        <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -736,24 +923,32 @@ try {
                 <div id="subjective-panel" class="question-panel">
                     <div class="table-container">
                         <?php if (empty($subjective_questions)): ?>
-                            <div class="empty-state"><i class="fas fa-edit" style="font-size: 48px; color: #ccc;"></i><h3>No Subjective Questions</h3></div>
+                            <div class="empty-state"><i class="fas fa-edit" style="font-size: 48px; color: #ccc;"></i>
+                                <h3>No Subjective Questions</h3>
+                            </div>
                         <?php else: ?>
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Question</th><th>Actions</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php foreach ($subjective_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                        <td>
-                                            <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                <input type="hidden" name="question_type" value="subjective">
-                                                <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
-                                                <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                            <td>
+                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                    <input type="hidden" name="question_type" value="subjective">
+                                                    <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
+                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -765,24 +960,32 @@ try {
                 <div id="theory-panel" class="question-panel">
                     <div class="table-container">
                         <?php if (empty($theory_questions)): ?>
-                            <div class="empty-state"><i class="fas fa-file-alt" style="font-size: 48px; color: #ccc;"></i><h3>No Theory Questions</h3></div>
+                            <div class="empty-state"><i class="fas fa-file-alt" style="font-size: 48px; color: #ccc;"></i>
+                                <h3>No Theory Questions</h3>
+                            </div>
                         <?php else: ?>
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Question</th><th>Actions</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php foreach ($theory_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . ((strlen($q['question_text'] ?? '') > 80) ? '...' : ''); ?></td>
-                                        <td>
-                                            <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                <input type="hidden" name="question_type" value="theory">
-                                                <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
-                                                <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . ((strlen($q['question_text'] ?? '') > 80) ? '...' : ''); ?></td>
+                                            <td>
+                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                    <input type="hidden" name="question_type" value="theory">
+                                                    <input type="hidden" name="topic_id" value="<?php echo $view_topic_id; ?>">
+                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -793,7 +996,7 @@ try {
 
         <?php else: ?>
             <!-- Topics Management Mode -->
-            
+
             <?php if ($selected_subject): ?>
                 <div class="form-container" style="background: linear-gradient(135deg, var(--primary-color), var(--dark-color)); color: white;">
                     <h2><?php echo htmlspecialchars($selected_subject['subject_name']); ?></h2>
@@ -885,31 +1088,31 @@ try {
                         </thead>
                         <tbody>
                             <?php foreach ($topics as $topic): ?>
-                             <tr>
-                                <?php if (!$subject_id): ?>
-                                    <td><span class="badge badge-primary"><?php echo htmlspecialchars($topic['subject_name']); ?></span></td>
-                                <?php endif; ?>
-                                <td><strong><?php echo htmlspecialchars($topic['topic_name']); ?></strong></td>
-                                <td>
-                                    <span class="badge badge-info">O: <?php echo $topic['objective_count']; ?></span>
-                                    <span class="badge badge-warning">S: <?php echo $topic['subjective_count']; ?></span>
-                                    <?php if ($topic['theory_count'] > 0): ?>
-                                        <span class="badge badge-success">T: <?php echo $topic['theory_count']; ?></span>
+                                <tr>
+                                    <?php if (!$subject_id): ?>
+                                        <td><span class="badge badge-primary"><?php echo htmlspecialchars($topic['subject_name']); ?></span></td>
                                     <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($topic['description'] ?: '—'); ?></td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <a href="manage-topics.php?view_topic=<?php echo $topic['id']; ?>&subject_id=<?php echo $topic['subject_id']; ?>" class="btn btn-info btn-sm" title="View Questions"><i class="fas fa-eye"></i> View</a>
-                                        <button class="btn btn-primary btn-sm btn-icon" onclick="editTopic(<?php echo $topic['id']; ?>, '<?php echo addslashes($topic['topic_name']); ?>', <?php echo $topic['subject_id']; ?>, '<?php echo addslashes($topic['description'] ?? ''); ?>')" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <a href="manage-questions.php?topic_id=<?php echo $topic['id']; ?>" class="btn btn-success btn-sm btn-icon" title="Add Questions"><i class="fas fa-plus-circle"></i></a>
-                                        <form method="POST" onsubmit="return confirmDeleteTopic()" style="display: inline;">
-                                            <input type="hidden" name="topic_id" value="<?php echo $topic['id']; ?>">
-                                            <button type="submit" name="delete_topic" class="btn btn-danger btn-sm btn-icon" title="Delete Topic"><i class="fas fa-trash"></i></button>
-                                        </form>
-                                    </div>
-                                </td>
-                             </tr>
+                                    <td><strong><?php echo htmlspecialchars($topic['topic_name']); ?></strong></td>
+                                    <td>
+                                        <span class="badge badge-info">O: <?php echo $topic['objective_count']; ?></span>
+                                        <span class="badge badge-warning">S: <?php echo $topic['subjective_count']; ?></span>
+                                        <?php if ($topic['theory_count'] > 0): ?>
+                                            <span class="badge badge-success">T: <?php echo $topic['theory_count']; ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($topic['description'] ?: '—'); ?></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="manage-topics.php?view_topic=<?php echo $topic['id']; ?>&subject_id=<?php echo $topic['subject_id']; ?>" class="btn btn-info btn-sm" title="View Questions"><i class="fas fa-eye"></i> View</a>
+                                            <button class="btn btn-primary btn-sm btn-icon" onclick="editTopic(<?php echo $topic['id']; ?>, '<?php echo addslashes($topic['topic_name']); ?>', <?php echo $topic['subject_id']; ?>, '<?php echo addslashes($topic['description'] ?? ''); ?>')" title="Edit"><i class="fas fa-edit"></i></button>
+                                            <a href="manage-questions.php?topic_id=<?php echo $topic['id']; ?>" class="btn btn-success btn-sm btn-icon" title="Add Questions"><i class="fas fa-plus-circle"></i></a>
+                                            <form method="POST" onsubmit="return confirmDeleteTopic()" style="display: inline;">
+                                                <input type="hidden" name="topic_id" value="<?php echo $topic['id']; ?>">
+                                                <button type="submit" name="delete_topic" class="btn btn-danger btn-sm btn-icon" title="Delete Topic"><i class="fas fa-trash"></i></button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
@@ -949,7 +1152,7 @@ try {
     <script>
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) {
+        if (mobileBtn) {
             mobileBtn.onclick = () => sidebar.classList.toggle('active');
         }
 
@@ -971,6 +1174,7 @@ try {
         }
 
         let searchTimeout;
+
         function handleSearch(event) {
             clearTimeout(searchTimeout);
             if (event.key === 'Enter') {
@@ -1005,8 +1209,14 @@ try {
         function validateTopicForm() {
             const name = document.getElementById('topic_name').value.trim();
             const subject = document.getElementById('subject_id').value;
-            if (!name) { alert('Please enter a topic name.'); return false; }
-            if (!subject) { alert('Please select a subject.'); return false; }
+            if (!name) {
+                alert('Please enter a topic name.');
+                return false;
+            }
+            if (!subject) {
+                alert('Please select a subject.');
+                return false;
+            }
             return true;
         }
 
@@ -1041,4 +1251,5 @@ try {
         });
     </script>
 </body>
+
 </html>

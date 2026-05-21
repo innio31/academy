@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_generate_cards.php — Step 4: Generate & Preview Report Cards
+// ida/admin/exam_generate_cards.php — Step 4: Generate & Preview Report Cards
 // Calculates class positions, averages, highest/lowest. Renders all 5 templates.
 // Print single card, bulk-print all, or proceed to publish.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php"); exit();
+    header("Location: /ida/login.php"); exit();
 }
 if (isset($_SESSION['admin_id'])) {
     $admin_id   = $_SESSION['admin_id'];
@@ -75,7 +75,7 @@ try {
     $school = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) { /* non-fatal */ }
 
-$school_logo    = $school['logo_path']     ?? '/assets/logos/default.png';
+$school_logo    = $school['logo_path']     ?? '/assets/loida/default.png';
 $school_motto   = $school['motto']         ?? '';
 $school_phone   = $school['contact_phone'] ?? '';
 $school_email   = $school['contact_email'] ?? '';
@@ -348,7 +348,7 @@ function renderCard(
     $hdr_bg  = $theme['header_bg'];
     $accent  = $theme['accent'];
     $hdr_txt = $theme['text'];
-    $logo    = htmlspecialchars($school['logo_path'] ?? '/assets/logos/default.png');
+    $logo    = htmlspecialchars($school['logo_path'] ?? '/assets/loida/default.png');
     $motto   = htmlspecialchars($school['motto']         ?? '');
     $phone   = htmlspecialchars($school['contact_phone'] ?? '');
     $is_minimal = ($record['template'] ?? 'classic') === 'minimal';
@@ -828,7 +828,7 @@ if (!document.referrer.includes('print_toolbar')) {
         <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
         <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
         <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-        <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
     </ul>
 </div>
 

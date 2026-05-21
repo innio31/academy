@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -54,15 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_objective
         $marks = (int)($_POST['marks'] ?? 1);
         $subject_id = (int)($_POST['subject_id'] ?? 0);
         $topic_id = (int)($_POST['topic_id'] ?? 0);
-        
+
         if (empty($question_text) || empty($option_a) || empty($option_b) || empty($correct_answer)) {
             throw new Exception("Please fill in all required fields");
         }
-        
+
         if ($subject_id <= 0) {
             throw new Exception("Please select a subject");
         }
-        
+
         // Handle image upload
         $question_image = null;
         if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_objective
                 }
             }
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO objective_questions 
             (question_text, option_a, option_b, option_c, option_d, correct_answer, 
@@ -86,13 +86,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_objective
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NOW())
         ");
         $stmt->execute([
-            $question_text, $option_a, $option_b, $option_c, $option_d, $correct_answer,
-            $difficulty_level, $marks, $subject_id, $topic_id, $question_image
+            $question_text,
+            $option_a,
+            $option_b,
+            $option_c,
+            $option_d,
+            $correct_answer,
+            $difficulty_level,
+            $marks,
+            $subject_id,
+            $topic_id,
+            $question_image
         ]);
-        
+
         $message = "Central objective question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: central_questions.php?tab=objective&success=1");
             exit();
@@ -112,11 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_subjectiv
         $marks = (int)($_POST['marks'] ?? 1);
         $subject_id = (int)($_POST['subject_id'] ?? 0);
         $topic_id = (int)($_POST['topic_id'] ?? 0);
-        
+
         if (empty($question_text) || $subject_id <= 0) {
             throw new Exception("Please fill in all required fields");
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO subjective_questions 
             (question_text, correct_answer, difficulty_level, marks, subject_id, topic_id, 
@@ -124,12 +133,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_subjectiv
             VALUES (?, ?, ?, ?, ?, ?, 1, NULL, NOW())
         ");
         $stmt->execute([
-            $question_text, $correct_answer, $difficulty_level, $marks, $subject_id, $topic_id
+            $question_text,
+            $correct_answer,
+            $difficulty_level,
+            $marks,
+            $subject_id,
+            $topic_id
         ]);
-        
+
         $message = "Central subjective question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: central_questions.php?tab=subjective&success=1");
             exit();
@@ -147,11 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_theory'])
         $marks = (int)($_POST['marks'] ?? 5);
         $subject_id = (int)($_POST['subject_id'] ?? 0);
         $topic_id = (int)($_POST['topic_id'] ?? 0);
-        
+
         if (empty($question_text) || $subject_id <= 0) {
             throw new Exception("Please fill in all required fields");
         }
-        
+
         // Handle file upload
         $question_file = null;
         if (isset($_FILES['question_file']) && $_FILES['question_file']['error'] === UPLOAD_ERR_OK) {
@@ -166,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_theory'])
                 }
             }
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO theory_questions 
             (question_text, question_file, marks, subject_id, topic_id, 
@@ -174,12 +188,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_theory'])
             VALUES (?, ?, ?, ?, ?, 1, NULL, NOW())
         ");
         $stmt->execute([
-            $question_text, $question_file, $marks, $subject_id, $topic_id
+            $question_text,
+            $question_file,
+            $marks,
+            $subject_id,
+            $topic_id
         ]);
-        
+
         $message = "Central theory question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: central_questions.php?tab=theory&success=1");
             exit();
@@ -194,12 +212,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_central_theory'])
 if (isset($_GET['delete']) && isset($_GET['type']) && isset($_GET['id'])) {
     $q_type = $_GET['type'];
     $q_id = (int)$_GET['id'];
-    
+
     try {
         $table = $q_type . '_questions';
         $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ? AND is_central = 1 AND school_id IS NULL");
         $stmt->execute([$q_id]);
-        
+
         $message = "Central question deleted successfully!";
         $message_type = "success";
     } catch (Exception $e) {
@@ -255,6 +273,7 @@ $theory_questions = $pdo->query("
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -275,7 +294,12 @@ $theory_questions = $pdo->query("
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -298,7 +322,10 @@ $theory_questions = $pdo->query("
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -307,6 +334,7 @@ $theory_questions = $pdo->query("
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -317,25 +345,38 @@ $theory_questions = $pdo->query("
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -343,6 +384,7 @@ $theory_questions = $pdo->query("
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -357,6 +399,7 @@ $theory_questions = $pdo->query("
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -368,7 +411,13 @@ $theory_questions = $pdo->query("
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .central-badge {
             background: var(--primary-color);
             color: white;
@@ -384,12 +433,14 @@ $theory_questions = $pdo->query("
             margin-bottom: 30px;
             overflow: hidden;
         }
+
         .tab-buttons {
             display: flex;
             background: #f8f9fa;
             border-bottom: 2px solid #e0e0e0;
             flex-wrap: wrap;
         }
+
         .tab-button {
             flex: 1;
             padding: 15px 20px;
@@ -405,29 +456,46 @@ $theory_questions = $pdo->query("
             gap: 10px;
             transition: all 0.3s;
         }
-        .tab-button:hover { background: #e9ecef; }
+
+        .tab-button:hover {
+            background: #e9ecef;
+        }
+
         .tab-button.active {
             color: var(--primary-color);
             border-bottom: 3px solid var(--primary-color);
             background: white;
         }
-        .tab-content { display: none; padding: 25px; }
-        .tab-content.active { display: block; }
+
+        .tab-content {
+            display: none;
+            padding: 25px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
 
         /* Form Styles */
-        .form-section, .list-section {
+        .form-section,
+        .list-section {
             background: #f8f9fa;
             padding: 25px;
             border-radius: 12px;
             margin-bottom: 25px;
         }
-        .form-group { margin-bottom: 20px; }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: var(--primary-color);
         }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -436,8 +504,16 @@ $theory_questions = $pdo->query("
             font-size: 1rem;
             font-family: monospace;
         }
-        textarea.form-control { resize: vertical; min-height: 120px; }
-        .form-control:focus { outline: none; border-color: var(--primary-color); }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
 
         .options-grid {
             display: grid;
@@ -445,11 +521,13 @@ $theory_questions = $pdo->query("
             gap: 15px;
             margin-bottom: 20px;
         }
+
         .option-group {
             display: flex;
             align-items: center;
             gap: 10px;
         }
+
         .option-label {
             font-weight: bold;
             color: var(--primary-color);
@@ -467,11 +545,31 @@ $theory_questions = $pdo->query("
             gap: 8px;
             text-decoration: none;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.8rem;
+        }
 
         .alert {
             padding: 15px;
@@ -481,20 +579,39 @@ $theory_questions = $pdo->query("
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .data-table th, .data-table td {
+
+        .data-table th,
+        .data-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
-        .data-table th { background: var(--light-color); font-weight: 600; }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table th {
+            background: var(--light-color);
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         .badge {
             padding: 4px 10px;
@@ -502,30 +619,63 @@ $theory_questions = $pdo->query("
             font-size: 0.7rem;
             font-weight: 500;
         }
-        .badge-subject { background: #e3f2fd; color: #1565c0; }
-        .badge-topic { background: #f3e5f5; color: #7b1fa2; }
 
-        .action-buttons { display: flex; gap: 8px; }
+        .badge-subject {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .badge-topic {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .options-grid { grid-template-columns: 1fr; }
-            .tab-buttons { flex-direction: column; }
-            .data-table { display: block; overflow-x: auto; }
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tab-buttons {
+                flex-direction: column;
+            }
+
+            .data-table {
+                display: block;
+                overflow-x: auto;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-database"></i></div>
-            <div class="logo-text"><h3>Central Bank</h3><p>Developer Panel</p></div>
+            <div class="logo-text">
+                <h3>Central Bank</h3>
+                <p>Developer Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -537,7 +687,7 @@ $theory_questions = $pdo->query("
             <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
             <li><a href="manage-topics.php"><i class="fas fa-list"></i> Manage Topics</a></li>
             <li><a href="manage-questions.php"><i class="fas fa-question-circle"></i> School Questions</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -587,10 +737,24 @@ $theory_questions = $pdo->query("
                             <div class="option-group"><span class="option-label">D)</span><input type="text" name="option_d" class="form-control" placeholder="Option D (Optional)"></div>
                         </div>
                         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
-                            <div class="form-group"><label>Correct Answer *</label><select name="correct_answer" class="form-control" required><option value="">Select</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
-                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'objective_topic')"><option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?></select></div>
-                            <div class="form-group"><label>Topic</label><select name="topic_id" id="objective_topic" class="form-control"><option value="">Select Topic</option></select></div>
-                            <div class="form-group"><label>Difficulty</label><select name="difficulty_level" class="form-control"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>
+                            <div class="form-group"><label>Correct Answer *</label><select name="correct_answer" class="form-control" required>
+                                    <option value="">Select</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                </select></div>
+                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'objective_topic')">
+                                    <option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?>
+                                </select></div>
+                            <div class="form-group"><label>Topic</label><select name="topic_id" id="objective_topic" class="form-control">
+                                    <option value="">Select Topic</option>
+                                </select></div>
+                            <div class="form-group"><label>Difficulty</label><select name="difficulty_level" class="form-control">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select></div>
                         </div>
                         <div class="form-group"><label>Marks</label><input type="number" name="marks" class="form-control" value="1" min="1"></div>
                         <div class="form-group"><label>Image (Optional)</label><input type="file" name="question_image" class="form-control" accept="image/*"></div>
@@ -603,19 +767,30 @@ $theory_questions = $pdo->query("
                 <div class="list-section">
                     <h3><i class="fas fa-list"></i> Existing Central Objective Questions</h3>
                     <table class="data-table">
-                        <thead><tr><th>ID</th><th>Question</th><th>Subject/Topic</th><th>Correct</th><th>Marks</th><th>Actions</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Question</th>
+                                <th>Subject/Topic</th>
+                                <th>Correct</th>
+                                <th>Marks</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach ($objective_questions as $q): ?>
-                            <tr>
-                                <td><?php echo $q['id']; ?></td>
-                                <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                <td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td>
-                                <td><strong><?php echo $q['correct_answer']; ?></strong></td>
-                                <td><?php echo $q['marks']; ?></td>
-                                <td class="action-buttons"><a href="?delete=1&type=objective&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this central question? Schools will no longer be able to import it.')"><i class="fas fa-trash"></i> Delete</a></td>
-                            </tr>
+                                <tr>
+                                    <td><?php echo $q['id']; ?></td>
+                                    <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                    <td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td>
+                                    <td><strong><?php echo $q['correct_answer']; ?></strong></td>
+                                    <td><?php echo $q['marks']; ?></td>
+                                    <td class="action-buttons"><a href="?delete=1&type=objective&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this central question? Schools will no longer be able to import it.')"><i class="fas fa-trash"></i> Delete</a></td>
+                                </tr>
                             <?php endforeach; ?>
-                            <?php if (empty($objective_questions)): ?><tr><td colspan="6" style="text-align: center;">No central objective questions yet. Add one above.</td></tr><?php endif; ?>
+                            <?php if (empty($objective_questions)): ?><tr>
+                                    <td colspan="6" style="text-align: center;">No central objective questions yet. Add one above.</td>
+                                </tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -629,8 +804,12 @@ $theory_questions = $pdo->query("
                         <div class="form-group"><label>Question Text *</label><textarea name="question_text" class="form-control" rows="4" required></textarea></div>
                         <div class="form-group"><label>Model Answer / Answer Guide</label><textarea name="correct_answer" class="form-control" rows="3" placeholder="Enter the expected answer..."></textarea></div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'subjective_topic')"><option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?></select></div>
-                            <div class="form-group"><label>Topic</label><select name="topic_id" id="subjective_topic" class="form-control"><option value="">Select Topic</option></select></div>
+                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'subjective_topic')">
+                                    <option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?>
+                                </select></div>
+                            <div class="form-group"><label>Topic</label><select name="topic_id" id="subjective_topic" class="form-control">
+                                    <option value="">Select Topic</option>
+                                </select></div>
                             <div class="form-group"><label>Marks</label><input type="number" name="marks" class="form-control" value="1" min="1"></div>
                         </div>
                         <div class="checkbox-group" style="margin: 15px 0;"><label><input type="checkbox" name="stay_here" value="1"> Stay here after adding</label></div>
@@ -640,12 +819,28 @@ $theory_questions = $pdo->query("
                 <div class="list-section">
                     <h3>Existing Central Subjective Questions</h3>
                     <table class="data-table">
-                        <thead><tr><th>ID</th><th>Question</th><th>Subject/Topic</th><th>Marks</th><th>Actions</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Question</th>
+                                <th>Subject/Topic</th>
+                                <th>Marks</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach ($subjective_questions as $q): ?>
-                            <tr><td><?php echo $q['id']; ?></td><td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td><td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td><td><?php echo $q['marks']; ?></td><td><a href="?delete=1&type=subjective&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')"><i class="fas fa-trash"></i> Delete</a></td></tr>
+                                <tr>
+                                    <td><?php echo $q['id']; ?></td>
+                                    <td><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                    <td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td>
+                                    <td><?php echo $q['marks']; ?></td>
+                                    <td><a href="?delete=1&type=subjective&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')"><i class="fas fa-trash"></i> Delete</a></td>
+                                </tr>
                             <?php endforeach; ?>
-                            <?php if (empty($subjective_questions)): ?><tr><td colspan="5" style="text-align: center;">No central subjective questions yet.</td></tr><?php endif; ?>
+                            <?php if (empty($subjective_questions)): ?><tr>
+                                    <td colspan="5" style="text-align: center;">No central subjective questions yet.</td>
+                                </tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -658,8 +853,12 @@ $theory_questions = $pdo->query("
                     <form method="POST" enctype="multipart/form-data">
                         <div class="form-group"><label>Question Text *</label><textarea name="question_text" class="form-control" rows="4" required></textarea></div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'theory_topic')"><option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?></select></div>
-                            <div class="form-group"><label>Topic</label><select name="topic_id" id="theory_topic" class="form-control"><option value="">Select Topic</option></select></div>
+                            <div class="form-group"><label>Subject *</label><select name="subject_id" class="form-control" required onchange="loadTopicsForSubject(this.value, 'theory_topic')">
+                                    <option value="">Select</option><?php foreach ($subjects as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['subject_name']); ?></option><?php endforeach; ?>
+                                </select></div>
+                            <div class="form-group"><label>Topic</label><select name="topic_id" id="theory_topic" class="form-control">
+                                    <option value="">Select Topic</option>
+                                </select></div>
                             <div class="form-group"><label>Marks</label><input type="number" name="marks" class="form-control" value="5" min="1"></div>
                         </div>
                         <div class="form-group"><label>Attach File (Optional)</label><input type="file" name="question_file" class="form-control" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"></div>
@@ -670,12 +869,28 @@ $theory_questions = $pdo->query("
                 <div class="list-section">
                     <h3>Existing Central Theory Questions</h3>
                     <table class="data-table">
-                        <thead><tr><th>ID</th><th>Question</th><th>Subject/Topic</th><th>Marks</th><th>Actions</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Question</th>
+                                <th>Subject/Topic</th>
+                                <th>Marks</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach ($theory_questions as $q): ?>
-                            <tr><td><?php echo $q['id']; ?></td><td><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . (strlen($q['question_text'] ?? '') > 80 ? '...' : ''); ?></td><td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td><td><?php echo $q['marks']; ?></td><td><a href="?delete=1&type=theory&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')"><i class="fas fa-trash"></i> Delete</a></tr>
+                                <tr>
+                                    <td><?php echo $q['id']; ?></td>
+                                    <td><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . (strlen($q['question_text'] ?? '') > 80 ? '...' : ''); ?></td>
+                                    <td><span class="badge badge-subject"><?php echo htmlspecialchars($q['subject_name'] ?? 'N/A'); ?></span><br><span class="badge badge-topic"><?php echo htmlspecialchars($q['topic_name'] ?? 'No topic'); ?></span></td>
+                                    <td><?php echo $q['marks']; ?></td>
+                                    <td><a href="?delete=1&type=theory&id=<?php echo $q['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')"><i class="fas fa-trash"></i> Delete</a>
+                                </tr>
                             <?php endforeach; ?>
-                            <?php if (empty($theory_questions)): ?><tr><td colspan="5" style="text-align: center;">No central theory questions yet.</td></tr><?php endif; ?>
+                            <?php if (empty($theory_questions)): ?><tr>
+                                    <td colspan="5" style="text-align: center;">No central theory questions yet.</td>
+                                </tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -722,7 +937,7 @@ $theory_questions = $pdo->query("
 
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
 
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
@@ -741,4 +956,5 @@ $theory_questions = $pdo->query("
         }, 5000);
     </script>
 </body>
+
 </html>

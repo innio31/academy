@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
     try {
         $table_name = '';
         $file_column = '';
-        
+
         switch ($question_type) {
             case 'objective':
                 $table_name = 'objective_questions';
@@ -104,17 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
             default:
                 throw new Exception("Invalid question type");
         }
-        
+
         // Verify ownership and get file path
         $sql = "SELECT $file_column FROM $table_name WHERE id = ? AND school_id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$question_id, $school_id]);
         $question = $stmt->fetch();
-        
+
         if (!$question) {
             throw new Exception("Question not found or access denied");
         }
-        
+
         // Delete associated file if exists
         if ($file_column && !empty($question[$file_column])) {
             $file_path = '../' . $question[$file_column];
@@ -122,17 +122,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
                 unlink($file_path);
             }
         }
-        
+
         // Delete the question
         $delete_sql = "DELETE FROM $table_name WHERE id = ? AND school_id = ?";
         $stmt = $pdo->prepare($delete_sql);
         $stmt->execute([$question_id, $school_id]);
-        
+
         // Log activity
         $log_sql = "INSERT INTO activity_logs (user_id, user_type, activity, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)";
         $log_stmt = $pdo->prepare($log_sql);
         $log_stmt->execute([$admin_id, 'admin', "Deleted $question_type question ID: $question_id", $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'] ?? null]);
-        
+
         $message = "Question deleted successfully!";
         $message_type = "success";
     } catch (Exception $e) {
@@ -197,6 +197,7 @@ try {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -220,7 +221,12 @@ try {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -244,7 +250,10 @@ try {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -253,6 +262,7 @@ try {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -263,25 +273,38 @@ try {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -289,6 +312,7 @@ try {
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -303,6 +327,7 @@ try {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -314,7 +339,13 @@ try {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -326,6 +357,7 @@ try {
             align-items: center;
             gap: 8px;
         }
+
         .add-questions-btn {
             background: var(--success-color);
             color: white;
@@ -346,8 +378,15 @@ try {
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .breadcrumb a { color: var(--primary-color); text-decoration: none; }
-        .breadcrumb a:hover { text-decoration: underline; }
+
+        .breadcrumb a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
 
         /* Form Styles */
         .form-container {
@@ -356,8 +395,18 @@ try {
             padding: 25px;
             margin-bottom: 30px;
         }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--primary-color); }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -365,7 +414,11 @@ try {
             border-radius: 8px;
             font-size: 1rem;
         }
-        .form-control:focus { outline: none; border-color: var(--primary-color); }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
 
         /* Tabs */
         .tabs-navigation {
@@ -374,11 +427,13 @@ try {
             margin-bottom: 30px;
             overflow: hidden;
         }
+
         .tab-buttons {
             display: flex;
             background: #f8f9fa;
             border-bottom: 2px solid #e0e0e0;
         }
+
         .tab-button {
             flex: 1;
             padding: 15px 20px;
@@ -394,14 +449,25 @@ try {
             gap: 10px;
             transition: all 0.3s;
         }
-        .tab-button:hover { background: #e9ecef; }
+
+        .tab-button:hover {
+            background: #e9ecef;
+        }
+
         .tab-button.active {
             color: var(--primary-color);
             border-bottom: 3px solid var(--primary-color);
             background: white;
         }
-        .tab-content { display: none; padding: 25px; }
-        .tab-content.active { display: block; }
+
+        .tab-content {
+            display: none;
+            padding: 25px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
 
         /* Table */
         .table-container {
@@ -409,20 +475,27 @@ try {
             border-radius: 15px;
             overflow-x: auto;
         }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .data-table th, .data-table td {
+
+        .data-table th,
+        .data-table td {
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
+
         .data-table th {
             background: var(--light-color);
             font-weight: 600;
         }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         .badge {
             display: inline-block;
@@ -431,14 +504,46 @@ try {
             font-size: 0.75rem;
             font-weight: 500;
         }
-        .badge-primary { background: #e3f2fd; color: #1976d2; }
-        .badge-success { background: #e8f5e9; color: #388e3c; }
-        .badge-warning { background: #fff3e0; color: #f57c00; }
-        .badge-danger { background: #ffebee; color: #c62828; }
-        .badge-info { background: #e3f2fd; color: #0288d1; }
-        .badge-easy { background: #e8f5e9; color: #2e7d32; }
-        .badge-medium { background: #fff3e0; color: #ef6c00; }
-        .badge-hard { background: #ffebee; color: #c62828; }
+
+        .badge-primary {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .badge-warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .badge-danger {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .badge-info {
+            background: #e3f2fd;
+            color: #0288d1;
+        }
+
+        .badge-easy {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge-medium {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .badge-hard {
+            background: #ffebee;
+            color: #c62828;
+        }
 
         /* Stats Cards */
         .stats-cards {
@@ -447,15 +552,26 @@ try {
             gap: 20px;
             margin-bottom: 30px;
         }
+
         .stats-card {
             background: white;
             padding: 20px;
             border-radius: 15px;
             text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
-        .stats-value { font-size: 2rem; font-weight: 700; color: var(--primary-color); }
-        .stats-label { color: #666; font-size: 0.85rem; margin-top: 5px; }
+
+        .stats-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stats-label {
+            color: #666;
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
 
         .topic-info-card {
             background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
@@ -464,20 +580,27 @@ try {
             border-radius: 15px;
             margin-bottom: 30px;
         }
+
         .topic-meta {
             display: flex;
             gap: 20px;
             margin-top: 15px;
             flex-wrap: wrap;
         }
+
         .meta-item {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 0.85rem;
         }
 
-        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .btn {
             padding: 8px 15px;
             border-radius: 6px;
@@ -489,10 +612,25 @@ try {
             gap: 5px;
             font-size: 0.85rem;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
-        .btn-icon { padding: 6px 10px; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+        }
 
         .alert {
             padding: 15px;
@@ -502,8 +640,18 @@ try {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .empty-state {
             text-align: center;
@@ -518,12 +666,16 @@ try {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
@@ -532,25 +684,66 @@ try {
             max-height: 90vh;
             overflow-y: auto;
         }
-        .modal-header, .modal-footer { padding: 15px 20px; }
-        .modal-header { border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
-        .modal-body { padding: 20px; }
-        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
 
-        .question-text { line-height: 1.5; margin-bottom: 5px; }
-        .option-text { display: block; font-size: 0.85rem; padding: 2px 0; }
+        .modal-header,
+        .modal-footer {
+            padding: 15px 20px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .question-text {
+            line-height: 1.5;
+            margin-bottom: 5px;
+        }
+
+        .option-text {
+            display: block;
+            font-size: 0.85rem;
+            padding: 2px 0;
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .tab-buttons { flex-direction: column; }
-            .stats-cards { grid-template-columns: 1fr; }
+            .tab-buttons {
+                flex-direction: column;
+            }
+
+            .stats-cards {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -558,7 +751,10 @@ try {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -576,7 +772,7 @@ try {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -593,7 +789,7 @@ try {
                         <i class="fas fa-plus-circle"></i> Add Questions
                     </a>
                 <?php endif; ?>
-                <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>
@@ -691,7 +887,7 @@ try {
                             <i class="fas fa-plus"></i> Add Objective Question
                         </a>
                     </div>
-                    
+
                     <div class="table-container">
                         <?php if (empty($objective_questions)): ?>
                             <div class="empty-state">
@@ -702,32 +898,39 @@ try {
                         <?php else: ?>
                             <table class="data-table">
                                 <thead>
-                                    <tr><th>ID</th><th>Question</th><th>Options</th><th>Correct</th><th>Marks</th><th>Actions</th></tr>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>Options</th>
+                                        <th>Correct</th>
+                                        <th>Marks</th>
+                                        <th>Actions</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($objective_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                        <td>
-                                            <span class="option-text"><strong>A:</strong> <?php echo htmlspecialchars(substr($q['option_a'], 0, 30)); ?></span>
-                                            <span class="option-text"><strong>B:</strong> <?php echo htmlspecialchars(substr($q['option_b'], 0, 30)); ?></span>
-                                            <span class="option-text"><strong>C:</strong> <?php echo htmlspecialchars(substr($q['option_c'], 0, 30)); ?></span>
-                                            <span class="option-text"><strong>D:</strong> <?php echo htmlspecialchars(substr($q['option_d'], 0, 30)); ?></span>
-                                        </td>
-                                        <td><span class="badge badge-success"><?php echo $q['correct_answer']; ?></span></td>
-                                        <td><?php echo $q['marks']; ?></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'objective')" title="View"><i class="fas fa-eye"></i></button>
-                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                    <input type="hidden" name="question_type" value="objective">
-                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon" title="Delete"><i class="fas fa-trash"></i></button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                            <td>
+                                                <span class="option-text"><strong>A:</strong> <?php echo htmlspecialchars(substr($q['option_a'], 0, 30)); ?></span>
+                                                <span class="option-text"><strong>B:</strong> <?php echo htmlspecialchars(substr($q['option_b'], 0, 30)); ?></span>
+                                                <span class="option-text"><strong>C:</strong> <?php echo htmlspecialchars(substr($q['option_c'], 0, 30)); ?></span>
+                                                <span class="option-text"><strong>D:</strong> <?php echo htmlspecialchars(substr($q['option_d'], 0, 30)); ?></span>
+                                            </td>
+                                            <td><span class="badge badge-success"><?php echo $q['correct_answer']; ?></span></td>
+                                            <td><?php echo $q['marks']; ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'objective')" title="View"><i class="fas fa-eye"></i></button>
+                                                    <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                        <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                        <input type="hidden" name="question_type" value="objective">
+                                                        <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon" title="Delete"><i class="fas fa-trash"></i></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -742,7 +945,7 @@ try {
                             <i class="fas fa-plus"></i> Add Subjective Question
                         </a>
                     </div>
-                    
+
                     <div class="table-container">
                         <?php if (empty($subjective_questions)): ?>
                             <div class="empty-state">
@@ -752,25 +955,33 @@ try {
                             </div>
                         <?php else: ?>
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Question</th><th>Answer Guide</th><th>Marks</th><th>Actions</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>Answer Guide</th>
+                                        <th>Marks</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php foreach ($subjective_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                        <td><?php echo htmlspecialchars(substr($q['correct_answer'] ?? '', 0, 50)) . (strlen($q['correct_answer'] ?? '') > 50 ? '...' : ''); ?></td>
-                                        <td><?php echo $q['marks']; ?></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'subjective')" title="View"><i class="fas fa-eye"></i></button>
-                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                    <input type="hidden" name="question_type" value="subjective">
-                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
+                                            <td><?php echo htmlspecialchars(substr($q['correct_answer'] ?? '', 0, 50)) . (strlen($q['correct_answer'] ?? '') > 50 ? '...' : ''); ?></td>
+                                            <td><?php echo $q['marks']; ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'subjective')" title="View"><i class="fas fa-eye"></i></button>
+                                                    <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                        <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                        <input type="hidden" name="question_type" value="subjective">
+                                                        <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -785,7 +996,7 @@ try {
                             <i class="fas fa-plus"></i> Add Theory Question
                         </a>
                     </div>
-                    
+
                     <div class="table-container">
                         <?php if (empty($theory_questions)): ?>
                             <div class="empty-state">
@@ -795,27 +1006,35 @@ try {
                             </div>
                         <?php else: ?>
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Question</th><th>File</th><th>Marks</th><th>Actions</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Question</th>
+                                        <th>File</th>
+                                        <th>Marks</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php foreach ($theory_questions as $q): ?>
-                                    <tr>
-                                        <td><?php echo $q['id']; ?></td>
-                                        <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . ((strlen($q['question_text'] ?? '') > 80) ? '...' : ''); ?></td>
-                                        <td><?php echo $q['question_file'] ? '<span class="badge badge-info"><i class="fas fa-file"></i> Attached</span>' : '<span class="badge badge-warning">No file</span>'; ?></td>
-                                        <td><?php echo $q['marks']; ?></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <?php if ($q['question_file']): ?>
-                                                    <a href="../<?php echo $q['question_file']; ?>" class="btn btn-primary btn-sm btn-icon" target="_blank" title="View File"><i class="fas fa-eye"></i></a>
-                                                <?php endif; ?>
-                                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                                    <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                                    <input type="hidden" name="question_type" value="theory">
-                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                        <tr>
+                                            <td><?php echo $q['id']; ?></td>
+                                            <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . ((strlen($q['question_text'] ?? '') > 80) ? '...' : ''); ?></td>
+                                            <td><?php echo $q['question_file'] ? '<span class="badge badge-info"><i class="fas fa-file"></i> Attached</span>' : '<span class="badge badge-warning">No file</span>'; ?></td>
+                                            <td><?php echo $q['marks']; ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <?php if ($q['question_file']): ?>
+                                                        <a href="../<?php echo $q['question_file']; ?>" class="btn btn-primary btn-sm btn-icon" target="_blank" title="View File"><i class="fas fa-eye"></i></a>
+                                                    <?php endif; ?>
+                                                    <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
+                                                        <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
+                                                        <input type="hidden" name="question_type" value="theory">
+                                                        <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -845,7 +1064,7 @@ try {
     <script>
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) {
+        if (mobileBtn) {
             mobileBtn.onclick = () => sidebar.classList.toggle('active');
         }
 
@@ -864,7 +1083,7 @@ try {
 
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+
             document.querySelector(`.tab-button[onclick="switchTab('${tabName}')"]`).classList.add('active');
             document.getElementById(tabName + 'Tab').classList.add('active');
         }
@@ -877,7 +1096,7 @@ try {
             try {
                 const response = await fetch(`ajax/get_question.php?id=${id}&type=${type}`);
                 const data = await response.json();
-                
+
                 if (data.success) {
                     let html = '';
                     if (type === 'objective') {
@@ -945,4 +1164,5 @@ try {
         }, 5000);
     </script>
 </body>
+
 </html>

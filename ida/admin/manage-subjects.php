@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -267,6 +267,7 @@ if (isset($_GET['edit'])) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -292,7 +293,12 @@ if (isset($_GET['edit'])) {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -316,7 +322,10 @@ if (isset($_GET['edit'])) {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -325,6 +334,7 @@ if (isset($_GET['edit'])) {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -335,25 +345,38 @@ if (isset($_GET['edit'])) {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -361,6 +384,7 @@ if (isset($_GET['edit'])) {
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -375,6 +399,7 @@ if (isset($_GET['edit'])) {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -386,7 +411,13 @@ if (isset($_GET['edit'])) {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -406,6 +437,7 @@ if (isset($_GET['edit'])) {
             padding: 25px;
             margin-bottom: 30px;
         }
+
         .form-header {
             display: flex;
             justify-content: space-between;
@@ -414,9 +446,23 @@ if (isset($_GET['edit'])) {
             padding-bottom: 15px;
             border-bottom: 2px solid var(--light-color);
         }
-        .form-header h3 { color: var(--primary-color); font-size: 1.3rem; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--primary-color); }
+
+        .form-header h3 {
+            color: var(--primary-color);
+            font-size: 1.3rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -425,8 +471,16 @@ if (isset($_GET['edit'])) {
             font-size: 1rem;
             font-family: 'Poppins', sans-serif;
         }
-        .form-control:focus { outline: none; border-color: var(--primary-color); }
-        textarea.form-control { resize: vertical; min-height: 80px; }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
 
         /* Checkbox Group */
         .checkbox-group {
@@ -440,17 +494,20 @@ if (isset($_GET['edit'])) {
             border: 2px solid #e0e0e0;
             border-radius: 8px;
         }
+
         .checkbox-item {
             display: flex;
             align-items: center;
             gap: 8px;
         }
+
         .checkbox-item input[type="checkbox"] {
             width: 18px;
             height: 18px;
             cursor: pointer;
             accent-color: var(--primary-color);
         }
+
         .checkbox-item label {
             margin: 0;
             cursor: pointer;
@@ -468,12 +525,36 @@ if (isset($_GET['edit'])) {
             align-items: center;
             gap: 8px;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.85rem; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
 
         /* Table */
         .table-container {
@@ -482,6 +563,7 @@ if (isset($_GET['edit'])) {
             padding: 20px;
             overflow-x: auto;
         }
+
         .table-header {
             display: flex;
             justify-content: space-between;
@@ -490,16 +572,19 @@ if (isset($_GET['edit'])) {
             flex-wrap: wrap;
             gap: 15px;
         }
+
         .search-box {
             position: relative;
             width: 250px;
         }
+
         .search-box input {
             width: 100%;
             padding: 10px 15px 10px 40px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
         }
+
         .search-box i {
             position: absolute;
             left: 15px;
@@ -507,20 +592,27 @@ if (isset($_GET['edit'])) {
             transform: translateY(-50%);
             color: #999;
         }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .data-table th, .data-table td {
+
+        .data-table th,
+        .data-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
+
         .data-table th {
             background: var(--light-color);
             font-weight: 600;
         }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         .count-badge {
             display: inline-flex;
@@ -534,11 +626,31 @@ if (isset($_GET['edit'])) {
             font-weight: 600;
             margin: 2px;
         }
-        .count-badge.objective { background: #e3f2fd; color: #1976d2; }
-        .count-badge.subjective { background: #f3e5f5; color: #7b1fa2; }
-        .count-badge.theory { background: #e8f5e9; color: #388e3c; }
-        .count-badge.exam { background: #fff3e0; color: #f57c00; }
-        .count-badge.topic { background: #fce4ec; color: #c2185b; }
+
+        .count-badge.objective {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .count-badge.subjective {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .count-badge.theory {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .count-badge.exam {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .count-badge.topic {
+            background: #fce4ec;
+            color: #c2185b;
+        }
 
         .class-tag {
             display: inline-block;
@@ -555,6 +667,7 @@ if (isset($_GET['edit'])) {
             gap: 8px;
             flex-wrap: wrap;
         }
+
         .action-btn {
             padding: 6px 10px;
             border-radius: 6px;
@@ -565,11 +678,31 @@ if (isset($_GET['edit'])) {
             align-items: center;
             gap: 5px;
         }
-        .edit-btn { background: #3498db; color: white; }
-        .delete-btn { background: #e74c3c; color: white; }
-        .topics-btn { background: #9b59b6; color: white; }
-        .questions-btn { background: #27ae60; color: white; }
-        .disabled-btn { background: #bdc3c7; cursor: not-allowed; }
+
+        .edit-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .topics-btn {
+            background: #9b59b6;
+            color: white;
+        }
+
+        .questions-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .disabled-btn {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
 
         .alert {
             padding: 15px;
@@ -579,8 +712,18 @@ if (isset($_GET['edit'])) {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .modal {
             display: none;
@@ -589,22 +732,44 @@ if (isset($_GET['edit'])) {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
             width: 90%;
             max-width: 450px;
         }
-        .modal-header, .modal-footer { padding: 15px 20px; }
-        .modal-header { border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
-        .modal-body { padding: 20px; }
-        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+
+        .modal-header,
+        .modal-footer {
+            padding: 15px 20px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
 
         .empty-state {
             text-align: center;
@@ -613,18 +778,40 @@ if (isset($_GET['edit'])) {
         }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .checkbox-group { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-            .table-header { flex-direction: column; align-items: stretch; }
-            .search-box { width: 100%; }
-            .action-buttons { flex-wrap: wrap; }
+            .checkbox-group {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+
+            .table-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .action-buttons {
+                flex-wrap: wrap;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -632,7 +819,10 @@ if (isset($_GET['edit'])) {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -640,16 +830,16 @@ if (isset($_GET['edit'])) {
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-                <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-                <li><a href="manage-subjects.php" class="active"><i class="fas fa-book"></i> Manage Subjects</a></li>
-<li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
-                <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-                <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-			<li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-                <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
+            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
+            <li><a href="manage-subjects.php" class="active"><i class="fas fa-book"></i> Manage Subjects</a></li>
+            <li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
+            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
+            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
+            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
+            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -660,7 +850,7 @@ if (isset($_GET['edit'])) {
                 <h1>Manage Subjects</h1>
                 <p>Add, edit, and manage subjects for your school</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -688,15 +878,15 @@ if (isset($_GET['edit'])) {
 
                 <div class="form-group">
                     <label>Subject Name *</label>
-                    <input type="text" name="subject_name" class="form-control" 
-                           value="<?php echo $edit_subject ? htmlspecialchars($edit_subject['subject_name']) : ''; ?>" 
-                           placeholder="e.g., Mathematics, English, Basic Science" required>
+                    <input type="text" name="subject_name" class="form-control"
+                        value="<?php echo $edit_subject ? htmlspecialchars($edit_subject['subject_name']) : ''; ?>"
+                        placeholder="e.g., Mathematics, English, Basic Science" required>
                 </div>
 
                 <div class="form-group">
                     <label>Description (Optional)</label>
-                    <textarea name="description" class="form-control" 
-                              placeholder="Brief description of the subject"><?php echo $edit_subject ? htmlspecialchars($edit_subject['description'] ?? '') : ''; ?></textarea>
+                    <textarea name="description" class="form-control"
+                        placeholder="Brief description of the subject"><?php echo $edit_subject ? htmlspecialchars($edit_subject['description'] ?? '') : ''; ?></textarea>
                 </div>
 
                 <div class="form-group">
@@ -706,8 +896,8 @@ if (isset($_GET['edit'])) {
                             <?php foreach ($available_classes as $class): ?>
                                 <div class="checkbox-item">
                                     <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>"
-                                           id="class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"
-                                           <?php echo $edit_subject && in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
+                                        id="class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"
+                                        <?php echo $edit_subject && in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
                                     <label for="class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
                                         <?php echo htmlspecialchars($class); ?>
                                     </label>
@@ -777,7 +967,7 @@ if (isset($_GET['edit'])) {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php 
+                                    <?php
                                     $desc = $subject['description'] ?? '';
                                     echo $desc ? htmlspecialchars(substr($desc, 0, 60)) . (strlen($desc) > 60 ? '...' : '') : '<span style="color: #999;">—</span>';
                                     ?>
@@ -799,7 +989,7 @@ if (isset($_GET['edit'])) {
                                         <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
                                         <span class="count-badge topic" title="Topics">🏷️ TP: <?php echo $subject['topic_count']; ?></span>
                                     </div>
-                                 </td>
+                                </td>
                                 <td><?php echo date('M d, Y', strtotime($subject['created_at'])); ?> </td>
                                 <td>
                                     <div class="action-buttons">
@@ -812,7 +1002,7 @@ if (isset($_GET['edit'])) {
                                         <a href="manage_questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
                                             <i class="fas fa-question-circle"></i>
                                         </a>
-                                        <?php 
+                                        <?php
                                         $has_dependencies = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count'] + $subject['topic_count']) > 0;
                                         ?>
                                         <?php if ($has_dependencies): ?>
@@ -825,8 +1015,8 @@ if (isset($_GET['edit'])) {
                                             </button>
                                         <?php endif; ?>
                                     </div>
-                                 </td>
-                             </tr>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -858,7 +1048,7 @@ if (isset($_GET['edit'])) {
         // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) {
+        if (mobileBtn) {
             mobileBtn.onclick = () => sidebar.classList.toggle('active');
         }
 
@@ -924,4 +1114,5 @@ if (isset($_GET['edit'])) {
         }, 5000);
     </script>
 </body>
+
 </html>

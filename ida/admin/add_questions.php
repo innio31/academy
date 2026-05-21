@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -83,19 +83,19 @@ try {
         $pdo->exec("ALTER TABLE objective_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
         $pdo->exec("ALTER TABLE objective_questions ADD INDEX idx_central (is_central)");
     }
-    
+
     $check = $pdo->query("SHOW COLUMNS FROM subjective_questions LIKE 'is_central'");
     if ($check->rowCount() == 0) {
         $pdo->exec("ALTER TABLE subjective_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
         $pdo->exec("ALTER TABLE subjective_questions ADD INDEX idx_central (is_central)");
     }
-    
+
     $check = $pdo->query("SHOW COLUMNS FROM theory_questions LIKE 'is_central'");
     if ($check->rowCount() == 0) {
         $pdo->exec("ALTER TABLE theory_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
         $pdo->exec("ALTER TABLE theory_questions ADD INDEX idx_central (is_central)");
     }
-    
+
     // Add central_source_id to track imported questions
     $check = $pdo->query("SHOW COLUMNS FROM objective_questions LIKE 'central_source_id'");
     if ($check->rowCount() == 0) {
@@ -117,7 +117,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_subjects') {
     try {
         $question_type = $_GET['question_type'] ?? 'objective';
         $table = $question_type . '_questions';
-        
+
         $stmt = $pdo->prepare("
             SELECT DISTINCT s.id, s.subject_name 
             FROM subjects s
@@ -127,7 +127,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_subjects') {
         ");
         $stmt->execute();
         $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         echo json_encode(['success' => true, 'subjects' => $subjects]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -142,7 +142,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_topics') {
         $subject_id = (int)$_GET['subject_id'];
         $question_type = $_GET['question_type'] ?? 'objective';
         $table = $question_type . '_questions';
-        
+
         $stmt = $pdo->prepare("
             SELECT DISTINCT t.id, t.topic_name 
             FROM topics t
@@ -152,7 +152,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_topics') {
         ");
         $stmt->execute([$subject_id]);
         $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         echo json_encode(['success' => true, 'topics' => $topics]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -169,7 +169,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
         $current_topic_id = (int)$_GET['current_topic_id'];
         $current_school_id = $school_id;
         $table = $question_type . '_questions';
-        
+
         // Get central questions from source topic
         $stmt = $pdo->prepare("
             SELECT q.* 
@@ -179,7 +179,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
         ");
         $stmt->execute([$source_topic_id]);
         $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         // Mark which questions already exist in current topic (by checking central_source_id or duplicate text)
         foreach ($questions as &$q) {
             // Check if already imported to this topic
@@ -191,7 +191,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
             $check->execute([$q['id'], $current_topic_id, $current_school_id]);
             $q['already_imported'] = $check->rowCount() > 0;
         }
-        
+
         echo json_encode(['success' => true, 'questions' => $questions]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -208,14 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
         $selected_questions = isset($_POST['selected_questions']) ? $_POST['selected_questions'] : [];
         $source_topic_id = (int)$_POST['source_topic_id'];
         $import_type = $_POST['import_question_type'];
-        
+
         if (empty($selected_questions)) {
             throw new Exception("Please select at least one question to import");
         }
-        
+
         $imported_count = 0;
         $skipped_count = 0;
-        
+
         foreach ($selected_questions as $question_id) {
             if ($import_type == 'objective') {
                 // Get the central question
@@ -225,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                 ");
                 $stmt->execute([$question_id]);
                 $q = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($q) {
                     // Check if already imported to this topic
                     $check = $pdo->prepare("
@@ -234,12 +234,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         LIMIT 1
                     ");
                     $check->execute([$q['id'], $topic_id, $school_id]);
-                    
+
                     if ($check->fetch()) {
                         $skipped_count++;
                         continue;
                     }
-                    
+
                     // Insert copy with source reference
                     $insert = $pdo->prepare("
                         INSERT INTO objective_questions 
@@ -249,11 +249,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
                     ");
                     $insert->execute([
-                        $q['question_text'], $q['option_a'], $q['option_b'], 
-                        $q['option_c'] ?? '', $q['option_d'] ?? '', $q['correct_answer'],
-                        $q['difficulty_level'] ?? 'medium', $q['marks'] ?? 1,
-                        $selected_topic['subject_id'], $topic_id, $selected_topic['class'], 
-                        $school_id, $q['question_image'] ?? null, $q['id']
+                        $q['question_text'],
+                        $q['option_a'],
+                        $q['option_b'],
+                        $q['option_c'] ?? '',
+                        $q['option_d'] ?? '',
+                        $q['correct_answer'],
+                        $q['difficulty_level'] ?? 'medium',
+                        $q['marks'] ?? 1,
+                        $selected_topic['subject_id'],
+                        $topic_id,
+                        $selected_topic['class'],
+                        $school_id,
+                        $q['question_image'] ?? null,
+                        $q['id']
                     ]);
                     $imported_count++;
                 }
@@ -264,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                 ");
                 $stmt->execute([$question_id]);
                 $q = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($q) {
                     $check = $pdo->prepare("
                         SELECT id FROM subjective_questions 
@@ -272,12 +281,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         LIMIT 1
                     ");
                     $check->execute([$q['id'], $topic_id, $school_id]);
-                    
+
                     if ($check->fetch()) {
                         $skipped_count++;
                         continue;
                     }
-                    
+
                     $insert = $pdo->prepare("
                         INSERT INTO subjective_questions 
                         (question_text, correct_answer, difficulty_level, marks, subject_id, 
@@ -285,10 +294,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
                     ");
                     $insert->execute([
-                        $q['question_text'], $q['correct_answer'] ?? '',
-                        $q['difficulty_level'] ?? 'medium', $q['marks'] ?? 1,
-                        $selected_topic['subject_id'], $topic_id, $selected_topic['class'], 
-                        $school_id, $q['id']
+                        $q['question_text'],
+                        $q['correct_answer'] ?? '',
+                        $q['difficulty_level'] ?? 'medium',
+                        $q['marks'] ?? 1,
+                        $selected_topic['subject_id'],
+                        $topic_id,
+                        $selected_topic['class'],
+                        $school_id,
+                        $q['id']
                     ]);
                     $imported_count++;
                 }
@@ -299,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                 ");
                 $stmt->execute([$question_id]);
                 $q = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($q) {
                     $check = $pdo->prepare("
                         SELECT id FROM theory_questions 
@@ -307,12 +321,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         LIMIT 1
                     ");
                     $check->execute([$q['id'], $topic_id, $school_id]);
-                    
+
                     if ($check->fetch()) {
                         $skipped_count++;
                         continue;
                     }
-                    
+
                     $insert = $pdo->prepare("
                         INSERT INTO theory_questions 
                         (question_text, question_file, marks, subject_id, topic_id, class, 
@@ -320,33 +334,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
                     ");
                     $insert->execute([
-                        $q['question_text'], $q['question_file'] ?? null, $q['marks'] ?? 5,
-                        $selected_topic['subject_id'], $topic_id, $selected_topic['class'], 
-                        $school_id, $q['id']
+                        $q['question_text'],
+                        $q['question_file'] ?? null,
+                        $q['marks'] ?? 5,
+                        $selected_topic['subject_id'],
+                        $topic_id,
+                        $selected_topic['class'],
+                        $school_id,
+                        $q['id']
                     ]);
                     $imported_count++;
                 }
             }
         }
-        
+
         $message = "Successfully imported $imported_count question(s) from Central Bank.";
         if ($skipped_count > 0) {
             $message .= " $skipped_count question(s) were already imported to this topic.";
         }
         $message_type = "success";
-        
+
         // Log activity
         $log_stmt = $pdo->prepare("
             INSERT INTO activity_logs (user_id, user_type, activity, ip_address, user_agent) 
             VALUES (?, ?, ?, ?, ?)
         ");
         $log_stmt->execute([
-            $admin_id, 'admin',
+            $admin_id,
+            'admin',
             "Imported $imported_count central $import_type questions to topic: {$selected_topic['topic_name']}",
             $_SERVER['REMOTE_ADDR'],
             $_SERVER['HTTP_USER_AGENT'] ?? null
         ]);
-        
     } catch (Exception $e) {
         $message = "Import error: " . $e->getMessage();
         $message_type = "error";
@@ -368,15 +387,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
         $correct_answer = strtoupper(trim($_POST['correct_answer'] ?? ''));
         $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
         $marks = (int)($_POST['marks'] ?? 1);
-        
+
         if (empty($question_text) || empty($option_a) || empty($option_b) || empty($correct_answer)) {
             throw new Exception("Please fill in all required fields");
         }
-        
+
         if (!in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
             throw new Exception("Correct answer must be A, B, C, or D");
         }
-        
+
         // Handle image upload
         $question_image = null;
         if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
@@ -391,7 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
                 }
             }
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO objective_questions 
             (question_text, option_a, option_b, option_c, option_d, correct_answer, 
@@ -400,14 +419,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
         ");
         $stmt->execute([
-            $question_text, $option_a, $option_b, $option_c, $option_d, $correct_answer,
-            $difficulty_level, $marks, $selected_topic['subject_id'], $topic_id,
-            $selected_topic['class'], $school_id, $question_image
+            $question_text,
+            $option_a,
+            $option_b,
+            $option_c,
+            $option_d,
+            $correct_answer,
+            $difficulty_level,
+            $marks,
+            $selected_topic['subject_id'],
+            $topic_id,
+            $selected_topic['class'],
+            $school_id,
+            $question_image
         ]);
-        
+
         $message = "Objective question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: add_questions.php?topic_id=$topic_id&type=objective&success=1");
             exit();
@@ -425,11 +454,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subjective_questi
         $correct_answer = trim($_POST['subjective_correct_answer'] ?? '');
         $difficulty_level = $_POST['subjective_difficulty_level'] ?? 'medium';
         $marks = (int)($_POST['subjective_marks'] ?? 1);
-        
+
         if (empty($question_text)) {
             throw new Exception("Please enter the question text");
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO subjective_questions 
             (question_text, correct_answer, difficulty_level, marks, subject_id, topic_id, 
@@ -437,14 +466,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subjective_questi
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
         ");
         $stmt->execute([
-            $question_text, $correct_answer, $difficulty_level, $marks,
-            $selected_topic['subject_id'], $topic_id, $selected_topic['class'], 
+            $question_text,
+            $correct_answer,
+            $difficulty_level,
+            $marks,
+            $selected_topic['subject_id'],
+            $topic_id,
+            $selected_topic['class'],
             $school_id
         ]);
-        
+
         $message = "Subjective question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: add_questions.php?topic_id=$topic_id&type=subjective&success=1");
             exit();
@@ -460,11 +494,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
     try {
         $question_text = trim($_POST['theory_question_text'] ?? '');
         $marks = (int)($_POST['theory_marks'] ?? 5);
-        
+
         if (empty($question_text)) {
             throw new Exception("Please enter the question text");
         }
-        
+
         $question_file = null;
         if (isset($_FILES['theory_question_file']) && $_FILES['theory_question_file']['error'] === UPLOAD_ERR_OK) {
             $allowed = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png'];
@@ -478,21 +512,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
                 }
             }
         }
-        
+
         $stmt = $pdo->prepare("
             INSERT INTO theory_questions 
             (question_text, question_file, marks, subject_id, topic_id, class, school_id, is_central, created_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, NOW())
         ");
         $stmt->execute([
-            $question_text, $question_file, $marks,
-            $selected_topic['subject_id'], $topic_id, $selected_topic['class'], 
+            $question_text,
+            $question_file,
+            $marks,
+            $selected_topic['subject_id'],
+            $topic_id,
+            $selected_topic['class'],
             $school_id
         ]);
-        
+
         $message = "Theory question added successfully!";
         $message_type = "success";
-        
+
         if (!isset($_POST['stay_here'])) {
             header("Location: add_questions.php?topic_id=$topic_id&type=theory&success=1");
             exit();
@@ -506,6 +544,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -526,7 +565,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -550,7 +594,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -559,6 +606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -569,25 +617,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -595,6 +656,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -609,6 +671,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -620,7 +683,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -640,12 +709,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             margin-bottom: 30px;
             overflow: hidden;
         }
+
         .tab-buttons {
             display: flex;
             background: #f8f9fa;
             border-bottom: 2px solid #e0e0e0;
             flex-wrap: wrap;
         }
+
         .tab-button {
             flex: 1;
             padding: 15px 20px;
@@ -661,14 +732,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             gap: 10px;
             transition: all 0.3s;
         }
-        .tab-button:hover { background: #e9ecef; }
+
+        .tab-button:hover {
+            background: #e9ecef;
+        }
+
         .tab-button.active {
             color: var(--primary-color);
             border-bottom: 3px solid var(--primary-color);
             background: white;
         }
-        .tab-content { display: none; padding: 25px; }
-        .tab-content.active { display: block; }
+
+        .tab-content {
+            display: none;
+            padding: 25px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
 
         /* Form Styles */
         .form-section {
@@ -676,13 +758,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             padding: 25px;
             border-radius: 12px;
         }
-        .form-group { margin-bottom: 20px; }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: var(--primary-color);
         }
+
         .form-control {
             width: 100%;
             padding: 12px 15px;
@@ -692,16 +779,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             font-family: monospace;
             background: white;
         }
+
         textarea.form-control {
             resize: vertical;
             min-height: 120px;
             font-family: monospace;
             line-height: 1.5;
         }
+
         .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(52,152,219,0.1);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
         }
 
         .options-grid {
@@ -710,18 +799,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             gap: 15px;
             margin-bottom: 20px;
         }
+
         .option-group {
             display: flex;
             align-items: center;
             gap: 10px;
         }
+
         .option-label {
             font-weight: bold;
             color: var(--primary-color);
             min-width: 35px;
             font-size: 1.1rem;
         }
-        .option-input { flex: 1; }
+
+        .option-input {
+            flex: 1;
+        }
 
         .form-actions {
             display: flex;
@@ -743,11 +837,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             text-decoration: none;
             font-size: 0.9rem;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-info { background: var(--secondary-color); color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-info {
+            background: var(--secondary-color);
+            color: white;
+        }
 
         .alert {
             padding: 15px;
@@ -757,8 +871,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
 
         .topic-info-card {
             background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
@@ -767,20 +891,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             border-radius: 15px;
             margin-bottom: 30px;
         }
+
         .topic-meta {
             display: flex;
             gap: 20px;
             margin-top: 15px;
             flex-wrap: wrap;
         }
+
         .meta-item {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 0.85rem;
         }
-        .meta-item a { color: white; text-decoration: none; }
-        .meta-item a:hover { text-decoration: underline; }
+
+        .meta-item a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .meta-item a:hover {
+            text-decoration: underline;
+        }
 
         /* Import Modal Styles */
         .modal {
@@ -790,12 +923,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
@@ -804,7 +941,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             max-height: 85vh;
             overflow-y: auto;
         }
-        .modal-header, .modal-footer {
+
+        .modal-header,
+        .modal-footer {
             padding: 15px 20px;
             border-bottom: 1px solid #eee;
             display: flex;
@@ -815,8 +954,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             top: 0;
             z-index: 10;
         }
-        .modal-footer { border-top: 1px solid #eee; border-bottom: none; justify-content: flex-end; gap: 10px; }
-        .modal-body { padding: 20px; }
+
+        .modal-footer {
+            border-top: 1px solid #eee;
+            border-bottom: none;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
         .close-modal {
             background: none;
             border: none;
@@ -831,6 +980,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             border: 1px solid #eee;
             border-radius: 8px;
         }
+
         .question-item {
             padding: 12px;
             border-bottom: 1px solid #eee;
@@ -838,15 +988,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             align-items: flex-start;
             gap: 12px;
         }
-        .question-item:hover { background: #f8f9fa; }
-        .question-checkbox { margin-top: 2px; }
-        .question-text { flex: 1; font-size: 0.9rem; line-height: 1.4; }
-        .question-text.already-imported { opacity: 0.6; text-decoration: line-through; }
+
+        .question-item:hover {
+            background: #f8f9fa;
+        }
+
+        .question-checkbox {
+            margin-top: 2px;
+        }
+
+        .question-text {
+            flex: 1;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .question-text.already-imported {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
 
         .loading {
             text-align: center;
             padding: 40px;
         }
+
         .spinner {
             width: 40px;
             height: 40px;
@@ -856,9 +1022,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             animation: spin 1s linear infinite;
             margin: 0 auto 15px;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .select-all-bar {
@@ -878,6 +1050,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             gap: 15px;
             margin-top: 10px;
         }
+
         .checkbox-group label {
             display: flex;
             align-items: center;
@@ -893,10 +1066,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             font-size: 0.7rem;
             font-weight: 500;
         }
+
         .badge-central {
             background: #e8f5e9;
             color: #2e7d32;
         }
+
         .badge-info {
             background: #e3f2fd;
             color: #1565c0;
@@ -909,18 +1084,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
         }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .options-grid { grid-template-columns: 1fr; }
-            .form-actions { flex-direction: column; }
-            .btn { width: 100%; justify-content: center; }
-            .tab-buttons { flex-direction: column; }
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .tab-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -928,7 +1125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -945,7 +1145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -954,11 +1154,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
         <div class="top-header">
             <div class="header-title">
                 <h1>Add Questions</h1>
-                <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong> | 
-                   Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?> | 
-                   Class: <?php echo htmlspecialchars($selected_topic['class']); ?></p>
+                <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong> |
+                    Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?> |
+                    Class: <?php echo htmlspecialchars($selected_topic['class']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if ($message): ?>
@@ -1184,148 +1384,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
     </div>
 
     <script>
-    // ============================================
-    // MOBILE MENU & UI UTILITIES
-    // ============================================
-    
-    // Mobile menu toggle
-    const mobileBtn = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('sidebar');
-    if(mobileBtn) {
-        mobileBtn.onclick = () => sidebar.classList.toggle('active');
-    }
+        // ============================================
+        // MOBILE MENU & UI UTILITIES
+        // ============================================
 
-    document.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-            if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-                sidebar.classList.remove('active');
-            }
+        // Mobile menu toggle
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileBtn) {
+            mobileBtn.onclick = () => sidebar.classList.toggle('active');
         }
-    });
 
-    // Tab switching
-    function switchTab(tabName) {
-        const url = new URL(window.location);
-        url.searchParams.set('type', tabName);
-        window.history.pushState({}, '', url);
-
-        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        
-        document.querySelector(`.tab-button[onclick="switchTab('${tabName}')"]`).classList.add('active');
-        document.getElementById(tabName + 'Tab').classList.add('active');
-    }
-
-    // Auto-hide alert after 5 seconds
-    setTimeout(() => {
-        document.querySelectorAll('.alert').forEach(alert => {
-            alert.style.opacity = '0';
-            alert.style.transition = 'opacity 0.5s';
-            setTimeout(() => alert.remove(), 500);
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && sidebar && mobileBtn) {
+                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
+                    sidebar.classList.remove('active');
+                }
+            }
         });
-    }, 5000);
 
-    // Preserve tab from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const typeParam = urlParams.get('type');
-    if (typeParam && ['objective', 'subjective', 'theory'].includes(typeParam)) {
-        switchTab(typeParam);
-    }
+        // Tab switching
+        function switchTab(tabName) {
+            const url = new URL(window.location);
+            url.searchParams.set('type', tabName);
+            window.history.pushState({}, '', url);
 
-    // ============================================
-    // CENTRAL BANK API CONFIGURATION
-    // ============================================
-    
-    const CENTRAL_API_URL = 'https://acad.com.ng/central_bank/api/';
-    const CENTRAL_API_KEY = '33118913968799983134133712965617';
-    
-    let centralSubjects = [];
-    let centralTopics = [];
-    let centralQuestions = [];
-    let selectedCentralQuestionIds = new Set();
-    let currentCentralQuestions = []; // For backward compatibility
-    
-    // ============================================
-    // CENTRAL BANK IMPORT FUNCTIONS (UNIFIED)
-    // ============================================
-    
-    async function openCentralImportModal() {
-        const modal = document.getElementById('centralImportModal');
-        if (modal) {
-            modal.classList.add('active');
-            await loadCentralSubjects();
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`.tab-button[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
         }
-    }
 
-    function closeCentralImportModal() {
-        const modal = document.getElementById('centralImportModal');
-        if (modal) {
-            modal.classList.remove('active');
-        }
-        selectedCentralQuestionIds.clear();
-    }
-
-    async function loadCentralSubjects() {
-        const container = document.getElementById('centralImportContent');
-        const loadingDiv = document.getElementById('centralImportLoading');
-        
-        if (!container) return;
-        
-        // Show loading state
-        if (loadingDiv) {
-            loadingDiv.style.display = 'block';
-            container.style.display = 'none';
-        } else {
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading subjects from central bank...</p></div>';
-        }
-        
-        try {
-            const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_subjects`, {
-                headers: { 'X-API-Key': CENTRAL_API_KEY }
+        // Auto-hide alert after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.style.opacity = '0';
+                alert.style.transition = 'opacity 0.5s';
+                setTimeout(() => alert.remove(), 500);
             });
-            const data = await response.json();
-            
-            if (data.success) {
-                centralSubjects = data.subjects;
-                
-                // Build the UI
-                const subjectSelect = document.getElementById('centralSubjectSelect');
-                if (subjectSelect) {
-                    subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
-                    centralSubjects.forEach(subject => {
-                        subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
-                    });
-                }
-                
-                // Build full UI if needed
-                const questionType = document.getElementById('centralQuestionType');
-                if (questionType && !questionType.hasAttribute('data-initialized')) {
-                    buildCentralImportUI();
-                    questionType.setAttribute('data-initialized', 'true');
-                }
-                
-                if (loadingDiv) {
-                    loadingDiv.style.display = 'none';
-                    container.style.display = 'block';
-                }
-            } else {
-                throw new Error(data.error || 'Failed to load subjects');
-            }
-        } catch (error) {
-            const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added by the developer team.</div>`;
-            if (loadingDiv) {
-                loadingDiv.innerHTML = errorMsg;
-            } else {
-                container.innerHTML = errorMsg;
+        }, 5000);
+
+        // Preserve tab from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const typeParam = urlParams.get('type');
+        if (typeParam && ['objective', 'subjective', 'theory'].includes(typeParam)) {
+            switchTab(typeParam);
+        }
+
+        // ============================================
+        // CENTRAL BANK API CONFIGURATION
+        // ============================================
+
+        const CENTRAL_API_URL = 'https://acad.com.ng/central_bank/api/';
+        const CENTRAL_API_KEY = '33118913968799983134133712965617';
+
+        let centralSubjects = [];
+        let centralTopics = [];
+        let centralQuestions = [];
+        let selectedCentralQuestionIds = new Set();
+        let currentCentralQuestions = []; // For backward compatibility
+
+        // ============================================
+        // CENTRAL BANK IMPORT FUNCTIONS (UNIFIED)
+        // ============================================
+
+        async function openCentralImportModal() {
+            const modal = document.getElementById('centralImportModal');
+            if (modal) {
+                modal.classList.add('active');
+                await loadCentralSubjects();
             }
         }
-    }
-    
-    function buildCentralImportUI() {
-        const container = document.getElementById('centralImportContent');
-        if (!container) return;
-        
-        container.innerHTML = `
+
+        function closeCentralImportModal() {
+            const modal = document.getElementById('centralImportModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+            selectedCentralQuestionIds.clear();
+        }
+
+        async function loadCentralSubjects() {
+            const container = document.getElementById('centralImportContent');
+            const loadingDiv = document.getElementById('centralImportLoading');
+
+            if (!container) return;
+
+            // Show loading state
+            if (loadingDiv) {
+                loadingDiv.style.display = 'block';
+                container.style.display = 'none';
+            } else {
+                container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading subjects from central bank...</p></div>';
+            }
+
+            try {
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_subjects`, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    centralSubjects = data.subjects;
+
+                    // Build the UI
+                    const subjectSelect = document.getElementById('centralSubjectSelect');
+                    if (subjectSelect) {
+                        subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+                        centralSubjects.forEach(subject => {
+                            subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
+                        });
+                    }
+
+                    // Build full UI if needed
+                    const questionType = document.getElementById('centralQuestionType');
+                    if (questionType && !questionType.hasAttribute('data-initialized')) {
+                        buildCentralImportUI();
+                        questionType.setAttribute('data-initialized', 'true');
+                    }
+
+                    if (loadingDiv) {
+                        loadingDiv.style.display = 'none';
+                        container.style.display = 'block';
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to load subjects');
+                }
+            } catch (error) {
+                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added by the developer team.</div>`;
+                if (loadingDiv) {
+                    loadingDiv.innerHTML = errorMsg;
+                } else {
+                    container.innerHTML = errorMsg;
+                }
+            }
+        }
+
+        function buildCentralImportUI() {
+            const container = document.getElementById('centralImportContent');
+            if (!container) return;
+
+            container.innerHTML = `
             <div class="form-group">
                 <label>Select Subject</label>
                 <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
@@ -1348,96 +1550,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             </div>
             <div id="centralQuestionsContainer"></div>
         `;
-        
-        // Re-populate subject select
-        const subjectSelect = document.getElementById('centralSubjectSelect');
-        if (subjectSelect && centralSubjects.length > 0) {
-            subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
-            centralSubjects.forEach(subject => {
-                subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
-            });
-        }
-    }
 
-    async function loadCentralTopics() {
-        const subjectId = document.getElementById('centralSubjectSelect')?.value;
-        const topicSelect = document.getElementById('centralTopicSelect');
-        
-        if (!subjectId || !topicSelect) {
-            if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
-            return;
-        }
-        
-        topicSelect.innerHTML = '<option value="">Loading topics...</option>';
-        
-        try {
-            const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_topics&subject_id=${subjectId}`, {
-                headers: { 'X-API-Key': CENTRAL_API_KEY }
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                centralTopics = data.topics;
-                topicSelect.innerHTML = '<option value="0">-- All Topics --</option>';
-                centralTopics.forEach(topic => {
-                    topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
+            // Re-populate subject select
+            const subjectSelect = document.getElementById('centralSubjectSelect');
+            if (subjectSelect && centralSubjects.length > 0) {
+                subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+                centralSubjects.forEach(subject => {
+                    subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
                 });
-            } else {
-                topicSelect.innerHTML = '<option value="">Error loading topics</option>';
-                throw new Error(data.error || 'Failed to load topics');
             }
-        } catch (error) {
-            topicSelect.innerHTML = `<option value="">Error: ${error.message}</option>`;
         }
-    }
 
-    async function loadCentralQuestions() {
-        const subjectId = document.getElementById('centralSubjectSelect')?.value;
-        const topicId = document.getElementById('centralTopicSelect')?.value;
-        const questionType = document.getElementById('centralQuestionType')?.value;
-        const container = document.getElementById('centralQuestionsContainer');
-        
-        if (!subjectId || !container) {
-            if (container) container.innerHTML = '<div class="loading" style="padding: 20px;"><p>Select a subject to view questions...</p></div>';
-            return;
-        }
-        
-        container.innerHTML = '<div class="loading" style="padding: 20px;"><div class="spinner" style="width: 30px; height: 30px;"></div><p>Loading questions from central bank...</p></div>';
-        
-        try {
-            let url = `${CENTRAL_API_URL}index.php?action=get_questions&subject_id=${subjectId}&type=${questionType}`;
-            if (topicId && topicId !== '0') url += `&topic_id=${topicId}`;
-            
-            const response = await fetch(url, {
-                headers: { 'X-API-Key': CENTRAL_API_KEY }
-            });
-            const data = await response.json();
-            
-            if (data.success && data.questions) {
-                centralQuestions = data.questions;
-                currentCentralQuestions = data.questions; // For compatibility
-                selectedCentralQuestionIds.clear();
-                renderCentralQuestionsList();
-            } else {
-                throw new Error(data.error || 'No questions found');
+        async function loadCentralTopics() {
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicSelect = document.getElementById('centralTopicSelect');
+
+            if (!subjectId || !topicSelect) {
+                if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
+                return;
             }
-        } catch (error) {
-            container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
-        }
-    }
 
-    function renderCentralQuestionsList() {
-        const container = document.getElementById('centralQuestionsContainer');
-        const questions = centralQuestions.length > 0 ? centralQuestions : currentCentralQuestions;
-        
-        if (!container) return;
-        
-        if (questions.length === 0) {
-            container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No central questions found for this selection.</p><p class="badge-info" style="margin-top: 10px;">Central questions are added by the developer team.</p></div>';
-            return;
+            topicSelect.innerHTML = '<option value="">Loading topics...</option>';
+
+            try {
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_topics&subject_id=${subjectId}`, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    centralTopics = data.topics;
+                    topicSelect.innerHTML = '<option value="0">-- All Topics --</option>';
+                    centralTopics.forEach(topic => {
+                        topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
+                    });
+                } else {
+                    topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+                    throw new Error(data.error || 'Failed to load topics');
+                }
+            } catch (error) {
+                topicSelect.innerHTML = `<option value="">Error: ${error.message}</option>`;
+            }
         }
-        
-        let html = `
+
+        async function loadCentralQuestions() {
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const questionType = document.getElementById('centralQuestionType')?.value;
+            const container = document.getElementById('centralQuestionsContainer');
+
+            if (!subjectId || !container) {
+                if (container) container.innerHTML = '<div class="loading" style="padding: 20px;"><p>Select a subject to view questions...</p></div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="loading" style="padding: 20px;"><div class="spinner" style="width: 30px; height: 30px;"></div><p>Loading questions from central bank...</p></div>';
+
+            try {
+                let url = `${CENTRAL_API_URL}index.php?action=get_questions&subject_id=${subjectId}&type=${questionType}`;
+                if (topicId && topicId !== '0') url += `&topic_id=${topicId}`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success && data.questions) {
+                    centralQuestions = data.questions;
+                    currentCentralQuestions = data.questions; // For compatibility
+                    selectedCentralQuestionIds.clear();
+                    renderCentralQuestionsList();
+                } else {
+                    throw new Error(data.error || 'No questions found');
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderCentralQuestionsList() {
+            const container = document.getElementById('centralQuestionsContainer');
+            const questions = centralQuestions.length > 0 ? centralQuestions : currentCentralQuestions;
+
+            if (!container) return;
+
+            if (questions.length === 0) {
+                container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No central questions found for this selection.</p><p class="badge-info" style="margin-top: 10px;">Central questions are added by the developer team.</p></div>';
+                return;
+            }
+
+            let html = `
             <div class="select-all-bar">
                 <input type="checkbox" id="selectAllCentralCheckbox" onchange="toggleSelectAllCentral(this)">
                 <label for="selectAllCentralCheckbox">Select All New Questions</label>
@@ -1445,15 +1651,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             </div>
             <div class="question-list">
         `;
-        
-        questions.forEach((q, index) => {
-            const isChecked = selectedCentralQuestionIds.has(q.id);
-            const isImported = q.already_imported || false;
-            const preview = q.question_text ? q.question_text.substring(0, 150) : '';
-            const disabledAttr = isImported ? 'disabled' : '';
-            const disabledClass = isImported ? 'already-imported' : '';
-            
-            html += `
+
+            questions.forEach((q, index) => {
+                const isChecked = selectedCentralQuestionIds.has(q.id);
+                const isImported = q.already_imported || false;
+                const preview = q.question_text ? q.question_text.substring(0, 150) : '';
+                const disabledAttr = isImported ? 'disabled' : '';
+                const disabledClass = isImported ? 'already-imported' : '';
+
+                html += `
                 <div class="question-item">
                     <div class="question-checkbox">
                         <input type="checkbox" class="central-question-check" value="${q.id}" ${isChecked ? 'checked' : ''} ${disabledAttr} data-question-id="${q.id}">
@@ -1464,145 +1670,145 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
                     </div>
                 </div>
             `;
-        });
-        
-        html += `</div>`;
-        container.innerHTML = html;
-        
-        // Attach event listeners to checkboxes
-        attachCheckboxListeners();
-        
-        updateCentralSelectedCount();
-        updateSelectAllCentralCheckbox();
-    }
-    
-    function attachCheckboxListeners() {
-        document.querySelectorAll('.central-question-check:not(:disabled)').forEach(cb => {
-            cb.removeEventListener('change', handleCheckboxChange);
-            cb.addEventListener('change', handleCheckboxChange);
-        });
-    }
-    
-    function handleCheckboxChange(e) {
-        const value = parseInt(e.target.value);
-        if (e.target.checked) {
-            selectedCentralQuestionIds.add(value);
-        } else {
-            selectedCentralQuestionIds.delete(value);
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+
+            // Attach event listeners to checkboxes
+            attachCheckboxListeners();
+
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
         }
-        updateCentralSelectedCount();
-        updateSelectAllCentralCheckbox();
-    }
-    
-    function toggleSelectAllCentral(source) {
-        const checkboxes = document.querySelectorAll('.central-question-check:not(:disabled)');
-        checkboxes.forEach(cb => {
-            cb.checked = source.checked;
-            const value = parseInt(cb.value);
-            if (source.checked) {
+
+        function attachCheckboxListeners() {
+            document.querySelectorAll('.central-question-check:not(:disabled)').forEach(cb => {
+                cb.removeEventListener('change', handleCheckboxChange);
+                cb.addEventListener('change', handleCheckboxChange);
+            });
+        }
+
+        function handleCheckboxChange(e) {
+            const value = parseInt(e.target.value);
+            if (e.target.checked) {
                 selectedCentralQuestionIds.add(value);
             } else {
                 selectedCentralQuestionIds.delete(value);
             }
-        });
-        updateCentralSelectedCount();
-        updateSelectAllCentralCheckbox();
-    }
-    
-    function updateCentralSelectedCount() {
-        const count = selectedCentralQuestionIds.size;
-        const countSpan = document.getElementById('centralSelectedCount');
-        if (countSpan) countSpan.textContent = count;
-    }
-    
-    function updateSelectAllCentralCheckbox() {
-        const selectAll = document.getElementById('selectAllCentralCheckbox');
-        if (selectAll) {
-            const total = document.querySelectorAll('.central-question-check:not(:disabled)').length;
-            const selected = selectedCentralQuestionIds.size;
-            if (selected === 0) {
-                selectAll.checked = false;
-                selectAll.indeterminate = false;
-            } else if (selected === total && total > 0) {
-                selectAll.checked = true;
-                selectAll.indeterminate = false;
-            } else {
-                selectAll.indeterminate = true;
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        function toggleSelectAllCentral(source) {
+            const checkboxes = document.querySelectorAll('.central-question-check:not(:disabled)');
+            checkboxes.forEach(cb => {
+                cb.checked = source.checked;
+                const value = parseInt(cb.value);
+                if (source.checked) {
+                    selectedCentralQuestionIds.add(value);
+                } else {
+                    selectedCentralQuestionIds.delete(value);
+                }
+            });
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        function updateCentralSelectedCount() {
+            const count = selectedCentralQuestionIds.size;
+            const countSpan = document.getElementById('centralSelectedCount');
+            if (countSpan) countSpan.textContent = count;
+        }
+
+        function updateSelectAllCentralCheckbox() {
+            const selectAll = document.getElementById('selectAllCentralCheckbox');
+            if (selectAll) {
+                const total = document.querySelectorAll('.central-question-check:not(:disabled)').length;
+                const selected = selectedCentralQuestionIds.size;
+                if (selected === 0) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                } else if (selected === total && total > 0) {
+                    selectAll.checked = true;
+                    selectAll.indeterminate = false;
+                } else {
+                    selectAll.indeterminate = true;
+                }
             }
         }
-    }
-    
-    async function importSelectedCentralQuestions() {
-        if (selectedCentralQuestionIds.size === 0) {
-            alert('Please select at least one question to import.');
-            return;
-        }
-        
-        const subjectId = document.getElementById('centralSubjectSelect')?.value;
-        const topicId = document.getElementById('centralTopicSelect')?.value;
-        const questionType = document.getElementById('centralQuestionType')?.value;
-        
-        if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified by the developer team and will be added to your local question bank.`)) {
-            return;
-        }
-        
-        // Create a form and submit via POST
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '';
-        
-        const importField = document.createElement('input');
-        importField.type = 'hidden';
-        importField.name = 'import_from_central';
-        importField.value = '1';
-        form.appendChild(importField);
-        
-        const sourceSubjectField = document.createElement('input');
-        sourceSubjectField.type = 'hidden';
-        sourceSubjectField.name = 'central_subject_id';
-        sourceSubjectField.value = subjectId || '';
-        form.appendChild(sourceSubjectField);
-        
-        const sourceTopicField = document.createElement('input');
-        sourceTopicField.type = 'hidden';
-        sourceTopicField.name = 'central_topic_id';
-        sourceTopicField.value = topicId || '0';
-        form.appendChild(sourceTopicField);
-        
-        const importTypeField = document.createElement('input');
-        importTypeField.type = 'hidden';
-        importTypeField.name = 'import_question_type';
-        importTypeField.value = questionType || '';
-        form.appendChild(importTypeField);
-        
-        selectedCentralQuestionIds.forEach(id => {
-            const field = document.createElement('input');
-            field.type = 'hidden';
-            field.name = 'selected_central_questions[]';
-            field.value = id;
-            form.appendChild(field);
-        });
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
-    
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
-    // ============================================
-    // LEGACY SUPPORT FUNCTIONS (for backward compatibility)
-    // ============================================
-    
-    // These functions are aliases for the unified functions above
-    window.loadCentralSubjects = loadCentralSubjects;
-    window.loadCentralTopics = loadCentralTopics;
-    window.loadCentralQuestions = loadCentralQuestions;
-    
-</script>
+        async function importSelectedCentralQuestions() {
+            if (selectedCentralQuestionIds.size === 0) {
+                alert('Please select at least one question to import.');
+                return;
+            }
+
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const questionType = document.getElementById('centralQuestionType')?.value;
+
+            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified by the developer team and will be added to your local question bank.`)) {
+                return;
+            }
+
+            // Create a form and submit via POST
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+
+            const importField = document.createElement('input');
+            importField.type = 'hidden';
+            importField.name = 'import_from_central';
+            importField.value = '1';
+            form.appendChild(importField);
+
+            const sourceSubjectField = document.createElement('input');
+            sourceSubjectField.type = 'hidden';
+            sourceSubjectField.name = 'central_subject_id';
+            sourceSubjectField.value = subjectId || '';
+            form.appendChild(sourceSubjectField);
+
+            const sourceTopicField = document.createElement('input');
+            sourceTopicField.type = 'hidden';
+            sourceTopicField.name = 'central_topic_id';
+            sourceTopicField.value = topicId || '0';
+            form.appendChild(sourceTopicField);
+
+            const importTypeField = document.createElement('input');
+            importTypeField.type = 'hidden';
+            importTypeField.name = 'import_question_type';
+            importTypeField.value = questionType || '';
+            form.appendChild(importTypeField);
+
+            selectedCentralQuestionIds.forEach(id => {
+                const field = document.createElement('input');
+                field.type = 'hidden';
+                field.name = 'selected_central_questions[]';
+                field.value = id;
+                form.appendChild(field);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
+        // LEGACY SUPPORT FUNCTIONS (for backward compatibility)
+        // ============================================
+
+        // These functions are aliases for the unified functions above
+        window.loadCentralSubjects = loadCentralSubjects;
+        window.loadCentralTopics = loadCentralTopics;
+        window.loadCentralQuestions = loadCentralQuestions;
+    </script>
 </body>
+
 </html>

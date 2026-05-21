@@ -1,5 +1,5 @@
 <?php
-// gos/subscription-expired.php - Subscription Expired Page
+// ida/subscription-expired.php - Subscription Expired Page
 session_start();
 require_once 'includes/config.php';
 

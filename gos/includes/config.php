@@ -20,19 +20,19 @@ define('DB_NAME', 'impactdi_school_portal');
 // ============================================
 // SCHOOL IDENTIFICATION
 // ============================================
-define('SCHOOL_ID', 3);  // Impact Digital Academy ID
-define('SCHOOL_CODE', 'IDA');
+define('SCHOOL_ID', 1);  // Great Optimist School, Ota ID
+define('SCHOOL_CODE', 'GOS');
 
 // ============================================
 // SCHOOL INFORMATION
 // ============================================
-define('SCHOOL_NAME', 'Impact Digital Academy');
+define('SCHOOL_NAME', 'Great Optimist School, Ota');
 define('SCHOOL_PRIMARY', '#722F37');
 define('SCHOOL_SECONDARY', '#d4af7a');
 define('SCHOOL_ACCENT', '#ffffff');
 define('SCHOOL_LOGO', '/assets/logos/ida.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
-define('SCHOOL_ADDRESS', 'Impact Digital Academy, Lagos, Nigeria');  // Added back
+define('SCHOOL_ADDRESS', 'Great Optimist School, Ota, Lagos, Nigeria');  // Added back
 define('SCHOOL_PHONE', '09035448295');  // Added back
 define('SCHOOL_EMAIL', 'dig2skills@gmail.com');  // Added back
 

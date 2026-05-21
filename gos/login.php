@@ -1,10 +1,21 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// gos/login.php - Add near the top after session_start()
 session_start();
+require_once 'includes/config.php';
 
-// Include config - this creates $pdo as global
-require_once __DIR__ . '/includes/config.php';
+// Check if system has active subscription (allow access to login page but show warning)
+$subscription_status = checkSubscriptionStatus($pdo);
+
+// If subscription is expired, show warning but still allow login form
+$subscription_expired_warning = '';
+if ($subscription_status['should_block']) {
+    $subscription_expired_warning = '
+        <div class="alert alert-warning" style="background: #fff3cd; border: 1px solid #f39c12; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Subscription Expired!</strong> Your school subscription has expired. Please contact the administrator to renew.
+        </div>
+    ';
+}
 
 // Get $pdo from global
 global $pdo;

@@ -30,6 +30,17 @@ define('SCHOOL_NAME', 'Impact Digital Academy');
 define('SCHOOL_PRIMARY', '#722F37');
 define('SCHOOL_SECONDARY', '#d4af7a');
 define('SCHOOL_ACCENT', '#ffffff');
+define('SCHOOL_LOGO', '/assets/logos/ida.png');  // Added back
+define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
+define('SCHOOL_ADDRESS', 'Impact Digital Academy, Lagos, Nigeria');  // Added back
+define('SCHOOL_PHONE', '09035448295');  // Added back
+define('SCHOOL_EMAIL', 'dig2skills@gmail.com');  // Added back
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+define('SYSTEM_NAME', 'School Management Portal');
+define('SYSTEM_VERSION', '1.0.0');
 
 // ============================================
 // DATABASE CONNECTION
@@ -67,7 +78,9 @@ function checkSubscriptionStatus($pdo, $school_id = SCHOOL_ID)
                 school_code,
                 subscription_status,
                 subscription_expiry,
-                status as school_status
+                status as school_status,
+                contact_email,
+                contact_phone
             FROM schools 
             WHERE id = ?
         ");
@@ -80,9 +93,12 @@ function checkSubscriptionStatus($pdo, $school_id = SCHOOL_ID)
                 'status' => 'not_found',
                 'message' => 'School not found in system',
                 'expiry_date' => null,
+                'expiry_formatted' => 'N/A',
                 'days_remaining' => 0,
                 'is_expired' => true,
-                'should_block' => true
+                'should_block' => true,
+                'contact_email' => null,
+                'contact_phone' => null
             ];
         }
 
@@ -127,7 +143,9 @@ function checkSubscriptionStatus($pdo, $school_id = SCHOOL_ID)
             'is_expired' => $is_expired,
             'should_block' => $should_block,
             'school_name' => $school['school_name'],
-            'school_code' => $school['school_code']
+            'school_code' => $school['school_code'],
+            'contact_email' => $school['contact_email'],
+            'contact_phone' => $school['contact_phone']
         ];
     } catch (Exception $e) {
         error_log("Subscription check error: " . $e->getMessage());
@@ -136,9 +154,12 @@ function checkSubscriptionStatus($pdo, $school_id = SCHOOL_ID)
             'status' => 'error',
             'message' => 'Error checking subscription status',
             'expiry_date' => null,
+            'expiry_formatted' => 'N/A',
             'days_remaining' => 0,
             'is_expired' => true,
-            'should_block' => true
+            'should_block' => true,
+            'contact_email' => null,
+            'contact_phone' => null
         ];
     }
 }
@@ -194,7 +215,7 @@ function getCurrentSubscriptionStatus()
 
 // Check subscription for all admin/staff pages (not login page)
 $current_file = basename($_SERVER['PHP_SELF']);
-$excluded_pages = ['login.php', 'subscription-expired.php', 'logout.php'];
+$excluded_pages = ['login.php', 'subscription-expired.php', 'logout.php', 'index.php'];
 
 if (!in_array($current_file, $excluded_pages)) {
     // For API endpoints, don't redirect but return error
@@ -213,7 +234,7 @@ if (!in_array($current_file, $excluded_pages)) {
             ]);
             exit();
         }
-    } else {
+    } elseif ($current_file !== 'index.php') {
         // For web pages, verify and redirect if needed
         verifySubscription($pdo, true);
     }

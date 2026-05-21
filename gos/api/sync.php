@@ -14,6 +14,7 @@ $ALLOWED_TABLES = [
     'topics',
     'passages',           // ADD THIS LINE
     'library_resources',  // ADD THIS LINE
+    'admin_users',
 
     // Exams & Questions
     'exams',

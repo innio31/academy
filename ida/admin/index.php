@@ -1,5 +1,5 @@
 <?php
-// gos/admin/index.php - Admin Dashboard (Aligned with offline version)
+// ida/admin/index.php - Admin Dashboard (Aligned with offline version)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Check if admin is logged in (support both offline and online session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -786,7 +786,7 @@ try {
                 <li><a href="ai-tools.php"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>
@@ -855,7 +855,7 @@ try {
                 <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>!</p>
             </div>
             <div class="header-actions">
-                <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>

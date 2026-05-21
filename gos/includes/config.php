@@ -242,3 +242,9 @@ if (!in_array($current_file, $excluded_pages)) {
 
 // Store subscription status globally for use in pages
 $subscription_status = getCurrentSubscriptionStatus();
+
+
+// Make subscription status available globally
+if (!isset($subscription_status)) {
+    $subscription_status = checkSubscriptionStatus($pdo);
+}

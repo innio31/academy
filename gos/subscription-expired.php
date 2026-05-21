@@ -3,12 +3,16 @@
 session_start();
 require_once 'includes/config.php';
 
+// Get subscription status
+$subscription_status = checkSubscriptionStatus($pdo);
+
 // Clear session to prevent auto-redirect loops
-$subscription_message = $_SESSION['subscription_message'] ?? 'Your subscription has expired.';
+$subscription_message = $_SESSION['subscription_message'] ?? ($subscription_status['message'] ?? 'Your subscription has expired.');
 $blocked_url = $_SESSION['blocked_url'] ?? '';
 
 // Clear the stored message after displaying
 unset($_SESSION['subscription_message']);
+unset($_SESSION['blocked_url']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -95,6 +99,8 @@ unset($_SESSION['subscription_message']);
             justify-content: space-between;
             padding: 10px 0;
             border-bottom: 1px solid #e0e0e0;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .info-item:last-child {
@@ -108,6 +114,8 @@ unset($_SESSION['subscription_message']);
 
         .info-value {
             color: #333;
+            word-break: break-word;
+            text-align: right;
         }
 
         .warning-box {
@@ -200,6 +208,14 @@ unset($_SESSION['subscription_message']);
             .btn {
                 justify-content: center;
             }
+
+            .info-item {
+                flex-direction: column;
+            }
+
+            .info-value {
+                text-align: left;
+            }
         }
     </style>
 </head>
@@ -229,16 +245,23 @@ unset($_SESSION['subscription_message']);
                     <span class="info-label">School Code:</span>
                     <span class="info-value"><?php echo SCHOOL_CODE; ?></span>
                 </div>
-                <?php if ($subscription_status['expiry_formatted'] !== 'No expiry date'): ?>
+                <?php
+                $expiry_formatted = $subscription_status['expiry_formatted'] ?? 'N/A';
+                if ($expiry_formatted !== 'N/A' && $expiry_formatted !== 'No expiry date'):
+                ?>
                     <div class="info-item">
                         <span class="info-label">Expired On:</span>
-                        <span class="info-value"><?php echo $subscription_status['expiry_formatted']; ?></span>
+                        <span class="info-value"><?php echo $expiry_formatted; ?></span>
                     </div>
                 <?php endif; ?>
                 <div class="info-item">
                     <span class="info-label">Status:</span>
                     <span class="info-value" style="color: #e74c3c; font-weight: 600;">
-                        <i class="fas fa-times-circle"></i> <?php echo ucfirst($subscription_status['status']); ?>
+                        <i class="fas fa-times-circle"></i>
+                        <?php
+                        $status = $subscription_status['status'] ?? 'inactive';
+                        echo ucfirst((string)$status);
+                        ?>
                     </span>
                 </div>
             </div>
@@ -251,18 +274,23 @@ unset($_SESSION['subscription_message']);
                     <small>
                         <i class="fas fa-phone"></i> Call:
                         <?php
-                        // Get contact from database if available
-                        try {
-                            $stmt = $pdo->prepare("SELECT contact_phone, contact_email FROM schools WHERE id = ?");
-                            $stmt->execute([SCHOOL_ID]);
-                            $contact = $stmt->fetch();
-                            if ($contact) {
-                                echo htmlspecialchars($contact['contact_phone'] ?? 'Not available');
-                            } else {
-                                echo 'Not available';
-                            }
-                        } catch (Exception $e) {
-                            echo 'Not available';
+                        $contact_phone = $subscription_status['contact_phone'] ?? '';
+                        if ($contact_phone) {
+                            echo htmlspecialchars($contact_phone);
+                        } else {
+                            echo SCHOOL_PHONE;
+                        }
+                        ?>
+                    </small>
+                    <br>
+                    <small>
+                        <i class="fas fa-envelope"></i> Email:
+                        <?php
+                        $contact_email = $subscription_status['contact_email'] ?? '';
+                        if ($contact_email) {
+                            echo htmlspecialchars($contact_email);
+                        } else {
+                            echo SCHOOL_EMAIL;
                         }
                         ?>
                     </small>

@@ -27,6 +27,37 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
 
+// Get subscription status from schools table
+$subscription_active = false;
+$subscription_end_date = '';
+$subscription_days_remaining = 0;
+$subscription_warning_days = 30; // Show warning when 30 days or less remaining
+
+try {
+    $stmt = $pdo->prepare("SELECT subscription_status, subscription_expiry FROM schools WHERE id = ?");
+    $stmt->execute([$school_id]);
+    $school_sub = $stmt->fetch();
+
+    if ($school_sub) {
+        $subscription_active = ($school_sub['subscription_status'] === 'active');
+        $subscription_end_date = $school_sub['subscription_expiry'];
+
+        if ($subscription_end_date && $subscription_end_date !== '0000-00-00') {
+            $expiry_timestamp = strtotime($subscription_end_date);
+            $current_timestamp = time();
+            $subscription_days_remaining = ceil(($expiry_timestamp - $current_timestamp) / (60 * 60 * 24));
+            $subscription_days_remaining = max(0, $subscription_days_remaining);
+
+            // Check if expired
+            if ($expiry_timestamp < $current_timestamp) {
+                $subscription_active = false;
+            }
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error checking subscription: " . $e->getMessage());
+}
+
 // Get statistics for this school only
 try {
     // Total Students
@@ -142,6 +173,110 @@ try {
             color: #333;
             min-height: 100vh;
             overflow-x: hidden;
+        }
+
+        /* Scrolling Subscription Banner */
+        .subscription-banner {
+            position: relative;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .subscription-banner.expiring {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            animation: pulse 1s infinite;
+        }
+
+        .subscription-banner.expired {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            animation: pulse 0.5s infinite;
+        }
+
+        .subscription-banner.active {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.9;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .scroll-container {
+            overflow: hidden;
+            white-space: nowrap;
+            padding: 15px 0;
+            position: relative;
+        }
+
+        .scroll-content {
+            display: inline-block;
+            animation: scrollText 25s linear infinite;
+            padding-right: 50px;
+        }
+
+        .scroll-content i {
+            margin: 0 10px;
+        }
+
+        .scroll-content span {
+            margin: 0 30px;
+            font-weight: 500;
+        }
+
+        @keyframes scrollText {
+            0% {
+                transform: translateX(100%);
+            }
+
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        .subscription-banner:hover .scroll-content {
+            animation-play-state: paused;
+        }
+
+        .banner-controls {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+
+        .banner-controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .banner-controls button:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .close-banner {
+            background: rgba(0, 0, 0, 0.3);
         }
 
         /* Sidebar */
@@ -504,6 +639,8 @@ try {
         /* Activity List */
         .activity-list {
             list-style: none;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .activity-item {
@@ -556,6 +693,17 @@ try {
             margin-top: 20px;
         }
 
+        /* Countdown Timer */
+        .countdown-timer {
+            display: inline-block;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
         @media (min-width: 768px) {
 
             .mobile-menu-toggle,
@@ -583,6 +731,17 @@ try {
 
             .content-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .scroll-content {
+                animation-duration: 15s;
+            }
+
+            .countdown-timer {
+                display: block;
+                margin-left: 0;
+                margin-top: 8px;
+                text-align: center;
             }
         }
     </style>
@@ -634,6 +793,62 @@ try {
 
     <!-- Main Content -->
     <div class="main-content" id="mainContent">
+        <!-- Scrolling Subscription Banner -->
+        <?php
+        $banner_class = '';
+        $banner_message = '';
+        $banner_icon = '';
+
+        if (!$subscription_active) {
+            $banner_class = 'expired';
+            $banner_icon = 'fa-exclamation-triangle';
+            $banner_message = '⚠️ SUBSCRIPTION EXPIRED! ⚠️ Your subscription has expired. Please contact the school administrator immediately to renew your subscription and restore full access to all features.';
+        } elseif ($subscription_days_remaining <= $subscription_warning_days && $subscription_days_remaining > 0) {
+            $banner_class = 'expiring';
+            $banner_icon = 'fa-clock';
+            $banner_message = "⚠️ SUBSCRIPTION RENEWAL NOTICE ⚠️ Your subscription will expire in {$subscription_days_remaining} days on " . date('F j, Y', strtotime($subscription_end_date)) . ". Please contact the administrator to renew and avoid service interruption.";
+        } elseif ($subscription_active) {
+            $banner_class = 'active';
+            $banner_icon = 'fa-check-circle';
+            $banner_message = "✅ SUBSCRIPTION ACTIVE ✅ Your subscription is active until " . date('F j, Y', strtotime($subscription_end_date)) . ". Thank you for being a valued customer!";
+        } else {
+            $banner_class = 'expired';
+            $banner_icon = 'fa-exclamation-triangle';
+            $banner_message = '⚠️ SUBSCRIPTION STATUS UNKNOWN ⚠️ Unable to verify subscription status. Please contact support.';
+        }
+        ?>
+
+        <div class="subscription-banner <?php echo $banner_class; ?>" id="subscriptionBanner">
+            <div class="scroll-container">
+                <div class="scroll-content" id="scrollContent">
+                    <i class="fas <?php echo $banner_icon; ?>"></i>
+                    <span><?php echo $banner_message; ?></span>
+                    <?php if ($subscription_days_remaining > 0 && $subscription_days_remaining <= $subscription_warning_days): ?>
+                        <span class="countdown-timer">
+                            <i class="fas fa-hourglass-half"></i> <?php echo $subscription_days_remaining; ?> days remaining
+                        </span>
+                    <?php endif; ?>
+                    <?php if ($subscription_active && $subscription_end_date): ?>
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Expires: <?php echo date('F j, Y', strtotime($subscription_end_date)); ?></span>
+                    <?php endif; ?>
+                    <i class="fas fa-bell"></i>
+                </div>
+            </div>
+            <div class="banner-controls">
+                <button onclick="pauseScroll()" id="pauseBtn" title="Pause">
+                    <i class="fas fa-pause"></i>
+                </button>
+                <button onclick="resumeScroll()" id="resumeBtn" title="Resume" style="display: none;">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button onclick="closeBanner()" class="close-banner" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Top Header -->
         <div class="top-header">
             <div class="header-title">
                 <h1>Admin Dashboard</h1>
@@ -794,6 +1009,84 @@ try {
     </div>
 
     <script>
+        let scrollAnimation = null;
+        const scrollContent = document.getElementById('scrollContent');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+
+        // Pause scrolling
+        function pauseScroll() {
+            if (scrollContent) {
+                scrollContent.style.animationPlayState = 'paused';
+                pauseBtn.style.display = 'none';
+                resumeBtn.style.display = 'flex';
+            }
+        }
+
+        // Resume scrolling
+        function resumeScroll() {
+            if (scrollContent) {
+                scrollContent.style.animationPlayState = 'running';
+                pauseBtn.style.display = 'flex';
+                resumeBtn.style.display = 'none';
+            }
+        }
+
+        // Close banner (store in localStorage)
+        function closeBanner() {
+            const banner = document.getElementById('subscriptionBanner');
+            if (banner) {
+                banner.style.display = 'none';
+                localStorage.setItem('subscriptionBannerClosed', 'true');
+                localStorage.setItem('subscriptionBannerClosedTime', Date.now());
+            }
+        }
+
+        // Check if banner should be shown (re-show after 24 hours if closed)
+        function checkBannerStatus() {
+            const isClosed = localStorage.getItem('subscriptionBannerClosed');
+            const closedTime = localStorage.getItem('subscriptionBannerClosedTime');
+
+            if (isClosed === 'true' && closedTime) {
+                const hoursSinceClosed = (Date.now() - parseInt(closedTime)) / (1000 * 60 * 60);
+                // Re-show after 24 hours
+                if (hoursSinceClosed >= 24) {
+                    localStorage.removeItem('subscriptionBannerClosed');
+                    localStorage.removeItem('subscriptionBannerClosedTime');
+                    const banner = document.getElementById('subscriptionBanner');
+                    if (banner) {
+                        banner.style.display = 'block';
+                    }
+                }
+            }
+        }
+
+        // Check if expired subscription and banner is closed - still show after 12 hours
+        <?php if (!$subscription_active): ?>
+
+            function checkExpiredBannerStatus() {
+                const isClosed = localStorage.getItem('subscriptionBannerClosed');
+                const closedTime = localStorage.getItem('subscriptionBannerClosedTime');
+
+                if (isClosed === 'true' && closedTime) {
+                    const hoursSinceClosed = (Date.now() - parseInt(closedTime)) / (1000 * 60 * 60);
+                    // For expired, re-show every 12 hours
+                    if (hoursSinceClosed >= 12) {
+                        localStorage.removeItem('subscriptionBannerClosed');
+                        localStorage.removeItem('subscriptionBannerClosedTime');
+                        const banner = document.getElementById('subscriptionBanner');
+                        if (banner) {
+                            banner.style.display = 'block';
+                        }
+                    }
+                }
+            }
+            checkExpiredBannerStatus();
+        <?php else: ?>
+            checkBannerStatus();
+        <?php endif; ?>
+
+        // Mobile menu functionality
         const mobileMenuToggle = document.getElementById('mobileMenuToggle');
         const sidebar = document.getElementById('sidebar');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -821,6 +1114,20 @@ try {
                     sidebarOverlay.classList.remove('active');
                     document.body.style.overflow = '';
                 }
+            });
+        });
+
+        // Add animation to stat cards on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const statCards = document.querySelectorAll('.stat-card');
+            statCards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
             });
         });
     </script>

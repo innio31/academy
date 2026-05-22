@@ -1,5 +1,5 @@
 <?php
-// admin/manage-subjects.php - Complete Subject Management with Central Subjects
+// admin/manage-subjects.php - Complete Subject Management with Multi-Select Support
 session_start();
 
 // Check if admin is logged in (support both session styles)
@@ -51,7 +51,7 @@ try {
         )");
     }
 
-    // Add is_central column to subjects if not exists (for central subjects)
+    // Add is_central column to subjects if not exists
     $stmt = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'is_central'");
     if (!$stmt->fetch()) {
         $pdo->exec("ALTER TABLE subjects ADD COLUMN is_central TINYINT(1) DEFAULT 0");
@@ -74,7 +74,71 @@ try {
 $message = '';
 $message_type = '';
 
-// Add subject from central list
+// Add multiple subjects from central list
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
+    try {
+        $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
+        $classes = $_POST['classes'] ?? [];
+
+        if (empty($selected_subject_ids)) {
+            throw new Exception("Please select at least one subject to add");
+        }
+
+        $added_count = 0;
+        $skipped_count = 0;
+        $errors = [];
+
+        foreach ($selected_subject_ids as $central_subject_id) {
+            // Get central subject details
+            $stmt = $pdo->prepare("SELECT subject_name, description FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
+            $stmt->execute([$central_subject_id]);
+            $central_subject = $stmt->fetch();
+
+            if (!$central_subject) {
+                $errors[] = "Subject ID $central_subject_id not found";
+                continue;
+            }
+
+            // Check if subject already exists for this school
+            $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ?");
+            $stmt->execute([$central_subject['subject_name'], $school_id]);
+            if ($stmt->fetch()) {
+                $skipped_count++;
+                continue;
+            }
+
+            // Create school-specific copy of the subject
+            $stmt = $pdo->prepare("INSERT INTO subjects (subject_name, description, school_id, is_central, created_at) VALUES (?, ?, ?, 0, NOW())");
+            $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
+            $new_subject_id = $pdo->lastInsertId();
+
+            // Insert class associations
+            foreach ($classes as $class) {
+                if (!empty($class)) {
+                    $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class, school_id) VALUES (?, ?, ?)");
+                    $stmt->execute([$new_subject_id, $class, $school_id]);
+                }
+            }
+
+            $added_count++;
+        }
+
+        if ($added_count > 0) {
+            $message = "$added_count subject(s) added successfully";
+            if ($skipped_count > 0) {
+                $message .= ". $skipped_count subject(s) already existed and were skipped.";
+            }
+            $message_type = "success";
+        } else {
+            throw new Exception("No subjects were added. " . ($skipped_count > 0 ? "All selected subjects already exist." : "Please select subjects to add."));
+        }
+    } catch (Exception $e) {
+        $message = $e->getMessage();
+        $message_type = "error";
+    }
+}
+
+// Add single subject (legacy - kept for compatibility)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_from_central'])) {
     try {
         $central_subject_id = $_POST['central_subject_id'];
@@ -229,10 +293,40 @@ $stmt = $pdo->prepare("
     AND s.subject_name NOT IN (
         SELECT subject_name FROM subjects WHERE school_id = ?
     )
-    ORDER BY s.subject_name
+    ORDER BY 
+        CASE 
+            WHEN s.subject_name IN ('Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Civic Education', 'History', 'Digital Technologies') THEN 1
+            WHEN s.subject_name IN ('Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics', 'Government', 'Geography') THEN 2
+            WHEN s.subject_name IN ('Literature in English', 'Commerce', 'Financial Accounting', 'Marketing', 'Food and Nutrition', 'Catering and Craft Practice') THEN 3
+            ELSE 4
+        END,
+        s.subject_name
 ");
 $stmt->execute([$school_id]);
 $available_central_subjects = $stmt->fetchAll();
+
+// Group subjects by category for better organization
+$core_subjects = [];
+$science_subjects = [];
+$arts_commerce_subjects = [];
+$trade_subjects = [];
+
+foreach ($available_central_subjects as $subject) {
+    $core = ['Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Civic Education', 'History', 'Digital Technologies', 'Christian Religious Studies', 'Physical and Health Education', 'Agricultural Science', 'French', 'Cultural and Creative Arts', 'Business Studies'];
+    $science = ['Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Intermediate Science'];
+    $arts_commerce = ['Literature in English', 'Economics', 'Government', 'Geography', 'Commerce', 'Financial Accounting', 'Marketing'];
+    $trade = ['Fashion Design and Garment Making', 'Computer Hardware and GSM Repairs', 'Livestock Farming', 'Horticulture and Crop Production', 'Beauty and Cosmetology', 'Food and Nutrition', 'Catering and Craft Practice', 'Technical Drawing', 'Visual Arts', 'Citizenship and Heritage Studies'];
+
+    if (in_array($subject['subject_name'], $core)) {
+        $core_subjects[] = $subject;
+    } elseif (in_array($subject['subject_name'], $science)) {
+        $science_subjects[] = $subject;
+    } elseif (in_array($subject['subject_name'], $arts_commerce)) {
+        $arts_commerce_subjects[] = $subject;
+    } else {
+        $trade_subjects[] = $subject;
+    }
+}
 
 // Fetch all subjects for this school
 $stmt = $pdo->prepare("
@@ -517,30 +611,80 @@ if (isset($_GET['edit'])) {
             cursor: not-allowed;
         }
 
-        /* Select Subject Dropdown */
-        .subject-select-group {
-            position: relative;
-        }
-
-        .subject-select-group select {
-            width: 100%;
-            padding: 12px 15px;
+        /* Multi-Select Subject Styles */
+        .subjects-multiselect {
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            font-size: 1rem;
-            background: white;
+            max-height: 350px;
+            overflow-y: auto;
         }
 
-        .subject-search {
-            position: relative;
-            margin-bottom: 10px;
+        .subject-category {
+            margin-bottom: 15px;
         }
 
-        .subject-search input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
+        .subject-category-header {
+            background: var(--light-color);
+            padding: 10px 15px;
+            font-weight: 600;
+            color: var(--primary-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .subject-category-header:hover {
+            background: #e0e0e0;
+        }
+
+        .subject-list {
+            padding: 10px 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+
+        .subject-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
             border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .subject-checkbox-item:hover {
+            background: #f5f5f5;
+        }
+
+        .subject-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .subject-checkbox-item label {
+            flex: 1;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .subject-checkbox-item .subject-desc {
+            font-size: 0.7rem;
+            color: #999;
+            display: block;
+        }
+
+        .select-all-buttons {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         /* Checkbox Group */
@@ -861,6 +1005,14 @@ if (isset($_GET['edit'])) {
             font-size: 0.9rem;
         }
 
+        .selected-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
         @media (min-width: 769px) {
             .sidebar {
                 transform: translateX(0);
@@ -891,6 +1043,10 @@ if (isset($_GET['edit'])) {
 
             .action-buttons {
                 flex-wrap: wrap;
+            }
+
+            .subject-list {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -949,40 +1105,130 @@ if (isset($_GET['edit'])) {
         <!-- Info Note -->
         <div class="info-note">
             <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
-            <span>Subjects are based on the approved NERDC national curriculum. Select from the list below to add subjects to your school.</span>
+            <span>Subjects are based on the approved NERDC national curriculum. Select multiple subjects below to add them to your school at once.</span>
         </div>
 
-        <!-- Add Subject from Central List -->
+        <!-- Add Multiple Subjects from Central List -->
         <div class="form-container">
             <div class="form-header">
-                <h3><i class="fas fa-plus-circle"></i> Add Subject from National Curriculum</h3>
+                <h3><i class="fas fa-plus-circle"></i> Add Subjects from National Curriculum</h3>
             </div>
 
-            <form method="POST" id="addSubjectForm">
+            <form method="POST" id="addSubjectsForm">
                 <div class="form-group">
-                    <label>Select Subject *</label>
-                    <div class="subject-select-group">
-                        <div class="subject-search">
-                            <input type="text" id="subjectSearch" placeholder="Search subjects..." class="form-control" style="margin-bottom: 10px;">
+                    <label>Select Subjects <span id="selectedSubjectsCount" class="selected-count">0 selected</span></label>
+                    <div class="subjects-multiselect">
+                        <div class="select-all-buttons">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="selectAllSubjects()">
+                                <i class="fas fa-check-double"></i> Select All
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllSubjects()">
+                                <i class="fas fa-times"></i> Deselect All
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success" onclick="selectCoreSubjects()">
+                                <i class="fas fa-star"></i> Select Core Subjects
+                            </button>
+                            <button type="button" class="btn btn-sm btn-info" onclick="selectScienceSubjects()">
+                                <i class="fas fa-flask"></i> Select Science Subjects
+                            </button>
                         </div>
-                        <select name="central_subject_id" id="central_subject_id" class="form-control" required size="8" style="height: auto;">
-                            <option value="">-- Select a subject --</option>
-                            <?php foreach ($available_central_subjects as $central_subject): ?>
-                                <option value="<?php echo $central_subject['id']; ?>" data-name="<?php echo htmlspecialchars($central_subject['subject_name']); ?>">
-                                    <?php echo htmlspecialchars($central_subject['subject_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+
+                        <div class="subject-category">
+                            <div class="subject-category-header" onclick="toggleCategory('core')">
+                                <span><i class="fas fa-book-open"></i> Core Subjects</span>
+                                <i id="core-icon" class="fas fa-chevron-down"></i>
+                            </div>
+                            <div id="core-list" class="subject-list">
+                                <?php foreach ($core_subjects as $subject): ?>
+                                    <div class="subject-checkbox-item">
+                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
+                                        <label for="subj_<?php echo $subject['id']; ?>">
+                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                            <?php if ($subject['description']): ?>
+                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
+                                            <?php endif; ?>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($core_subjects)): ?>
+                                    <div class="subject-checkbox-item"><span style="color: #999;">No core subjects available</span></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="subject-category">
+                            <div class="subject-category-header" onclick="toggleCategory('science')">
+                                <span><i class="fas fa-flask"></i> Science Subjects</span>
+                                <i id="science-icon" class="fas fa-chevron-down"></i>
+                            </div>
+                            <div id="science-list" class="subject-list">
+                                <?php foreach ($science_subjects as $subject): ?>
+                                    <div class="subject-checkbox-item">
+                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
+                                        <label for="subj_<?php echo $subject['id']; ?>">
+                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                            <?php if ($subject['description']): ?>
+                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
+                                            <?php endif; ?>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($science_subjects)): ?>
+                                    <div class="subject-checkbox-item"><span style="color: #999;">No science subjects available</span></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="subject-category">
+                            <div class="subject-category-header" onclick="toggleCategory('arts_commerce')">
+                                <span><i class="fas fa-chart-line"></i> Arts & Commerce Subjects</span>
+                                <i id="arts_commerce-icon" class="fas fa-chevron-down"></i>
+                            </div>
+                            <div id="arts_commerce-list" class="subject-list">
+                                <?php foreach ($arts_commerce_subjects as $subject): ?>
+                                    <div class="subject-checkbox-item">
+                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
+                                        <label for="subj_<?php echo $subject['id']; ?>">
+                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                            <?php if ($subject['description']): ?>
+                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
+                                            <?php endif; ?>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($arts_commerce_subjects)): ?>
+                                    <div class="subject-checkbox-item"><span style="color: #999;">No arts/commerce subjects available</span></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="subject-category">
+                            <div class="subject-category-header" onclick="toggleCategory('trade')">
+                                <span><i class="fas fa-tools"></i> Trade/Entrepreneurship Subjects</span>
+                                <i id="trade-icon" class="fas fa-chevron-down"></i>
+                            </div>
+                            <div id="trade-list" class="subject-list">
+                                <?php foreach ($trade_subjects as $subject): ?>
+                                    <div class="subject-checkbox-item">
+                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
+                                        <label for="subj_<?php echo $subject['id']; ?>">
+                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                            <?php if ($subject['description']): ?>
+                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
+                                            <?php endif; ?>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($trade_subjects)): ?>
+                                    <div class="subject-checkbox-item"><span style="color: #999;">No trade subjects available</span></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
-                    <?php if (empty($available_central_subjects)): ?>
-                        <small style="color: #27ae60; display: block; margin-top: 8px;">
-                            <i class="fas fa-check-circle"></i> All curriculum subjects have been added to your school!
-                        </small>
-                    <?php endif; ?>
                 </div>
 
                 <div class="form-group">
-                    <label>Assign to Classes <span style="font-weight: normal; color: #666;">(Select which classes will offer this subject)</span></label>
+                    <label>Assign to Classes <span style="font-weight: normal; color: #666;">(Select which classes will offer these subjects)</span></label>
                     <div class="checkbox-group" id="classCheckboxGroup">
                         <?php if (!empty($available_classes)): ?>
                             <?php foreach ($available_classes as $class): ?>
@@ -1000,20 +1246,23 @@ if (isset($_GET['edit'])) {
                     </div>
                     <div style="margin-top: 10px;">
                         <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllClasses()">
-                            <i class="fas fa-check-double"></i> Select All
+                            <i class="fas fa-check-double"></i> Select All Classes
                         </button>
                         <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllClasses()">
-                            <i class="fas fa-times"></i> Deselect All
+                            <i class="fas fa-times"></i> Deselect All Classes
                         </button>
                     </div>
                     <small style="color: #666; display: block; margin-top: 8px;">
-                        <i class="fas fa-info-circle"></i> Selecting classes helps organize subjects by class level
+                        <i class="fas fa-info-circle"></i> These classes will be assigned to ALL selected subjects
                     </small>
                 </div>
 
                 <div class="form-actions" style="margin-top: 20px;">
-                    <button type="submit" name="add_from_central" class="btn btn-primary" id="addSubjectBtn">
-                        <i class="fas fa-plus"></i> Add Subject
+                    <button type="submit" name="add_multiple_subjects" class="btn btn-primary" id="addSubjectsBtn">
+                        <i class="fas fa-plus-circle"></i> Add Selected Subjects
+                    </button>
+                    <button type="reset" class="btn btn-secondary" onclick="deselectAllSubjects(); deselectAllClasses();">
+                        <i class="fas fa-redo"></i> Reset Selection
                     </button>
                 </div>
             </form>
@@ -1054,260 +1303,302 @@ if (isset($_GET['edit'])) {
                                     <?php if ($edit_subject && $edit_subject['id'] == $subject['id']): ?>
                                         <span style="color: var(--primary-color); font-size: 0.7rem;">(Editing)</span>
                                     <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php
-                                    $desc = $subject['description'] ?? '';
-                                    echo $desc ? htmlspecialchars(substr($desc, 0, 60)) . (strlen($desc) > 60 ? '...' : '') : '<span style="color: #999;">—</span>';
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php if ($subject['assigned_classes']): ?>
-                                        <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
-                                            <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <span style="color: #999;">Not assigned</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                        <span class="count-badge objective" title="Objective Questions">📝 O: <?php echo $subject['objective_count']; ?></span>
-                                        <span class="count-badge subjective" title="Subjective Questions">✍️ S: <?php echo $subject['subjective_count']; ?></span>
-                                        <span class="count-badge theory" title="Theory Questions">📄 T: <?php echo $subject['theory_count']; ?></span>
-                                        <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
-                                        <span class="count-badge topic" title="Topics">🏷️ TP: <?php echo $subject['topic_count']; ?></span>
-                                        <span class="count-badge score" title="Student Scores">📊 SC: <?php echo $subject['score_count']; ?></span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <a href="?edit=<?php echo $subject['id']; ?>" class="action-btn edit-btn" title="Edit Subject (Class assignments)">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Manage Topics">
-                                            <i class="fas fa-tags"></i>
-                                        </a>
-                                        <a href="manage_questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
-                                            <i class="fas fa-question-circle"></i>
-                                        </a>
-                                        <?php
-                                        $has_dependencies = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count'] + $subject['topic_count'] + $subject['score_count']) > 0;
-                                        ?>
-                                        <?php if ($has_dependencies): ?>
-                                            <button class="action-btn delete-btn disabled-btn" disabled title="Cannot delete - has associated questions/exams/topics/scores">
-                                                <i class="fas fa-trash"></i> Locked
-                                            </button>
-                                        <?php else: ?>
-                                            <button class="action-btn delete-btn" onclick="confirmDelete(<?php echo $subject['id']; ?>, '<?php echo addslashes($subject['subject_name']); ?>')" title="Delete Subject">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+        </div>
+        <td>
+            <?php
+                            $desc = $subject['description'] ?? '';
+                            echo $desc ? htmlspecialchars(substr($desc, 0, 60)) . (strlen($desc) > 60 ? '...' : '') : '<span style="color: #999;">—</span>';
+            ?>
+    </div>
+    <td>
+        <?php if ($subject['assigned_classes']): ?>
+            <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
+                <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <span style="color: #999;">Not assigned</span>
+        <?php endif; ?>
+        </div>
+    <td>
+        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <span class="count-badge objective" title="Objective Questions">📝 O: <?php echo $subject['objective_count']; ?></span>
+            <span class="count-badge subjective" title="Subjective Questions">✍️ S: <?php echo $subject['subjective_count']; ?></span>
+            <span class="count-badge theory" title="Theory Questions">📄 T: <?php echo $subject['theory_count']; ?></span>
+            <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
+            <span class="count-badge topic" title="Topics">🏷️ TP: <?php echo $subject['topic_count']; ?></span>
+            <span class="count-badge score" title="Student Scores">📊 SC: <?php echo $subject['score_count']; ?></span>
+        </div>
+        </div>
+    <td>
+        <div class="action-buttons">
+            <a href="?edit=<?php echo $subject['id']; ?>" class="action-btn edit-btn" title="Edit Subject (Class assignments)">
+                <i class="fas fa-edit"></i>
+            </a>
+            <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Manage Topics">
+                <i class="fas fa-tags"></i>
+            </a>
+            <a href="manage_questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
+                <i class="fas fa-question-circle"></i>
+            </a>
+            <?php
+                            $has_dependencies = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count'] + $subject['topic_count'] + $subject['score_count']) > 0;
+            ?>
+            <?php if ($has_dependencies): ?>
+                <button class="action-btn delete-btn disabled-btn" disabled title="Cannot delete - has associated questions/exams/topics/scores">
+                    <i class="fas fa-trash"></i> Locked
+                </button>
+            <?php else: ?>
+                <button class="action-btn delete-btn" onclick="confirmDelete(<?php echo $subject['id']; ?>, '<?php echo addslashes($subject['subject_name']); ?>')" title="Delete Subject">
+                    <i class="fas fa-trash"></i>
+                </button>
             <?php endif; ?>
         </div>
+        </div>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    </table>
+<?php endif; ?>
+</div>
 
-        <!-- Edit Subject Modal (in inline form) -->
-        <?php if ($edit_subject): ?>
-            <div class="form-container" style="margin-top: 30px;">
-                <div class="form-header">
-                    <h3><i class="fas fa-edit"></i> Edit Subject: <?php echo htmlspecialchars($edit_subject['subject_name']); ?></h3>
-                    <a href="manage-subjects.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+<!-- Edit Subject Modal (in inline form) -->
+<?php if ($edit_subject): ?>
+    <div class="form-container" style="margin-top: 30px;">
+        <div class="form-header">
+            <h3><i class="fas fa-edit"></i> Edit Subject: <?php echo htmlspecialchars($edit_subject['subject_name']); ?></h3>
+            <a href="manage-subjects.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="subject_id" value="<?php echo $edit_subject['id']; ?>">
+
+            <div class="form-group">
+                <label>Subject Name</label>
+                <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_subject['subject_name']); ?>" readonly disabled>
+                <small style="color: #666;">Subject names are fixed from the national curriculum and cannot be edited.</small>
+            </div>
+
+            <div class="form-group">
+                <label>Description (Optional)</label>
+                <textarea name="description" class="form-control"
+                    placeholder="Brief description of the subject"><?php echo htmlspecialchars($edit_subject['description'] ?? ''); ?></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Assign to Classes</label>
+                <div class="checkbox-group" id="editClassCheckboxGroup">
+                    <?php if (!empty($available_classes)): ?>
+                        <?php foreach ($available_classes as $class): ?>
+                            <div class="checkbox-item">
+                                <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>"
+                                    id="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"
+                                    <?php echo in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
+                                <label for="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
+                                    <?php echo htmlspecialchars($class); ?>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p style="color: #999; grid-column: span 2;">No classes found.</p>
+                    <?php endif; ?>
                 </div>
-
-                <form method="POST">
-                    <input type="hidden" name="subject_id" value="<?php echo $edit_subject['id']; ?>">
-
-                    <div class="form-group">
-                        <label>Subject Name</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_subject['subject_name']); ?>" readonly disabled>
-                        <small style="color: #666;">Subject names are fixed from the national curriculum and cannot be edited.</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Description (Optional)</label>
-                        <textarea name="description" class="form-control"
-                            placeholder="Brief description of the subject"><?php echo htmlspecialchars($edit_subject['description'] ?? ''); ?></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Assign to Classes</label>
-                        <div class="checkbox-group">
-                            <?php if (!empty($available_classes)): ?>
-                                <?php foreach ($available_classes as $class): ?>
-                                    <div class="checkbox-item">
-                                        <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>"
-                                            id="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"
-                                            <?php echo in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
-                                        <label for="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                            <?php echo htmlspecialchars($class); ?>
-                                        </label>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <p style="color: #999; grid-column: span 2;">No classes found.</p>
-                            <?php endif; ?>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllEditClasses()">
-                                <i class="fas fa-check-double"></i> Select All
-                            </button>
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllEditClasses()">
-                                <i class="fas fa-times"></i> Deselect All
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-actions" style="margin-top: 20px;">
-                        <button type="submit" name="update_subject" class="btn btn-success">
-                            <i class="fas fa-save"></i> Update Subject
-                        </button>
-                        <a href="manage-subjects.php" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Cancel
-                        </a>
-                    </div>
-                </form>
+                <div style="margin-top: 10px;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllEditClasses()">
+                        <i class="fas fa-check-double"></i> Select All
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllEditClasses()">
+                        <i class="fas fa-times"></i> Deselect All
+                    </button>
+                </div>
             </div>
-        <?php endif; ?>
+
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="submit" name="update_subject" class="btn btn-success">
+                    <i class="fas fa-save"></i> Update Subject
+                </button>
+                <a href="manage-subjects.php" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
     </div>
+<?php endif; ?>
+</div>
 
-    <!-- Delete Confirmation Modal -->
-    <div class="modal" id="deleteModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Confirm Delete</h3>
-                <button class="close-modal" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteSubjectName"></strong>?</p>
-                <p style="color: var(--danger-color); margin-top: 10px;">
-                    <i class="fas fa-exclamation-triangle"></i> This action cannot be undone.
-                </p>
-            </div>
-            <div class="modal-footer" style="padding: 15px 20px; display: flex; justify-content: flex-end; gap: 10px;">
-                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-danger" id="confirmDeleteBtn">Delete Subject</button>
-            </div>
+<!-- Delete Confirmation Modal -->
+<div class="modal" id="deleteModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Confirm Delete</h3>
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete <strong id="deleteSubjectName"></strong>?</p>
+            <p style="color: var(--danger-color); margin-top: 10px;">
+                <i class="fas fa-exclamation-triangle"></i> This action cannot be undone.
+            </p>
+        </div>
+        <div class="modal-footer" style="padding: 15px 20px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn">Delete Subject</button>
         </div>
     </div>
+</div>
 
-    <script>
-        // Mobile menu toggle
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('sidebar');
-        if (mobileBtn) {
-            mobileBtn.onclick = () => sidebar.classList.toggle('active');
+<script>
+    // Mobile menu toggle
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    const sidebar = document.getElementById('sidebar');
+    if (mobileBtn) {
+        mobileBtn.onclick = () => sidebar.classList.toggle('active');
+    }
+
+    // Close sidebar on outside click
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 768 && sidebar && mobileBtn) {
+            if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
         }
+    });
 
-        // Close sidebar on outside click
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
-                }
+    // Table search functionality
+    const searchInput = document.getElementById('searchInput');
+    const subjectsTable = document.getElementById('subjectsTable');
+    if (searchInput && subjectsTable) {
+        searchInput.addEventListener('keyup', function() {
+            const term = this.value.toLowerCase();
+            const rows = subjectsTable.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(term) ? '' : 'none';
+            });
+        });
+    }
+
+    // Subject multi-select functions
+    function updateSubjectCount() {
+        const checkboxes = document.querySelectorAll('.subject-checkbox:checked');
+        const count = checkboxes.length;
+        const countSpan = document.getElementById('selectedSubjectsCount');
+        if (countSpan) {
+            countSpan.textContent = count + ' selected';
+            countSpan.style.background = count > 0 ? 'var(--success-color)' : 'var(--primary-color)';
+        }
+    }
+
+    function selectAllSubjects() {
+        const checkboxes = document.querySelectorAll('.subject-checkbox');
+        checkboxes.forEach(cb => cb.checked = true);
+        updateSubjectCount();
+    }
+
+    function deselectAllSubjects() {
+        const checkboxes = document.querySelectorAll('.subject-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        updateSubjectCount();
+    }
+
+    function selectCoreSubjects() {
+        deselectAllSubjects();
+        const coreCheckboxes = document.querySelectorAll('#core-list .subject-checkbox');
+        coreCheckboxes.forEach(cb => cb.checked = true);
+        updateSubjectCount();
+    }
+
+    function selectScienceSubjects() {
+        deselectAllSubjects();
+        const scienceCheckboxes = document.querySelectorAll('#science-list .subject-checkbox');
+        scienceCheckboxes.forEach(cb => cb.checked = true);
+        updateSubjectCount();
+    }
+
+    // Category toggle functions
+    function toggleCategory(category) {
+        const list = document.getElementById(category + '-list');
+        const icon = document.getElementById(category + '-icon');
+        if (list.style.display === 'none') {
+            list.style.display = 'grid';
+            icon.className = 'fas fa-chevron-down';
+        } else {
+            list.style.display = 'none';
+            icon.className = 'fas fa-chevron-right';
+        }
+    }
+
+    // Initialize all categories as expanded
+    document.addEventListener('DOMContentLoaded', function() {
+        const categories = ['core', 'science', 'arts_commerce', 'trade'];
+        categories.forEach(cat => {
+            const list = document.getElementById(cat + '-list');
+            if (list) list.style.display = 'grid';
+        });
+        updateSubjectCount();
+    });
+
+    // Select/Deselect all classes for add form
+    function selectAllClasses() {
+        const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = true);
+    }
+
+    function deselectAllClasses() {
+        const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+    }
+
+    // Select/Deselect all classes for edit form
+    function selectAllEditClasses() {
+        const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = true);
+    }
+
+    function deselectAllEditClasses() {
+        const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+    }
+
+    // Delete modal
+    let deleteId = null;
+    let deleteName = '';
+
+    function confirmDelete(id, name) {
+        deleteId = id;
+        deleteName = name;
+        document.getElementById('deleteSubjectName').textContent = name;
+        document.getElementById('deleteModal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('deleteModal').classList.remove('active');
+        deleteId = null;
+    }
+
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (deleteId) {
+                window.location.href = `manage-subjects.php?delete=${deleteId}`;
             }
         });
+    }
 
-        // Subject search filter
-        const subjectSearch = document.getElementById('subjectSearch');
-        const subjectSelect = document.getElementById('central_subject_id');
-        if (subjectSearch && subjectSelect) {
-            subjectSearch.addEventListener('keyup', function() {
-                const term = this.value.toLowerCase();
-                const options = subjectSelect.options;
-                for (let i = 0; i < options.length; i++) {
-                    const text = options[i].textContent.toLowerCase();
-                    if (text.includes(term)) {
-                        options[i].style.display = '';
-                    } else {
-                        options[i].style.display = 'none';
-                    }
-                }
-            });
+    // Close modal with Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
         }
+    });
 
-        // Table search functionality
-        const searchInput = document.getElementById('searchInput');
-        const subjectsTable = document.getElementById('subjectsTable');
-        if (searchInput && subjectsTable) {
-            searchInput.addEventListener('keyup', function() {
-                const term = this.value.toLowerCase();
-                const rows = subjectsTable.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    const text = row.textContent.toLowerCase();
-                    row.style.display = text.includes(term) ? '' : 'none';
-                });
-            });
-        }
-
-        // Select/Deselect all classes for add form
-        function selectAllClasses() {
-            const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = true);
-        }
-
-        function deselectAllClasses() {
-            const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = false);
-        }
-
-        // Select/Deselect all classes for edit form
-        function selectAllEditClasses() {
-            const checkboxes = document.querySelectorAll('input[name="classes[]"]');
-            checkboxes.forEach(cb => cb.checked = true);
-        }
-
-        function deselectAllEditClasses() {
-            const checkboxes = document.querySelectorAll('input[name="classes[]"]');
-            checkboxes.forEach(cb => cb.checked = false);
-        }
-
-        // Delete modal
-        let deleteId = null;
-        let deleteName = '';
-
-        function confirmDelete(id, name) {
-            deleteId = id;
-            deleteName = name;
-            document.getElementById('deleteSubjectName').textContent = name;
-            document.getElementById('deleteModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('deleteModal').classList.remove('active');
-            deleteId = null;
-        }
-
-        const confirmBtn = document.getElementById('confirmDeleteBtn');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-                if (deleteId) {
-                    window.location.href = `manage-subjects.php?delete=${deleteId}`;
-                }
-            });
-        }
-
-        // Close modal with Escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
+    // Auto-hide alerts
+    setTimeout(() => {
+        document.querySelectorAll('.alert').forEach(alert => {
+            alert.style.opacity = '0';
+            alert.style.transition = 'opacity 0.5s';
+            setTimeout(() => alert.remove(), 500);
         });
-
-        // Auto-hide alerts
-        setTimeout(() => {
-            document.querySelectorAll('.alert').forEach(alert => {
-                alert.style.opacity = '0';
-                alert.style.transition = 'opacity 0.5s';
-                setTimeout(() => alert.remove(), 500);
-            });
-        }, 5000);
-    </script>
+    }, 5000);
+</script>
 </body>
 
 </html>

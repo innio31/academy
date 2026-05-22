@@ -54,7 +54,7 @@ if ($topic_id) {
     }
 }
 
-if (!$selected_topic) {
+if (!$selected_topic && !isset($_GET['ajax'])) {
     header("Location: manage-questions.php?error=invalid_topic");
     exit();
 }

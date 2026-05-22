@@ -14,7 +14,7 @@ $admin_role = $_SESSION['admin_role'] ?? $_SESSION['role'] ?? 'admin';
 // ── ============================================= ──
 // ── 👇 PASTE YOUR GEMINI API KEY HERE 👇          ──
 // ── ============================================= ──
-$gemini_api_key = 'AIzaSyD3fG5hJkL9mNpQrStUvWxYz1234567890'; // <- Replace with your actual key!
+$gemini_api_key = 'AIzaSyC1j1rOiSuVkAEQbF0o0UEK5BBn-IfxhyE'; // <- Replace with your actual key!
 
 // ── Set to false when you have a valid API key ──
 $use_mock = false;  // Change to false to use real AI

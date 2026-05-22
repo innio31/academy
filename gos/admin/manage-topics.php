@@ -1,6 +1,6 @@
 <?php
 // admin/manage-topics.php - Manage Topics with Multi-Select Central Curriculum Support
-// Schools can select multiple topics from the central NERDC curriculum at once
+// Creates ONE topic per subject, not per class
 
 session_start();
 
@@ -59,12 +59,6 @@ try {
     if (!$stmt->fetch()) {
         $pdo->exec("ALTER TABLE topics ADD COLUMN term ENUM('First','Second','Third') NULL AFTER topic_name");
     }
-
-    // Add class_level column if not exists
-    $stmt = $pdo->query("SHOW COLUMNS FROM topics LIKE 'class_level'");
-    if (!$stmt->fetch()) {
-        $pdo->exec("ALTER TABLE topics ADD COLUMN class_level VARCHAR(20) NULL AFTER term");
-    }
 } catch (Exception $e) {
     error_log("Table check error: " . $e->getMessage());
 }
@@ -78,7 +72,7 @@ $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $selected_subject = null;
 if ($subject_id) {
     try {
-        $stmt = $pdo->prepare("SELECT * FROM subjects WHERE id = ? AND school_id = ?");
+        $stmt = $pdo->prepare("SELECT s.*, GROUP_CONCAT(DISTINCT sc.class) as assigned_classes FROM subjects s LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id WHERE s.id = ? AND s.school_id = ? GROUP BY s.id");
         $stmt->execute([$subject_id, $school_id]);
         $selected_subject = $stmt->fetch();
     } catch (Exception $e) {
@@ -155,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_topics']
 
         foreach ($selected_topic_ids as $central_topic_id) {
             // Get central topic details
-            $stmt = $pdo->prepare("SELECT topic_name, description, term, class_level FROM topics WHERE id = ? AND school_id IS NULL AND is_central = 1");
+            $stmt = $pdo->prepare("SELECT topic_name, description, term FROM topics WHERE id = ? AND school_id IS NULL AND is_central = 1");
             $stmt->execute([$central_topic_id]);
             $central_topic = $stmt->fetch();
 
@@ -165,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_topics']
             }
 
             // Check if topic already exists for this subject at this school
+            // Note: We check by topic_name AND subject_id, NOT by class
             $stmt = $pdo->prepare("SELECT id FROM topics WHERE topic_name = ? AND subject_id = ? AND school_id = ?");
             $stmt->execute([$central_topic['topic_name'], $subject_id_post, $school_id]);
             if ($stmt->fetch()) {
@@ -172,12 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_topics']
                 continue;
             }
 
-            // Create school-specific copy of the topic
-            $stmt = $pdo->prepare("INSERT INTO topics (topic_name, term, class_level, subject_id, description, school_id, is_central) VALUES (?, ?, ?, ?, ?, ?, 0)");
+            // Create school-specific copy of the topic (ONE topic per subject)
+            $stmt = $pdo->prepare("INSERT INTO topics (topic_name, term, subject_id, description, school_id, is_central) VALUES (?, ?, ?, ?, ?, 0)");
             $stmt->execute([
                 $central_topic['topic_name'],
                 $central_topic['term'],
-                $central_topic['class_level'],
                 $subject_id_post,
                 $central_topic['description'],
                 $school_id
@@ -225,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_from_central'])) 
         }
 
         // Get central topic details
-        $stmt = $pdo->prepare("SELECT topic_name, description, term, class_level FROM topics WHERE id = ? AND school_id IS NULL AND is_central = 1");
+        $stmt = $pdo->prepare("SELECT topic_name, description, term FROM topics WHERE id = ? AND school_id IS NULL AND is_central = 1");
         $stmt->execute([$central_topic_id]);
         $central_topic = $stmt->fetch();
 
@@ -240,12 +234,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_from_central'])) 
             throw new Exception("Topic '{$central_topic['topic_name']}' already exists for this subject!");
         }
 
-        // Create school-specific copy of the topic
-        $stmt = $pdo->prepare("INSERT INTO topics (topic_name, term, class_level, subject_id, description, school_id, is_central) VALUES (?, ?, ?, ?, ?, ?, 0)");
+        // Create school-specific copy of the topic (ONE topic per subject)
+        $stmt = $pdo->prepare("INSERT INTO topics (topic_name, term, subject_id, description, school_id, is_central) VALUES (?, ?, ?, ?, ?, 0)");
         $stmt->execute([
             $central_topic['topic_name'],
             $central_topic['term'],
-            $central_topic['class_level'],
             $subject_id_post,
             $central_topic['description'],
             $school_id
@@ -443,15 +436,13 @@ foreach ($available_central_topics as $topic) {
     }
 }
 
-// Build topics query for school's topics
+// Build topics query for school's topics (ONE topic per subject, NOT per class)
 $query = "
     SELECT t.*, 
-           COALESCE(sc.class, 'N/A') as class,
            (SELECT COUNT(*) FROM objective_questions oq WHERE oq.topic_id = t.id AND oq.school_id = t.school_id) as objective_count,
            (SELECT COUNT(*) FROM subjective_questions sq WHERE sq.topic_id = t.id AND sq.school_id = t.school_id) as subjective_count,
            (SELECT COUNT(*) FROM theory_questions tq WHERE tq.topic_id = t.id AND tq.school_id = t.school_id) as theory_count
     FROM topics t
-    LEFT JOIN subject_classes sc ON t.subject_id = sc.subject_id AND sc.school_id = t.school_id
     WHERE t.school_id = ? AND t.is_central = 0
 ";
 
@@ -669,6 +660,32 @@ try {
             font-size: 0.9rem;
         }
 
+        .subject-info-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            padding: 20px 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .subject-info-card h2 {
+            margin-bottom: 5px;
+        }
+
+        .subject-info-card .class-tags {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .subject-info-card .class-tag {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
         .form-container {
             background: white;
             border-radius: 15px;
@@ -728,7 +745,7 @@ try {
         .topics-multiselect {
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            max-height: 400px;
+            max-height: 450px;
             overflow-y: auto;
         }
 
@@ -762,7 +779,7 @@ try {
         .topic-list {
             padding: 10px 15px;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 8px;
         }
 
@@ -864,11 +881,6 @@ try {
         .badge-info {
             background: #e3f2fd;
             color: #0288d1;
-        }
-
-        .badge-purple {
-            background: #f3e5f5;
-            color: #7b1fa2;
         }
 
         .badge-first {
@@ -1102,6 +1114,19 @@ try {
             border-radius: 20px;
             font-size: 0.85rem;
             margin-left: 10px;
+        }
+
+        .warning-note {
+            background: #fff8e1;
+            border-left: 4px solid var(--warning-color);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #856404;
+            font-size: 0.85rem;
         }
 
         @media (min-width: 769px) {
@@ -1346,18 +1371,32 @@ try {
             <!-- Topics Management Mode -->
 
             <?php if ($selected_subject): ?>
-                <div class="form-container" style="background: linear-gradient(135deg, var(--primary-color), var(--dark-color)); color: white;">
-                    <h2><?php echo htmlspecialchars($selected_subject['subject_name']); ?></h2>
+                <div class="subject-info-card">
+                    <h2><i class="fas fa-book"></i> <?php echo htmlspecialchars($selected_subject['subject_name']); ?></h2>
                     <?php if ($selected_subject['description']): ?>
                         <p><?php echo htmlspecialchars($selected_subject['description']); ?></p>
                     <?php endif; ?>
+                    <?php if ($selected_subject['assigned_classes']): ?>
+                        <div class="class-tags">
+                            <span class="class-tag"><i class="fas fa-users"></i> Classes offering this subject:</span>
+                            <?php foreach (explode(',', $selected_subject['assigned_classes']) as $class): ?>
+                                <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                     <p style="margin-top: 10px;"><i class="fas fa-list"></i> <?php echo count($topics); ?> Topics added</p>
+                </div>
+
+                <!-- Warning Note -->
+                <div class="warning-note">
+                    <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
+                    <span><strong>Important:</strong> Each topic is created once per subject, NOT per class. The topic will be available for ALL classes that offer this subject. You don't need to add the same topic multiple times for different classes.</span>
                 </div>
 
                 <!-- Info Note -->
                 <div class="info-note">
                     <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
-                    <span>Topics are based on the approved NERDC national curriculum. Select multiple topics below to add them to this subject at once.</span>
+                    <span>Topics are based on the approved NERDC national curriculum. Select multiple topics below to add them to this subject at once. Each topic will be created once and shared across all classes that offer this subject.</span>
                 </div>
 
                 <!-- Add Multiple Topics from Central List -->
@@ -1675,8 +1714,6 @@ try {
     }
 
     // Topic multi-select functions
-    let allTopics = [];
-
     function updateTopicCount() {
         const checkboxes = document.querySelectorAll('.topic-checkbox:checked');
         const count = checkboxes.length;

@@ -42,7 +42,8 @@ $selected_topic = null;
 if ($topic_id) {
     try {
         $stmt = $pdo->prepare("
-            SELECT t.*, s.subject_name, s.id as subject_id 
+            SELECT t.*, s.subject_name, s.id as subject_id,
+                   COALESCE(t.class_level, t.class, '') as class
             FROM topics t 
             JOIN subjects s ON t.subject_id = s.id 
             WHERE t.id = ? AND t.school_id = ?

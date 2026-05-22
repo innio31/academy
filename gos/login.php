@@ -1,21 +1,10 @@
 <?php
-// gos/login.php - Add near the top after session_start()
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 session_start();
-require_once 'includes/config.php';
 
-// Check if system has active subscription (allow access to login page but show warning)
-$subscription_status = checkSubscriptionStatus($pdo);
-
-// If subscription is expired, show warning but still allow login form
-$subscription_expired_warning = '';
-if ($subscription_status['should_block']) {
-    $subscription_expired_warning = '
-        <div class="alert alert-warning" style="background: #fff3cd; border: 1px solid #f39c12; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Subscription Expired!</strong> Your school subscription has expired. Please contact the administrator to renew.
-        </div>
-    ';
-}
+// Include config - this creates $pdo as global
+require_once __DIR__ . '/includes/config.php';
 
 // Get $pdo from global
 global $pdo;
@@ -605,7 +594,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
                 <span>Get the App</span>
             </div>
 
-            <button class="install-btn" id="installBtn">
+            <button class="install-btn" id="installBtn" style="display: none;">
                 <i class="fas fa-download"></i> Install App
             </button>
         </div>
@@ -691,7 +680,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             if (userType === 'student') {
                 usernameField.placeholder = 'Admission Number (e.g., GOS/2024/001)';
             } else if (userType === 'staff') {
-                usernameField.placeholder = 'Staff ID (e.g., MSV0001)';
+                usernameField.placeholder = 'Staff ID (e.g., GOS0001)';
             } else {
                 usernameField.placeholder = 'Username (e.g., admin)';
             }
@@ -702,27 +691,42 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             document.getElementById('user_type').dispatchEvent(new Event('change'));
         }
 
-        // Install button handler
+        // PWA Installation - Updated code
         window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
+            // Stash the event so it can be triggered later
             deferredPrompt = e;
+            // Update UI to notify the user they can install the PWA
             const installBtn = document.getElementById('installBtn');
-            installBtn.innerHTML = '<i class="fas fa-download"></i> Install Now';
-        });
-
-        document.getElementById('installBtn').addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const {
-                    outcome
-                } = await deferredPrompt.userChoice;
-                console.log(`Install: ${outcome}`);
-                deferredPrompt = null;
-            } else {
-                alert('To install:\n• Chrome: Tap menu (⋮) → Install App\n• Safari: Share → Add to Home Screen');
+            if (installBtn) {
+                installBtn.style.display = 'flex';
+                installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
             }
+            console.log('Install prompt ready');
         });
 
+        // Function to handle the install button click
+        function installPWA() {
+            if (deferredPrompt) {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+
+        // Make sure the install button calls this function
+        document.getElementById('installBtn')?.addEventListener('click', installPWA);
+
+        // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('SW registered'))

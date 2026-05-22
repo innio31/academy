@@ -1,10 +1,10 @@
 <?php
-// admin/add_questions.php - Add Questions with Import from Central Bank & CSV Bulk Import
-// Central Bank questions are stored locally with is_central = 1 AND school_id IS NULL
+// admin/add_questions.php - Add Questions with Proper Central Mapping
+// Maps central subject/topic IDs to school's local IDs
 
 session_start();
 
-// Check if admin is logged in (support both session styles)
+// Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header("Location: /gos/login.php");
     exit();
@@ -37,10 +37,13 @@ $primary_color = SCHOOL_PRIMARY;
 $topic_id = isset($_GET['topic_id']) ? (int)$_GET['topic_id'] : 0;
 $question_type = isset($_GET['type']) ? $_GET['type'] : 'objective';
 
-// Validate topic and get details
+// Validate topic and get details (this is the SCHOOL's topic)
 $selected_topic = null;
+$school_subject_id = null;
+
 if ($topic_id) {
     try {
+        // Get the school's topic with its subject
         $stmt = $pdo->prepare("
             SELECT t.*, s.subject_name, s.id as subject_id 
             FROM topics t 
@@ -49,6 +52,10 @@ if ($topic_id) {
         ");
         $stmt->execute([$topic_id, $school_id]);
         $selected_topic = $stmt->fetch();
+
+        if ($selected_topic) {
+            $school_subject_id = $selected_topic['subject_id'];
+        }
     } catch (Exception $e) {
         error_log("Error loading topic: " . $e->getMessage());
     }
@@ -67,7 +74,6 @@ $message_type = '';
 // ============================================
 
 try {
-    // Add is_central column if not exists
     $tables = ['objective_questions', 'subjective_questions', 'theory_questions'];
     foreach ($tables as $table) {
         $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'is_central'");
@@ -81,7 +87,6 @@ try {
             $pdo->exec("ALTER TABLE $table ADD COLUMN central_source_id INT DEFAULT NULL");
         }
 
-        // Add class column if not exists (for storing the class at import time)
         $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'class'");
         if ($check->rowCount() == 0) {
             $pdo->exec("ALTER TABLE $table ADD COLUMN class VARCHAR(50) DEFAULT NULL");
@@ -92,88 +97,149 @@ try {
 }
 
 // ============================================
-// AJAX HANDLERS FOR CENTRAL BANK IMPORT (LOCAL DB)
+// AJAX HANDLERS FOR CENTRAL BANK IMPORT
 // ============================================
 
-// Get central subjects (subjects that have central questions)
+// Get central subjects (subjects that have central questions, excluding ones the school already has)
 if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_subjects') {
     header('Content-Type: application/json');
     try {
         $question_type = $_GET['question_type'] ?? 'objective';
         $table = $question_type . '_questions';
 
+        // Get central subjects that have questions
         $stmt = $pdo->prepare("
-            SELECT DISTINCT s.id, s.subject_name 
+            SELECT DISTINCT s.id as central_id, s.subject_name 
             FROM subjects s
             JOIN $table q ON q.subject_id = s.id
             WHERE q.is_central = 1 AND q.school_id IS NULL
             ORDER BY s.subject_name
         ");
         $stmt->execute();
-        $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $central_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        echo json_encode(['success' => true, 'subjects' => $subjects]);
+        // For each central subject, check if the school already has it
+        foreach ($central_subjects as &$subject) {
+            $stmt = $pdo->prepare("
+                SELECT id FROM subjects 
+                WHERE subject_name = ? AND school_id = ? AND is_central = 0
+            ");
+            $stmt->execute([$subject['subject_name'], $school_id]);
+            $school_subject = $stmt->fetch();
+
+            $subject['has_school_version'] = $school_subject ? true : false;
+            $subject['school_subject_id'] = $school_subject ? $school_subject['id'] : null;
+        }
+
+        echo json_encode(['success' => true, 'subjects' => $central_subjects]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit();
 }
 
-// Get central topics for a subject
+// Get central topics for a subject (matching by name, not ID)
 if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_topics') {
     header('Content-Type: application/json');
     try {
-        $subject_id = (int)$_GET['subject_id'];
+        $central_subject_id = (int)$_GET['central_subject_id'];
         $question_type = $_GET['question_type'] ?? 'objective';
         $table = $question_type . '_questions';
 
+        // First, get the central subject name
+        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
+        $stmt->execute([$central_subject_id]);
+        $central_subject = $stmt->fetch();
+
+        if (!$central_subject) {
+            echo json_encode(['success' => false, 'error' => 'Central subject not found']);
+            exit();
+        }
+
+        // Get the school's version of this subject (by name)
+        $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ? AND is_central = 0");
+        $stmt->execute([$central_subject['subject_name'], $school_id]);
+        $school_subject = $stmt->fetch();
+
+        // Get central topics for this subject
         $stmt = $pdo->prepare("
-            SELECT DISTINCT t.id, t.topic_name 
+            SELECT DISTINCT t.id as central_topic_id, t.topic_name, t.term
             FROM topics t
             JOIN $table q ON q.topic_id = t.id
             WHERE t.subject_id = ? AND q.is_central = 1 AND q.school_id IS NULL
-            ORDER BY t.topic_name
+            ORDER BY t.term, t.topic_name
         ");
-        $stmt->execute([$subject_id]);
-        $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute([$central_subject_id]);
+        $central_topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        echo json_encode(['success' => true, 'topics' => $topics]);
+        // For each central topic, check if the school already has it
+        foreach ($central_topics as &$topic) {
+            if ($school_subject) {
+                $stmt = $pdo->prepare("
+                    SELECT id FROM topics 
+                    WHERE topic_name = ? AND subject_id = ? AND school_id = ? AND is_central = 0
+                ");
+                $stmt->execute([$topic['topic_name'], $school_subject['id'], $school_id]);
+                $school_topic = $stmt->fetch();
+
+                $topic['has_school_version'] = $school_topic ? true : false;
+                $topic['school_topic_id'] = $school_topic ? $school_topic['id'] : null;
+            } else {
+                $topic['has_school_version'] = false;
+                $topic['school_topic_id'] = null;
+            }
+        }
+
+        echo json_encode(['success' => true, 'topics' => $central_topics, 'school_subject_id' => $school_subject['id'] ?? null]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit();
 }
 
-// Get central questions for a topic
+// Get central questions for a topic (mapping to school's topic by name)
 if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
     header('Content-Type: application/json');
     try {
-        $source_topic_id = (int)$_GET['topic_id'];
+        $central_topic_id = (int)$_GET['central_topic_id'];
         $question_type = $_GET['question_type'] ?? 'objective';
-        $current_topic_id = (int)$_GET['current_topic_id'];
-        $current_school_id = $school_id;
         $table = $question_type . '_questions';
+        $current_school_topic_id = (int)$_GET['current_topic_id'];
 
-        // Get central questions from source topic
+        // Get the central topic details
+        $stmt = $pdo->prepare("
+            SELECT t.topic_name, t.subject_id as central_subject_id 
+            FROM topics t 
+            WHERE t.id = ? AND t.school_id IS NULL AND t.is_central = 1
+        ");
+        $stmt->execute([$central_topic_id]);
+        $central_topic = $stmt->fetch();
+
+        if (!$central_topic) {
+            echo json_encode(['success' => false, 'error' => 'Central topic not found']);
+            exit();
+        }
+
+        // Get central questions
         $stmt = $pdo->prepare("
             SELECT q.* 
             FROM $table q
             WHERE q.topic_id = ? AND q.is_central = 1 AND q.school_id IS NULL
             ORDER BY q.id
         ");
-        $stmt->execute([$source_topic_id]);
+        $stmt->execute([$central_topic_id]);
         $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Mark which questions already exist in current topic (by checking central_source_id or duplicate text)
+        // Check which questions are already imported to the current school topic
         foreach ($questions as &$q) {
-            // Check if already imported to this topic
-            $check = $pdo->prepare("
+            // Check by central_source_id (tracking which central question was imported)
+            $stmt = $pdo->prepare("
                 SELECT id FROM $table 
                 WHERE central_source_id = ? AND topic_id = ? AND school_id = ?
                 LIMIT 1
             ");
-            $check->execute([$q['id'], $current_topic_id, $current_school_id]);
-            $q['already_imported'] = $check->rowCount() > 0;
+            $stmt->execute([$q['id'], $current_school_topic_id, $school_id]);
+            $q['already_imported'] = $stmt->rowCount() > 0;
         }
 
         echo json_encode(['success' => true, 'questions' => $questions]);
@@ -184,17 +250,56 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
 }
 
 // ============================================
-// HANDLE IMPORT FROM CENTRAL BANK (LOCAL)
+// HANDLE IMPORT FROM CENTRAL BANK
 // ============================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central'])) {
     try {
         $selected_questions = isset($_POST['selected_questions']) ? $_POST['selected_questions'] : [];
-        $source_topic_id = (int)$_POST['source_topic_id'];
+        $central_topic_id = (int)$_POST['central_topic_id'];
         $import_type = $_POST['import_question_type'];
 
         if (empty($selected_questions)) {
             throw new Exception("Please select at least one question to import");
+        }
+
+        // Get the central topic details to find the matching school topic
+        $stmt = $pdo->prepare("
+            SELECT t.topic_name, t.subject_id as central_subject_id
+            FROM topics t 
+            WHERE t.id = ? AND t.school_id IS NULL AND t.is_central = 1
+        ");
+        $stmt->execute([$central_topic_id]);
+        $central_topic = $stmt->fetch();
+
+        if (!$central_topic) {
+            throw new Exception("Central topic not found");
+        }
+
+        // Get the school's subject (by central subject name)
+        $stmt = $pdo->prepare("
+            SELECT s.id FROM subjects s 
+            WHERE s.subject_name = (
+                SELECT subject_name FROM subjects WHERE id = ? AND school_id IS NULL
+            ) AND s.school_id = ?
+        ");
+        $stmt->execute([$central_topic['central_subject_id'], $school_id]);
+        $school_subject = $stmt->fetch();
+
+        if (!$school_subject) {
+            throw new Exception("School subject not found. Please make sure you've added the subject to your school.");
+        }
+
+        // Get the school's topic (by name)
+        $stmt = $pdo->prepare("
+            SELECT t.id FROM topics t 
+            WHERE t.topic_name = ? AND t.subject_id = ? AND t.school_id = ?
+        ");
+        $stmt->execute([$central_topic['topic_name'], $school_subject['id'], $school_id]);
+        $school_topic = $stmt->fetch();
+
+        if (!$school_topic) {
+            throw new Exception("School topic not found. Please make sure you've added the topic to your subject.");
         }
 
         $imported_count = 0;
@@ -211,20 +316,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                 $q = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($q) {
-                    // Check if already imported to this topic
+                    // Check if already imported to this topic (by central_source_id)
                     $check = $pdo->prepare("
                         SELECT id FROM objective_questions 
                         WHERE central_source_id = ? AND topic_id = ? AND school_id = ?
                         LIMIT 1
                     ");
-                    $check->execute([$q['id'], $topic_id, $school_id]);
+                    $check->execute([$q['id'], $school_topic['id'], $school_id]);
 
                     if ($check->fetch()) {
                         $skipped_count++;
                         continue;
                     }
 
-                    // Insert copy with source reference
+                    // Insert copy with source reference (use school's subject_id and topic_id)
                     $insert = $pdo->prepare("
                         INSERT INTO objective_questions 
                         (question_text, option_a, option_b, option_c, option_d, correct_answer, 
@@ -241,8 +346,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         $q['correct_answer'],
                         $q['difficulty_level'] ?? 'medium',
                         $q['marks'] ?? 1,
-                        $selected_topic['subject_id'],
-                        $topic_id,
+                        $school_subject['id'],
+                        $school_topic['id'],
                         $selected_topic['class'],
                         $school_id,
                         $q['question_image'] ?? null,
@@ -264,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         WHERE central_source_id = ? AND topic_id = ? AND school_id = ?
                         LIMIT 1
                     ");
-                    $check->execute([$q['id'], $topic_id, $school_id]);
+                    $check->execute([$q['id'], $school_topic['id'], $school_id]);
 
                     if ($check->fetch()) {
                         $skipped_count++;
@@ -282,8 +387,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         $q['correct_answer'] ?? '',
                         $q['difficulty_level'] ?? 'medium',
                         $q['marks'] ?? 1,
-                        $selected_topic['subject_id'],
-                        $topic_id,
+                        $school_subject['id'],
+                        $school_topic['id'],
                         $selected_topic['class'],
                         $school_id,
                         $q['id']
@@ -304,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         WHERE central_source_id = ? AND topic_id = ? AND school_id = ?
                         LIMIT 1
                     ");
-                    $check->execute([$q['id'], $topic_id, $school_id]);
+                    $check->execute([$q['id'], $school_topic['id'], $school_id]);
 
                     if ($check->fetch()) {
                         $skipped_count++;
@@ -321,8 +426,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
                         $q['question_text'],
                         $q['question_file'] ?? null,
                         $q['marks'] ?? 5,
-                        $selected_topic['subject_id'],
-                        $topic_id,
+                        $school_subject['id'],
+                        $school_topic['id'],
                         $selected_topic['class'],
                         $school_id,
                         $q['id']
@@ -357,165 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
 }
 
 // ============================================
-// HANDLE CSV BULK IMPORT
-// ============================================
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['csv_import'])) {
-    try {
-        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception("Please upload a valid CSV file");
-        }
-
-        $csv_file = $_FILES['csv_file']['tmp_name'];
-        $import_type = $_POST['csv_import_type'];
-
-        // Open and read CSV
-        $handle = fopen($csv_file, 'r');
-        if (!$handle) {
-            throw new Exception("Could not read CSV file");
-        }
-
-        // Get header row
-        $headers = fgetcsv($handle);
-
-        // Expected headers based on type
-        if ($import_type == 'objective') {
-            $expected = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'difficulty_level', 'marks'];
-        } elseif ($import_type == 'subjective') {
-            $expected = ['question_text', 'correct_answer', 'difficulty_level', 'marks'];
-        } else {
-            $expected = ['question_text', 'marks'];
-        }
-
-        // Map headers to indices
-        $header_map = [];
-        foreach ($expected as $field) {
-            $index = array_search($field, $headers);
-            if ($index === false) {
-                throw new Exception("CSV missing required column: $field");
-            }
-            $header_map[$field] = $index;
-        }
-
-        $imported_count = 0;
-        $error_count = 0;
-        $errors = [];
-        $row_num = 1;
-
-        while (($row = fgetcsv($handle)) !== false) {
-            $row_num++;
-
-            try {
-                if ($import_type == 'objective') {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $option_a = trim($row[$header_map['option_a']] ?? '');
-                    $option_b = trim($row[$header_map['option_b']] ?? '');
-                    $option_c = trim($row[$header_map['option_c']] ?? '');
-                    $option_d = trim($row[$header_map['option_d']] ?? '');
-                    $correct_answer = strtoupper(trim($row[$header_map['correct_answer']] ?? ''));
-                    $difficulty_level = trim($row[$header_map['difficulty_level']] ?? 'medium');
-                    $marks = (int)($row[$header_map['marks']] ?? 1);
-
-                    if (empty($question_text) || empty($option_a) || empty($option_b) || empty($correct_answer)) {
-                        throw new Exception("Missing required fields");
-                    }
-
-                    if (!in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
-                        throw new Exception("Correct answer must be A, B, C, or D");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO objective_questions 
-                        (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-                         difficulty_level, marks, subject_id, topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $option_a,
-                        $option_b,
-                        $option_c,
-                        $option_d,
-                        $correct_answer,
-                        $difficulty_level,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                } elseif ($import_type == 'subjective') {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $correct_answer = trim($row[$header_map['correct_answer']] ?? '');
-                    $difficulty_level = trim($row[$header_map['difficulty_level']] ?? 'medium');
-                    $marks = (int)($row[$header_map['marks']] ?? 1);
-
-                    if (empty($question_text)) {
-                        throw new Exception("Question text is required");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO subjective_questions 
-                        (question_text, correct_answer, difficulty_level, marks, subject_id, 
-                         topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $correct_answer,
-                        $difficulty_level,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                } else {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $marks = (int)($row[$header_map['marks']] ?? 5);
-
-                    if (empty($question_text)) {
-                        throw new Exception("Question text is required");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO theory_questions 
-                        (question_text, marks, subject_id, topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                }
-            } catch (Exception $e) {
-                $error_count++;
-                $errors[] = "Row $row_num: " . $e->getMessage();
-            }
-        }
-
-        fclose($handle);
-
-        $message = "Successfully imported $imported_count $import_type question(s) via CSV.";
-        if ($error_count > 0) {
-            $message .= " $error_count row(s) had errors.";
-        }
-        $message_type = "success";
-    } catch (Exception $e) {
-        $message = "CSV Import error: " . $e->getMessage();
-        $message_type = "error";
-    }
-}
-
-// ============================================
-// HANDLE REGULAR QUESTION SUBMISSIONS
+// HANDLE REGULAR QUESTION SUBMISSIONS (same as before)
 // ============================================
 
 // Handle Objective Question
@@ -695,10 +642,9 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
     if ($type == 'objective') {
         fputcsv($output, ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'difficulty_level', 'marks']);
         fputcsv($output, ['What is 2 + 2?', '3', '4', '5', '6', 'B', 'easy', '1']);
-        fputcsv($output, ['Who wrote "Things Fall Apart"?', 'Chinua Achebe', 'Wole Soyinka', 'Chimamanda Adichie', 'Ben Okri', 'A', 'medium', '1']);
     } elseif ($type == 'subjective') {
         fputcsv($output, ['question_text', 'correct_answer', 'difficulty_level', 'marks']);
-        fputcsv($output, ['Explain the concept of photosynthesis', 'Photosynthesis is the process by which plants make their own food using sunlight, water, and carbon dioxide.', 'medium', '5']);
+        fputcsv($output, ['Explain the concept of photosynthesis', 'Photosynthesis is the process by which plants make their own food.', 'medium', '5']);
     } else {
         fputcsv($output, ['question_text', 'marks']);
         fputcsv($output, ['Discuss the causes of World War I', '10']);
@@ -746,7 +692,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             overflow-x: hidden;
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -817,7 +762,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             background: rgba(255, 255, 255, 0.2);
         }
 
-        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
@@ -869,7 +813,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             gap: 8px;
         }
 
-        /* Tabs */
         .tabs-navigation {
             background: white;
             border-radius: 15px;
@@ -919,7 +862,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             display: block;
         }
 
-        /* Form Styles */
         .form-section {
             background: #f8f9fa;
             padding: 25px;
@@ -1087,7 +1029,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             text-decoration: underline;
         }
 
-        /* Import Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -1260,33 +1201,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             font-size: 0.8rem;
         }
 
-        /* CSV Import Section */
-        .csv-section {
-            margin-bottom: 30px;
-            border: 2px dashed #ddd;
-            background: #fafafa;
-        }
-
-        .csv-section .form-header {
-            background: #f0f0f0;
-            padding: 15px 20px;
-            border-radius: 12px 12px 0 0;
-        }
-
-        .template-link {
-            margin-top: 10px;
-            font-size: 0.85rem;
-        }
-
-        .template-link a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        .template-link a:hover {
-            text-decoration: underline;
-        }
-
         @media (min-width: 769px) {
             .sidebar {
                 transform: translateX(0);
@@ -1325,7 +1239,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
@@ -1353,7 +1266,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         </ul>
     </div>
 
-    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
@@ -1375,8 +1287,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($selected_topic['topic_name']); ?></h2>
             <div class="topic-meta">
                 <span class="meta-item"><i class="fas fa-arrow-left"></i> <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">Back to Questions</a></span>
-                <span class="meta-item"><i class="fas fa-database"></i> <a href="#" onclick="openCentralImportModal()">Import from Central Bank</a> <i class="fas fa-check-circle central-icon" title="Verified by Developer Team"></i></span>
-                <span class="meta-item"><i class="fas fa-file-csv"></i> <a href="#" onclick="document.getElementById('csvModal').classList.add('active')">Bulk Import from CSV/Excel</a></span>
+                <span class="meta-item"><i class="fas fa-database"></i> <a href="#" onclick="openCentralImportModal()">Import from Central Bank</a> <i class="fas fa-check-circle central-icon" title="Verified Questions"></i></span>
             </div>
         </div>
 
@@ -1557,12 +1468,14 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                         <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
                             <option value="">-- Select Subject --</option>
                         </select>
+                        <small>Subjects that have verified questions in the central bank</small>
                     </div>
                     <div class="form-group">
                         <label>Select Topic</label>
                         <select id="centralTopicSelect" class="form-control" onchange="loadCentralQuestions()">
                             <option value="">-- Select Topic --</option>
                         </select>
+                        <small>Select a topic to view available questions</small>
                     </div>
                     <div class="form-group">
                         <label>Question Type</label>
@@ -1587,53 +1500,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         </div>
     </div>
 
-    <!-- CSV Bulk Import Modal -->
-    <div class="modal" id="csvModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-file-csv"></i> Bulk Import Questions from CSV/Excel</h3>
-                <button class="close-modal" onclick="closeCSVModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="info-note" style="background: #e8f4fd; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
-                    <i class="fas fa-info-circle"></i>
-                    <span>Upload a CSV file with your questions. Download the template below for the correct format.</span>
-                </div>
-
-                <form method="POST" action="" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label>Question Type</label>
-                        <select name="csv_import_type" id="csv_import_type" class="form-control" required>
-                            <option value="objective">Objective Questions</option>
-                            <option value="subjective">Subjective Questions</option>
-                            <option value="theory">Theory Questions</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>CSV File</label>
-                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
-                    </div>
-
-                    <div class="template-link">
-                        <i class="fas fa-download"></i>
-                        <a href="#" onclick="downloadTemplate()">Download CSV Template</a> for the selected question type
-                    </div>
-
-                    <div class="form-actions" style="margin-top: 20px;">
-                        <button type="button" class="btn btn-secondary" onclick="closeCSVModal()">Cancel</button>
-                        <button type="submit" name="csv_import" class="btn btn-success"><i class="fas fa-upload"></i> Import Questions</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // ============================================
-        // MOBILE MENU & UI UTILITIES
-        // ============================================
-
         // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
@@ -1649,7 +1516,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             }
         });
 
-        // Tab switching
         function switchTab(tabName) {
             const url = new URL(window.location);
             url.searchParams.set('type', tabName);
@@ -1662,7 +1528,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             document.getElementById(tabName + 'Tab').classList.add('active');
         }
 
-        // Auto-hide alert after 5 seconds
         setTimeout(() => {
             document.querySelectorAll('.alert').forEach(alert => {
                 alert.style.opacity = '0';
@@ -1671,7 +1536,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             });
         }, 5000);
 
-        // Preserve tab from URL
         const urlParams = new URLSearchParams(window.location.search);
         const typeParam = urlParams.get('type');
         if (typeParam && ['objective', 'subjective', 'theory'].includes(typeParam)) {
@@ -1679,16 +1543,19 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         }
 
         // ============================================
-        // CENTRAL BANK IMPORT FUNCTIONS (LOCAL DB)
+        // CENTRAL BANK IMPORT FUNCTIONS
         // ============================================
 
         const currentTopicId = <?php echo $topic_id; ?>;
+        let selectedCentralQuestionIds = new Set();
+        let currentCentralTopicId = null;
+        let currentCentralQuestions = [];
 
         async function openCentralImportModal() {
             const modal = document.getElementById('centralImportModal');
             if (modal) {
                 modal.classList.add('active');
-                await loadCentralSubjectsFromLocal();
+                await loadCentralSubjects();
             }
         }
 
@@ -1700,18 +1567,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             selectedCentralQuestionIds.clear();
         }
 
-        function closeCSVModal() {
-            document.getElementById('csvModal').classList.remove('active');
-        }
-
-        function downloadTemplate() {
-            const type = document.getElementById('csv_import_type').value;
-            window.location.href = `add_questions.php?topic_id=<?php echo $topic_id; ?>&download_template=1&type=${type}`;
-        }
-
-        let selectedCentralQuestionIds = new Set();
-
-        async function loadCentralSubjectsFromLocal() {
+        async function loadCentralSubjects() {
             const container = document.getElementById('centralImportContent');
             const loadingDiv = document.getElementById('centralImportLoading');
 
@@ -1733,7 +1589,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                     if (subjectSelect) {
                         subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
                         data.subjects.forEach(subject => {
-                            subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
+                            subjectSelect.innerHTML += `<option value="${subject.central_id}">${escapeHtml(subject.subject_name)}</option>`;
                         });
                     }
 
@@ -1745,7 +1601,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                     throw new Error(data.error || 'Failed to load subjects');
                 }
             } catch (error) {
-                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added to the database with is_central = 1.</div>`;
+                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added to the database with is_central = 1 and school_id = NULL.</div>`;
                 if (loadingDiv) {
                     loadingDiv.innerHTML = errorMsg;
                 } else {
@@ -1755,11 +1611,11 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         }
 
         async function loadCentralTopics() {
-            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const centralSubjectId = document.getElementById('centralSubjectSelect')?.value;
             const topicSelect = document.getElementById('centralTopicSelect');
             const questionType = document.getElementById('centralQuestionType')?.value || 'objective';
 
-            if (!subjectId || !topicSelect) {
+            if (!centralSubjectId || !topicSelect) {
                 if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
                 return;
             }
@@ -1767,13 +1623,13 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             topicSelect.innerHTML = '<option value="">Loading topics...</option>';
 
             try {
-                const response = await fetch(`add_questions.php?ajax=get_central_topics&subject_id=${subjectId}&question_type=${questionType}`);
+                const response = await fetch(`add_questions.php?ajax=get_central_topics&central_subject_id=${centralSubjectId}&question_type=${questionType}`);
                 const data = await response.json();
 
                 if (data.success) {
                     topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
                     data.topics.forEach(topic => {
-                        topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
+                        topicSelect.innerHTML += `<option value="${topic.central_topic_id}">${escapeHtml(topic.topic_name)} (${topic.term || 'General'})</option>`;
                     });
                 } else {
                     topicSelect.innerHTML = '<option value="">Error loading topics</option>';
@@ -1784,22 +1640,25 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         }
 
         async function loadCentralQuestions() {
-            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const centralTopicId = document.getElementById('centralTopicSelect')?.value;
             const questionType = document.getElementById('centralQuestionType')?.value || 'objective';
             const container = document.getElementById('centralQuestionsContainer');
 
-            if (!topicId || !container) {
+            if (!centralTopicId || !container) {
                 if (container) container.innerHTML = '<div class="loading" style="padding: 20px;"><p>Select a topic to view questions...</p></div>';
                 return;
             }
 
+            currentCentralTopicId = centralTopicId;
+
             container.innerHTML = '<div class="loading" style="padding: 20px;"><div class="spinner" style="width: 30px; height: 30px;"></div><p>Loading questions...</p></div>';
 
             try {
-                const response = await fetch(`add_questions.php?ajax=get_central_questions&topic_id=${topicId}&question_type=${questionType}&current_topic_id=${currentTopicId}`);
+                const response = await fetch(`add_questions.php?ajax=get_central_questions&central_topic_id=${centralTopicId}&question_type=${questionType}&current_topic_id=${currentTopicId}`);
                 const data = await response.json();
 
                 if (data.success && data.questions) {
+                    currentCentralQuestions = data.questions;
                     selectedCentralQuestionIds.clear();
                     renderCentralQuestionsList(data.questions);
                 } else {
@@ -1912,10 +1771,15 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                 return;
             }
 
-            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const centralTopicId = document.getElementById('centralTopicSelect')?.value;
             const questionType = document.getElementById('centralQuestionType')?.value;
 
-            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified and will be added to your local question bank.`)) {
+            if (!centralTopicId) {
+                alert('Please select a topic first.');
+                return;
+            }
+
+            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions will be added to "${document.querySelector('#centralTopicSelect option:checked')?.textContent || 'the selected topic'}" in your school.`)) {
                 return;
             }
 
@@ -1930,16 +1794,16 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             importField.value = '1';
             form.appendChild(importField);
 
-            const sourceTopicField = document.createElement('input');
-            sourceTopicField.type = 'hidden';
-            sourceTopicField.name = 'source_topic_id';
-            sourceTopicField.value = topicId || '0';
-            form.appendChild(sourceTopicField);
+            const centralTopicField = document.createElement('input');
+            centralTopicField.type = 'hidden';
+            centralTopicField.name = 'central_topic_id';
+            centralTopicField.value = centralTopicId;
+            form.appendChild(centralTopicField);
 
             const importTypeField = document.createElement('input');
             importTypeField.type = 'hidden';
             importTypeField.name = 'import_question_type';
-            importTypeField.value = questionType || '';
+            importTypeField.value = questionType || 'objective';
             form.appendChild(importTypeField);
 
             selectedCentralQuestionIds.forEach(id => {

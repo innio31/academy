@@ -1337,7 +1337,7 @@ if (isset($_GET['edit'])) {
             <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Manage Topics">
                 <i class="fas fa-tags"></i>
             </a>
-            <a href="manage_questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
+            <a href="manage-questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
                 <i class="fas fa-question-circle"></i>
             </a>
             <?php

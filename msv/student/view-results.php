@@ -1,9 +1,9 @@
 <?php
-// gos/student/view-results.php - View Results
+// msv/student/view-results.php - View Results
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -284,7 +284,7 @@ if ($exam_id) {
             <li><a href="view-results.php" class="active"><i class="fas fa-chart-bar"></i> My Results</a></li>
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -293,7 +293,7 @@ if ($exam_id) {
             <div class="header-title">
                 <h1><i class="fas fa-chart-bar"></i> My Results</h1>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if ($exam_result): ?>

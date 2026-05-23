@@ -1,5 +1,5 @@
 <?php
-// gos/staff/attendance_api.php - Attendance API for AJAX requests
+// msv/staff/attendance_api.php - Attendance API for AJAX requests
 session_start();
 
 require_once '../includes/config.php';

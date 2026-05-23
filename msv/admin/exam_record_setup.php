@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_record_setup.php - Create / Edit Exam Record Setup
+// msv/admin/exam_record_setup.php - Create / Edit Exam Record Setup
 
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth check ────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -1206,7 +1206,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                 <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>

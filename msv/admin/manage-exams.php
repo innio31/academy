@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -69,9 +69,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
         ");
 
         $result = $stmt->execute([
-            $exam_name, $class, $subject_id, $topics, $duration_minutes,
-            $objective_count, $subjective_count, $theory_count, $exam_type,
-            $instructions, $is_active, $school_id  // 11 values
+            $exam_name,
+            $class,
+            $subject_id,
+            $topics,
+            $duration_minutes,
+            $objective_count,
+            $subjective_count,
+            $theory_count,
+            $exam_type,
+            $instructions,
+            $is_active,
+            $school_id  // 11 values
         ]);
 
         if ($result) {
@@ -121,9 +130,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
         ");
 
         $result = $stmt->execute([
-            $exam_name, $class, $subject_id, $topics, $duration_minutes,
-            $objective_count, $subjective_count, $theory_count, $exam_type,
-            $instructions, $is_active, $exam_id, $school_id  // 13 values for 13 placeholders
+            $exam_name,
+            $class,
+            $subject_id,
+            $topics,
+            $duration_minutes,
+            $objective_count,
+            $subjective_count,
+            $theory_count,
+            $exam_type,
+            $instructions,
+            $is_active,
+            $exam_id,
+            $school_id  // 13 values for 13 placeholders
         ]);
 
         if ($result) {
@@ -161,9 +180,16 @@ if (isset($_GET['clone_exam'])) {
 
             $new_name = $original['exam_name'] . " (Copy)";
             $stmt->execute([
-                $new_name, $original['class'], $original['subject_id'], $original['topics'],
-                $original['duration_minutes'], $original['objective_count'], $original['subjective_count'],
-                $original['theory_count'], $original['exam_type'], $original['instructions'],
+                $new_name,
+                $original['class'],
+                $original['subject_id'],
+                $original['topics'],
+                $original['duration_minutes'],
+                $original['objective_count'],
+                $original['subjective_count'],
+                $original['theory_count'],
+                $original['exam_type'],
+                $original['instructions'],
                 $school_id  // 11 values
             ]);
 
@@ -209,9 +235,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
         ");
 
         $result = $stmt->execute([
-            $exam_name, $class, $subject_id, $topics, $duration_minutes,
-            $objective_count, $subjective_count, $theory_count, $exam_type,
-            $instructions, $is_active, $school_id  // 11 values
+            $exam_name,
+            $class,
+            $subject_id,
+            $topics,
+            $duration_minutes,
+            $objective_count,
+            $subjective_count,
+            $theory_count,
+            $exam_type,
+            $instructions,
+            $is_active,
+            $school_id  // 11 values
         ]);
 
         if ($result) {
@@ -277,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
                     :school_id,
                     NOW()
                 )";
-        
+
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
             ':exam_name' => $exam_name,
@@ -345,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
                     is_active = :is_active,
                     updated_at = NOW()
                 WHERE id = :exam_id AND school_id = :school_id";
-        
+
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
             ':exam_name' => $exam_name,
@@ -449,9 +484,16 @@ if (isset($_GET['clone_exam'])) {
 
             $new_name = $original['exam_name'] . " (Copy)";
             $stmt->execute([
-                $new_name, $original['class'], $original['subject_id'], $original['topics'],
-                $original['duration_minutes'], $original['objective_count'], $original['subjective_count'],
-                $original['theory_count'], $original['exam_type'], $original['instructions'],
+                $new_name,
+                $original['class'],
+                $original['subject_id'],
+                $original['topics'],
+                $original['duration_minutes'],
+                $original['objective_count'],
+                $original['subjective_count'],
+                $original['theory_count'],
+                $original['exam_type'],
+                $original['instructions'],
                 $school_id
             ]);
 
@@ -539,10 +581,9 @@ try {
     $stmt = $pdo->prepare("SELECT id, class_name, class_code, class_category FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
     $stmt->execute([$school_id]);
     $classes_list = $stmt->fetchAll();
-    
+
     // Debug: Log the number of classes found
     error_log("Classes found: " . count($classes_list));
-    
 } catch (Exception $e) {
     error_log("Error fetching classes: " . $e->getMessage());
 }
@@ -589,6 +630,7 @@ if (isset($_GET['get_exam'])) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -614,7 +656,12 @@ if (isset($_GET['get_exam'])) {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -638,7 +685,10 @@ if (isset($_GET['get_exam'])) {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -647,6 +697,7 @@ if (isset($_GET['get_exam'])) {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -657,27 +708,44 @@ if (isset($_GET['get_exam'])) {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
             transition: all 0.3s ease;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
-        .nav-links a i { width: 20px; text-align: center; }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-links a i {
+            width: 20px;
+            text-align: center;
+        }
 
         /* Main Content */
         .main-content {
@@ -685,6 +753,7 @@ if (isset($_GET['get_exam'])) {
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -699,6 +768,7 @@ if (isset($_GET['get_exam'])) {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -710,7 +780,13 @@ if (isset($_GET['get_exam'])) {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -735,12 +811,36 @@ if (isset($_GET['get_exam'])) {
             align-items: center;
             gap: 8px;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-danger { background: var(--danger-color); color: white; }
-        .btn-warning { background: var(--warning-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
-        .btn-sm { padding: 5px 10px; font-size: 0.85rem; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
 
         /* Filter Section */
         .filter-section {
@@ -749,23 +849,28 @@ if (isset($_GET['get_exam'])) {
             border-radius: 10px;
             margin-bottom: 20px;
         }
+
         .filter-form {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             align-items: end;
         }
+
         .form-group {
             display: flex;
             flex-direction: column;
         }
+
         .form-group label {
             margin-bottom: 5px;
             font-weight: 500;
             color: var(--primary-color);
             font-size: 0.85rem;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             padding: 10px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
@@ -773,7 +878,9 @@ if (isset($_GET['get_exam'])) {
             font-size: 0.9rem;
             width: 100%;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -785,11 +892,13 @@ if (isset($_GET['get_exam'])) {
             overflow-x: auto;
             margin-bottom: 20px;
         }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
             min-width: 1000px;
         }
+
         .data-table th {
             background: var(--primary-color);
             color: white;
@@ -798,13 +907,17 @@ if (isset($_GET['get_exam'])) {
             font-weight: 600;
             font-size: 0.85rem;
         }
+
         .data-table td {
             padding: 12px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
             font-size: 0.85rem;
         }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         /* Badges */
         .status-badge {
@@ -814,8 +927,16 @@ if (isset($_GET['get_exam'])) {
             font-weight: 500;
             display: inline-block;
         }
-        .status-active { background: #d5f4e6; color: var(--success-color); }
-        .status-inactive { background: #f8d7da; color: var(--danger-color); }
+
+        .status-active {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: var(--danger-color);
+        }
 
         .type-badge {
             padding: 4px 10px;
@@ -824,16 +945,33 @@ if (isset($_GET['get_exam'])) {
             font-weight: 500;
             display: inline-block;
         }
-        .type-objective { background: #e3f2fd; color: #1976d2; }
-        .type-subjective { background: #f3e5f5; color: #7b1fa2; }
-        .type-theory { background: #e8f5e9; color: #388e3c; }
-        .type-comprehensive { background: #fff3e0; color: #f57c00; }
+
+        .type-objective {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .type-subjective {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .type-theory {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .type-comprehensive {
+            background: #fff3e0;
+            color: #f57c00;
+        }
 
         .action-icons {
             display: flex;
             gap: 5px;
             flex-wrap: wrap;
         }
+
         .action-icon {
             width: 32px;
             height: 32px;
@@ -848,12 +986,31 @@ if (isset($_GET['get_exam'])) {
             font-size: 0.8rem;
             border: none;
         }
-        .action-icon.edit { background: var(--info-color); }
-        .action-icon.toggle { background: var(--warning-color); }
-        .action-icon.view { background: var(--success-color); }
-        .action-icon.delete { background: var(--danger-color); }
-        .action-icon.clone { background: var(--purple-color); }
-        .action-icon:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        .action-icon.edit {
+            background: var(--info-color);
+        }
+
+        .action-icon.toggle {
+            background: var(--warning-color);
+        }
+
+        .action-icon.view {
+            background: var(--success-color);
+        }
+
+        .action-icon.delete {
+            background: var(--danger-color);
+        }
+
+        .action-icon.clone {
+            background: var(--purple-color);
+        }
+
+        .action-icon:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
 
         /* Modal */
         .modal {
@@ -863,13 +1020,17 @@ if (isset($_GET['get_exam'])) {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
@@ -878,6 +1039,7 @@ if (isset($_GET['get_exam'])) {
             max-height: 90vh;
             overflow-y: auto;
         }
+
         .modal-header {
             padding: 15px 20px;
             border-bottom: 2px solid var(--light-color);
@@ -888,7 +1050,12 @@ if (isset($_GET['get_exam'])) {
             top: 0;
             background: white;
         }
-        .modal-header h3 { color: var(--primary-color); font-size: 1.3rem; }
+
+        .modal-header h3 {
+            color: var(--primary-color);
+            font-size: 1.3rem;
+        }
+
         .modal-close {
             background: none;
             border: none;
@@ -896,8 +1063,15 @@ if (isset($_GET['get_exam'])) {
             cursor: pointer;
             color: #666;
         }
-        .modal-close:hover { color: var(--danger-color); }
-        .modal-body { padding: 20px; }
+
+        .modal-close:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
         .modal-footer {
             padding: 15px 20px;
             border-top: 2px solid var(--light-color);
@@ -912,7 +1086,10 @@ if (isset($_GET['get_exam'])) {
             gap: 15px;
             margin-bottom: 20px;
         }
-        .form-row { grid-column: 1 / -1; }
+
+        .form-row {
+            grid-column: 1 / -1;
+        }
 
         .topics-container {
             border: 2px solid #e0e0e0;
@@ -921,17 +1098,22 @@ if (isset($_GET['get_exam'])) {
             max-height: 200px;
             overflow-y: auto;
         }
+
         .topics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 10px;
         }
+
         .topic-checkbox {
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .topic-checkbox label { cursor: pointer; }
+
+        .topic-checkbox label {
+            cursor: pointer;
+        }
 
         .alert {
             padding: 12px 15px;
@@ -941,40 +1123,85 @@ if (isset($_GET['get_exam'])) {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
-        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid var(--warning-color); }
-        .alert-info { background: #d1ecf1; color: #0c5460; border-left: 4px solid var(--info-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid var(--info-color);
+        }
 
         .empty-state {
             text-align: center;
             padding: 50px;
             color: #999;
         }
-        .empty-state i { font-size: 48px; margin-bottom: 15px; color: #ccc; }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
 
         .loading {
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid rgba(255,255,255,.3);
+            border: 2px solid rgba(255, 255, 255, .3);
             border-radius: 50%;
             border-top-color: #fff;
             animation: spin 1s ease-in-out infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .filter-form { grid-template-columns: 1fr; }
-            .form-grid { grid-template-columns: 1fr; }
+            .filter-form {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -982,7 +1209,10 @@ if (isset($_GET['get_exam'])) {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -1000,7 +1230,7 @@ if (isset($_GET['get_exam'])) {
                 <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>
@@ -1012,7 +1242,7 @@ if (isset($_GET['get_exam'])) {
                 <h1>Manage Exams</h1>
                 <p>Create, edit, and manage examination schedules</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -1108,34 +1338,44 @@ if (isset($_GET['get_exam'])) {
             <?php else: ?>
                 <table class="data-table">
                     <thead>
-                        <tr><th>Exam Name</th><th>Class</th><th>Subject</th><th>Type</th><th>Duration</th><th>Questions</th><th>Sessions</th><th>Status</th><th>Actions</th></tr>
+                        <tr>
+                            <th>Exam Name</th>
+                            <th>Class</th>
+                            <th>Subject</th>
+                            <th>Type</th>
+                            <th>Duration</th>
+                            <th>Questions</th>
+                            <th>Sessions</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($exams as $exam): ?>
                             <tr>
                                 <td>
                                     <strong><?php echo htmlspecialchars($exam['exam_name']); ?></strong>
-                                  </td>
+                                </td>
                                 <td><?php echo htmlspecialchars($exam['class']); ?></td>
                                 <td><?php echo htmlspecialchars($exam['subject_name'] ?? '—'); ?></td>
                                 <td>
-                                    <?php                                    $type_class = 'type-' . ($exam['exam_type'] ?? 'objective');
+                                    <?php $type_class = 'type-' . ($exam['exam_type'] ?? 'objective');
                                     $type_display = $exam_types[$exam['exam_type']] ?? ucfirst($exam['exam_type']);
                                     ?>
                                     <span class="type-badge <?php echo $type_class; ?>"><?php echo htmlspecialchars($type_display); ?></span>
-                                  </td>
+                                </td>
                                 <td><?php echo $exam['duration_minutes']; ?> min</td>
                                 <td>
                                     <small>Obj: <?php echo $exam['objective_questions_count'] ?? 0; ?><br>
-                                    Sub: <?php echo $exam['subjective_questions_count'] ?? 0; ?><br>
-                                    Thy: <?php echo $exam['theory_questions_count'] ?? 0; ?></small>
-                                  </td>
+                                        Sub: <?php echo $exam['subjective_questions_count'] ?? 0; ?><br>
+                                        Thy: <?php echo $exam['theory_questions_count'] ?? 0; ?></small>
+                                </td>
                                 <td><?php echo $exam['exam_sessions_count'] ?? 0; ?></td>
                                 <td>
                                     <span class="status-badge <?php echo $exam['is_active'] ? 'status-active' : 'status-inactive'; ?>">
                                         <?php echo $exam['is_active'] ? 'Active' : 'Inactive'; ?>
                                     </span>
-                                  </td>
+                                </td>
                                 <td>
                                     <div class="action-icons">
                                         <button onclick="editExam(<?php echo $exam['id']; ?>)" class="action-icon edit" title="Edit"><i class="fas fa-edit"></i></button>
@@ -1144,7 +1384,7 @@ if (isset($_GET['get_exam'])) {
                                         <a href="exam-results.php?exam_id=<?php echo $exam['id']; ?>" class="action-icon view" title="View Results"><i class="fas fa-chart-bar"></i></a>
                                         <a href="?delete_exam=<?php echo $exam['id']; ?>" class="action-icon delete" title="Delete" onclick="return confirm('Delete this exam? This cannot be undone.')"><i class="fas fa-trash"></i></a>
                                     </div>
-                                  </td>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -1260,7 +1500,7 @@ if (isset($_GET['get_exam'])) {
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) {
+        if (mobileBtn) {
             mobileBtn.onclick = function(e) {
                 e.stopPropagation();
                 sidebar.classList.toggle('active');
@@ -1277,90 +1517,87 @@ if (isset($_GET['get_exam'])) {
         });
 
         // Modal functions
-        function openModal() { 
+        function openModal() {
             const modal = document.getElementById('examModal');
-            if(modal) modal.classList.add('active'); 
+            if (modal) modal.classList.add('active');
         }
-        
+
         function closeModal() {
             const modal = document.getElementById('examModal');
-            if(modal) modal.classList.remove('active');
+            if (modal) modal.classList.remove('active');
             resetForm();
         }
 
         function resetForm() {
             const form = document.getElementById('examForm');
-            if(form) form.reset();
+            if (form) form.reset();
             const examId = document.getElementById('exam_id');
-            if(examId) examId.value = '';
+            if (examId) examId.value = '';
             const modalTitle = document.getElementById('modalTitle');
-            if(modalTitle) modalTitle.textContent = 'Add New Exam';
+            if (modalTitle) modalTitle.textContent = 'Add New Exam';
             const submitBtn = document.getElementById('submitBtn');
-            if(submitBtn) {
+            if (submitBtn) {
                 submitBtn.name = 'add_exam';
                 submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Exam';
             }
             const checkboxes = document.querySelectorAll('input[name="topics[]"]');
             checkboxes.forEach(cb => cb.checked = false);
             const durationInput = document.getElementById('duration_minutes');
-            if(durationInput) durationInput.value = '60';
+            if (durationInput) durationInput.value = '60';
             const activeCheckbox = document.getElementById('is_active');
-            if(activeCheckbox) activeCheckbox.checked = true;
+            if (activeCheckbox) activeCheckbox.checked = true;
             const classSelect = document.getElementById('class_name');
-            if(classSelect) classSelect.value = '';
+            if (classSelect) classSelect.value = '';
             updateQuestionCounts();
         }
 
-        function openAddExamModal() { 
+        function openAddExamModal() {
             console.log('Opening add exam modal');
-            resetForm(); 
-            openModal(); 
+            resetForm();
+            openModal();
         }
 
         function updateQuestionCounts() {
             const typeSelect = document.getElementById('exam_type');
-            if(!typeSelect) return;
+            if (!typeSelect) return;
             const type = typeSelect.value;
             const obj = document.getElementById('objective_count');
             const sub = document.getElementById('subjective_count');
             const thy = document.getElementById('theory_count');
-            
+
             if (!obj || !sub || !thy) return;
-            
-            if (type === 'objective') { 
-                obj.disabled = false; 
-                sub.disabled = true; 
-                thy.disabled = true; 
-                if(obj.value == 0) obj.value = 0; 
-                sub.value = 0; 
-                thy.value = 0; 
-            }
-            else if (type === 'subjective') { 
-                obj.disabled = true; 
-                sub.disabled = false; 
-                thy.disabled = true; 
-                obj.value = 0; 
-                if(sub.value == 0) sub.value = 0; 
-                thy.value = 0; 
-            }
-            else if (type === 'theory') { 
-                obj.disabled = true; 
-                sub.disabled = true; 
-                thy.disabled = false; 
-                obj.value = 0; 
-                sub.value = 0; 
-                if(thy.value == 0) thy.value = 0; 
-            }
-            else { 
-                obj.disabled = false; 
-                sub.disabled = false; 
-                thy.disabled = false; 
+
+            if (type === 'objective') {
+                obj.disabled = false;
+                sub.disabled = true;
+                thy.disabled = true;
+                if (obj.value == 0) obj.value = 0;
+                sub.value = 0;
+                thy.value = 0;
+            } else if (type === 'subjective') {
+                obj.disabled = true;
+                sub.disabled = false;
+                thy.disabled = true;
+                obj.value = 0;
+                if (sub.value == 0) sub.value = 0;
+                thy.value = 0;
+            } else if (type === 'theory') {
+                obj.disabled = true;
+                sub.disabled = true;
+                thy.disabled = false;
+                obj.value = 0;
+                sub.value = 0;
+                if (thy.value == 0) thy.value = 0;
+            } else {
+                obj.disabled = false;
+                sub.disabled = false;
+                thy.disabled = false;
             }
         }
 
         // Filter topics by subject
         const subjectSelect = document.getElementById('subject_id');
-        if(subjectSelect) {
+        if (subjectSelect) {
             subjectSelect.addEventListener('change', function() {
                 const subjectId = this.value;
                 const topicDivs = document.querySelectorAll('.topic-checkbox');
@@ -1368,7 +1605,7 @@ if (isset($_GET['get_exam'])) {
                     div.style.display = (!subjectId || div.dataset.subject == subjectId) ? 'flex' : 'none';
                     if (div.style.display === 'none') {
                         const checkbox = div.querySelector('input');
-                        if(checkbox) checkbox.checked = false;
+                        if (checkbox) checkbox.checked = false;
                     }
                 });
             });
@@ -1380,13 +1617,13 @@ if (isset($_GET['get_exam'])) {
                 const original = btn.innerHTML;
                 btn.innerHTML = '<div class="loading"></div>';
                 btn.disabled = true;
-                
+
                 const response = await fetch(`?get_exam=${examId}`);
                 const data = await response.json();
-                
+
                 btn.innerHTML = original;
                 btn.disabled = false;
-                
+
                 if (data.success) {
                     const e = data.exam;
                     document.getElementById('exam_id').value = e.id;
@@ -1400,27 +1637,27 @@ if (isset($_GET['get_exam'])) {
                     document.getElementById('theory_count').value = e.theory_count || 0;
                     document.getElementById('instructions').value = e.instructions || '';
                     document.getElementById('is_active').checked = e.is_active == 1;
-                    
+
                     if (e.topics) {
                         const topics = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
                         document.querySelectorAll('input[name="topics[]"]').forEach(cb => {
                             cb.checked = topics.includes(parseInt(cb.value));
                         });
                     }
-                    
+
                     document.getElementById('modalTitle').textContent = 'Edit Exam';
                     document.getElementById('submitBtn').name = 'update_exam';
                     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-edit"></i> Update Exam';
                     updateQuestionCounts();
-                    
+
                     // Trigger subject filter
-                    if(subjectSelect) subjectSelect.dispatchEvent(new Event('change'));
-                    
+                    if (subjectSelect) subjectSelect.dispatchEvent(new Event('change'));
+
                     openModal();
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error'));
                 }
-            } catch(e) {
+            } catch (e) {
                 console.error('Error loading exam:', e);
                 alert('Error loading exam details');
             }
@@ -1428,11 +1665,11 @@ if (isset($_GET['get_exam'])) {
 
         // Form validation
         const examForm = document.getElementById('examForm');
-        if(examForm) {
+        if (examForm) {
             examForm.addEventListener('submit', function(e) {
                 const examName = document.getElementById('exam_name');
                 const classSelect = document.getElementById('class_name');
-                
+
                 if (!examName.value.trim()) {
                     e.preventDefault();
                     alert('Please enter exam name');
@@ -1454,7 +1691,7 @@ if (isset($_GET['get_exam'])) {
                 closeModal();
             }
         });
-        
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             updateQuestionCounts();
@@ -1462,4 +1699,5 @@ if (isset($_GET['get_exam'])) {
         });
     </script>
 </body>
+
 </html>

@@ -1,9 +1,9 @@
 <?php
-// gos/staff/assignments.php - Staff Assignments Management with File Attachments
+// msv/staff/assignments.php - Staff Assignments Management with File Attachments
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -504,7 +504,7 @@ if (isset($_GET['message'])) {
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="assignments.php" class="active"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -514,7 +514,7 @@ if (isset($_GET['message'])) {
                 <h1><i class="fas fa-tasks"></i> Assignments</h1>
                 <p>Create and manage assignments with file attachments</p>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if (isset($message)): ?>
@@ -700,7 +700,7 @@ if (isset($_GET['message'])) {
                                         <?php if ($assignment['file_path']): ?>
                                             <div class="file-attachment">
                                                 <i class="fas fa-paperclip"></i>
-                                                <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank">
+                                                <a href="/msv/<?php echo $assignment['file_path']; ?>" target="_blank">
                                                     <?php
                                                     $file_name = basename($assignment['file_path']);
                                                     echo strlen($file_name) > 20 ? substr($file_name, 0, 20) . '...' : $file_name;

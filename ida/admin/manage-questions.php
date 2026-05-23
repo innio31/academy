@@ -772,7 +772,7 @@ try {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -789,7 +789,7 @@ try {
                         <i class="fas fa-plus-circle"></i> Add Questions
                     </a>
                 <?php endif; ?>
-                <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>

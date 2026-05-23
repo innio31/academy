@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
+// msv/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
 // Saves to: affective_traits, psychomotor_skills, student_comments, student_positions
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 if (isset($_SESSION['admin_id'])) {
@@ -1360,7 +1360,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

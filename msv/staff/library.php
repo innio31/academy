@@ -1,9 +1,9 @@
 <?php
-// gos/staff/library.php - Staff Library Management
+// msv/staff/library.php - Staff Library Management
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -326,7 +326,7 @@ $resources = $stmt->fetchAll();
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
             <li><a href="library.php" class="active"><i class="fas fa-book"></i> Library</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -335,7 +335,7 @@ $resources = $stmt->fetchAll();
             <div class="header-title">
                 <h1><i class="fas fa-book"></i> Library Resources</h1>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if (isset($message)): ?>

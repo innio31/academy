@@ -1,9 +1,9 @@
 <?php
-// gos/student/library.php - Online E-Library for Students
+// ida/student/library.php - Online E-Library for Students
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -484,7 +484,7 @@ function timeAgo($datetime)
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="library.php" class="active"><i class="fas fa-book"></i> E-Library</a></li>
             <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -493,7 +493,7 @@ function timeAgo($datetime)
             <div class="header-title">
                 <h1><i class="fas fa-book"></i> Digital Library</h1>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../ida/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <!-- Statistics -->

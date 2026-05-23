@@ -1,12 +1,12 @@
 <?php
-// gos/student/profile.php - Student Profile with Profile Picture
+// msv/student/profile.php - Student Profile with Profile Picture
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -36,7 +36,7 @@ $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
 if (!$student) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -157,7 +157,7 @@ if (!empty($student['qr_code'])) {
 // Get profile picture URL - use a reliable default
 $profile_picture_url = null;
 if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/' . $student['profile_picture'])) {
-    $profile_picture_url = '/gos/' . $student['profile_picture'];
+    $profile_picture_url = '/msv/' . $student['profile_picture'];
 }
 ?>
 
@@ -575,7 +575,7 @@ if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/'
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> My Results</a></li>
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="profile.php" class="active"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -585,7 +585,7 @@ if (!empty($student['profile_picture']) && file_exists(dirname(__DIR__, 2) . '/'
                 <h1><i class="fas fa-user-cog"></i> My Profile</h1>
                 <p>Manage your personal information and account settings</p>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if (isset($message)): ?>

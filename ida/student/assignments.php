@@ -1,9 +1,9 @@
 <?php
-// gos/student/assignments.php - Student Assignments with File Handling
+// ida/student/assignments.php - Student Assignments with File Handling
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -21,7 +21,7 @@ $stmt->execute([$student_id, $school_id]);
 $student_data = $stmt->fetch();
 
 if (!$student_data) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -672,7 +672,7 @@ $completed_assignments = $stmt->fetchAll();
             <li><a href="assignments.php" class="active"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="library.php"><i class="fas fa-book"></i> E-Library</a></li>
             <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -720,7 +720,7 @@ $completed_assignments = $stmt->fetchAll();
                         <p style="margin-top: 8px; line-height:1.5;"><?php echo nl2br(htmlspecialchars($assignment['instructions'])); ?></p>
                     </div>
                     <?php if ($assignment['file_path']): ?>
-                        <div class="file-attachment" style="margin: 12px 0;"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $assignment['file_path']; ?>" target="_blank" style="color:var(--primary-color);">📄 Assignment file</a> <a href="/gos/<?php echo $assignment['file_path']; ?>" download class="btn btn-outline btn-sm" style="margin-left:8px;"><i class="fas fa-download"></i></a></div>
+                        <div class="file-attachment" style="margin: 12px 0;"><i class="fas fa-paperclip"></i> <a href="/ida/<?php echo $assignment['file_path']; ?>" target="_blank" style="color:var(--primary-color);">📄 Assignment file</a> <a href="/ida/<?php echo $assignment['file_path']; ?>" download class="btn btn-outline btn-sm" style="margin-left:8px;"><i class="fas fa-download"></i></a></div>
                     <?php endif; ?>
                 </div>
 
@@ -808,7 +808,7 @@ $completed_assignments = $stmt->fetchAll();
                         <p style="margin-top:12px;"><strong>Your answer:</strong></p>
                         <div style="background:white; padding:12px; border-radius:12px;"><?php echo nl2br(htmlspecialchars($submission['submitted_text'])); ?></div>
                         <?php if ($submission['file_path']): ?>
-                            <div class="file-attachment" style="margin-top:12px;"><i class="fas fa-file"></i> <a href="/gos/<?php echo $submission['file_path']; ?>" target="_blank">View attachment</a></div>
+                            <div class="file-attachment" style="margin-top:12px;"><i class="fas fa-file"></i> <a href="/ida/<?php echo $submission['file_path']; ?>" target="_blank">View attachment</a></div>
                         <?php endif; ?>
                     </div>
                     <a href="assignments.php" class="btn btn-outline" style="margin-top:16px;">← Back</a>
@@ -849,7 +849,7 @@ $completed_assignments = $stmt->fetchAll();
                                 </span>
                             </div>
                             <?php if ($task['file_path']): ?>
-                                <div class="file-attachment"><i class="fas fa-paperclip"></i> <a href="/gos/<?php echo $task['file_path']; ?>" target="_blank">Attachment</a></div>
+                                <div class="file-attachment"><i class="fas fa-paperclip"></i> <a href="/ida/<?php echo $task['file_path']; ?>" target="_blank">Attachment</a></div>
                             <?php endif; ?>
                             <?php if (!$expired && $task['submission_type'] != 'written'): ?>
                                 <a href="assignments.php?id=<?php echo $task['id']; ?>" class="btn btn-primary btn-sm" style="margin-top:10px;"><i class="fas fa-arrow-right"></i> Submit</a>

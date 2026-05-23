@@ -1,10 +1,10 @@
 <?php
-// gos/staff/index.php - Staff Dashboard
+// ida/staff/index.php - Staff Dashboard
 session_start();
 
 // Check if staff is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -563,7 +563,7 @@ try {
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
             <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -573,7 +573,7 @@ try {
                 <h1>Staff Dashboard</h1>
                 <p>Welcome back, <?php echo htmlspecialchars($staff_name); ?>!</p>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='../ida/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if ($error): ?>

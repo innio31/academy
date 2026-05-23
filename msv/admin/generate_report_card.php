@@ -1,9 +1,9 @@
 <?php
-// gos/admin/generate_report_card.php - Generate Report Card with Template Selection
+// msv/admin/generate_report_card.php - Generate Report Card with Template Selection
 session_start();
 
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 

@@ -15,27 +15,27 @@ $stmt = $pdo->prepare("SELECT qr_code FROM students WHERE id = ? AND school_id =
 $stmt->execute([$student_id, SCHOOL_ID]);
 $qr_path = $stmt->fetchColumn();
 
-// FIXED: Check if file exists with correct path including /gos/
+// FIXED: Check if file exists with correct path including /msv/
 if ($qr_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $qr_path)) {
     $file_path = $_SERVER['DOCUMENT_ROOT'] . $qr_path;
     $file_info = finfo_open(FILEINFO_MIME_TYPE);
     $mime_type = finfo_file($file_info, $file_path);
     finfo_close($file_info);
-    
+
     header('Content-Type: ' . $mime_type);
     header('Cache-Control: public, max-age=86400');
     readfile($file_path);
 } else {
     // Generate on the fly if file doesn't exist
     require_once '../includes/qr_functions.php';
-    
+
     $stmt = $pdo->prepare("SELECT admission_number, full_name FROM students WHERE id = ? AND school_id = ?");
     $stmt->execute([$student_id, SCHOOL_ID]);
     $student = $stmt->fetch();
-    
+
     if ($student) {
         $qr_data = generateStudentQRCode($student_id, $student['admission_number'], $student['full_name']);
-        
+
         // Create QR code directly to output
         header('Content-Type: image/png');
         QRcode::png($qr_data, null, QR_ECLEVEL_L, 10);
@@ -44,4 +44,3 @@ if ($qr_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $qr_path)) {
         die('Student not found');
     }
 }
-?>

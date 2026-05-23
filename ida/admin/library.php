@@ -3,7 +3,7 @@
 session_start();
 
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /ida/login.php");
+    header("Location: ../ida/login.php");
     exit();
 }
 
@@ -486,7 +486,7 @@ $stats = $stats->fetch();
             <li><a href="manage-students.php"><i class="fas fa-users"></i> Students</a></li>
             <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
             <li><a href="library.php" class="active"><i class="fas fa-book"></i> Library</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

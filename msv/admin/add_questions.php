@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -1372,7 +1372,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1384,7 +1384,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                 <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong> |
                     Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if ($message): ?>

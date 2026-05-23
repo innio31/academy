@@ -1,10 +1,10 @@
 <?php
-// gos/admin/enter_comments.php - Enter Comments & Traits
+// msv/admin/enter_comments.php - Enter Comments & Traits
 session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -110,8 +110,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                     days_present = ?, days_absent = ?, updated_at = NOW()
                     WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
                 $stmt->execute([
-                    $teachers_comment, $principals_comment, $class_teacher_name, $principal_name,
-                    $days_present, $days_absent, $selected_student_id, $session, $term, $school_id
+                    $teachers_comment,
+                    $principals_comment,
+                    $class_teacher_name,
+                    $principal_name,
+                    $days_present,
+                    $days_absent,
+                    $selected_student_id,
+                    $session,
+                    $term,
+                    $school_id
                 ]);
             } else {
                 // Insert new
@@ -120,8 +128,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                      class_teachers_name, principals_name, days_present, days_absent, school_id, created_at, updated_at) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
                 $stmt->execute([
-                    $selected_student_id, $session, $term, $teachers_comment, $principals_comment,
-                    $class_teacher_name, $principal_name, $days_present, $days_absent, $school_id
+                    $selected_student_id,
+                    $session,
+                    $term,
+                    $teachers_comment,
+                    $principals_comment,
+                    $class_teacher_name,
+                    $principal_name,
+                    $days_present,
+                    $days_absent,
+                    $school_id
                 ]);
             }
 
@@ -138,11 +154,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                         neatness = ?, reliability = ?, relationship = ?, self_control = ?, updated_at = NOW()
                         WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
                     $stmt->execute([
-                        $affective_data['punctuality'] ?? '', $affective_data['attendance'] ?? '',
-                        $affective_data['politeness'] ?? '', $affective_data['honesty'] ?? '',
-                        $affective_data['neatness'] ?? '', $affective_data['reliability'] ?? '',
-                        $affective_data['relationship'] ?? '', $affective_data['self_control'] ?? '',
-                        $selected_student_id, $session, $term, $school_id
+                        $affective_data['punctuality'] ?? '',
+                        $affective_data['attendance'] ?? '',
+                        $affective_data['politeness'] ?? '',
+                        $affective_data['honesty'] ?? '',
+                        $affective_data['neatness'] ?? '',
+                        $affective_data['reliability'] ?? '',
+                        $affective_data['relationship'] ?? '',
+                        $affective_data['self_control'] ?? '',
+                        $selected_student_id,
+                        $session,
+                        $term,
+                        $school_id
                     ]);
                 } else {
                     $stmt = $pdo->prepare("INSERT INTO affective_traits 
@@ -150,11 +173,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                          neatness, reliability, relationship, self_control, school_id, created_at) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                     $stmt->execute([
-                        $selected_student_id, $session, $term,
-                        $affective_data['punctuality'] ?? '', $affective_data['attendance'] ?? '',
-                        $affective_data['politeness'] ?? '', $affective_data['honesty'] ?? '',
-                        $affective_data['neatness'] ?? '', $affective_data['reliability'] ?? '',
-                        $affective_data['relationship'] ?? '', $affective_data['self_control'] ?? '',
+                        $selected_student_id,
+                        $session,
+                        $term,
+                        $affective_data['punctuality'] ?? '',
+                        $affective_data['attendance'] ?? '',
+                        $affective_data['politeness'] ?? '',
+                        $affective_data['honesty'] ?? '',
+                        $affective_data['neatness'] ?? '',
+                        $affective_data['reliability'] ?? '',
+                        $affective_data['relationship'] ?? '',
+                        $affective_data['self_control'] ?? '',
                         $school_id
                     ]);
                 }
@@ -173,10 +202,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                         drawing_painting = ?, musical_skills = ?, updated_at = NOW()
                         WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
                     $stmt->execute([
-                        $psychomotor_data['handwriting'] ?? '', $psychomotor_data['verbal_fluency'] ?? '',
-                        $psychomotor_data['sports'] ?? '', $psychomotor_data['handling_tools'] ?? '',
-                        $psychomotor_data['drawing_painting'] ?? '', $psychomotor_data['musical_skills'] ?? '',
-                        $selected_student_id, $session, $term, $school_id
+                        $psychomotor_data['handwriting'] ?? '',
+                        $psychomotor_data['verbal_fluency'] ?? '',
+                        $psychomotor_data['sports'] ?? '',
+                        $psychomotor_data['handling_tools'] ?? '',
+                        $psychomotor_data['drawing_painting'] ?? '',
+                        $psychomotor_data['musical_skills'] ?? '',
+                        $selected_student_id,
+                        $session,
+                        $term,
+                        $school_id
                     ]);
                 } else {
                     $stmt = $pdo->prepare("INSERT INTO psychomotor_skills 
@@ -184,10 +219,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
                          handling_tools, drawing_painting, musical_skills, school_id, created_at) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                     $stmt->execute([
-                        $selected_student_id, $session, $term,
-                        $psychomotor_data['handwriting'] ?? '', $psychomotor_data['verbal_fluency'] ?? '',
-                        $psychomotor_data['sports'] ?? '', $psychomotor_data['handling_tools'] ?? '',
-                        $psychomotor_data['drawing_painting'] ?? '', $psychomotor_data['musical_skills'] ?? '',
+                        $selected_student_id,
+                        $session,
+                        $term,
+                        $psychomotor_data['handwriting'] ?? '',
+                        $psychomotor_data['verbal_fluency'] ?? '',
+                        $psychomotor_data['sports'] ?? '',
+                        $psychomotor_data['handling_tools'] ?? '',
+                        $psychomotor_data['drawing_painting'] ?? '',
+                        $psychomotor_data['musical_skills'] ?? '',
                         $school_id
                     ]);
                 }
@@ -207,19 +247,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_comments'])) {
 }
 
 // Helper functions to get existing data
-function getStudentComments($pdo, $student_id, $session, $term, $school_id) {
+function getStudentComments($pdo, $student_id, $session, $term, $school_id)
+{
     $stmt = $pdo->prepare("SELECT * FROM student_comments WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
     $stmt->execute([$student_id, $session, $term, $school_id]);
     return $stmt->fetch();
 }
 
-function getAffectiveTraits($pdo, $student_id, $session, $term, $school_id) {
+function getAffectiveTraits($pdo, $student_id, $session, $term, $school_id)
+{
     $stmt = $pdo->prepare("SELECT * FROM affective_traits WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
     $stmt->execute([$student_id, $session, $term, $school_id]);
     return $stmt->fetch();
 }
 
-function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
+function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id)
+{
     $stmt = $pdo->prepare("SELECT * FROM psychomotor_skills WHERE student_id = ? AND session = ? AND term = ? AND school_id = ?");
     $stmt->execute([$student_id, $session, $term, $school_id]);
     return $stmt->fetch();
@@ -228,6 +271,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -252,7 +296,12 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -274,7 +323,10 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -283,6 +335,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -293,25 +346,38 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -319,6 +385,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -333,6 +400,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 20px 30px;
@@ -344,7 +412,13 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 10px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -360,6 +434,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             padding: 30px;
             margin-bottom: 30px;
         }
+
         .settings-card h2 {
             color: var(--primary-color);
             margin-bottom: 25px;
@@ -373,6 +448,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             padding-bottom: 20px;
             border-bottom: 1px solid #eee;
         }
+
         .form-section h3 {
             color: var(--primary-color);
             margin-bottom: 15px;
@@ -381,21 +457,26 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             gap: 10px;
             font-size: 1.1rem;
         }
+
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
         }
+
         .form-group {
             margin-bottom: 15px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             color: #555;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             width: 100%;
             padding: 10px 12px;
             border: 2px solid #e0e0e0;
@@ -403,10 +484,13 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             font-family: 'Poppins', sans-serif;
             font-size: 0.9rem;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
+
         textarea.form-control {
             resize: vertical;
             min-height: 80px;
@@ -418,18 +502,21 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             gap: 15px;
             margin-top: 15px;
         }
+
         .trait-item {
             background: #f8f9fa;
             padding: 12px;
             border-radius: 8px;
             border: 1px solid #e0e0e0;
         }
+
         .trait-item label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             font-size: 0.85rem;
         }
+
         .rating-select {
             width: 100%;
             padding: 8px;
@@ -444,17 +531,20 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             margin-bottom: 20px;
             border-left: 4px solid var(--primary-color);
         }
+
         .attendance-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
+
         .attendance-item {
             background: white;
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #e0e0e0;
         }
+
         .attendance-summary {
             margin-top: 15px;
             padding: 10px;
@@ -475,9 +565,21 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             align-items: center;
             gap: 8px;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
 
         .alert {
             padding: 12px 15px;
@@ -487,22 +589,55 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
             align-items: center;
             gap: 10px;
         }
-        .alert-success { background: #d5f4e6; color: #155724; border-left: 4px solid var(--success-color); }
-        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
-        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid var(--warning-color); }
+
+        .alert-success {
+            background: #d5f4e6;
+            color: #155724;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
+        }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .traits-grid { grid-template-columns: 1fr; }
-            .attendance-grid { grid-template-columns: 1fr; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .traits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .attendance-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
@@ -510,7 +645,10 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -518,13 +656,13 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
         </div>
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-			<li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
+            <li><a href="report_card_dashboard.php"><i class="fas fa-file-contract"></i> Report Cards</a></li>
             <li><a href="report_card_settings.php"><i class="fas fa-users"></i> Settings</a></li>
             <li><a href="enter_scores.php"><i class="fas fa-chalkboard-teacher"></i> Enter Scores</a></li>
             <li><a href="enter_comments.php" class="active"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -535,7 +673,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
                 <h1><i class="fas fa-comment-dots"></i> Enter Comments & Traits</h1>
                 <p>Add comments, attendance, and behavioral ratings for students</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -761,7 +899,7 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
 
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar && mobileBtn) {
@@ -779,4 +917,5 @@ function getPsychomotorSkills($pdo, $student_id, $session, $term, $school_id) {
         });
     </script>
 </body>
+
 </html>

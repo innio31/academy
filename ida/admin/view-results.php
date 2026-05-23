@@ -626,7 +626,7 @@ $recent_results = $recent_stmt->fetchAll();
             <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Subjects</a></li>
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Exams</a></li>
             <li><a href="view-results.php" class="active"><i class="fas fa-chart-bar"></i> Results</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -636,7 +636,7 @@ $recent_results = $recent_stmt->fetchAll();
                 <h1>Exam Results</h1>
                 <p>View and analyze student performance</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

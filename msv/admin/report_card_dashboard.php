@@ -1,10 +1,10 @@
 <?php
-// gos/admin/report_card_dashboard.php - Report Card Dashboard
+// msv/admin/report_card_dashboard.php - Report Card Dashboard
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -432,7 +432,7 @@ $students_with_comments = $stmt->fetch()['count'];
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="generate_report_card.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -443,7 +443,7 @@ $students_with_comments = $stmt->fetch()['count'];
                 <h1><i class="fas fa-file-contract"></i> Report Card Dashboard</h1>
                 <p>Prepare and generate student report cards for <?php echo $current_session; ?> - <?php echo $current_term; ?> Term</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

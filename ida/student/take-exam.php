@@ -1,9 +1,9 @@
 <?php
-// gos/student/take-exam.php - Take Exam Page
+// ida/student/take-exam.php - Take Exam Page
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 

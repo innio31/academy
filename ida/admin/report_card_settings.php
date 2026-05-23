@@ -635,7 +635,7 @@ if ($selected_class) {
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -646,7 +646,7 @@ if ($selected_class) {
                 <h1><i class="fas fa-cogs"></i> Report Card Settings</h1>
                 <p>Configure grading system, score types, and display options</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

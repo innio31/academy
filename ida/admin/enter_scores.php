@@ -614,7 +614,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -625,7 +625,7 @@ if ($selected_class && $selected_subject_id && !empty($students)) {
                 <h1><i class="fas fa-edit"></i> Enter Student Scores</h1>
                 <p>Enter scores for students by class and subject</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

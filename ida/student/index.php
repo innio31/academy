@@ -1,10 +1,10 @@
 <?php
-// gos/student/index.php - Student Dashboard
+// ida/student/index.php - Student Dashboard
 session_start();
 
 // Check if student is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -500,7 +500,7 @@ $stats = $stmt->fetch();
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
             <li><a href="library.php"><i class="fas fa-book"></i> E-Library</a></li>
             <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

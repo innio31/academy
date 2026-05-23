@@ -27,13 +27,14 @@ define('SCHOOL_CODE', 'msv');
 // SCHOOL INFORMATION
 // ============================================
 define('SCHOOL_NAME', 'Mighty School for Valours');
-define('SCHOOL_PRIMARY', '#722F37');
-define('SCHOOL_SECONDARY', '#d4af7a');
-define('SCHOOL_ACCENT', '#ffffff');
+// Logo theme colors for "SCHOOL MIGHTY FOR VALOURS"
+define('SCHOOL_PRIMARY', '#722F37');   // Deep Burgundy/Maroon (strength & valour)
+define('SCHOOL_SECONDARY', '#D4AF7A'); // Gold/Brass (mighty & noble)
+define('SCHOOL_ACCENT', '#FFFFFF');    // White (clarity & contrast)
 define('SCHOOL_LOGO', 'msv/assets/logos/logo.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
-define('SCHOOL_ADDRESS', 'Mighty School for Valours, Ota, Lagos, Nigeria');  // Added back
-define('SCHOOL_PHONE', '09035448295');  // Added back
+define('SCHOOL_ADDRESS', 'Mighty School for Valours, Ota, Ogun, Nigeria');  // Added back
+define('SCHOOL_PHONE', '08120493299');  // Added back
 define('SCHOOL_EMAIL', 'mforvalours@gmail.com');  // Added back
 
 // ============================================

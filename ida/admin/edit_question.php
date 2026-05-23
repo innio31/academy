@@ -882,7 +882,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -893,7 +893,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                 <h1>Edit <?php echo ucfirst($question_type); ?> Question</h1>
                 <p><?php echo htmlspecialchars($topic_info['topic_name']); ?> - <?php echo htmlspecialchars($topic_info['subject_name']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

@@ -739,7 +739,7 @@ $available_periods = $stmt->fetchAll();
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php" class="active"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -750,7 +750,7 @@ $available_periods = $stmt->fetchAll();
                 <h1><i class="fas fa-chart-bar"></i> Calculate Positions</h1>
                 <p>Calculate class rankings and subject positions for report cards</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

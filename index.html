@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+     ENHANCED SEO & META OPTIMIZATION
+     Fully optimized for Nigerian school searches, rich snippets, social previews.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+
+    <title>acad.com.ng | Complete Digital Suite for Nigerian Schools — Website, App, CBT</title>
+    <meta name="description"
+        content="Transform your school with a professional website, full management app, offline CBT system & social media. Trusted by 120+ schools. Packages from ₦20k/term. Free demo.">
+    <meta name="keywords"
+        content="school management software Nigeria, school website design Nigeria, offline CBT system, school app Nigeria, acad.com.ng, school digital transformation, education technology Nigeria, school ERP, result processing, attendance system">
+    <meta name="author" content="acad.com.ng">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+    <meta name="geo.region" content="NG-OG">
+    <meta name="geo.placename" content="Ota">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="acad.com.ng — Complete Digital Suite for Nigerian Schools">
+    <meta property="og:description"
+        content="Professional website + school management app + offline CBT + social media. Starting at ₦20,000/term. Over 120 schools served.">
+    <meta property="og:url" content="https://acad.com.ng/proposal">
+    <meta property="og:image" content="https://acad.com.ng/og-school-suite.jpg">
+    <meta property="og:site_name" content="acad.com.ng">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="acad.com.ng | Digital School Suite Proposal">
+    <meta name="twitter:description"
+        content="Website, management app, offline CBT, social media — all in one affordable package for Nigerian schools.">
+    <link rel="canonical" href="https://acad.com.ng/proposal">
+
+    <!-- Structured Data: Product + LocalBusiness + FAQ -->
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": "acad.com.ng School Digital Suite",
+            "description": "Complete digital transformation package for Nigerian schools: professional website, school management app, offline CBT system, and social media management.",
+            "brand": {
+                "@type": "Organization",
+                "name": "acad.com.ng"
+            },
+            "offers": [{
+                    "@type": "Offer",
+                    "name": "Starter",
+                    "price": "20000",
+                    "priceCurrency": "NGN",
+                    "availability": "https://schema.org/InStock"
+                },
+                {
+                    "@type": "Offer",
+                    "name": "Professional",
+                    "price": "35000",
+                    "priceCurrency": "NGN",
+                    "availability": "https://schema.org/InStock"
+                },
+                {
+                    "@type": "Offer",
+                    "name": "Ultimate",
+                    "price": "50000",
+                    "priceCurrency": "NGN",
+                    "availability": "https://schema.org/InStock"
+                }
+            ],
+            "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.8",
+                "ratingCount": "112"
+            }
+        }
+    </script>
+
+    <!-- Google Fonts & Base Styles -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Playfair+Display:ital,wght@0,500;0,700;1,500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --ink: #0F1E1F;
+            --forest: #0F3B3C;
+            --leaf: #1E6F5C;
+            --mint: #C6E8D8;
+            --clay: #E76F51;
+            --gold: #F4A261;
+            --cream: #FAF7F2;
+            --paper: #FFFFFF;
+            --muted: #5C7575;
+            --rule: #E2EFEA;
+            --shadow-sm: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 20px 35px -12px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F4F8F5;
+            color: var(--ink);
+            line-height: 1.5;
+            scroll-behavior: smooth;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* buttons & interactive elements */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 28px;
+            border-radius: 60px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--forest);
+            color: white;
+            box-shadow: 0 2px 8px rgba(15, 62, 60, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--leaf);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(30, 111, 92, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--leaf);
+            color: var(--leaf);
+        }
+
+        .btn-outline:hover {
+            background: var(--mint);
+            border-color: var(--forest);
+            color: var(--forest);
+        }
+
+        .btn-download {
+            background: var(--gold);
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .btn-download:hover {
+            background: #e08e3a;
+            transform: translateY(-2px);
+        }
+
+        /* navbar */
+        .navbar {
+            background: white;
+            box-shadow: var(--shadow-sm);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(2px);
+        }
+
+        .nav-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            font-family: 'Playfair Display', serif;
+            color: var(--forest);
+            letter-spacing: -0.3px;
+        }
+
+        .logo span {
+            color: var(--clay);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 28px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            font-weight: 500;
+            color: var(--ink);
+            transition: 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--leaf);
+        }
+
+        /* hero */
+        .hero {
+            padding: 60px 0 40px;
+            background: linear-gradient(135deg, #F9FCF9 0%, #EDF3EE 100%);
+        }
+
+        .hero-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 48px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .hero-content {
+            flex: 1.2;
+        }
+
+        .hero-content h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            font-family: 'Playfair Display', serif;
+            color: var(--forest);
+            margin-bottom: 20px;
+        }
+
+        .hero-content h1 i {
+            color: var(--clay);
+            font-style: italic;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 32px;
+            margin: 32px 0;
+        }
+
+        .stat-item .number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--leaf);
+        }
+
+        .interactive-card {
+            background: white;
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: var(--shadow-md);
+            flex: 0.8;
+        }
+
+        /* calculator */
+        .calc-group {
+            margin-bottom: 20px;
+        }
+
+        .calc-group label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        select,
+        .price-display {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 48px;
+            border: 1px solid var(--rule);
+            font-family: inherit;
+            background: white;
+        }
+
+        .price-display {
+            background: var(--cream);
+            font-weight: 700;
+            font-size: 1.8rem;
+            text-align: center;
+            color: var(--forest);
+        }
+
+        /* sections */
+        .section {
+            padding: 80px 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .section-badge {
+            display: inline-block;
+            background: var(--mint);
+            color: var(--forest);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 5px 14px;
+            border-radius: 40px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            font-family: 'Playfair Display', serif;
+            margin-bottom: 24px;
+            color: var(--ink);
+        }
+
+        .features-grid,
+        .packages-grid,
+        .why-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 28px;
+            margin-top: 32px;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            transition: all 0.25s;
+            border: 1px solid var(--rule);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .feature-icon {
+            font-size: 2.2rem;
+            margin-bottom: 16px;
+        }
+
+        .package-card {
+            background: white;
+            border-radius: 32px;
+            padding: 28px;
+            transition: 0.2s;
+            border: 1px solid var(--rule);
+            position: relative;
+        }
+
+        .package-card.popular {
+            border: 2px solid var(--leaf);
+            box-shadow: var(--shadow-md);
+        }
+
+        .popular-badge {
+            position: absolute;
+            top: -12px;
+            right: 24px;
+            background: var(--gold);
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .price {
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin: 16px 0;
+            color: var(--forest);
+        }
+
+        .feature-list {
+            list-style: none;
+            margin: 24px 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .feature-list li i {
+            color: var(--leaf);
+            width: 20px;
+        }
+
+        /* demo form */
+        .demo-form {
+            background: linear-gradient(125deg, var(--forest) 0%, #1F4E4A 100%);
+            border-radius: 32px;
+            padding: 48px;
+            color: white;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 40px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .form-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .demo-form input {
+            padding: 14px 20px;
+            border-radius: 60px;
+            border: none;
+            flex: 1;
+            min-width: 200px;
+            font-family: inherit;
+        }
+
+        .toast-msg {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--forest);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 48px;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: 0.2s;
+            pointer-events: none;
+            box-shadow: var(--shadow-md);
+        }
+
+        /* footer */
+        footer {
+            background: var(--ink);
+            color: #AAB7B7;
+            padding: 48px 0 32px;
+        }
+
+        @media (max-width: 768px) {
+            .hero-content h1 {
+                font-size: 2.2rem;
+            }
+
+            .section-title {
+                font-size: 1.8rem;
+            }
+
+            .demo-form {
+                padding: 32px;
+            }
+
+            .nav-flex {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <div class="container nav-flex">
+            <div class="logo">acad<span>.com.ng</span></div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#packages">Packages</a>
+                <a href="#demo">Request Demo</a>
+                <button id="downloadProposalBtn" class="btn btn-download"
+                    style="background: var(--gold); color: var(--ink);"><i class="fas fa-file-pdf"></i> Download
+                    Proposal (PDF)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section with Interactive Calculator -->
+    <section class="hero">
+        <div class="container hero-grid">
+            <div class="hero-content">
+                <span class="section-badge" style="background: var(--gold); color: var(--ink);">Digital
+                    Transformation</span>
+                <h1>Your School Deserves <i>More Than a Notice Board.</i><br> It Deserves a Digital Presence.</h1>
+                <p style="font-size: 1.1rem; margin: 24px 0; color: #2C4A4B;">Professional website + full management app
+                    + offline CBT + social media — starting at ₦20,000 per term. Trusted by 120+ Nigerian schools.</p>
+                <div class="hero-stats">
+                    <div class="stat-item"><span class="number">120+</span><br>Schools Onboard</div>
+                    <div class="stat-item"><span class="number">24/7</span><br>Support Included</div>
+                    <div class="stat-item"><span class="number">3-Day</span><br>Setup Time</div>
+                </div>
+                <a href="#demo" class="btn btn-primary"><i class="fas fa-calendar-check"></i> Get Free Demo</a>
+            </div>
+
+            <!-- Interactive Pricing Calculator -->
+            <div class="interactive-card">
+                <h3 style="font-weight: 700; margin-bottom: 12px;"><i class="fas fa-calculator"></i> Live Pricing
+                    Estimator</h3>
+                <p style="font-size: 14px; margin-bottom: 18px;">Select your preferred package to see termly cost.</p>
+                <div class="calc-group">
+                    <label>Choose Package</label>
+                    <select id="packageSelect">
+                        <option value="20000">📘 Starter — ₦20,000/term (Website + App)</option>
+                        <option value="35000" selected>⭐ Professional — ₦35,000/term (+ Offline CBT)</option>
+                        <option value="50000">🚀 Ultimate — ₦50,000/term (+ Social Media Mgmt)</option>
+                    </select>
+                </div>
+                <div class="price-display" id="livePriceDisplay">₦35,000<span style="font-size: 14px;"> / term</span>
+                </div>
+                <p style="font-size: 13px; margin-top: 16px; color: var(--muted);"><i class="fas fa-check-circle"
+                        style="color: var(--leaf);"></i> No hidden fees • Free staff training • Cancel anytime</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- Features Section -->
+        <section id="features" class="section">
+            <span class="section-badge">What You Get</span>
+            <h2 class="section-title">Complete Digital Ecosystem for Your School</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-globe"></i></div>
+                    <h3>Professional Website</h3>
+                    <p>Responsive school website with online admission, SSL security, SEO-ready, subdomain
+                        yourschool.acad.com.ng.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                    <h3>School Management App</h3>
+                    <p>Result processing, attendance with SMS alerts, staff clock-in, fee management, digital ID cards,
+                        parent dashboard.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-laptop-code"></i></div>
+                    <h3>Offline CBT System</h3>
+                    <p>No internet needed! Supports 500+ students, auto-marking, question bank, randomised exams —
+                        perfect for computer labs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                    <h3>Analytics & Reports</h3>
+                    <p>Real-time class performance, subject analytics, automated report cards with affective traits.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Packages Section (Interactive) -->
+        <section id="packages" class="section">
+            <span class="section-badge">Flexible Pricing</span>
+            <h2 class="section-title">Choose Your Package — Per Term Billing</h2>
+            <div class="packages-grid" id="packagesGrid">
+                <!-- dynamic from JS, but static fallback -->
+            </div>
+        </section>
+
+        <!-- Why Digital (Interactive Hover) -->
+        <section class="section">
+            <span class="section-badge">Why Go Digital Now</span>
+            <h2 class="section-title">The Schools That Communicate Better, Win</h2>
+            <div class="why-grid">
+                <div class="feature-card"><i class="fas fa-search fa-2x" style="color: var(--leaf);"></i>
+                    <h3>Attract More Enrolments</h3>
+                    <p>Parents search online first. A professional website with admission form builds trust instantly.
+                    </p>
+                </div>
+                <div class="feature-card"><i class="fas fa-users fa-2x" style="color: var(--leaf);"></i>
+                    <h3>Parent Engagement</h3>
+                    <p>Real-time results, attendance, fee statements keep parents loyal and informed.</p>
+                </div>
+                <div class="feature-card"><i class="fas fa-clock fa-2x" style="color: var(--leaf);"></i>
+                    <h3>Save 15+ Hours/Week</h3>
+                    <p>Automate results, attendance, fee records — reduce manual workload drastically.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Demo Request Form + Download CTA -->
+        <section id="demo" class="section">
+            <div class="demo-form">
+                <div style="flex:1">
+                    <h3 style="font-size: 1.8rem; font-weight: 700;">Ready to transform your school?</h3>
+                    <p style="margin-top: 12px;">Schedule a free, no-obligation live demo tailored to your school. We’ll
+                        set up a branded preview within 24 hours.</p>
+                    <div class="form-group">
+                        <input type="text" id="demoSchool" placeholder="School name" autocomplete="off">
+                        <input type="tel" id="demoPhone" placeholder="Phone number">
+                        <button id="requestDemoBtn" class="btn btn-primary"
+                            style="background: var(--gold); color: var(--ink);"><i class="fas fa-headset"></i> Request
+                            Demo</button>
+                    </div>
+                    <p style="font-size: 13px; margin-top: 16px;"><i class="fas fa-download"></i> Or download full
+                        proposal PDF — includes all package details & terms.</p>
+                </div>
+                <div>
+                    <button id="downloadProposalBtn2" class="btn btn-download"
+                        style="background: white; color: var(--forest); font-size: 1rem;"><i
+                            class="fas fa-file-pdf"></i> 📄 Download Proposal (PDF)</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <div class="container" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 24px;">
+            <div><strong style="color:white;">acad.com.ng</strong><br>Smart School Solutions<br>Ota, Nigeria</div>
+            <div><i class="fas fa-phone-alt"></i> +234 905 158 6024<br><i class="fab fa-whatsapp"></i> +234 903 544
+                8295<br><i class="far fa-envelope"></i> schools@acad.com.ng</div>
+            <div><small>© 2025 — Trusted by 120+ schools across Nigeria.</small></div>
+        </div>
+    </footer>
+
+    <div id="toastMsg" class="toast-msg">✓ Demo request sent! We’ll respond within 2 hours.</div>
+
+    <script>
+        // ------------------------------
+        // 1. Interactive Pricing Calculator (live update)
+        // ------------------------------
+        const packageSelect = document.getElementById('packageSelect');
+        const livePriceSpan = document.getElementById('livePriceDisplay');
+
+        function updatePrice() {
+            let val = packageSelect.value;
+            let formatted = new Intl.NumberFormat('en-NG').format(val);
+            livePriceSpan.innerHTML = `₦${formatted}<span style="font-size: 14px;"> / term</span>`;
+        }
+        packageSelect.addEventListener('change', updatePrice);
+        updatePrice();
+
+        // ------------------------------
+        // 2. Render Packages with better interactivity
+        // ------------------------------
+        const packagesData = [{
+            name: "Starter",
+            price: 20000,
+            desc: "Website + Full Management App",
+            popular: false,
+            features: ["Professional school website", "Online admission form", "Full management app", "Result processing & report cards", "Attendance + parent alerts", "Staff clock-in", "Fee management & receipts", "Digital ID cards", "Multi-role access"]
+        },
+        {
+            name: "Professional",
+            price: 35000,
+            desc: "Website + App + Offline CBT",
+            popular: true,
+            features: ["Everything in Starter", "Offline CBT system (full setup)", "500+ concurrent exam devices", "Randomised questions per student", "Auto-marking & instant results", "Question bank management", "Class & subject analytics", "On-site installation & training"]
+        },
+        {
+            name: "Ultimate",
+            price: 50000,
+            desc: "Everything + Social Media Management",
+            popular: false,
+            features: ["Everything in Professional", "Facebook & Instagram management", "Regular branded content", "School news auto-posted", "WhatsApp broadcast setup", "Monthly social media report", "2 official email addresses", "Community engagement strategy"]
+        }
+        ];
+
+        const packagesGrid = document.getElementById('packagesGrid');
+
+        function buildPackages() {
+            packagesGrid.innerHTML = '';
+            packagesData.forEach(pkg => {
+                const card = document.createElement('div');
+                card.className = `package-card ${pkg.popular ? 'popular' : ''}`;
+                if (pkg.popular) {
+                    const badge = document.createElement('div');
+                    badge.className = 'popular-badge';
+                    badge.innerText = 'Most Popular';
+                    card.appendChild(badge);
+                }
+                card.innerHTML += `
+        <h3 style="font-size: 1.6rem; font-weight: 700;">${pkg.name}</h3>
+        <div class="price">₦${pkg.price.toLocaleString()}<span style="font-size: 1rem;">/term</span></div>
+        <p style="color: var(--muted);">${pkg.desc}</p>
+        <ul class="feature-list">
+          ${pkg.features.slice(0, 6).map(f => `<li><i class="fas fa-check-circle"></i> ${f}</li>`).join('')}
+          ${pkg.features.length > 6 ? `<li><i class="fas fa-plus-circle"></i> +${pkg.features.length - 6} more features</li>` : ''}
+        </ul>
+        <button class="btn btn-outline select-pkg-btn" data-price="${pkg.price}" data-name="${pkg.name}" style="width:100%; justify-content:center;">Choose ${pkg.name} →</button>
+      `;
+                packagesGrid.appendChild(card);
+            });
+
+            // attach event listeners to "Choose package" buttons
+            document.querySelectorAll('.select-pkg-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const price = btn.getAttribute('data-price');
+                    const name = btn.getAttribute('data-name');
+                    if (packageSelect) {
+                        if (price === '20000') packageSelect.value = '20000';
+                        else if (price === '35000') packageSelect.value = '35000';
+                        else if (price === '50000') packageSelect.value = '50000';
+                        updatePrice();
+                        // scroll to calculator
+                        document.querySelector('.interactive-card').scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                        // show toast feedback
+                        showToast(`✓ ${name} package selected! Price updated.`);
+                    }
+                });
+            });
+        }
+        buildPackages();
+
+        // ------------------------------
+        // 3. PDF Download simulation (user uploads their proposal.pdf)
+        //    We embed trigger that downloads a placeholder, but you'll replace with actual PDF
+        // ------------------------------
+        function downloadProposal() {
+            // In real scenario, the user will replace 'proposal_sample.pdf' with their own PDF file.
+            // The requirement: "add a feature where they can download the proposal, (I'll upload the proposal in pdf)"
+            // So we create a dummy link but allows custom PDF file name. For now, we'll simulate with a download 
+            // that uses a default pdf, but developer can simply replace the file path.
+            // We'll also give a clear comment.
+            const pdfUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'; // Placeholder — replace with actual uploaded proposal PDF
+            // However to be professional, we'll use a data URI? Better to instruct: 
+            // In production, upload your proposal.pdf to server and change this variable.
+            // For demonstration, we'll force download from an actual placeholder that says "replace me".
+            // But per user specification: "I'll upload the proposal in pdf" — we provide mechanism.
+            const link = document.createElement('a');
+            // CHANGE THIS TO YOUR ACTUAL PDF FILE PATH:
+            const actualProposalPDF = '/proposal.pdf'; // <-- REPLACE WITH YOUR UPLOADED PDF FILE LOCATION (e.g., "./acad_proposal.pdf")
+            // We use fetch to check existence, but simpler: download attempt.
+            link.href = actualProposalPDF;
+            link.download = 'acad_school_proposal.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            // if file not found, show fallback message. but we also provide explanation to user.
+            showToast('⬇ Download started! If file missing, ensure proposal.pdf is uploaded to site root.');
+        }
+
+        // attach both download buttons
+        const downloadBtn1 = document.getElementById('downloadProposalBtn');
+        const downloadBtn2 = document.getElementById('downloadProposalBtn2');
+        if (downloadBtn1) downloadBtn1.addEventListener('click', downloadProposal);
+        if (downloadBtn2) downloadBtn2.addEventListener('click', downloadProposal);
+
+        // ------------------------------
+        // 4. Demo Request (Interactive Toast)
+        // ------------------------------
+        const requestBtn = document.getElementById('requestDemoBtn');
+        const schoolInput = document.getElementById('demoSchool');
+        const phoneInput = document.getElementById('demoPhone');
+        const toast = document.getElementById('toastMsg');
+
+        function showToast(message) {
+            toast.textContent = message || '✓ Demo request sent! We’ll respond within 2 hours.';
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 4000);
+        }
+
+        // Replace the current requestDemoBtn click handler with:
+        requestBtn.addEventListener('click', () => {
+            const school = schoolInput.value.trim();
+            const phone = phoneInput.value.trim();
+            if (!school || !phone) {
+                showToast('⚠️ Please enter school name and phone number.');
+                return;
+            }
+            const message = `Demo request from ${school}. Contact: ${phone}`;
+            window.open(`https://wa.me/2349051586024?text=${encodeURIComponent(message)}`, '_blank');
+            schoolInput.value = '';
+            phoneInput.value = '';
+        });
+
+        // additional smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // dynamic year for footer (optional)
+    </script>
+
+
+</body>
+
+</html>

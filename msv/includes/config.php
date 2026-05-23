@@ -20,17 +20,17 @@ define('DB_NAME', 'impactdi_school_portal');
 // ============================================
 // SCHOOL IDENTIFICATION
 // ============================================
-define('SCHOOL_ID', 1);  // Great Optimist School, Ota ID
-define('SCHOOL_CODE', 'msv');
+define('SCHOOL_ID', 4);  // Great Optimist School, Ota ID
+define('SCHOOL_CODE', 'MSV');
 
 // ============================================
 // SCHOOL INFORMATION
 // ============================================
 define('SCHOOL_NAME', 'Mighty School for Valours');
 // Logo theme colors for "SCHOOL MIGHTY FOR VALOURS"
-define('SCHOOL_PRIMARY', '#722F37');
-define('SCHOOL_SECONDARY', '#D4AF7A');
-define('SCHOOL_ACCENT', '#FFFFFF');
+define('SCHOOL_PRIMARY', '#000080');   // Navy/Royal Blue
+define('SCHOOL_SECONDARY', '#FF0000'); // Red
+define('SCHOOL_ACCENT', '#FFFFFF');    // White
 define('SCHOOL_LOGO', 'msv/assets/logos/logo.png');
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');
 define('SCHOOL_ADDRESS', 'Mighty School for Valours, Ota, Ogun, Nigeria');

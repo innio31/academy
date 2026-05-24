@@ -4,8 +4,8 @@
     "description": "Mighty School for Valours Parent & Student Portal",
     "start_url": "/msv/login.php",
     "display": "standalone",
-    "theme_color": "#1B2A4A",
-    "background_color": "#1B2A4A",
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
     "orientation": "portrait",
     "scope": "/msv/",
     "icons": [

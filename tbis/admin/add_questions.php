@@ -1351,7 +1351,29 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+            <div class="logo-icon">
+                <?php
+                // Check for logo at multiple possible locations
+                $logo_path = '/tbis/assets/logos/logo.png';
+                $logo_full_path = $_SERVER['DOCUMENT_ROOT'] . $logo_path;
+
+                // Also check if SCHOOL_LOGO constant is defined (for backward compatibility)
+                if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
+                    $logo_path = SCHOOL_LOGO;
+                } elseif (file_exists($logo_full_path)) {
+                    // Use the default logo path
+                    $logo_path = '/tbis/assets/logos/logo.png';
+                } else {
+                    $logo_path = null;
+                }
+
+                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)):
+                ?>
+                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
+                <?php else: ?>
+                    <i class="fas fa-graduation-cap"></i>
+                <?php endif; ?>
+            </div>
             <div class="logo-text">
                 <h3><?php echo htmlspecialchars($school_name); ?></h3>
                 <p>Admin Panel</p>

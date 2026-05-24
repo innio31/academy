@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_score_entry.php — Enter exam scores per subject
+// ida/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -258,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 $graded = getGradeInfo($total, $grading_scale);
                 $pct    = $record['max_score'] > 0 ? round(($total / $record['max_score']) * 100, 2) : 0;
 
-                // SELECT then INSERT/UPDATE (no UNIQUE key on table)
+                // SELECT then INSERT/UPDATE
                 $chk = $pdo->prepare("
                     SELECT id FROM student_scores
                      WHERE school_id=? AND student_id=? AND subject_id=? AND session=? AND term=?
@@ -290,21 +290,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ");
             $stmt->execute([$school_id, $post_subject_id, $session, $term]);
             $ranked       = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $sequential   = (int)($record['sequential_positions'] ?? 0);
             $pos          = 1;
             $prev_score   = null;
-            $display_pos  = 1;
 
             foreach ($ranked as $r) {
                 $cur_score = (float)$r['total_score'];
-                if ($prev_score !== null && $cur_score < $prev_score) {
-                    $display_pos = $sequential ? $pos : $pos;
-                }
-                // Both sequential and dense ranking resolve the same here;
-                // for dense (default): same score = same position, next is +1 from tied group count
-                if ($prev_score !== null && $cur_score < $prev_score) {
-                    $display_pos = $pos; // always position = rank for sequential
-                }
+                $display_pos = $pos;
 
                 $pdo->prepare("UPDATE student_scores SET subject_position=? WHERE id=?")->execute([$display_pos, $r['id']]);
 
@@ -337,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
             $pdo->commit();
 
-            // Activity log (non-fatal)
+            // Activity log
             try {
                 $pdo->prepare("INSERT INTO activity_logs (user_id,user_type,activity,school_id) VALUES (?,?,?,?)")
                     ->execute([$admin_id, 'admin', "Saved scores: {$subj_name_val} — {$class} {$term} Term {$session}", $school_id]);
@@ -360,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title><?php echo htmlspecialchars($school_name); ?> — Score Entry</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -394,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             overflow-x: hidden;
         }
 
-        /* Sidebar */
+        /* Sidebar - Mobile First */
         .sidebar {
             position: fixed;
             top: 0;
@@ -488,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             text-align: center;
         }
 
-        /* Layout */
+        /* Mobile Menu */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -502,11 +493,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             border-radius: var(--radius-md);
             font-size: 20px;
             cursor: pointer;
+            box-shadow: var(--shadow-sm);
         }
 
         .sidebar-overlay {
             position: fixed;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: rgba(0, 0, 0, 0.5);
             z-index: 999;
             opacity: 0;
@@ -519,128 +514,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             visibility: visible;
         }
 
+        /* Main Content */
         .main-content {
             min-height: 100vh;
-            padding: 20px;
+            padding: 70px 16px 20px;
             transition: var(--transition);
         }
 
-        /* Top header */
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 18px 20px;
+            padding: 16px;
             border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
+            margin-bottom: 16px;
             box-shadow: var(--shadow-sm);
         }
 
         .top-header h1 {
             color: var(--primary-color);
-            font-size: 1.35rem;
-            margin-bottom: 3px;
+            font-size: 1.25rem;
+            margin-bottom: 4px;
         }
 
         .top-header p {
             color: #666;
-            font-size: 0.82rem;
+            font-size: 0.75rem;
+            line-height: 1.4;
         }
 
-        .back-btn {
-            background: white;
-            border: 1px solid var(--light-color);
-            color: var(--primary-color);
-            padding: 9px 16px;
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 16px;
             border-radius: var(--radius-sm);
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
             cursor: pointer;
+            border: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.83rem;
             text-decoration: none;
+            transition: var(--transition);
         }
 
-        /* Step bar */
-        .step-bar {
-            display: flex;
-            background: white;
-            border-radius: var(--radius-md);
-            padding: 14px 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow-sm);
-            overflow-x: auto;
-        }
-
-        .step-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 80px;
-            position: relative;
-        }
-
-        .step-item:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            top: 14px;
-            left: 50%;
-            width: 100%;
-            height: 2px;
-            background: var(--light-color);
-            z-index: 0;
-        }
-
-        .step-circle {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 600;
-            z-index: 1;
-            position: relative;
-            border: 2px solid transparent;
-        }
-
-        .step-done {
+        .btn-primary {
             background: var(--primary-color);
             color: white;
-            border-color: var(--primary-color);
         }
 
-        .step-current {
-            background: #fff;
+        .btn-secondary {
+            background: white;
             color: var(--primary-color);
-            border-color: var(--primary-color);
+            border: 1.5px solid var(--primary-color);
         }
 
-        .step-todo {
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.7rem;
+        }
+
+        .back-btn {
             background: var(--light-color);
-            color: #999;
-            border-color: var(--light-color);
-        }
-
-        .step-label {
-            font-size: 10px;
-            color: #999;
-            margin-top: 5px;
-            text-align: center;
+            color: var(--dark-color);
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         /* Alerts */
         .alert {
-            padding: 13px 16px;
+            padding: 12px;
             border-radius: var(--radius-sm);
-            margin-bottom: 18px;
-            font-size: 0.86rem;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
             display: flex;
             align-items: flex-start;
             gap: 10px;
@@ -658,23 +621,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             border-left: 4px solid var(--danger-color);
         }
 
-        .alert i {
-            flex-shrink: 0;
-            margin-top: 2px;
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
         }
 
-        /* Stat cards */
+        /* Stats Row - Mobile Optimized */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 14px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
         }
 
         .stat-box {
             background: white;
             border-radius: var(--radius-md);
-            padding: 14px 16px;
+            padding: 12px;
+            text-align: center;
             box-shadow: var(--shadow-sm);
             border-top: 3px solid var(--primary-color);
         }
@@ -688,7 +653,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         }
 
         .stat-val {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 700;
             color: var(--primary-color);
         }
@@ -702,30 +667,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         }
 
         .stat-lbl {
-            font-size: 0.74rem;
+            font-size: 0.7rem;
             color: #777;
-            margin-top: 2px;
+            margin-top: 4px;
         }
 
-        /* Progress bar */
+        /* Progress Bar */
         .progress-wrap {
             background: white;
             border-radius: var(--radius-md);
-            padding: 16px 20px;
-            margin-bottom: 20px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
             box-shadow: var(--shadow-sm);
         }
 
         .progress-label {
             display: flex;
             justify-content: space-between;
-            font-size: 0.82rem;
+            font-size: 0.75rem;
             color: #555;
             margin-bottom: 8px;
         }
 
         .progress-bar {
-            height: 8px;
+            height: 6px;
             background: var(--light-color);
             border-radius: 20px;
             overflow: hidden;
@@ -738,202 +703,241 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             transition: width 0.4s ease;
         }
 
-        /* Two-col layout */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 230px 1fr;
-            gap: 20px;
-            align-items: start;
-        }
-
-        /* Subject sidebar */
-        .subject-panel {
+        /* Step Bar - Mobile Optimized */
+        .step-bar {
             background: white;
             border-radius: var(--radius-md);
+            padding: 12px 8px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            overflow-x: auto;
+            gap: 8px;
             box-shadow: var(--shadow-sm);
-            overflow: hidden;
-            position: sticky;
-            top: 20px;
         }
 
-        .subject-panel-header {
+        .step-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 55px;
+        }
+
+        .step-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--light-color);
+            color: #999;
+            border: 2px solid transparent;
+        }
+
+        .step-done {
             background: var(--primary-color);
             color: white;
-            padding: 14px 16px;
-            font-size: 0.88rem;
-            font-weight: 600;
         }
 
-        .subject-list {
-            list-style: none;
+        .step-current {
+            background: white;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .step-label {
+            font-size: 9px;
+            color: #999;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        /* Mobile Subject Selector */
+        .mobile-subject-selector {
+            background: white;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .selector-header {
+            padding: 12px 16px;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .selector-header span {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .subject-dropdown-list {
+            display: none;
             padding: 8px 0;
-            max-height: 65vh;
+            max-height: 250px;
             overflow-y: auto;
         }
 
-        .subject-item a {
+        .subject-dropdown-list.show {
+            display: block;
+        }
+
+        .subject-dropdown-item {
+            padding: 12px 16px;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 10px 16px;
-            color: #333;
+            align-items: center;
             text-decoration: none;
-            font-size: 0.83rem;
-            transition: background 0.15s;
-            gap: 8px;
+            border-bottom: 1px solid var(--light-color);
         }
 
-        .subject-item a:hover {
-            background: #f5f6fa;
-        }
-
-        .subject-item a.active {
+        .subject-dropdown-item.active {
             background: #eef3ff;
             color: var(--primary-color);
-            border-left: 3px solid var(--primary-color);
             font-weight: 600;
         }
 
-        .done-dot {
-            width: 8px;
-            height: 8px;
+        .subject-dropdown-item span:first-child {
+            font-size: 0.85rem;
+        }
+
+        .done-dot,
+        .pending-dot {
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
+        }
+
+        .done-dot {
             background: var(--success-color);
-            flex-shrink: 0;
         }
 
         .pending-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
             background: var(--light-color);
             border: 1px solid #ccc;
-            flex-shrink: 0;
         }
 
-        .subject-count {
-            font-size: 0.72rem;
-            color: #888;
-            padding: 6px 16px;
-            border-top: 1px solid var(--light-color);
-        }
-
-        /* Score card */
+        /* Score Card */
         .score-card {
             background: white;
             border-radius: var(--radius-md);
-            box-shadow: var(--shadow-sm);
             overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 16px;
         }
 
         .score-card-header {
-            padding: 16px 20px;
-            border-bottom: 2px solid var(--light-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
+            padding: 14px 16px;
+            background: white;
+            border-bottom: 1px solid var(--light-color);
         }
 
         .score-card-header h2 {
             color: var(--primary-color);
             font-size: 1rem;
             font-weight: 600;
+            margin-bottom: 4px;
         }
 
         .score-card-header .meta {
-            font-size: 0.78rem;
+            font-size: 0.7rem;
             color: #888;
-            margin-top: 2px;
         }
 
-        .header-actions {
+        /* Mobile Score Table - Card Style */
+        .mobile-score-list {
             display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
         }
 
-        /* Score table */
-        .table-wrap {
-            overflow-x: auto;
+        .score-student-card {
+            background: #f9f9f9;
+            border-radius: var(--radius-md);
+            padding: 12px;
+            border: 1px solid var(--light-color);
         }
 
-        table.score-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.84rem;
-            min-width: 520px;
-        }
-
-        .score-table th {
-            background: var(--light-color);
-            padding: 10px 12px;
-            font-weight: 600;
-            text-align: left;
-            border-bottom: 2px solid #ddd;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        .score-table th.center,
-        .score-table td.center {
-            text-align: center;
-        }
-
-        .score-table td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
-            vertical-align: middle;
-        }
-
-        .score-table tr:hover td {
-            background: #fafafa;
-        }
-
-        .score-table tr.changed td {
-            background: #fffbe6;
-        }
-
-        .student-cell {
+        .student-header {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--light-color);
         }
 
-        .avatar {
-            width: 32px;
-            height: 32px;
+        .student-avatar {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: var(--primary-color);
             color: white;
-            font-size: 12px;
-            font-weight: 600;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
             flex-shrink: 0;
         }
 
+        .student-details {
+            flex: 1;
+        }
+
+        .student-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .student-adm {
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        .score-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .score-field {
+            flex: 1;
+            min-width: 70px;
+        }
+
+        .score-field label {
+            display: block;
+            font-size: 0.7rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
         .score-input {
-            width: 62px;
-            padding: 6px 6px;
+            width: 100%;
+            padding: 8px;
             text-align: center;
             border: 1.5px solid #ddd;
             border-radius: var(--radius-sm);
             font-family: 'Poppins', sans-serif;
-            font-size: 0.83rem;
-            background: #fafafa;
-            transition: border-color 0.2s;
+            font-size: 0.85rem;
+            background: white;
         }
 
         .score-input:focus {
             outline: none;
             border-color: var(--primary-color);
-            background: #fff;
         }
 
         .score-input.over {
@@ -941,19 +945,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             background: #fff5f5;
         }
 
-        .score-input.filled {
-            background: #f0fff4;
-            border-color: #b2dfdb;
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 8px;
+            border-top: 1px solid var(--light-color);
         }
 
-        .total-cell {
+        .total-score {
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 1rem;
+            color: var(--primary-color);
         }
 
         .grade-badge {
             display: inline-block;
-            padding: 2px 10px;
+            padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
@@ -984,135 +992,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             color: #721c24;
         }
 
-        .max-label {
-            font-size: 0.72rem;
-            color: #999;
-            font-weight: 400;
+        .remark-text {
+            font-size: 0.7rem;
+            color: #888;
         }
 
-        /* Staff assign bar */
+        /* Staff Assignment */
         .assign-bar {
-            padding: 10px 20px;
+            padding: 12px 16px;
             background: #f9f9f9;
             border-bottom: 1px solid var(--light-color);
             display: flex;
             align-items: center;
-            gap: 14px;
-            font-size: 0.82rem;
-            color: #555;
+            gap: 10px;
             flex-wrap: wrap;
-        }
-
-        .assign-bar label {
-            font-weight: 500;
-            white-space: nowrap;
+            font-size: 0.75rem;
         }
 
         .assign-bar select {
-            padding: 5px 10px;
+            padding: 6px 10px;
             border: 1.5px solid #ddd;
             border-radius: var(--radius-sm);
-            font-size: 0.82rem;
+            font-size: 0.75rem;
             font-family: 'Poppins', sans-serif;
             background: white;
+            flex: 1;
+            min-width: 140px;
         }
 
-        /* Buttons */
-        .btn {
-            padding: 9px 18px;
-            border-radius: var(--radius-sm);
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            text-decoration: none;
-            transition: var(--transition);
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            opacity: 0.9;
-        }
-
-        .btn-secondary {
-            background: white;
-            color: var(--primary-color);
-            border: 1.5px solid var(--primary-color);
-        }
-
-        .btn-secondary:hover {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.78rem;
-        }
-
-        /* Score footer */
+        /* Score Footer */
         .score-footer {
-            padding: 14px 20px;
-            border-top: 2px solid var(--light-color);
+            padding: 12px 16px;
+            border-top: 1px solid var(--light-color);
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
+            flex-direction: column;
+            gap: 12px;
         }
 
-        .footer-left {
+        .footer-buttons {
             display: flex;
             gap: 10px;
-            align-items: center;
             flex-wrap: wrap;
         }
 
-        .footer-right {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
+        .footer-buttons .btn {
+            flex: 1;
+            justify-content: center;
         }
 
-        /* Empty state */
+        /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px 20px;
             color: #999;
         }
 
         .empty-state i {
             font-size: 48px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             opacity: 0.3;
-            display: block;
         }
 
-        .empty-state h3 {
-            font-size: 1rem;
-            font-weight: 500;
-            margin-bottom: 8px;
-        }
-
-        .empty-state p {
-            font-size: 0.84rem;
-        }
-
-        @media(min-width:768px) {
+        /* Desktop Styles */
+        @media (min-width: 768px) {
 
             .mobile-menu-toggle,
             .sidebar-overlay {
@@ -1125,32 +1067,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
             .main-content {
                 margin-left: var(--sidebar-width);
-            }
-        }
-
-        @media(max-width:960px) {
-            .content-grid {
-                grid-template-columns: 1fr;
+                padding: 20px 24px;
             }
 
-            .subject-panel {
-                position: static;
-            }
-
-            .subject-list {
-                max-height: none;
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            }
-        }
-
-        @media(max-width:767px) {
-            .main-content {
-                padding-top: 70px;
+            .mobile-subject-selector {
+                display: none;
             }
 
             .stats-row {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(6, 1fr);
+            }
+
+            .score-footer {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .footer-buttons {
+                flex: 1;
+                justify-content: flex-end;
+            }
+        }
+
+        /* Tablet Styles */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .stats-row {
+                grid-template-columns: repeat(3, 1fr);
             }
         }
     </style>
@@ -1165,7 +1108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="logo-icon">
+                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO): ?>
+                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
+                    <?php else: ?>
+                        <i class="fas fa-graduation-cap"></i>
+                    <?php endif; ?>
+                </div>
                 <div class="logo-text">
                     <h3><?php echo htmlspecialchars($school_name); ?></h3>
                     <p>Admin Panel</p>
@@ -1188,11 +1137,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
-    <!-- Main content -->
+    <!-- Main Content -->
     <div class="main-content" id="mainContent">
 
         <div class="top-header">
@@ -1200,18 +1149,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 <h1>Enter Exam Scores</h1>
                 <p>
                     <strong><?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?></strong>
-                    &nbsp;·&nbsp; <?php echo htmlspecialchars($class); ?>
-                    &nbsp;·&nbsp; <?php echo htmlspecialchars($session); ?>
-                    &nbsp;·&nbsp; <?php echo htmlspecialchars($term); ?> Term
-                    &nbsp;·&nbsp;
-                    <span style="color:<?php echo ($record['status'] ?? 'draft') === 'published' ? 'var(--success-color)' : 'var(--warning-color)'; ?>">
+                    · <?php echo htmlspecialchars($class); ?>
+                    · <?php echo htmlspecialchars($session); ?>
+                    · <?php echo htmlspecialchars($term); ?> Term
+                    · <span style="color:<?php echo ($record['status'] ?? 'draft') === 'published' ? 'var(--success-color)' : 'var(--warning-color)'; ?>">
                         <?php echo ucfirst($record['status'] ?? 'draft'); ?>
                     </span>
                 </p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="header-buttons">
                 <a href="exam_record_setup.php?edit=<?php echo $record_id; ?>" class="back-btn">
-                    <i class="fas fa-cog"></i> Record settings
+                    <i class="fas fa-cog"></i> Settings
                 </a>
                 <a href="exam_record_setup.php" class="back-btn">
                     <i class="fas fa-arrow-left"></i> All records
@@ -1226,23 +1174,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             <div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i><span><?php echo $error_message; ?></span></div>
         <?php endif; ?>
 
-        <!-- Step bar -->
+        <!-- Step Bar -->
         <div class="step-bar">
             <div class="step-item">
-                <div class="step-circle step-done"><i class="fas fa-check" style="font-size:11px"></i></div>
-                <div class="step-label">Setup record</div>
+                <div class="step-circle step-done"><i class="fas fa-check" style="font-size: 9px;"></i></div>
+                <div class="step-label">Setup</div>
             </div>
             <div class="step-item">
                 <div class="step-circle step-current">2</div>
-                <div class="step-label">Enter scores</div>
+                <div class="step-label">Scores</div>
             </div>
             <div class="step-item">
                 <div class="step-circle step-todo">3</div>
-                <div class="step-label">Traits &amp; comments</div>
+                <div class="step-label">Traits</div>
             </div>
             <div class="step-item">
                 <div class="step-circle step-todo">4</div>
-                <div class="step-label">Generate cards</div>
+                <div class="step-label">Generate</div>
             </div>
             <div class="step-item">
                 <div class="step-circle step-todo">5</div>
@@ -1254,38 +1202,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         <div class="stats-row">
             <div class="stat-box">
                 <div class="stat-val"><?php echo $total_students; ?></div>
-                <div class="stat-lbl">Students in class</div>
+                <div class="stat-lbl">Students</div>
             </div>
             <div class="stat-box">
                 <div class="stat-val"><?php echo $total_subjects; ?></div>
-                <div class="stat-lbl">Total subjects</div>
+                <div class="stat-lbl">Subjects</div>
             </div>
             <div class="stat-box green">
                 <div class="stat-val"><?php echo $completed_subjects; ?></div>
-                <div class="stat-lbl">Subjects done</div>
+                <div class="stat-lbl">Done</div>
             </div>
             <div class="stat-box amber">
                 <div class="stat-val"><?php echo $total_subjects - $completed_subjects; ?></div>
-                <div class="stat-lbl">Subjects pending</div>
+                <div class="stat-lbl">Pending</div>
             </div>
             <?php if ($active_subject_id > 0): ?>
                 <div class="stat-box">
                     <div class="stat-val"><?php echo $entered_count; ?>/<?php echo $total_students; ?></div>
-                    <div class="stat-lbl">Entered (this subject)</div>
+                    <div class="stat-lbl">Entered</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-val"><?php echo $class_avg > 0 ? $class_avg . '%' : '—'; ?></div>
-                    <div class="stat-lbl">Class avg (this subject)</div>
+                    <div class="stat-lbl">Class Avg</div>
                 </div>
             <?php endif; ?>
         </div>
 
         <!-- Progress -->
         <div class="progress-wrap">
-            <div class="progress-label">
-                <span>Score entry progress</span>
-                <span><?php echo $completed_subjects; ?> / <?php echo $total_subjects; ?> subjects &nbsp;·&nbsp; <?php echo $progress_pct; ?>%</span>
-            </div>
+            <div class="progress-label"><span>Score entry progress</span><span><?php echo $completed_subjects; ?> / <?php echo $total_subjects; ?> subjects · <?php echo $progress_pct; ?>%</span></div>
             <div class="progress-bar">
                 <div class="progress-fill" style="width:<?php echo $progress_pct; ?>%"></div>
             </div>
@@ -1300,7 +1245,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                     <br><a href="manage-subjects.php" class="btn btn-primary"><i class="fas fa-book"></i> Manage Subjects</a>
                 </div>
             </div>
-
         <?php elseif (empty($students)): ?>
             <div class="score-card">
                 <div class="empty-state">
@@ -1310,210 +1254,164 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                     <br><a href="manage-students.php" class="btn btn-primary"><i class="fas fa-users"></i> Manage Students</a>
                 </div>
             </div>
-
         <?php else: ?>
 
-            <div class="content-grid">
-                <!-- Subject list panel -->
-                <div class="subject-panel">
-                    <div class="subject-panel-header">
-                        <i class="fas fa-book-open"></i> Subjects
-                        <span style="font-weight:400;font-size:0.78rem;opacity:0.8;margin-left:6px">(<?php echo $completed_subjects; ?>/<?php echo $total_subjects; ?>)</span>
-                    </div>
-                    <ul class="subject-list">
-                        <?php foreach ($subjects as $sub):
-                            $is_active = (int)$sub['id'] === $active_subject_id;
-                            $is_done   = isset($subjects_with_scores[(int)$sub['id']]);
-                        ?>
-                            <li class="subject-item">
-                                <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
-                                    class="<?php echo $is_active ? 'active' : ''; ?>">
-                                    <span><?php echo htmlspecialchars($sub['subject_name']); ?></span>
-                                    <span class="<?php echo $is_done ? 'done-dot' : 'pending-dot'; ?>"
-                                        title="<?php echo $is_done ? 'Scores entered' : 'Pending'; ?>"></span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <div class="subject-count">
-                        <span style="color:var(--success-color)">● <?php echo count($subjects_with_scores); ?> done</span>
-                        &nbsp;&nbsp;
-                        <span style="color:#ccc">● <?php echo $total_subjects - count($subjects_with_scores); ?> pending</span>
-                    </div>
+            <!-- Mobile Subject Selector (Dropdown) -->
+            <div class="mobile-subject-selector">
+                <div class="selector-header" onclick="toggleSubjectDropdown()">
+                    <span><i class="fas fa-book-open"></i> <?php echo $active_subject_name ?: 'Select Subject'; ?></span>
+                    <i class="fas fa-chevron-down" id="dropdownIcon"></i>
                 </div>
+                <div class="subject-dropdown-list" id="subjectDropdownList">
+                    <?php foreach ($subjects as $sub):
+                        $is_done = isset($subjects_with_scores[(int)$sub['id']]);
+                    ?>
+                        <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
+                            class="subject-dropdown-item <?php echo (int)$sub['id'] === $active_subject_id ? 'active' : ''; ?>">
+                            <span><?php echo htmlspecialchars($sub['subject_name']); ?></span>
+                            <span class="<?php echo $is_done ? 'done-dot' : 'pending-dot'; ?>"></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
 
-                <!-- Score entry -->
-                <div>
-                    <?php if ($active_subject_id > 0 && $active_subject_name !== ''): ?>
+            <?php if ($active_subject_id > 0 && $active_subject_name !== ''): ?>
+                <form method="POST" id="scoreForm">
+                    <input type="hidden" name="action" value="save_scores">
+                    <input type="hidden" name="subject_id" value="<?php echo $active_subject_id; ?>">
 
-                        <form method="POST" id="scoreForm">
-                            <input type="hidden" name="action" value="save_scores">
-                            <input type="hidden" name="subject_id" value="<?php echo $active_subject_id; ?>">
-
-                            <div class="score-card">
-                                <div class="score-card-header">
-                                    <div>
-                                        <h2><i class="fas fa-pencil-alt" style="font-size:0.9rem;margin-right:6px"></i><?php echo htmlspecialchars($active_subject_name); ?></h2>
-                                        <div class="meta">
-                                            <?php echo htmlspecialchars($class); ?> &nbsp;·&nbsp;
-                                            <?php echo htmlspecialchars($term); ?> Term &nbsp;·&nbsp;
-                                            <?php echo htmlspecialchars($session); ?> &nbsp;·&nbsp;
-                                            Max: <?php echo (int)$record['max_score']; ?> marks
-                                            &nbsp;(<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
-                                        </div>
-                                    </div>
-                                    <div class="header-actions">
-                                        <?php if ($next_subject): ?>
-                                            <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $next_subject['id']; ?>" class="btn btn-secondary btn-sm">
-                                                Next: <?php echo htmlspecialchars($next_subject['subject_name']); ?> <i class="fas fa-arrow-right"></i>
-                                            </a>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-
-                                <!-- Staff assignment -->
-                                <div class="assign-bar">
-                                    <label><i class="fas fa-chalkboard-teacher"></i> Assigned staff:</label>
-                                    <select id="staffAssign" onchange="saveStaffAssignment(this.value)">
-                                        <option value="">— Not assigned —</option>
-                                        <?php foreach ($staff_list as $sf): ?>
-                                            <option value="<?php echo htmlspecialchars($sf['staff_id']); ?>"
-                                                <?php echo $sf['staff_id'] === $assigned_staff_id ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($sf['full_name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <span id="assignMsg" style="font-size:0.78rem;color:var(--success-color);display:none"><i class="fas fa-check"></i> Saved</span>
-                                    <span style="margin-left:auto;font-size:0.76rem;color:#bbb"><i class="fas fa-keyboard"></i> Tab / Enter to navigate · ↑↓ to move between students</span>
-                                </div>
-
-                                <!-- Table -->
-                                <div class="table-wrap">
-                                    <table class="score-table" id="scoreTable">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:36px">#</th>
-                                                <th style="min-width:160px">Student</th>
-                                                <th style="width:90px">Adm. No.</th>
-                                                <?php foreach ($score_types as $st): ?>
-                                                    <th class="center">
-                                                        <?php echo htmlspecialchars($st['label']); ?>
-                                                        <br><span class="max-label">/ <?php echo (int)$st['max']; ?></span>
-                                                    </th>
-                                                <?php endforeach; ?>
-                                                <th class="center">Total<br><span class="max-label">/ <?php echo (int)$record['max_score']; ?></span></th>
-                                                <th class="center">Grade</th>
-                                                <th class="center">Remark</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($students as $idx => $stu):
-                                                $stu_id   = (int)$stu['id'];
-                                                $saved    = $existing_scores[$stu_id] ?? null;
-                                                $words    = array_filter(explode(' ', $stu['full_name']));
-                                                $initials = strtoupper(implode('', array_map(fn($w) => $w[0], array_slice($words, 0, 2))));
-                                                $graded   = $saved ? getGradeInfo((float)$saved['total_score'], $grading_scale) : null;
-                                                $gc       = $graded ? 'g-' . strtolower($graded['grade'][0]) : '';
-                                            ?>
-                                                <tr id="row_<?php echo $stu_id; ?>" data-student="<?php echo $stu_id; ?>">
-                                                    <td style="color:#aaa;font-size:0.78rem"><?php echo $idx + 1; ?></td>
-                                                    <td>
-                                                        <div class="student-cell">
-                                                            <div class="avatar"><?php echo htmlspecialchars($initials); ?></div>
-                                                            <div>
-                                                                <div style="font-size:0.85rem;font-weight:500"><?php echo htmlspecialchars($stu['full_name']); ?></div>
-                                                                <?php if ($stu['gender']): ?><div style="font-size:0.72rem;color:#aaa"><?php echo htmlspecialchars($stu['gender']); ?></div><?php endif; ?>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td style="font-size:0.78rem;color:#888"><?php echo htmlspecialchars($stu['admission_number']); ?></td>
-
-                                                    <?php foreach ($score_types as $st):
-                                                        $lbl    = $st['label'];
-                                                        $maxVal = (int)$st['max'];
-                                                        $val    = $saved ? ($saved['score_data'][$lbl] ?? '') : '';
-                                                        $filled = ($val !== '' && $val !== null);
-                                                    ?>
-                                                        <td class="center">
-                                                            <input type="number"
-                                                                name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
-                                                                class="score-input<?php echo $filled ? ' filled' : ''; ?>"
-                                                                value="<?php echo $filled ? htmlspecialchars((string)$val) : ''; ?>"
-                                                                min="0" max="<?php echo $maxVal; ?>" step="0.5"
-                                                                placeholder="—"
-                                                                data-max="<?php echo $maxVal; ?>"
-                                                                data-student="<?php echo $stu_id; ?>"
-                                                                oninput="onScoreInput(this,<?php echo $stu_id; ?>)"
-                                                                onkeydown="handleKey(event,this)">
-                                                        </td>
-                                                    <?php endforeach; ?>
-
-                                                    <td class="center total-cell" id="total_<?php echo $stu_id; ?>">
-                                                        <?php echo $saved ? number_format((float)$saved['total_score'], 1) : '—'; ?>
-                                                    </td>
-                                                    <td class="center" id="grade_<?php echo $stu_id; ?>">
-                                                        <?php if ($graded): ?>
-                                                            <span class="grade-badge <?php echo $gc; ?>"><?php echo htmlspecialchars($graded['grade']); ?></span>
-                                                            <?php else: ?>—<?php endif; ?>
-                                                    </td>
-                                                    <td id="remark_<?php echo $stu_id; ?>" style="font-size:0.78rem;color:#888">
-                                                        <?php echo $graded ? htmlspecialchars($graded['remark']) : '—'; ?>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <!-- Footer -->
-                                <div class="score-footer">
-                                    <div class="footer-left">
-                                        <span style="font-size:0.78rem;color:#888"><?php echo $entered_count; ?> of <?php echo $total_students; ?> students have scores</span>
-                                    </div>
-                                    <div class="footer-right">
-                                        <button type="button" class="btn btn-secondary btn-sm" onclick="fillZeros()">
-                                            <i class="fas fa-fill-drip"></i> Fill empty with 0
-                                        </button>
-                                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllInputs()">
-                                            <i class="fas fa-undo"></i> Clear inputs
-                                        </button>
-                                        <button type="submit" class="btn btn-primary" id="saveBtn">
-                                            <i class="fas fa-save"></i> Save &amp; recalculate positions
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-
-                        <!-- All done CTA -->
-                        <?php if ($completed_subjects >= $total_subjects): ?>
-                            <div class="alert alert-success" style="margin-top:16px">
-                                <i class="fas fa-check-circle"></i>
-                                <div>
-                                    <strong>All <?php echo $total_subjects; ?> subjects complete!</strong>
-                                    Proceed to enter traits &amp; comments for each student.
-                                    <br>
-                                    <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm" style="margin-top:8px">
-                                        <i class="fas fa-arrow-right"></i> Traits &amp; comments
-                                    </a>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                    <?php else: ?>
-                        <div class="score-card">
-                            <div class="empty-state">
-                                <i class="fas fa-hand-point-left"></i>
-                                <h3>Select a subject</h3>
-                                <p>Choose a subject from the list to start entering scores.</p>
+                    <div class="score-card">
+                        <div class="score-card-header">
+                            <h2><i class="fas fa-pencil-alt"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
+                            <div class="meta">
+                                <?php echo htmlspecialchars($class); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
+                                · Max: <?php echo (int)$record['max_score']; ?> marks
+                                (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
                             </div>
                         </div>
-                    <?php endif; ?>
+
+                        <!-- Staff Assignment -->
+                        <div class="assign-bar">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <select id="staffAssign" onchange="saveStaffAssignment(this.value)">
+                                <option value="">— Not assigned —</option>
+                                <?php foreach ($staff_list as $sf): ?>
+                                    <option value="<?php echo htmlspecialchars($sf['staff_id']); ?>" <?php echo $sf['staff_id'] === $assigned_staff_id ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($sf['full_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span id="assignMsg" style="font-size:0.7rem;color:var(--success-color);display:none"><i class="fas fa-check"></i> Saved</span>
+                        </div>
+
+                        <!-- Mobile Score Cards -->
+                        <div class="mobile-score-list" id="mobileScoreList">
+                            <?php foreach ($students as $idx => $stu):
+                                $stu_id = (int)$stu['id'];
+                                $saved = $existing_scores[$stu_id] ?? null;
+                                $initials = strtoupper(substr($stu['full_name'], 0, 2));
+                                $graded = $saved ? getGradeInfo((float)$saved['total_score'], $grading_scale) : null;
+                                $gc = $graded ? 'g-' . strtolower($graded['grade'][0]) : '';
+                            ?>
+                                <div class="score-student-card" id="studentCard_<?php echo $stu_id; ?>">
+                                    <div class="student-header">
+                                        <div class="student-avatar"><?php echo htmlspecialchars($initials); ?></div>
+                                        <div class="student-details">
+                                            <div class="student-name"><?php echo htmlspecialchars($stu['full_name']); ?></div>
+                                            <div class="student-adm">Adm: <?php echo htmlspecialchars($stu['admission_number']); ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="score-fields">
+                                        <?php foreach ($score_types as $st):
+                                            $lbl = $st['label'];
+                                            $maxVal = (int)$st['max'];
+                                            $val = $saved ? ($saved['score_data'][$lbl] ?? '') : '';
+                                            $filled = ($val !== '' && $val !== null);
+                                        ?>
+                                            <div class="score-field">
+                                                <label><?php echo htmlspecialchars($lbl); ?> / <?php echo $maxVal; ?></label>
+                                                <input type="number"
+                                                    name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
+                                                    class="score-input <?php echo $filled ? 'filled' : ''; ?>"
+                                                    value="<?php echo $filled ? htmlspecialchars((string)$val) : ''; ?>"
+                                                    min="0" max="<?php echo $maxVal; ?>" step="0.5"
+                                                    data-max="<?php echo $maxVal; ?>"
+                                                    data-student="<?php echo $stu_id; ?>"
+                                                    data-field="<?php echo htmlspecialchars($lbl); ?>"
+                                                    oninput="onScoreInput(this, <?php echo $stu_id; ?>)"
+                                                    inputmode="decimal">
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="result-row">
+                                        <div>
+                                            <span class="total-score" id="total_<?php echo $stu_id; ?>">
+                                                <?php echo $saved ? number_format((float)$saved['total_score'], 1) : '—'; ?>
+                                            </span>
+                                            <span class="remark-text" id="remark_<?php echo $stu_id; ?>">
+                                                <?php echo $graded ? $graded['remark'] : ''; ?>
+                                            </span>
+                                        </div>
+                                        <div id="grade_<?php echo $stu_id; ?>">
+                                            <?php if ($graded): ?>
+                                                <span class="grade-badge <?php echo $gc; ?>"><?php echo htmlspecialchars($graded['grade']); ?></span>
+                                            <?php else: ?>
+                                                <span class="grade-badge g-f">—</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="score-footer">
+                            <div class="footer-buttons">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="fillZeros()">
+                                    <i class="fas fa-fill-drip"></i> Fill zeros
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllInputs()">
+                                    <i class="fas fa-undo"></i> Clear
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="saveBtn">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                            <?php if ($next_subject): ?>
+                                <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $next_subject['id']; ?>" class="btn btn-secondary btn-sm">
+                                    Next: <?php echo htmlspecialchars($next_subject['subject_name']); ?> <i class="fas fa-arrow-right"></i>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Completion Alert -->
+                <?php if ($completed_subjects >= $total_subjects): ?>
+                    <div class="alert alert-success" style="margin-top: 12px;">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>All <?php echo $total_subjects; ?> subjects complete!</strong>
+                            <div style="margin-top: 8px;">
+                                <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm">
+                                    <i class="fas fa-arrow-right"></i> Traits &amp; comments
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="score-card">
+                    <div class="empty-state">
+                        <i class="fas fa-hand-point-left"></i>
+                        <h3>Select a subject</h3>
+                        <p>Choose a subject from the list above to start entering scores.</p>
+                    </div>
                 </div>
-            </div><!-- /content-grid -->
+            <?php endif; ?>
         <?php endif; ?>
 
-        <div style="text-align:center;padding:20px;color:#999;font-size:0.8rem;border-top:1px solid var(--light-color);margin-top:20px">
+        <div style="text-align: center; padding: 20px; color: #999; font-size: 0.7rem; border-top: 1px solid var(--light-color); margin-top: 20px">
             &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
         </div>
     </div>
@@ -1539,7 +1437,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             const max = parseFloat(inp.dataset.max);
             const v = parseFloat(inp.value);
             inp.classList.toggle('over', !isNaN(v) && v > max);
-            inp.classList.toggle('filled', inp.value.trim() !== '' && !isNaN(v) && v <= max);
             recalcRow(studentId);
         }
 
@@ -1549,7 +1446,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 hasAny = false;
             inputs.forEach(i => {
                 const v = parseFloat(i.value);
-                if (!isNaN(v)) {
+                if (!isNaN(v) && !isNaN(parseFloat(i.value))) {
                     total += v;
                     hasAny = true;
                 }
@@ -1560,32 +1457,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             const rEl = document.getElementById('remark_' + sid);
 
             if (!hasAny) {
-                tEl.textContent = '—';
-                gEl.innerHTML = '—';
-                rEl.textContent = '—';
+                if (tEl) tEl.textContent = '—';
+                if (gEl) gEl.innerHTML = '<span class="grade-badge g-f">—</span>';
+                if (rEl) rEl.textContent = '';
                 return;
             }
             const g = getGrade(total);
-            tEl.textContent = Number.isInteger(total) ? total : total.toFixed(1);
-            gEl.innerHTML = `<span class="grade-badge ${gradeCls(g.grade)}">${g.grade}</span>`;
-            rEl.textContent = g.remark;
-            document.getElementById('row_' + sid)?.classList.add('changed');
-        }
+            if (tEl) tEl.textContent = Number.isInteger(total) ? total : total.toFixed(1);
+            if (gEl) gEl.innerHTML = `<span class="grade-badge ${gradeCls(g.grade)}">${g.grade}</span>`;
+            if (rEl) rEl.textContent = g.remark;
 
-        function handleKey(e, inp) {
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-            e.preventDefault();
-            const all = Array.from(document.querySelectorAll('.score-input'));
-            const idx = all.indexOf(inp);
-            const next = e.key === 'ArrowDown' ? all[idx + COL_COUNT] : all[idx - COL_COUNT];
-            next?.focus();
+            const card = document.getElementById('studentCard_' + sid);
+            if (card) card.style.backgroundColor = '#fffbe6';
+            setTimeout(() => {
+                if (card) card.style.backgroundColor = '';
+            }, 500);
         }
 
         function fillZeros() {
             document.querySelectorAll('.score-input').forEach(i => {
                 if (i.value.trim() === '') {
                     i.value = 0;
-                    i.classList.add('filled');
                 }
             });
             <?php foreach ($students as $s): ?>recalcRow(<?php echo (int)$s['id']; ?>);
@@ -1596,7 +1488,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             if (!confirm('Clear all visible inputs? Saved DB values are unchanged until you save.')) return;
             document.querySelectorAll('.score-input').forEach(i => {
                 i.value = '';
-                i.classList.remove('filled', 'over');
+                i.classList.remove('over');
             });
             <?php foreach ($students as $s): ?>recalcRow(<?php echo (int)$s['id']; ?>);
         <?php endforeach; ?>
@@ -1622,6 +1514,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             }).catch(() => {});
         }
 
+        function toggleSubjectDropdown() {
+            const list = document.getElementById('subjectDropdownList');
+            const icon = document.getElementById('dropdownIcon');
+            list.classList.toggle('show');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        }
+
         document.getElementById('scoreForm')?.addEventListener('submit', function(e) {
             const bad = document.querySelectorAll('.score-input.over');
             if (bad.length) {
@@ -1641,18 +1541,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         const sb = document.getElementById('sidebar');
         const ov = document.getElementById('sidebarOverlay');
         const tog = document.getElementById('mobileMenuToggle');
-        tog.addEventListener('click', () => {
-            sb.classList.toggle('active');
-            ov.classList.toggle('active');
-            document.body.style.overflow = sb.classList.contains('active') ? 'hidden' : '';
-        });
-        ov.addEventListener('click', () => {
-            sb.classList.remove('active');
-            ov.classList.remove('active');
-            document.body.style.overflow = '';
+        if (tog) {
+            tog.addEventListener('click', () => {
+                sb.classList.toggle('active');
+                ov.classList.toggle('active');
+                document.body.style.overflow = sb.classList.contains('active') ? 'hidden' : '';
+            });
+        }
+        if (ov) {
+            ov.addEventListener('click', () => {
+                sb.classList.remove('active');
+                ov.classList.remove('active');
+                document.body.style.overflow = '';
+            });
+        }
+
+        // Close sidebar when clicking nav links on mobile
+        document.querySelectorAll('.nav-links a').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sb.classList.remove('active');
+                    ov.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
         });
     </script>
-
 </body>
 
 </html>

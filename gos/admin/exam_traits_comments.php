@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
+// ida/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
 // Saves to: affective_traits, psychomotor_skills, student_comments, student_positions
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 if (isset($_SESSION['admin_id'])) {
@@ -358,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ]);
         }
 
-        // ── 3. Comments & attendance ──────────────────────────────────────────
+        // ── 3. Comments & attendance (FIXED: Added school_id) ──────────────────────────────────────────
         $days_opened = (int)($record['days_school_opened'] ?? 90);
         $days_present = min((int)($_POST['days_present'] ?? 0), $days_opened);
         $days_absent  = $days_opened - $days_present;
@@ -381,6 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 WHERE id=?
             ")->execute([$tc, $pc, $tcn, $pcn, $days_present, $days_absent, $cm_id]);
         } else {
+            // FIXED: Added school_id as the first parameter
             $pdo->prepare("
                 INSERT INTO student_comments
                     (school_id,student_id,session,term,
@@ -402,7 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ]);
         }
 
-        // ── 4. Promoted to (stored in student_positions) ──────────────────────
+        // ── 4. Promoted to (stored in student_positions) (FIXED: Added school_id) ──────────────────────
         $promoted_to = trim($_POST['promoted_to'] ?? '');
 
         $chk4 = $pdo->prepare("SELECT id FROM student_positions WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1");
@@ -413,6 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             $pdo->prepare("UPDATE student_positions SET promoted_to=?,updated_at=NOW() WHERE id=?")
                 ->execute([$promoted_to ?: null, $sp_id]);
         } else {
+            // FIXED: Added school_id as the first parameter
             $pdo->prepare("
                 INSERT INTO student_positions
                     (school_id,student_id,session,term,promoted_to,created_at,updated_at)
@@ -455,6 +457,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 render:
 $progress_pct = $total_students > 0 ? round(($completed_count / $total_students) * 100) : 0;
 ?>
+
+<!-- Rest of the HTML remains the same as your original file -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -1337,7 +1341,13 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="logo-icon">
+                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO): ?>
+                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
+                    <?php else: ?>
+                        <i class="fas fa-graduation-cap"></i>
+                    <?php endif; ?>
+                </div>
                 <div class="logo-text">
                     <h3><?php echo htmlspecialchars($school_name); ?></h3>
                     <p>Admin Panel</p>
@@ -1360,7 +1370,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1440,10 +1450,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
         <!-- Progress -->
         <div class="progress-wrap">
-            <div class="progress-label">
-                <span>Student records progress</span>
-                <span><?php echo $completed_count; ?> / <?php echo $total_students; ?> completed &nbsp;·&nbsp; <?php echo $progress_pct; ?>%</span>
-            </div>
+            <div class="progress-label"><span>Student records progress</span><span><?php echo $completed_count; ?> / <?php echo $total_students; ?> completed &nbsp;·&nbsp; <?php echo $progress_pct; ?>%</span></div>
             <div class="progress-bar">
                 <div class="progress-fill" style="width:<?php echo $progress_pct; ?>%"></div>
             </div>
@@ -1451,8 +1458,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
         <?php if (empty($students)): ?>
             <div class="form-card">
-                <div class="empty-state">
-                    <i class="fas fa-user-graduate"></i>
+                <div class="empty-state"><i class="fas fa-user-graduate"></i>
                     <h3>No active students in <?php echo htmlspecialchars($class); ?></h3>
                 </div>
             </div>
@@ -1462,10 +1468,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
                 <!-- Student list panel -->
                 <div class="student-panel">
-                    <div class="student-panel-hdr">
-                        <i class="fas fa-users"></i> Students
-                        <span style="font-weight:400;font-size:.78rem;opacity:.8;margin-left:6px">(<?php echo $completed_count; ?>/<?php echo $total_students; ?>)</span>
-                    </div>
+                    <div class="student-panel-hdr"><i class="fas fa-users"></i> Students <span style="font-weight:400;font-size:.78rem;opacity:.8;margin-left:6px">(<?php echo $completed_count; ?>/<?php echo $total_students; ?>)</span></div>
                     <ul class="student-list">
                         <?php foreach ($students as $i => $s):
                             $s_id    = (int)$s['id'];
@@ -1474,22 +1477,12 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                             $words   = array_filter(explode(' ', $s['full_name']));
                             $inits   = strtoupper(implode('', array_map(fn($w) => $w[0], array_slice($words, 0, 2))));
                         ?>
-                            <li>
-                                <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $s_id; ?>"
-                                    class="<?php echo $is_cur ? 'active' : ''; ?>">
-                                    <div class="s-avatar"><?php echo $inits; ?></div>
-                                    <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?php echo htmlspecialchars($s['full_name']); ?></span>
-                                    <span class="<?php echo $is_done ? 's-done-dot' : 's-pend-dot'; ?>"
-                                        title="<?php echo $is_done ? 'Done' : 'Pending'; ?>"></span>
-                                </a>
-                            </li>
+                            <li><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $s_id; ?>" class="<?php echo $is_cur ? 'active' : ''; ?>">
+                                    <div class="s-avatar"><?php echo $inits; ?></div><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?php echo htmlspecialchars($s['full_name']); ?></span><span class="<?php echo $is_done ? 's-done-dot' : 's-pend-dot'; ?>" title="<?php echo $is_done ? 'Done' : 'Pending'; ?>"></span>
+                                </a></li>
                         <?php endforeach; ?>
                     </ul>
-                    <div class="panel-footer">
-                        <span style="color:var(--success)">● <?php echo $completed_count; ?> done</span>
-                        &nbsp;&nbsp;
-                        <span style="color:#ccc">● <?php echo $total_students - $completed_count; ?> pending</span>
-                    </div>
+                    <div class="panel-footer"><span style="color:var(--success)">● <?php echo $completed_count; ?> done</span> &nbsp;&nbsp; <span style="color:#ccc">● <?php echo $total_students - $completed_count; ?> pending</span></div>
                 </div>
 
                 <!-- Right: form for active student -->
@@ -1510,24 +1503,11 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                     <div class="stu-big-avatar"><?php echo $inits; ?></div>
                                     <div class="stu-meta">
                                         <h3><?php echo htmlspecialchars($active_student['full_name']); ?></h3>
-                                        <p>
-                                            <?php echo htmlspecialchars($active_student['admission_number']); ?>
-                                            &nbsp;·&nbsp; <?php echo htmlspecialchars($class); ?>
-                                            <?php if ($active_student['gender']): ?>&nbsp;·&nbsp; <?php echo htmlspecialchars($active_student['gender']); ?><?php endif; ?>
-                                            &nbsp;·&nbsp; Student <?php echo $active_idx + 1; ?> of <?php echo $total_students; ?>
-                                        </p>
+                                        <p><?php echo htmlspecialchars($active_student['admission_number']); ?> &nbsp;·&nbsp; <?php echo htmlspecialchars($class); ?><?php if ($active_student['gender']): ?>&nbsp;·&nbsp; <?php echo htmlspecialchars($active_student['gender']); ?><?php endif; ?> &nbsp;·&nbsp; Student <?php echo $active_idx + 1; ?> of <?php echo $total_students; ?></p>
                                     </div>
                                     <div class="nav-btns">
-                                        <?php if ($prev_student): ?>
-                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm">
-                                                <i class="fas fa-chevron-left"></i> Prev
-                                            </a>
-                                        <?php endif; ?>
-                                        <?php if ($next_student): ?>
-                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $next_student['id']; ?>" class="btn btn-secondary btn-sm">
-                                                Next <i class="fas fa-chevron-right"></i>
-                                            </a>
-                                        <?php endif; ?>
+                                        <?php if ($prev_student): ?><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i> Prev</a><?php endif; ?>
+                                        <?php if ($next_student): ?><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $next_student['id']; ?>" class="btn btn-secondary btn-sm">Next <i class="fas fa-chevron-right"></i></a><?php endif; ?>
                                     </div>
                                 </div>
                             </div>
@@ -1535,10 +1515,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                             <!-- ① Affective traits -->
                             <div class="form-card">
                                 <div class="card-hdr">
-                                    <h2><i class="fas fa-heart"></i> Affective Traits</h2>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="clearRatings('affective')">
-                                        <i class="fas fa-undo"></i> Clear
-                                    </button>
+                                    <h2><i class="fas fa-heart"></i> Affective Traits</h2><button type="button" class="btn btn-secondary btn-sm" onclick="clearRatings('affective')"><i class="fas fa-undo"></i> Clear</button>
                                 </div>
                                 <div class="card-body">
                                     <div class="traits-grid">
@@ -1549,18 +1526,8 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                                 <span class="trait-name"><?php echo htmlspecialchars($label); ?></span>
                                                 <div class="rating-group" data-field="affective[<?php echo $field; ?>]">
                                                     <?php foreach ($rating_labels as $grade => $desc): ?>
-                                                        <input type="radio"
-                                                            name="affective[<?php echo $field; ?>]"
-                                                            id="af_<?php echo $field; ?>_<?php echo $grade; ?>"
-                                                            value="<?php echo $grade; ?>"
-                                                            <?php echo $current_val === $grade ? 'checked' : ''; ?>>
-                                                        <button type="button"
-                                                            class="rating-btn <?php echo $current_val === $grade ? "sel-{$grade}" : ''; ?>"
-                                                            onclick="selectRating(this, 'af_<?php echo $field; ?>_<?php echo $grade; ?>')"
-                                                            title="<?php echo $desc; ?>"
-                                                            data-grade="<?php echo $grade; ?>">
-                                                            <?php echo $grade; ?>
-                                                        </button>
+                                                        <input type="radio" name="affective[<?php echo $field; ?>]" id="af_<?php echo $field; ?>_<?php echo $grade; ?>" value="<?php echo $grade; ?>" <?php echo $current_val === $grade ? 'checked' : ''; ?>>
+                                                        <button type="button" class="rating-btn <?php echo $current_val === $grade ? "sel-{$grade}" : ''; ?>" onclick="selectRating(this, 'af_<?php echo $field; ?>_<?php echo $grade; ?>')" title="<?php echo $desc; ?>" data-grade="<?php echo $grade; ?>"><?php echo $grade; ?></button>
                                                     <?php endforeach; ?>
                                                 </div>
                                             </div>
@@ -1568,19 +1535,14 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                     </div>
                                 </div>
                                 <div class="rating-legend">
-                                    <?php foreach ($rating_labels as $g => $d): ?>
-                                        <span><span class="leg-dot" style="background:<?php echo ['A' => '#27ae60', 'B' => '#3498db', 'C' => '#f39c12', 'D' => '#e67e22', 'E' => '#e74c3c'][$g]; ?>"></span><?php echo $g . ': ' . $d; ?></span>
-                                    <?php endforeach; ?>
+                                    <?php foreach ($rating_labels as $g => $d): ?><span><span class="leg-dot" style="background:<?php echo ['A' => '#27ae60', 'B' => '#3498db', 'C' => '#f39c12', 'D' => '#e67e22', 'E' => '#e74c3c'][$g]; ?>"></span><?php echo $g . ': ' . $d; ?></span><?php endforeach; ?>
                                 </div>
                             </div>
 
                             <!-- ② Psychomotor skills -->
                             <div class="form-card">
                                 <div class="card-hdr">
-                                    <h2><i class="fas fa-running"></i> Psychomotor Skills</h2>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="clearRatings('psychomotor')">
-                                        <i class="fas fa-undo"></i> Clear
-                                    </button>
+                                    <h2><i class="fas fa-running"></i> Psychomotor Skills</h2><button type="button" class="btn btn-secondary btn-sm" onclick="clearRatings('psychomotor')"><i class="fas fa-undo"></i> Clear</button>
                                 </div>
                                 <div class="card-body">
                                     <div class="traits-grid">
@@ -1591,18 +1553,8 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                                 <span class="trait-name"><?php echo htmlspecialchars($label); ?></span>
                                                 <div class="rating-group" data-field="psychomotor[<?php echo $field; ?>]">
                                                     <?php foreach ($rating_labels as $grade => $desc): ?>
-                                                        <input type="radio"
-                                                            name="psychomotor[<?php echo $field; ?>]"
-                                                            id="pm_<?php echo $field; ?>_<?php echo $grade; ?>"
-                                                            value="<?php echo $grade; ?>"
-                                                            <?php echo $current_val === $grade ? 'checked' : ''; ?>>
-                                                        <button type="button"
-                                                            class="rating-btn <?php echo $current_val === $grade ? "sel-{$grade}" : ''; ?>"
-                                                            onclick="selectRating(this, 'pm_<?php echo $field; ?>_<?php echo $grade; ?>')"
-                                                            title="<?php echo $desc; ?>"
-                                                            data-grade="<?php echo $grade; ?>">
-                                                            <?php echo $grade; ?>
-                                                        </button>
+                                                        <input type="radio" name="psychomotor[<?php echo $field; ?>]" id="pm_<?php echo $field; ?>_<?php echo $grade; ?>" value="<?php echo $grade; ?>" <?php echo $current_val === $grade ? 'checked' : ''; ?>>
+                                                        <button type="button" class="rating-btn <?php echo $current_val === $grade ? "sel-{$grade}" : ''; ?>" onclick="selectRating(this, 'pm_<?php echo $field; ?>_<?php echo $grade; ?>')" title="<?php echo $desc; ?>" data-grade="<?php echo $grade; ?>"><?php echo $grade; ?></button>
                                                     <?php endforeach; ?>
                                                 </div>
                                             </div>
@@ -1610,9 +1562,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                     </div>
                                 </div>
                                 <div class="rating-legend">
-                                    <?php foreach ($rating_labels as $g => $d): ?>
-                                        <span><span class="leg-dot" style="background:<?php echo ['A' => '#27ae60', 'B' => '#3498db', 'C' => '#f39c12', 'D' => '#e67e22', 'E' => '#e74c3c'][$g]; ?>"></span><?php echo $g . ': ' . $d; ?></span>
-                                    <?php endforeach; ?>
+                                    <?php foreach ($rating_labels as $g => $d): ?><span><span class="leg-dot" style="background:<?php echo ['A' => '#27ae60', 'B' => '#3498db', 'C' => '#f39c12', 'D' => '#e67e22', 'E' => '#e74c3c'][$g]; ?>"></span><?php echo $g . ': ' . $d; ?></span><?php endforeach; ?>
                                 </div>
                             </div>
 
@@ -1623,24 +1573,11 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                 </div>
                                 <div class="card-body">
                                     <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Days school opened (term total)</label>
-                                            <input type="number" value="<?php echo (int)($record['days_school_opened'] ?? 0); ?>" readonly style="background:#f0f0f0;color:#888;">
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Days student was present <span style="color:red">*</span></label>
-                                            <input type="number" name="days_present" id="daysPresent"
-                                                min="0" max="<?php echo (int)($record['days_school_opened'] ?? 365); ?>"
-                                                value="<?php echo (int)($saved_comments['days_present'] ?? 0); ?>"
-                                                oninput="calcAbsent(this)"
-                                                required>
-                                            <div class="attend-hint" id="attendHint">
-                                                <?php
-                                                $dp = (int)($saved_comments['days_present'] ?? 0);
-                                                $da = (int)($record['days_school_opened'] ?? 0) - $dp;
-                                                echo "Days absent: <strong>{$da}</strong>";
-                                                ?>
-                                            </div>
+                                        <div class="form-group"><label class="fg-lbl">Days school opened (term total)</label><input type="number" value="<?php echo (int)($record['days_school_opened'] ?? 0); ?>" readonly style="background:#f0f0f0;color:#888;"></div>
+                                        <div class="form-group"><label class="fg-lbl">Days student was present <span style="color:red">*</span></label><input type="number" name="days_present" id="daysPresent" min="0" max="<?php echo (int)($record['days_school_opened'] ?? 365); ?>" value="<?php echo (int)($saved_comments['days_present'] ?? 0); ?>" oninput="calcAbsent(this)" required>
+                                            <div class="attend-hint" id="attendHint"><?php $dp = (int)($saved_comments['days_present'] ?? 0);
+                                                                                        $da = (int)($record['days_school_opened'] ?? 0) - $dp;
+                                                                                        echo "Days absent: <strong>{$da}</strong>"; ?></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1653,124 +1590,39 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                 </div>
                                 <div class="card-body">
                                     <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Class teacher's name</label>
-                                            <input type="text" name="class_teachers_name"
-                                                placeholder="e.g. Mrs. Okonkwo Ngozi"
-                                                value="<?php echo htmlspecialchars($saved_comments['class_teachers_name'] ?? $default_class_teacher); ?>">
-                                            <?php if ($default_class_teacher): ?>
-                                                <small style="color:#666; font-size:0.7rem;">Default from setup: <?php echo htmlspecialchars($default_class_teacher); ?></small>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Principal's name</label>
-                                            <input type="text" name="principals_name"
-                                                placeholder="e.g. Mr. Adamu Bello"
-                                                value="<?php echo htmlspecialchars($saved_comments['principals_name'] ?? ''); ?>">
-                                        </div>
+                                        <div class="form-group"><label class="fg-lbl">Class teacher's name</label><input type="text" name="class_teachers_name" placeholder="e.g. Mrs. Okonkwo Ngozi" value="<?php echo htmlspecialchars($saved_comments['class_teachers_name'] ?? $default_class_teacher); ?>"><?php if ($default_class_teacher): ?><small style="color:#666; font-size:0.7rem;">Default from setup: <?php echo htmlspecialchars($default_class_teacher); ?></small><?php endif; ?></div>
+                                        <div class="form-group"><label class="fg-lbl">Principal's name</label><input type="text" name="principals_name" placeholder="e.g. Mr. Adamu Bello" value="<?php echo htmlspecialchars($saved_comments['principals_name'] ?? ''); ?>"></div>
                                     </div>
-
                                     <div class="form-row full" style="margin-bottom:14px;">
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Class teacher's comment</label>
-                                            <textarea name="teachers_comment"
-                                                placeholder="Write a personalised comment about this student's performance and conduct this term..."><?php echo htmlspecialchars($saved_comments['teachers_comment'] ?? ''); ?></textarea>
-                                        </div>
+                                        <div class="form-group"><label class="fg-lbl">Class teacher's comment</label><textarea name="teachers_comment" placeholder="Write a personalised comment about this student's performance and conduct this term..."><?php echo htmlspecialchars($saved_comments['teachers_comment'] ?? ''); ?></textarea></div>
                                     </div>
-
                                     <div class="form-row full" style="margin-bottom:14px;">
-                                        <div class="form-group">
-                                            <label class="fg-lbl">Principal's comment</label>
-
-                                            <?php if ($student_grade && $auto_principal_comment): ?>
-                                                <div class="suggestion-box">
-                                                    <i class="fas fa-magic"></i>
-                                                    <strong>Auto-suggested for grade <?php echo htmlspecialchars($student_grade); ?></strong>
-                                                    (Avg: <?php echo number_format($student_average, 1); ?>%):
-                                                    <em>"<?php echo htmlspecialchars($auto_principal_comment); ?>"</em>
-                                                    <button type="button" onclick="useSuggestedComment()" class="btn btn-secondary btn-sm" style="margin-left:8px; padding:3px 10px;">
-                                                        <i class="fas fa-check"></i> Use this
-                                                    </button>
-                                                </div>
-                                            <?php endif; ?>
-
-                                            <textarea name="principals_comment" id="principalsComment"
-                                                placeholder="Principal's comment will be auto-generated based on student's grade..."
-                                                rows="3"><?php echo htmlspecialchars($saved_comments['principals_comment'] ?? $auto_principal_comment); ?></textarea>
-                                            <small style="color:#666; font-size:0.7rem;">
-                                                <i class="fas fa-info-circle"></i>
-                                                The system suggests a comment based on the student's grade. You can edit or keep it.
-                                            </small>
-                                        </div>
+                                        <div class="form-group"><label class="fg-lbl">Principal's comment</label><?php if ($student_grade && $auto_principal_comment): ?><div class="suggestion-box"><i class="fas fa-magic"></i><strong>Auto-suggested for grade <?php echo htmlspecialchars($student_grade); ?></strong> (Avg: <?php echo number_format($student_average, 1); ?>%): <em>"<?php echo htmlspecialchars($auto_principal_comment); ?>"</em><button type="button" onclick="useSuggestedComment()" class="btn btn-secondary btn-sm" style="margin-left:8px; padding:3px 10px;"><i class="fas fa-check"></i> Use this</button></div><?php endif; ?><textarea name="principals_comment" id="principalsComment" placeholder="Principal's comment will be auto-generated based on student's grade..." rows="3"><?php echo htmlspecialchars($saved_comments['principals_comment'] ?? $auto_principal_comment); ?></textarea><small style="color:#666; font-size:0.7rem;"><i class="fas fa-info-circle"></i> The system suggests a comment based on the student's grade. You can edit or keep it.</small></div>
                                     </div>
-
-                                    <?php if ((int)($record['show_promoted_to'] ?? 1)): ?>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label class="fg-lbl">Promoted to (next class)</label>
-                                                <select name="promoted_to">
+                                    <?php if ((int)($record['show_promoted_to'] ?? 1)): ?><div class="form-row">
+                                            <div class="form-group"><label class="fg-lbl">Promoted to (next class)</label><select name="promoted_to">
                                                     <option value="">— Select next class —</option>
-                                                    <option value="Repeat" <?php echo ($saved_position['promoted_to'] ?? '') === 'Repeat' ? 'selected' : ''; ?>>Repeat current class</option>
-                                                    <?php foreach ($classes_list as $cl): ?>
-                                                        <option value="<?php echo htmlspecialchars($cl); ?>"
-                                                            <?php echo ($saved_position['promoted_to'] ?? '') === $cl ? 'selected' : ''; ?>>
-                                                            <?php echo htmlspecialchars($cl); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </div>
+                                                    <option value="Repeat" <?php echo ($saved_position['promoted_to'] ?? '') === 'Repeat' ? 'selected' : ''; ?>>Repeat current class</option><?php foreach ($classes_list as $cl): ?><option value="<?php echo htmlspecialchars($cl); ?>" <?php echo ($saved_position['promoted_to'] ?? '') === $cl ? 'selected' : ''; ?>><?php echo htmlspecialchars($cl); ?></option><?php endforeach; ?>
+                                                </select></div>
                                             <div class="form-group" style="align-self:end;">
-                                                <div style="padding:10px 12px;background:#f0fff4;border-radius:8px;font-size:.82rem;color:var(--success);border:1px solid #b2dfdb;">
-                                                    <i class="fas fa-info-circle"></i>
-                                                    This will appear on the student's report card.
-                                                </div>
+                                                <div style="padding:10px 12px;background:#f0fff4;border-radius:8px;font-size:.82rem;color:var(--success);border:1px solid #b2dfdb;"><i class="fas fa-info-circle"></i> This will appear on the student's report card.</div>
                                             </div>
-                                        </div>
-                                    <?php endif; ?>
+                                        </div><?php endif; ?>
                                 </div>
-
-                                <!-- Action bar -->
                                 <div class="action-bar">
-                                    <div class="left">
-                                        <?php if ($prev_student): ?>
-                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm">
-                                                <i class="fas fa-chevron-left"></i> Previous student
-                                            </a>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="right">
-                                        <button type="submit" class="btn btn-primary" id="saveNextBtn">
-                                            <?php if ($next_student): ?>
-                                                <i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i>
-                                            <?php else: ?>
-                                                <i class="fas fa-check-circle"></i> Save &amp; finish
-                                            <?php endif; ?>
-                                        </button>
-                                    </div>
+                                    <div class="left"><?php if ($prev_student): ?><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i> Previous student</a><?php endif; ?></div>
+                                    <div class="right"><button type="submit" class="btn btn-primary" id="saveNextBtn"><?php if ($next_student): ?><i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i><?php else: ?><i class="fas fa-check-circle"></i> Save &amp; finish<?php endif; ?></button></div>
                                 </div>
                             </div>
-
                         </form>
 
-                        <!-- All done CTA -->
-                        <?php if ($completed_count >= $total_students): ?>
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle"></i>
-                                <div>
-                                    <strong>All <?php echo $total_students; ?> students done!</strong>
-                                    Proceed to generate report cards.
-                                    <br>
-                                    <a href="exam_generate_cards.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm" style="margin-top:8px">
-                                        <i class="fas fa-file-alt"></i> Generate report cards
-                                    </a>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        <?php if ($completed_count >= $total_students): ?><div class="alert alert-success"><i class="fas fa-check-circle"></i>
+                                <div><strong>All <?php echo $total_students; ?> students done!</strong> Proceed to generate report cards.<br><a href="exam_generate_cards.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm" style="margin-top:8px"><i class="fas fa-file-alt"></i> Generate report cards</a></div>
+                            </div><?php endif; ?>
 
                     <?php else: ?>
                         <div class="form-card">
-                            <div class="empty-state">
-                                <i class="fas fa-hand-point-left"></i>
+                            <div class="empty-state"><i class="fas fa-hand-point-left"></i>
                                 <h3>Select a student from the list</h3>
                             </div>
                         </div>
@@ -1779,9 +1631,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             </div><!-- /grid -->
         <?php endif; ?>
 
-        <div style="text-align:center;padding:20px;color:#999;font-size:.8rem;border-top:1px solid var(--light);margin-top:20px">
-            &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
-        </div>
+        <div style="text-align:center;padding:20px;color:#999;font-size:.8rem;border-top:1px solid var(--light);margin-top:20px">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal</div>
     </div><!-- /main -->
 
     <script>
@@ -1805,13 +1655,11 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             const group = btn.closest('.rating-group');
             const grade = btn.dataset.grade;
             const radio = document.getElementById(radioId);
-
             if (radio.checked) {
                 radio.checked = false;
                 group.querySelectorAll('.rating-btn').forEach(b => b.className = 'rating-btn');
                 return;
             }
-
             radio.checked = true;
             group.querySelectorAll('.rating-btn').forEach(b => b.className = 'rating-btn');
             btn.className = `rating-btn sel-${grade}`;

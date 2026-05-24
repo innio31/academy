@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 
@@ -38,8 +38,7 @@ $primary_color = SCHOOL_PRIMARY;
 $message = '';
 $message_type = '';
 
-// Add new exam
-// Add new exam - CORRECTED
+// Add new exam - USING NAMED PLACEHOLDERS
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
     try {
         $exam_name = trim($_POST['exam_name']);
@@ -59,262 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
         if (empty($class)) throw new Exception("Class is required");
         if (empty($duration_minutes)) throw new Exception("Duration is required");
 
-        // CORRECTED: 11 placeholders for 11 values
-        $stmt = $pdo->prepare("
-            INSERT INTO exams (
-                exam_name, class, subject_id, topics, duration_minutes,
-                objective_count, subjective_count, theory_count, exam_type,
-                instructions, is_active, school_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ");
-
-        $result = $stmt->execute([
-            $exam_name,
-            $class,
-            $subject_id,
-            $topics,
-            $duration_minutes,
-            $objective_count,
-            $subjective_count,
-            $theory_count,
-            $exam_type,
-            $instructions,
-            $is_active,
-            $school_id  // 11 values
-        ]);
-
-        if ($result) {
-            $message = "Exam added successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Failed to insert exam");
-        }
-    } catch (Exception $e) {
-        $message = "Error adding exam: " . $e->getMessage();
-        $message_type = "error";
-        error_log("Add exam error: " . $e->getMessage());
-    }
-}
-
-// Update exam - CORRECTED
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
-    try {
-        $exam_id = intval($_POST['exam_id']);
-        $exam_name = trim($_POST['exam_name']);
-        $class = trim($_POST['class']);
-        $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
-        $topics = isset($_POST['topics']) ? json_encode($_POST['topics']) : '[]';
-        $duration_minutes = intval($_POST['duration_minutes']);
-        $objective_count = isset($_POST['objective_count']) ? intval($_POST['objective_count']) : 0;
-        $subjective_count = isset($_POST['subjective_count']) ? intval($_POST['subjective_count']) : 0;
-        $theory_count = isset($_POST['theory_count']) ? intval($_POST['theory_count']) : 0;
-        $exam_type = trim($_POST['exam_type']);
-        $instructions = trim($_POST['instructions']);
-        $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-        // Verify exam belongs to this school
-        $stmt = $pdo->prepare("SELECT id FROM exams WHERE id = ? AND school_id = ?");
-        $stmt->execute([$exam_id, $school_id]);
-        if (!$stmt->fetch()) {
-            throw new Exception("Exam not found or access denied");
-        }
-
-        // CORRECTED: 12 placeholders for 12 values (including WHERE clause values)
-        $stmt = $pdo->prepare("
-            UPDATE exams SET
-                exam_name = ?, class = ?, subject_id = ?, topics = ?,
-                duration_minutes = ?, objective_count = ?, subjective_count = ?,
-                theory_count = ?, exam_type = ?, instructions = ?, is_active = ?,
-                updated_at = NOW()
-            WHERE id = ? AND school_id = ?
-        ");
-
-        $result = $stmt->execute([
-            $exam_name,
-            $class,
-            $subject_id,
-            $topics,
-            $duration_minutes,
-            $objective_count,
-            $subjective_count,
-            $theory_count,
-            $exam_type,
-            $instructions,
-            $is_active,
-            $exam_id,
-            $school_id  // 13 values for 13 placeholders
-        ]);
-
-        if ($result) {
-            $message = "Exam updated successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Failed to update exam");
-        }
-    } catch (Exception $e) {
-        $message = "Error updating exam: " . $e->getMessage();
-        $message_type = "error";
-        error_log("Update exam error: " . $e->getMessage());
-    }
-}
-
-// Clone exam - CORRECTED
-if (isset($_GET['clone_exam'])) {
-    try {
-        $exam_id = intval($_GET['clone_exam']);
-
-        // Get original exam
-        $stmt = $pdo->prepare("SELECT * FROM exams WHERE id = ? AND school_id = ?");
-        $stmt->execute([$exam_id, $school_id]);
-        $original = $stmt->fetch();
-
-        if ($original) {
-            // CORRECTED: 11 placeholders for 11 values
-            $stmt = $pdo->prepare("
-                INSERT INTO exams (
+        $sql = "INSERT INTO exams (
                     exam_name, class, subject_id, topics, duration_minutes,
                     objective_count, subjective_count, theory_count, exam_type,
                     instructions, is_active, school_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
-
-            $new_name = $original['exam_name'] . " (Copy)";
-            $stmt->execute([
-                $new_name,
-                $original['class'],
-                $original['subject_id'],
-                $original['topics'],
-                $original['duration_minutes'],
-                $original['objective_count'],
-                $original['subjective_count'],
-                $original['theory_count'],
-                $original['exam_type'],
-                $original['instructions'],
-                $school_id  // 11 values
-            ]);
-
-            $message = "Exam cloned successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Exam not found");
-        }
-    } catch (Exception $e) {
-        $message = "Error cloning exam: " . $e->getMessage();
-        $message_type = "error";
-    }
-}
-
-// Update exam
-// Add new exam - CORRECTED
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
-    try {
-        $exam_name = trim($_POST['exam_name']);
-        $class = trim($_POST['class']);
-        $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
-        $topics = isset($_POST['topics']) ? json_encode($_POST['topics']) : '[]';
-        $duration_minutes = intval($_POST['duration_minutes']);
-        $objective_count = isset($_POST['objective_count']) ? intval($_POST['objective_count']) : 0;
-        $subjective_count = isset($_POST['subjective_count']) ? intval($_POST['subjective_count']) : 0;
-        $theory_count = isset($_POST['theory_count']) ? intval($_POST['theory_count']) : 0;
-        $exam_type = trim($_POST['exam_type']);
-        $instructions = trim($_POST['instructions']);
-        $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-        // Validate required fields
-        if (empty($exam_name)) throw new Exception("Exam name is required");
-        if (empty($class)) throw new Exception("Class is required");
-        if (empty($duration_minutes)) throw new Exception("Duration is required");
-
-        // CORRECTED: 11 placeholders for 11 values
-        $stmt = $pdo->prepare("
-            INSERT INTO exams (
-                exam_name, class, subject_id, topics, duration_minutes,
-                objective_count, subjective_count, theory_count, exam_type,
-                instructions, is_active, school_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ");
-
-        $result = $stmt->execute([
-            $exam_name,
-            $class,
-            $subject_id,
-            $topics,
-            $duration_minutes,
-            $objective_count,
-            $subjective_count,
-            $theory_count,
-            $exam_type,
-            $instructions,
-            $is_active,
-            $school_id  // 11 values
-        ]);
-
-        if ($result) {
-            $message = "Exam added successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Failed to insert exam");
-        }
-    } catch (Exception $e) {
-        $message = "Error adding exam: " . $e->getMessage();
-        $message_type = "error";
-        error_log("Add exam error: " . $e->getMessage());
-    }
-}
-
-// Add new exam - COMPLETELY REWRITTEN
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
-    try {
-        $exam_name = trim($_POST['exam_name']);
-        $class = trim($_POST['class']);
-        $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
-        $topics = isset($_POST['topics']) ? json_encode($_POST['topics']) : '[]';
-        $duration_minutes = intval($_POST['duration_minutes']);
-        $objective_count = isset($_POST['objective_count']) ? intval($_POST['objective_count']) : 0;
-        $subjective_count = isset($_POST['subjective_count']) ? intval($_POST['subjective_count']) : 0;
-        $theory_count = isset($_POST['theory_count']) ? intval($_POST['theory_count']) : 0;
-        $exam_type = trim($_POST['exam_type']);
-        $instructions = trim($_POST['instructions']);
-        $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-        // Validate required fields
-        if (empty($exam_name)) throw new Exception("Exam name is required");
-        if (empty($class)) throw new Exception("Class is required");
-        if (empty($duration_minutes)) throw new Exception("Duration is required");
-
-        // Using named placeholders for clarity and to avoid count mismatch
-        $sql = "INSERT INTO exams (
-                    exam_name, 
-                    class, 
-                    subject_id, 
-                    topics, 
-                    duration_minutes,
-                    objective_count, 
-                    subjective_count, 
-                    theory_count, 
-                    exam_type,
-                    instructions, 
-                    is_active, 
-                    school_id, 
-                    created_at
                 ) VALUES (
-                    :exam_name,
-                    :class,
-                    :subject_id,
-                    :topics,
-                    :duration_minutes,
-                    :objective_count,
-                    :subjective_count,
-                    :theory_count,
-                    :exam_type,
-                    :instructions,
-                    :is_active,
-                    :school_id,
-                    NOW()
+                    :exam_name, :class, :subject_id, :topics, :duration_minutes,
+                    :objective_count, :subjective_count, :theory_count, :exam_type,
+                    :instructions, :is_active, :school_id, NOW()
                 )";
 
         $stmt = $pdo->prepare($sql);
-        $result = $stmt->execute([
+        $stmt->execute([
             ':exam_name' => $exam_name,
             ':class' => $class,
             ':subject_id' => $subject_id,
@@ -329,12 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
             ':school_id' => $school_id
         ]);
 
-        if ($result) {
-            $message = "Exam added successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Failed to insert exam");
-        }
+        $message = "Exam added successfully!";
+        $message_type = "success";
     } catch (Exception $e) {
         $message = "Error adding exam: " . $e->getMessage();
         $message_type = "error";
@@ -342,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
     }
 }
 
-// Update exam - COMPLETELY REWRITTEN
+// Update exam - USING NAMED PLACEHOLDERS
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
     try {
         $exam_id = intval($_POST['exam_id']);
@@ -365,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
             throw new Exception("Exam not found or access denied");
         }
 
-        // Using named placeholders for clarity
         $sql = "UPDATE exams SET 
                     exam_name = :exam_name,
                     class = :class,
@@ -382,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
                 WHERE id = :exam_id AND school_id = :school_id";
 
         $stmt = $pdo->prepare($sql);
-        $result = $stmt->execute([
+        $stmt->execute([
             ':exam_name' => $exam_name,
             ':class' => $class,
             ':subject_id' => $subject_id,
@@ -398,12 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
             ':school_id' => $school_id
         ]);
 
-        if ($result) {
-            $message = "Exam updated successfully!";
-            $message_type = "success";
-        } else {
-            throw new Exception("Failed to update exam");
-        }
+        $message = "Exam updated successfully!";
+        $message_type = "success";
     } catch (Exception $e) {
         $message = "Error updating exam: " . $e->getMessage();
         $message_type = "error";
@@ -574,24 +320,30 @@ $subjects = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE school_id
 $subjects->execute([$school_id]);
 $subjects = $subjects->fetchAll();
 
-// FETCH CLASSES FROM THE CLASSES TABLE
+// ============================================
+// FETCH CLASSES FROM CLASSES TABLE (FIXED)
+// ============================================
 $classes_list = [];
 try {
-    // Query the 'classes' table (not school_classes)
-    $stmt = $pdo->prepare("SELECT id, class_name, class_code, class_category FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+    $stmt = $pdo->prepare("SELECT id, class_name, class_code, class_category, sort_order FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
     $stmt->execute([$school_id]);
     $classes_list = $stmt->fetchAll();
 
     // Debug: Log the number of classes found
-    error_log("Classes found: " . count($classes_list));
+    error_log("Classes found for school $school_id: " . count($classes_list));
 } catch (Exception $e) {
     error_log("Error fetching classes: " . $e->getMessage());
 }
 
-// Also get distinct classes from exams for filter
-$classes = $pdo->prepare("SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
-$classes->execute([$school_id]);
-$classes = $classes->fetchAll();
+// Also get distinct classes from exams for filter dropdown
+$classes_for_filter = [];
+try {
+    $stmt = $pdo->prepare("SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
+    $stmt->execute([$school_id]);
+    $classes_for_filter = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching exam classes: " . $e->getMessage());
+}
 
 // Fetch topics for selection
 $topics = $pdo->prepare("SELECT id, topic_name, subject_id FROM topics WHERE school_id = ? ORDER BY topic_name");
@@ -1230,7 +982,7 @@ if (isset($_GET['get_exam'])) {
                 <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>
@@ -1242,7 +994,7 @@ if (isset($_GET['get_exam'])) {
                 <h1>Manage Exams</h1>
                 <p>Create, edit, and manage examination schedules</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../tbis/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
@@ -1254,6 +1006,7 @@ if (isset($_GET['get_exam'])) {
             </div>
         <?php endif; ?>
 
+        <!-- Class Info Alert -->
         <?php if (empty($classes_list)): ?>
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -1284,9 +1037,9 @@ if (isset($_GET['get_exam'])) {
                     <label>Class</label>
                     <select name="class" class="form-select">
                         <option value="">All Classes</option>
-                        <?php foreach ($classes as $class): ?>
-                            <option value="<?php echo htmlspecialchars($class['class']); ?>" <?php echo $class_filter === $class['class'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($class['class']); ?>
+                        <?php foreach ($classes_list as $class): ?>
+                            <option value="<?php echo htmlspecialchars($class['class_name']); ?>" <?php echo $class_filter === $class['class_name'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($class['class_name']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -1418,9 +1171,6 @@ if (isset($_GET['get_exam'])) {
                                             <?php echo htmlspecialchars($class['class_name']); ?>
                                             <?php if (!empty($class['class_code'])): ?>
                                                 (<?php echo htmlspecialchars($class['class_code']); ?>)
-                                            <?php endif; ?>
-                                            <?php if (!empty($class['class_category'])): ?>
-                                                - <?php echo htmlspecialchars($class['class_category']); ?>
                                             <?php endif; ?>
                                         </option>
                                     <?php endforeach; ?>

@@ -106,7 +106,7 @@ try {
     $school_info = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) { /* non-fatal */
 }
-$school_logo  = $school_info['logo_path']   ?? '/assets/logos/default.png';
+$school_logo  = defined('SCHOOL_LOGO') ? SCHOOL_LOGO : ($school_info['logo_path'] ?? '/assets/logos/default.png');
 $school_motto = $school_info['motto']        ?? '';
 $school_email = $school_info['contact_email'] ?? '';
 $school_phone = $school_info['contact_phone'] ?? '';
@@ -375,6 +375,8 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
     <title><?php echo htmlspecialchars($school_name); ?> — Generate Report Cards</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         /* ── Reset & root ───────────────────────────────────────────────────── */
         :root {
@@ -1065,6 +1067,9 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             height: 72px;
             object-fit: contain;
             flex-shrink: 0;
+            align-self: center;
+            order: -1;
+            /* always leftmost */
         }
 
         .rc-school-info {
@@ -1708,6 +1713,9 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                     <button class="btn btn-secondary btn-sm" onclick="window.print()">
                         <i class="fas fa-print"></i> Print this card
                     </button>
+                    <button class="btn btn-primary btn-sm" onclick="downloadReportCardPDF()">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </button>
                     <a href="exam_record_setup.php" class="btn btn-secondary btn-sm">
                         <i class="fas fa-list"></i> All records
                     </a>
@@ -1775,6 +1783,9 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                             <?php if ($preview_student): ?>
                                 <button class="btn btn-secondary btn-sm" onclick="window.print()">
                                     <i class="fas fa-print"></i> Print
+                                </button>
+                                <button class="btn btn-primary btn-sm" id="downloadPdfBtn" onclick="downloadReportCardPDF()">
+                                    <i class="fas fa-file-pdf"></i> Download PDF
                                 </button>
                             <?php endif; ?>
                         </div>
@@ -2170,8 +2181,77 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                 li.style.display = name.includes(q) ? '' : 'none';
             });
         }
-    </script>
+        // ── PDF Download (single-page, auto-scaled) ────────────────────────────
+        async function downloadReportCardPDF() {
+                const card = document.getElementById('reportCard');
+                if (!card) return;
 
-</body>
+                // Buttons to hide during capture
+                const btns = document.querySelectorAll('.no-print, .card-toolbar');
+                btns.forEach(el => el.style.setProperty('display', 'none', 'important'));
 
-</html>
+                const pdfBtns = document.querySelectorAll('[onclick*="downloadReportCardPDF"]');
+                pdfBtns.forEach(b => {
+                    b._oldDisplay = b.style.display;
+                    b.style.display = 'none';
+                });
+
+                try {
+                    // Capture at 2x for sharp output
+                    const canvas = await html2canvas(card, {
+                        scale: 2,
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                    });
+
+                    const {
+                        jsPDF
+                    } = window.jspdf;
+                    // A4 dimensions in mm
+                    const pageW = 210;
+                    const pageH = 297;
+                    const marginMm = 8;
+                    const printW = pageW - marginMm * 2;
+                    const printH = pageH - marginMm * 2;
+
+                    const imgW = canvas.width;
+                    const imgH = canvas.height;
+
+                    // Scale so image fits entirely within the printable area
+                    const scaleX = printW / (imgW / 3.7795); // px → mm at 96dpi
+                    const scaleY = printH / (imgH / 3.7795);
+                    const scale = Math.min(scaleX, scaleY, 1); // never upscale
+
+                    const finalW = (imgW / 3.7795) * scale;
+                    const finalH = (imgH / 3.7795) * scale;
+
+                    // Centre on page
+                    const offsetX = marginMm + (printW - finalW) / 2;
+                    const offsetY = marginMm + (printH - finalH) / 2;
+
+                    const pdf = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+                    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', offsetX, offsetY, finalW, finalH);
+
+                    // Derive filename from student name if available
+                    const studentName = card.closest('.rc-wrap')
+                        ?.querySelector('.rc-bio-val')?.textContent?.trim()
+                        ?.replace(/[^a-z0-9_\-]/gi, '_') || 'report_card';
+                    pdf.save(`${studentName}_report_card.pdf`);
+                } finally {
+                    btns.forEach(el => el.style.removeProperty('display'));
+                    pdfBtns.forEach(b => {
+                        b.style.display = b._oldDisplay || '';
+                    });
+                }
+            }
+
+
+
+            <
+            /html>

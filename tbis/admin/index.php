@@ -703,7 +703,11 @@ try {
         <div class="sidebar-header">
             <div class="logo">
                 <div class="logo-icon">
-                    <i class="fas fa-graduation-cap"></i>
+                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)): ?>
+                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
+                    <?php else: ?>
+                        <i class="fas fa-graduation-cap"></i>
+                    <?php endif; ?>
                 </div>
                 <div class="logo-text">
                     <h3><?php echo $school_name; ?></h3>

@@ -693,9 +693,7 @@ try {
 </head>
 
 <body>
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">
-        <i class="fas fa-bars"></i>
-    </button>
+
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
@@ -712,10 +710,7 @@ try {
                 </button>
             </div>
         </div>
-        <?php
-        // Include sidebar at the end (it will be positioned fixed)
-        require_once 'includes/sidebar.php';
-        ?>
+
         <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card students">
@@ -909,6 +904,10 @@ try {
             });
         });
     </script>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 </body>
 
 </html>

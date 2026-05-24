@@ -292,10 +292,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         } else {
             $pdo->prepare("
                 INSERT INTO affective_traits
-                    (student_id,session,term,punctuality,attendance,politeness,honesty,
+                    (school_id,student_id,session,term,punctuality,attendance,politeness,honesty,
                      neatness,reliability,relationship,self_control,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
             ")->execute([
+                $school_id,
                 $post_sid,
                 $session,
                 $term,
@@ -1634,7 +1635,14 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                 </div>
                                 <div class="action-bar">
                                     <div class="left"><?php if ($prev_student): ?><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i> Previous student</a><?php endif; ?></div>
-                                    <div class="right"><button type="submit" class="btn btn-primary" id="saveNextBtn"><?php if ($next_student): ?><i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i><?php else: ?><i class="fas fa-check-circle"></i> Save &amp; finish<?php endif; ?></button></div>
+                                    <div class="right">
+                                        <?php if ($next_student): ?>
+                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $next_student['id']; ?>" class="btn btn-secondary" title="Skip this student without saving"><i class="fas fa-forward"></i> Skip</a>
+                                        <?php else: ?>
+                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $active_sid; ?>" class="btn btn-secondary" title="Skip without saving"><i class="fas fa-forward"></i> Skip</a>
+                                        <?php endif; ?>
+                                        <button type="submit" class="btn btn-primary" id="saveNextBtn"><?php if ($next_student): ?><i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i><?php else: ?><i class="fas fa-check-circle"></i> Save &amp; finish<?php endif; ?></button>
+                                    </div>
                                 </div>
                             </div>
                         </form>

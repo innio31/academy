@@ -1,5 +1,5 @@
 <?php
-// msv/admin/index.php - Admin Dashboard (Aligned with offline version)
+// ida/admin/index.php - Admin Dashboard (Aligned with offline version)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Check if admin is logged in (support both offline and online session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 

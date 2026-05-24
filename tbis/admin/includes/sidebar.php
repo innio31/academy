@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/includes/sidebar.php - Reusable sidebar component
+// tbis/admin/includes/sidebar.php - Complete standalone sidebar component
 
 // Make sure required variables are available
 if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
@@ -11,6 +11,42 @@ if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
 
 // Get current page for active state
 $current_page = basename($_SERVER['PHP_SELF']);
+
+// ── SUBSCRIPTION STATUS CHECK ─────────────────────────────────────────────────
+// This runs automatically when sidebar is included
+if (!isset($subscription_active)) {
+    $subscription_active = false;
+    $subscription_end_date = '';
+    $subscription_days_remaining = 0;
+
+    try {
+        global $pdo;
+        if (isset($pdo) && defined('SCHOOL_ID')) {
+            $stmt = $pdo->prepare("SELECT subscription_status, subscription_expiry FROM schools WHERE id = ?");
+            $stmt->execute([SCHOOL_ID]);
+            $school_sub = $stmt->fetch();
+
+            if ($school_sub) {
+                $subscription_active = ($school_sub['subscription_status'] === 'active');
+                $subscription_end_date = $school_sub['subscription_expiry'];
+
+                if ($subscription_end_date && $subscription_end_date !== '0000-00-00') {
+                    $expiry_timestamp = strtotime($subscription_end_date);
+                    $current_timestamp = time();
+                    $subscription_days_remaining = ceil(($expiry_timestamp - $current_timestamp) / (60 * 60 * 24));
+                    $subscription_days_remaining = max(0, $subscription_days_remaining);
+
+                    if ($expiry_timestamp < $current_timestamp) {
+                        $subscription_active = false;
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Sidebar subscription check error: " . $e->getMessage());
+    }
+}
+// ──────────────────────────────────────────────────────────────────────────────
 ?>
 <!DOCTYPE html>
 <style>
@@ -72,7 +108,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
         overflow: hidden;
     }
 
-    /* Logo image styling - FIXED: No squishing */
+    /* Logo image styling - No squishing */
     .logo-icon img {
         width: auto;
         height: auto;
@@ -82,7 +118,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
         display: block;
     }
 
-    /* Icon styling when no logo */
     .logo-icon i {
         font-size: 24px;
         color: white;
@@ -110,7 +145,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
         line-height: 1.3;
     }
 
-    /* Admin Info Section */
     .admin-info {
         text-align: center;
         padding: 15px;
@@ -134,7 +168,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
         opacity: 0.8;
     }
 
-    /* Subscription Status */
     .subscription-status {
         margin: 15px;
         padding: 12px;
@@ -193,7 +226,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
         }
     }
 
-    /* Navigation Links */
     .sidebar-content {
         margin-top: 10px;
     }
@@ -237,7 +269,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
         font-size: 1rem;
     }
 
-    /* Mobile Menu Elements */
+    /* Mobile Menu Toggle Button - FIXED */
     .mobile-menu-toggle {
         position: fixed;
         top: 15px;
@@ -248,11 +280,20 @@ $current_page = basename($_SERVER['PHP_SELF']);
         background: var(--primary-color, #2c3e50);
         color: white;
         border: none;
-        border-radius: var(--radius-md, 8px);
+        border-radius: 8px;
         font-size: 20px;
         cursor: pointer;
-        display: none;
-        box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.08));
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s ease;
+    }
+
+    .mobile-menu-toggle:hover {
+        background: var(--secondary-color, #3498db);
+        transform: scale(1.05);
+    }
+
+    .mobile-menu-toggle:active {
+        transform: scale(0.95);
     }
 
     .sidebar-overlay {
@@ -273,6 +314,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
         visibility: visible;
     }
 
+    /* Main content adjustment - add this to your pages */
+    .main-content {
+        min-height: 100vh;
+        padding: 20px;
+        transition: margin-left 0.3s ease;
+    }
+
     /* Desktop Styles */
     @media (min-width: 768px) {
         .sidebar {
@@ -282,22 +330,42 @@ $current_page = basename($_SERVER['PHP_SELF']);
         .mobile-menu-toggle {
             display: none !important;
         }
+
+        .main-content {
+            margin-left: var(--sidebar-width, 260px);
+        }
     }
 
-    /* Mobile Styles */
+    /* Mobile Styles - FIXED */
     @media (max-width: 767px) {
+        body {
+            overflow-x: hidden;
+        }
+
         .mobile-menu-toggle {
-            display: flex;
+            display: flex !important;
             align-items: center;
             justify-content: center;
         }
 
         .sidebar {
             transform: translateX(-100%);
+            width: 85%;
+            max-width: 280px;
         }
 
         .sidebar.active {
             transform: translateX(0);
+        }
+
+        .main-content {
+            margin-left: 0 !important;
+            padding-top: 70px;
+        }
+
+        /* Prevent body scroll when sidebar is open */
+        body.menu-open {
+            overflow: hidden;
         }
 
         .logo-text h3 {
@@ -314,7 +382,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
         }
     }
 
-    /* Small screens (480px and below) */
+    /* Small screens */
     @media (max-width: 480px) {
         .sidebar {
             width: 85%;
@@ -332,6 +400,15 @@ $current_page = basename($_SERVER['PHP_SELF']);
     }
 </style>
 
+<!-- Mobile Menu Toggle Button -->
+<button class="mobile-menu-toggle" id="mobileMenuToggle">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- Sidebar -->
 <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <div class="logo">
@@ -346,11 +423,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     'assets/logos/logo.png'
                 ];
 
-                // Check if SCHOOL_LOGO constant is defined
                 if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
                     $logo_path = SCHOOL_LOGO;
                 } else {
-                    // Try each possible location
                     foreach ($logo_locations as $location) {
                         if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
                             $logo_path = $location;
@@ -379,42 +454,40 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 
     <!-- Subscription Status -->
-    <?php if (isset($subscription_active)): ?>
-        <?php
-        $status_class = '';
-        $display_days = $subscription_days_remaining ?? 0;
+    <?php
+    $status_class = '';
+    $display_days = $subscription_days_remaining ?? 0;
 
-        if (!$subscription_active || $display_days <= 0) {
-            $status_class = 'danger';
-            $display_days = 0;
-        } elseif ($display_days <= 14) {
-            $status_class = 'danger';
-        } elseif ($display_days <= 30) {
-            $status_class = 'warning';
-        } else {
-            $status_class = 'active';
-        }
-        ?>
-        <div class="subscription-status <?php echo $status_class; ?>">
-            <div class="status-label">
-                <i class="fas fa-calendar-alt"></i> Subscription
-            </div>
-            <div class="days-remaining">
-                <?php if ($display_days > 0): ?>
-                    <?php echo $display_days; ?> days
-                <?php else: ?>
-                    EXPIRED
-                <?php endif; ?>
-            </div>
-            <div class="expiry-date">
-                <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
-                    Expires: <?php echo date('M j, Y', strtotime($subscription_end_date)); ?>
-                <?php else: ?>
-                    No expiry date
-                <?php endif; ?>
-            </div>
+    if (!$subscription_active || $display_days <= 0) {
+        $status_class = 'danger';
+        $display_days = 0;
+    } elseif ($display_days <= 14) {
+        $status_class = 'danger';
+    } elseif ($display_days <= 30) {
+        $status_class = 'warning';
+    } else {
+        $status_class = 'active';
+    }
+    ?>
+    <div class="subscription-status <?php echo $status_class; ?>">
+        <div class="status-label">
+            <i class="fas fa-calendar-alt"></i> Subscription
         </div>
-    <?php endif; ?>
+        <div class="days-remaining">
+            <?php if ($display_days > 0): ?>
+                <?php echo $display_days; ?> days
+            <?php else: ?>
+                EXPIRED
+            <?php endif; ?>
+        </div>
+        <div class="expiry-date">
+            <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
+                Expires: <?php echo date('M j, Y', strtotime($subscription_end_date)); ?>
+            <?php else: ?>
+                No expiry date
+            <?php endif; ?>
+        </div>
+    </div>
 
     <div class="sidebar-content">
         <ul class="nav-links">
@@ -461,40 +534,68 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 </div>
 
-<!-- Mobile menu toggle and overlay -->
-<button class="mobile-menu-toggle" id="mobileMenuToggle">
-    <i class="fas fa-bars"></i>
-</button>
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
 <script>
-    // Mobile menu functionality
+    // FIXED: Mobile menu functionality - fully responsive
     (function() {
-        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        'use strict';
 
-        if (mobileMenuToggle && sidebar && sidebarOverlay) {
-            mobileMenuToggle.addEventListener('click', function(e) {
-                e.stopPropagation();
-                sidebar.classList.toggle('active');
-                sidebarOverlay.classList.toggle('active');
-                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-            });
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const body = document.body;
 
-            sidebarOverlay.addEventListener('click', function() {
+            // Check if elements exist
+            if (!mobileMenuToggle || !sidebar || !sidebarOverlay) {
+                console.warn('Sidebar elements not found');
+                return;
+            }
+
+            // Function to open sidebar
+            function openSidebar() {
+                sidebar.classList.add('active');
+                sidebarOverlay.classList.add('active');
+                body.classList.add('menu-open');
+                body.style.overflow = 'hidden';
+            }
+
+            // Function to close sidebar
+            function closeSidebar() {
                 sidebar.classList.remove('active');
                 sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
+                body.classList.remove('menu-open');
+                body.style.overflow = '';
+            }
+
+            // Function to toggle sidebar
+            function toggleSidebar() {
+                if (sidebar.classList.contains('active')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            }
+
+            // Mobile menu toggle click
+            mobileMenuToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
             });
 
-            // Close sidebar on mobile when clicking a link
-            document.querySelectorAll('.nav-links a').forEach(link => {
+            // Overlay click - close sidebar
+            sidebarOverlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeSidebar();
+            });
+
+            // Close sidebar when clicking a link (on mobile only)
+            const navLinks = document.querySelectorAll('.nav-links a');
+            navLinks.forEach(function(link) {
                 link.addEventListener('click', function() {
                     if (window.innerWidth <= 767) {
-                        sidebar.classList.remove('active');
-                        sidebarOverlay.classList.remove('active');
-                        document.body.style.overflow = '';
+                        setTimeout(closeSidebar, 150);
                     }
                 });
             });
@@ -502,23 +603,37 @@ $current_page = basename($_SERVER['PHP_SELF']);
             // Close sidebar when pressing Escape key
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
-                    sidebarOverlay.classList.remove('active');
-                    document.body.style.overflow = '';
+                    closeSidebar();
                 }
             });
-        }
+
+            // Handle window resize - reset sidebar state on desktop
+            let resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (window.innerWidth >= 768) {
+                        // On desktop, ensure sidebar is visible and overlay is hidden
+                        sidebar.classList.remove('active');
+                        sidebarOverlay.classList.remove('active');
+                        body.classList.remove('menu-open');
+                        body.style.overflow = '';
+                    }
+                }, 250);
+            });
+
+            // Prevent body scroll when touching sidebar on mobile
+            sidebar.addEventListener('touchmove', function(e) {
+                if (window.innerWidth <= 767) {
+                    e.stopPropagation();
+                }
+            });
+
+            // Initial check for desktop
+            if (window.innerWidth >= 768) {
+                sidebar.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+            }
+        });
     })();
-
-    // Handle window resize - reset sidebar state on desktop
-    window.addEventListener('resize', function() {
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-
-        if (window.innerWidth >= 768) {
-            if (sidebar) sidebar.classList.remove('active');
-            if (sidebarOverlay) sidebarOverlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-    });
 </script>

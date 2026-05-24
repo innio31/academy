@@ -1173,42 +1173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     <button class="mobile-menu-toggle" id="mobileMenuToggle"><i class="fas fa-bars"></i></button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO): ?>
-                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
-                    <?php else: ?>
-                        <i class="fas fa-graduation-cap"></i>
-                    <?php endif; ?>
-                </div>
-                <div class="logo-text">
-                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-chalkboard"></i> Manage Classes</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content" id="mainContent">

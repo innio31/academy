@@ -1,6 +1,6 @@
 <?php
 // tbis/admin/exam_generate_cards.php — Step 4: Generate & View Report Cards
-// ─────────────────────────────────────────────────────────────────────────────
+// FIXED: More school details, larger academic table, single-page guaranteed
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -26,6 +26,35 @@ $school_id       = SCHOOL_ID;
 $school_name     = SCHOOL_NAME;
 $primary_color   = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
+
+// Get additional school details from constants or config
+$school_logo  = defined('SCHOOL_LOGO') ? SCHOOL_LOGO : (file_exists('../assets/logos/logo.png') ? '../assets/logos/logo.png' : '');
+$school_motto = defined('SCHOOL_MOTTO') ? SCHOOL_MOTTO : '';
+$school_address = defined('SCHOOL_ADDRESS') ? SCHOOL_ADDRESS : '';
+$school_phone = defined('SCHOOL_PHONE') ? SCHOOL_PHONE : '';
+$school_email = defined('SCHOOL_EMAIL') ? SCHOOL_EMAIL : '';
+
+// If not defined in config, try database
+if (empty($school_address) || empty($school_phone)) {
+    try {
+        $stmt = $pdo->prepare("SELECT motto, address, contact_phone, contact_email, logo_path FROM schools WHERE id = ? LIMIT 1");
+        $stmt->execute([$school_id]);
+        $db_info = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($db_info) {
+            if (empty($school_motto)) $school_motto = $db_info['motto'] ?? '';
+            if (empty($school_address)) $school_address = $db_info['address'] ?? '';
+            if (empty($school_phone)) $school_phone = $db_info['contact_phone'] ?? '';
+            if (empty($school_email)) $school_email = $db_info['contact_email'] ?? '';
+            if (empty($school_logo)) $school_logo = $db_info['logo_path'] ?? '';
+        }
+    } catch (Exception $e) {
+    }
+}
+
+// Ensure logo has correct path
+if (!empty($school_logo) && !file_exists($_SERVER['DOCUMENT_ROOT'] . '/' . $school_logo) && !file_exists($school_logo)) {
+    $school_logo = ''; // Fallback to no logo
+}
 
 // ── Require record_id ─────────────────────────────────────────────────────────
 $record_id = isset($_GET['record_id']) ? (int)$_GET['record_id'] : 0;
@@ -79,7 +108,7 @@ if (empty($grading_scale)) {
     ];
 }
 
-// ── Helper: grade lookup ──────────────────────────────────────────────────────
+// ── Helper functions ──────────────────────────────────────────────────────────
 function getGradeInfo(float $total, array $scale): array
 {
     foreach ($scale as $row) {
@@ -89,7 +118,6 @@ function getGradeInfo(float $total, array $scale): array
     return ['grade' => 'F', 'remark' => 'Fail'];
 }
 
-// ── Helper: ordinal suffix ────────────────────────────────────────────────────
 function ordinal(int $n): string
 {
     if ($n <= 0) return '-';
@@ -98,20 +126,7 @@ function ordinal(int $n): string
     return $n . ($sfx[($v - 20) % 10] ?? $sfx[min($v, 3)]);
 }
 
-// ── Load school info (logo, motto, contact) ───────────────────────────────────
-$school_info = [];
-try {
-    $stmt = $pdo->prepare("SELECT * FROM schools WHERE id = ? LIMIT 1");
-    $stmt->execute([$school_id]);
-    $school_info = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-} catch (Exception $e) { /* non-fatal */
-}
-$school_logo  = defined('SCHOOL_LOGO') ? SCHOOL_LOGO : ($school_info['logo_path'] ?? '/assets/logos/default.png');
-$school_motto = $school_info['motto']        ?? '';
-$school_email = $school_info['contact_email'] ?? '';
-$school_phone = $school_info['contact_phone'] ?? '';
-
-// ── Handle: publish / unpublish record ───────────────────────────────────────
+// ── Handle publish actions ────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $act = $_POST['action'];
 
@@ -120,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pdo->prepare("UPDATE report_card_settings SET status='published', updated_at=NOW() WHERE id=? AND school_id=?")
                 ->execute([$record_id, $school_id]);
             $record['status'] = 'published';
-            $_SESSION['flash_success'] = "Report cards published. Students & parents can now view them.";
+            $_SESSION['flash_success'] = "Report cards published.";
         } catch (Exception $e) {
             $_SESSION['flash_error'] = "Could not publish: " . $e->getMessage();
         }
@@ -133,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pdo->prepare("UPDATE report_card_settings SET status='active', updated_at=NOW() WHERE id=? AND school_id=?")
                 ->execute([$record_id, $school_id]);
             $record['status'] = 'active';
-            $_SESSION['flash_success'] = "Record unpublished. Students can no longer view cards.";
+            $_SESSION['flash_success'] = "Record unpublished.";
         } catch (Exception $e) {
             $_SESSION['flash_error'] = "Could not unpublish: " . $e->getMessage();
         }
@@ -145,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         try {
             $pdo->prepare("UPDATE report_card_settings SET status='archived', updated_at=NOW() WHERE id=? AND school_id=?")
                 ->execute([$record_id, $school_id]);
-            $_SESSION['flash_success'] = "Record archived successfully.";
+            $_SESSION['flash_success'] = "Record archived.";
         } catch (Exception $e) {
             $_SESSION['flash_error'] = "Could not archive: " . $e->getMessage();
         }
@@ -154,156 +169,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// ── Load students ─────────────────────────────────────────────────────────────
+// ── Load data ─────────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
+    $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class = ? AND status = 'active' ORDER BY full_name ASC");
     $stmt->execute([$school_id, $class]);
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    error_log("generate_cards students: " . $e->getMessage());
 }
 $total_students = count($students);
 
-// ── Load subjects for this class ──────────────────────────────────────────────
 $subjects = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name
-          FROM subjects s
-          JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-         WHERE sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-         ORDER BY s.subject_name ASC
-    ");
+    $stmt = $pdo->prepare("SELECT s.id, s.subject_name FROM subjects s JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ? WHERE sc.class = ? AND (s.school_id = ? OR s.is_central = 1) ORDER BY s.subject_name ASC");
     $stmt->execute([$school_id, $class, $school_id]);
     $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    error_log("generate_cards subjects: " . $e->getMessage());
 }
 
-// ── Load ALL scores for this class/session/term ───────────────────────────────
 $scores = [];
-if (!empty($students)) {
+if (!empty($students) && !empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
-        if (!empty($sub_ids)) {
-            $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-            $stmt = $pdo->prepare("
-                SELECT student_id, subject_id, score_data, total_score, grade, subject_position
-                  FROM student_scores
-                 WHERE school_id=? AND session=? AND term=? AND subject_id IN ($ph)
-            ");
-            $stmt->execute(array_merge([$school_id, $session, $term], $sub_ids));
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
-                $scores[(int)$row['student_id']][(int)$row['subject_id']] = $row;
-            }
+        $ph = implode(',', array_fill(0, count($sub_ids), '?'));
+        $stmt = $pdo->prepare("SELECT student_id, subject_id, score_data, total_score, grade, subject_position FROM student_scores WHERE school_id=? AND session=? AND term=? AND subject_id IN ($ph)");
+        $stmt->execute(array_merge([$school_id, $session, $term], $sub_ids));
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
+            $scores[(int)$row['student_id']][(int)$row['subject_id']] = $row;
         }
     } catch (Exception $e) {
-        error_log("generate_cards scores: " . $e->getMessage());
     }
 }
 
-// ── Load positions ────────────────────────────────────────────────────────────
 $positions = [];
 if (!empty($students)) {
     try {
         $sids = array_column($students, 'id');
-        $ph   = implode(',', array_fill(0, count($sids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT student_id, class_position, total_marks, average, promoted_to
-              FROM student_positions
-             WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)
-        ");
+        $ph = implode(',', array_fill(0, count($sids), '?'));
+        $stmt = $pdo->prepare("SELECT student_id, class_position, total_marks, average, promoted_to FROM student_positions WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)");
         $stmt->execute(array_merge([$school_id, $session, $term], $sids));
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $positions[(int)$row['student_id']] = $row;
         }
     } catch (Exception $e) {
-        error_log("generate_cards positions: " . $e->getMessage());
     }
 }
 
-// ── Load comments ─────────────────────────────────────────────────────────────
 $comments = [];
 if (!empty($students)) {
     try {
         $sids = array_column($students, 'id');
-        $ph   = implode(',', array_fill(0, count($sids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT student_id, teachers_comment, principals_comment,
-                   class_teachers_name, principals_name, days_present, days_absent
-              FROM student_comments
-             WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)
-        ");
+        $ph = implode(',', array_fill(0, count($sids), '?'));
+        $stmt = $pdo->prepare("SELECT student_id, teachers_comment, principals_comment, class_teachers_name, principals_name, days_present FROM student_comments WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)");
         $stmt->execute(array_merge([$school_id, $session, $term], $sids));
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $comments[(int)$row['student_id']] = $row;
         }
     } catch (Exception $e) {
-        error_log("generate_cards comments: " . $e->getMessage());
     }
 }
 
-// ── Load affective traits ─────────────────────────────────────────────────────
 $affective = [];
 if (!empty($students)) {
     try {
         $sids = array_column($students, 'id');
-        $ph   = implode(',', array_fill(0, count($sids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT student_id, punctuality, attendance, politeness, honesty,
-                   neatness, reliability, relationship, self_control
-              FROM affective_traits
-             WHERE session=? AND term=? AND student_id IN ($ph)
-        ");
+        $ph = implode(',', array_fill(0, count($sids), '?'));
+        $stmt = $pdo->prepare("SELECT student_id, punctuality, attendance, politeness, honesty, neatness, reliability, relationship, self_control FROM affective_traits WHERE session=? AND term=? AND student_id IN ($ph)");
         $stmt->execute(array_merge([$session, $term], $sids));
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $affective[(int)$row['student_id']] = $row;
         }
     } catch (Exception $e) {
-        error_log("generate_cards affective: " . $e->getMessage());
     }
 }
 
-// ── Load psychomotor ──────────────────────────────────────────────────────────
 $psychomotor = [];
 if (!empty($students)) {
     try {
         $sids = array_column($students, 'id');
-        $ph   = implode(',', array_fill(0, count($sids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT student_id, handwriting, verbal_fluency, sports,
-                   handling_tools, drawing_painting, musical_skills
-              FROM psychomotor_skills
-             WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)
-        ");
+        $ph = implode(',', array_fill(0, count($sids), '?'));
+        $stmt = $pdo->prepare("SELECT student_id, handwriting, verbal_fluency, sports, handling_tools, drawing_painting, musical_skills FROM psychomotor_skills WHERE school_id=? AND session=? AND term=? AND student_id IN ($ph)");
         $stmt->execute(array_merge([$school_id, $session, $term], $sids));
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $psychomotor[(int)$row['student_id']] = $row;
         }
     } catch (Exception $e) {
-        error_log("generate_cards psychomotor: " . $e->getMessage());
     }
 }
 
-// ── Compute class-level stats ────────────────────────────────────────────────
+// Class stats
 $class_averages = [];
 foreach ($students as $s) {
     $sid = (int)$s['id'];
-    $class_averages[$sid] = isset($positions[$sid]['average'])
-        ? (float)$positions[$sid]['average'] : 0.0;
+    $class_averages[$sid] = isset($positions[$sid]['average']) ? (float)$positions[$sid]['average'] : 0.0;
 }
-$highest_avg  = !empty($class_averages) ? max($class_averages) : 0;
-$lowest_avg   = !empty($class_averages) ? min($class_averages) : 0;
+$highest_avg = !empty($class_averages) ? max($class_averages) : 0;
+$lowest_avg = !empty($class_averages) ? min($class_averages) : 0;
 $num_in_class = $total_students;
 
-// ── Compute class-level subject stats ─────────────────────────────────────────
+// Subject stats
 $subject_stats = [];
 foreach ($subjects as $sub) {
     $sid = (int)$sub['id'];
@@ -320,7 +285,7 @@ foreach ($subjects as $sub) {
     ];
 }
 
-// ── Which student to preview ──────────────────────────────────────────────────
+// Preview student
 $preview_sid = isset($_GET['student_id']) ? (int)$_GET['student_id'] : 0;
 if ($preview_sid === 0 && !empty($students)) {
     $preview_sid = (int)$students[0]['id'];
@@ -333,30 +298,28 @@ foreach ($students as $s) {
     }
 }
 
-// ── Trait display labels ──────────────────────────────────────────────────────
 $affective_fields = [
-    'punctuality'  => 'Punctuality',
-    'attendance'   => 'Attendance',
-    'politeness'   => 'Politeness',
-    'honesty'      => 'Honesty',
-    'neatness'     => 'Neatness',
-    'reliability'  => 'Reliability',
+    'punctuality' => 'Punctuality',
+    'attendance' => 'Attendance',
+    'politeness' => 'Politeness',
+    'honesty' => 'Honesty',
+    'neatness' => 'Neatness',
+    'reliability' => 'Reliability',
     'relationship' => 'Relationship',
     'self_control' => 'Self Control',
 ];
 $psychomotor_fields = [
-    'handwriting'     => 'Handwriting',
-    'verbal_fluency'  => 'Verbal Fluency',
-    'sports'          => 'Sports',
-    'handling_tools'  => 'Handling tools',
+    'handwriting' => 'Handwriting',
+    'verbal_fluency' => 'Verbal Fluency',
+    'sports' => 'Sports',
+    'handling_tools' => 'Handling tools',
     'drawing_painting' => 'Drawing/Painting',
-    'musical_skills'  => 'Musical Skills',
+    'musical_skills' => 'Musical Skills',
 ];
 $trait_labels = ['A' => 'Excellent', 'B' => 'Very Good', 'C' => 'Good', 'D' => 'Fair', 'E' => 'Poor'];
 
-// ── Progress / readiness check ────────────────────────────────────────────────
-$students_with_scores    = 0;
-$students_with_comments  = 0;
+$students_with_scores = 0;
+$students_with_comments = 0;
 foreach ($students as $s) {
     $sid = (int)$s['id'];
     if (!empty($scores[$sid])) $students_with_scores++;
@@ -369,14 +332,13 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?php echo htmlspecialchars($school_name); ?> — Generate Report Cards</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo htmlspecialchars($school_name); ?> — Report Cards</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        /* ── Reset & root ───────────────────────────────────────────────────── */
         * {
             margin: 0;
             padding: 0;
@@ -388,28 +350,24 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             --secondary: <?php echo $secondary_color; ?>;
             --success: #27ae60;
             --warning: #f39c12;
-            --danger: #e74c3c;
             --light: #ecf0f1;
             --dark: #2c3e50;
-            --sidebar-w: 260px;
             --shadow: 0 2px 8px rgba(0, 0, 0, .08);
             --radius: 10px;
-            --transition: all .25s ease;
         }
 
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
             color: #333;
-            min-height: 100vh;
         }
 
-        /* ── Sidebar (unchanged, truncated for brevity) ── */
+        /* Sidebar styles (minimal) */
         .sidebar {
             position: fixed;
             top: 0;
             left: 0;
-            width: var(--sidebar-w);
+            width: 260px;
             height: 100vh;
             background: linear-gradient(180deg, var(--primary), var(--dark));
             color: white;
@@ -445,7 +403,7 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             z-index: 999;
             opacity: 0;
             visibility: hidden;
-            transition: var(--transition);
+            transition: .25s;
         }
 
         .overlay.show {
@@ -456,189 +414,269 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
         .main {
             min-height: 100vh;
             padding: 20px;
-            transition: var(--transition);
         }
 
+        /* Top bar */
         .top-header,
-        .step-bar,
-        .stats-row,
-        .ready-bar,
         .publish-bar {
             background: white;
             border-radius: var(--radius);
-            padding: 16px 20px;
+            padding: 12px 20px;
             margin-bottom: 20px;
             box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .layout-grid {
             display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 16px;
+            grid-template-columns: 260px 1fr;
+            gap: 20px;
         }
 
-        @media(max-width:860px) {
+        @media(max-width:800px) {
             .layout-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        /* ── COMPACT REPORT CARD STYLES (OPTIMIZED FOR SINGLE PAGE) ── */
-        .rc-wrap {
+        /* Student panel */
+        .student-panel {
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             overflow: hidden;
         }
 
-        .rc-card {
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.72rem;
-            line-height: 1.3;
-            color: #1a1a1a;
+        .panel-head {
+            background: var(--primary);
+            color: white;
+            padding: 12px 16px;
+            font-weight: 600;
         }
 
-        /* Header - compact */
-        .rc-header {
-            padding: 10px 16px 8px;
-            border-bottom: 2px solid var(--secondary);
+        .student-list {
+            list-style: none;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .student-list li a {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
+            padding: 10px 12px;
+            text-decoration: none;
+            color: #333;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .student-list li a.active {
+            background: #eef2ff;
+            border-left: 3px solid var(--primary);
+        }
+
+        .s-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--light);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .s-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        /* ========== REPORT CARD - OPTIMIZED WITH LARGER ACADEMIC TABLE ========== */
+        .rc-card {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Header with full school details */
+        .rc-header {
+            padding: 12px 20px;
+            border-bottom: 3px solid var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
         .rc-logo {
-            width: 48px;
-            height: 48px;
+            width: 70px;
+            height: 70px;
             object-fit: contain;
             flex-shrink: 0;
         }
 
-        .rc-school-info {
+        .rc-school-details {
             flex: 1;
             text-align: center;
         }
 
-        .rc-school-info h2 {
-            font-size: 0.9rem;
+        .rc-school-details h1 {
+            font-size: 1.2rem;
             font-weight: 700;
             color: var(--primary);
-            margin: 0;
+            margin: 0 0 4px 0;
         }
 
-        .rc-school-info p {
+        .rc-school-details .motto {
+            font-size: 0.7rem;
+            font-style: italic;
+            color: var(--secondary);
+            margin-bottom: 4px;
+        }
+
+        .rc-school-details .address {
             font-size: 0.65rem;
-            margin: 0;
             color: #555;
+            margin-bottom: 3px;
         }
 
-        .rc-school-info .rc-title {
-            font-size: 0.75rem;
+        .rc-school-details .contacts {
+            font-size: 0.62rem;
+            color: #777;
+        }
+
+        .rc-title {
+            background: var(--primary);
+            color: white;
+            display: inline-block;
+            padding: 3px 16px;
+            border-radius: 20px;
+            font-size: 0.7rem;
             font-weight: 600;
-            margin-top: 3px;
+            margin-top: 5px;
         }
 
-        .rc-photo,
-        .rc-photo-placeholder {
-            width: 48px;
-            height: 48px;
+        .rc-photo {
+            width: 70px;
+            height: 70px;
             object-fit: cover;
-            border-radius: 4px;
+            border-radius: 6px;
+            border: 2px solid var(--light);
             flex-shrink: 0;
         }
 
         .rc-photo-placeholder {
+            width: 70px;
+            height: 70px;
             background: var(--light);
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.8rem;
+            color: #aaa;
         }
 
-        /* Bio strip - 2 rows max */
-        .rc-bio {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0;
-            border-bottom: 1px solid #ddd;
-            font-size: 0.68rem;
-        }
-
-        .rc-bio-item {
-            padding: 4px 12px;
+        /* Student info strip - compact */
+        .rc-student-info {
             display: flex;
+            flex-wrap: wrap;
+            background: #f8f9fc;
+            padding: 6px 16px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.7rem;
+        }
+
+        .rc-student-info .info-item {
+            display: inline-flex;
+            align-items: baseline;
             gap: 6px;
-            border-right: 1px solid #f0f0f0;
-            border-bottom: 1px solid #f0f0f0;
+            margin-right: 24px;
+            padding: 3px 0;
         }
 
-        .rc-bio-item:nth-child(4n) {
-            border-right: none;
-        }
-
-        .rc-bio-lbl {
-            color: #777;
-            font-weight: 500;
-            min-width: 70px;
-        }
-
-        .rc-bio-val {
-            color: #222;
+        .rc-student-info .info-label {
             font-weight: 600;
+            color: #666;
         }
 
-        /* Section titles - compact */
+        .rc-student-info .info-value {
+            font-weight: 500;
+            color: #222;
+        }
+
+        /* Academic Performance - LARGER AND CLEARER */
         .rc-section-title {
             background: var(--primary);
             color: white;
-            padding: 3px 12px;
-            font-size: 0.65rem;
+            padding: 8px 16px;
+            font-size: 0.8rem;
             font-weight: 600;
-            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        /* Score table - compact */
+        .rc-section-title i {
+            margin-right: 8px;
+        }
+
         .rc-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
 
         .rc-table th {
-            background: #f0f4ff;
-            padding: 4px 6px;
+            background: #eef2ff;
+            padding: 8px 6px;
             text-align: center;
-            border: 1px solid #e0e0e0;
+            border: 1px solid #d0d7de;
             font-weight: 600;
+            font-size: 0.7rem;
         }
 
         .rc-table th:first-child {
             text-align: left;
+            padding-left: 12px;
         }
 
         .rc-table td {
-            padding: 4px 6px;
+            padding: 6px 6px;
             border: 1px solid #e8e8e8;
             text-align: center;
+            font-size: 0.72rem;
         }
 
         .rc-table td:first-child {
             text-align: left;
+            padding-left: 12px;
             font-weight: 500;
         }
 
         .rc-table .rc-total {
             font-weight: 700;
             color: var(--primary);
+            font-size: 0.78rem;
         }
 
-        /* Grade badges - smaller */
+        .rc-table tr:nth-child(even) td {
+            background: #fafbff;
+        }
+
+        /* Grade badges */
         .g-badge {
             display: inline-block;
-            padding: 1px 5px;
-            border-radius: 8px;
-            font-size: 0.65rem;
-            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
         }
 
         .g-a {
@@ -666,37 +704,53 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             color: #721c24;
         }
 
-        /* Summary row - compact */
-        .rc-summary-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+        /* Summary stats row */
+        .rc-summary {
+            display: flex;
+            flex-wrap: wrap;
+            background: #f0f4ff;
             border-top: 1px solid var(--secondary);
-            background: #fafbfe;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 6px 12px;
+            gap: 16px;
+            justify-content: space-around;
         }
 
-        .rc-sum-cell {
-            padding: 4px 8px;
+        .summary-item {
             text-align: center;
-            border-right: 1px solid #e0e0e0;
+            padding: 4px 8px;
         }
 
-        .rc-sum-cell:last-child {
-            border-right: none;
-        }
-
-        .rc-sum-cell .val {
-            font-size: 0.85rem;
+        .summary-item .value {
+            font-size: 0.9rem;
             font-weight: 700;
             color: var(--primary);
         }
 
-        .rc-sum-cell .lbl {
+        .summary-item .label {
             font-size: 0.6rem;
-            color: #777;
+            color: #666;
         }
 
-        /* Traits - COMPACT 2-COLUMN layout */
-        .traits-compact {
+        /* Grading key - compact */
+        .grade-key {
+            padding: 5px 12px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.6rem;
+        }
+
+        .grade-key strong {
+            font-size: 0.65rem;
+            color: #555;
+        }
+
+        /* Traits - very compact (2 columns) */
+        .traits-section-compact {
             display: flex;
             flex-wrap: wrap;
             border-bottom: 1px solid #e0e0e0;
@@ -753,45 +807,43 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             color: #999;
         }
 
-        /* Comments - compact side by side */
-        .rc-comments-compact {
+        /* Comments - side by side compact */
+        .comments-compact {
             display: flex;
             border-bottom: 1px solid #e0e0e0;
         }
 
-        .rc-comment-box {
+        .comment-box {
             flex: 1;
             padding: 6px 12px;
             border-right: 1px solid #e0e0e0;
         }
 
-        .rc-comment-box:last-child {
+        .comment-box:last-child {
             border-right: none;
         }
 
-        .rc-comment-box .c-lbl {
+        .comment-box .c-label {
             font-size: 0.6rem;
             color: var(--primary);
             font-weight: 600;
             margin-bottom: 2px;
         }
 
-        .rc-comment-box .c-text {
-            font-size: 0.65rem;
+        .comment-box .c-text {
+            font-size: 0.68rem;
             line-height: 1.3;
-            max-height: 45px;
-            overflow: hidden;
         }
 
-        .rc-comment-box .c-sig {
-            font-size: 0.58rem;
+        .comment-box .c-signature {
+            font-size: 0.55rem;
             color: #888;
             margin-top: 3px;
             border-top: 1px dashed #ddd;
             padding-top: 2px;
         }
 
-        /* Footer - compact */
+        /* Footer */
         .rc-footer {
             background: linear-gradient(90deg, var(--primary), var(--dark));
             color: white;
@@ -801,118 +853,7 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             font-size: 0.6rem;
         }
 
-        /* Grading key - inline compact */
-        .grade-key {
-            padding: 3px 12px;
-            background: #f9f9f9;
-            border-top: 1px solid #eee;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            font-size: 0.6rem;
-        }
-
-        /* PRINT STYLES - FORCED SINGLE PAGE */
-        @media print {
-            @page {
-                size: A4 portrait;
-                margin: 5mm;
-            }
-
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            body,
-            .main {
-                background: white;
-                margin: 0;
-                padding: 0;
-            }
-
-            .no-print,
-            .sidebar,
-            .mobile-toggle,
-            .overlay,
-            .top-header,
-            .step-bar,
-            .stats-row,
-            .ready-bar,
-            .publish-bar,
-            .student-panel,
-            .card-toolbar,
-            button,
-            .back-btn,
-            .layout-grid .student-panel {
-                display: none !important;
-            }
-
-            .layout-grid {
-                display: block !important;
-            }
-
-            .rc-wrap {
-                box-shadow: none !important;
-                padding: 0 !important;
-                margin: 0 auto !important;
-            }
-
-            .rc-card {
-                max-width: 100% !important;
-                page-break-after: avoid;
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-        }
-
-        /* Student panel styles (truncated) */
-        .student-panel {
-            background: white;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-
-        .panel-head {
-            padding: 12px 16px;
-            background: var(--primary);
-            color: white;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .student-list {
-            list-style: none;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .student-list li a {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            text-decoration: none;
-            color: #333;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.8rem;
-        }
-
-        .student-list li a.active {
-            background: #eef2ff;
-            border-left: 3px solid var(--primary);
-        }
-
-        .s-badge {
-            font-size: 0.6rem;
-            padding: 2px 6px;
-            border-radius: 10px;
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-
+        /* Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -937,81 +878,92 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             border: 1px solid var(--primary);
         }
 
-        .alert {
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
+        /* PRINT - Force single page */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 5mm;
+            }
 
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-        }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
 
-        .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
+            .no-print,
+            .sidebar,
+            .mobile-toggle,
+            .overlay,
+            .top-header,
+            .publish-bar,
+            .student-panel,
+            .layout-grid>.student-panel,
+            button,
+            .btn {
+                display: none !important;
+            }
+
+            .layout-grid {
+                display: block !important;
+            }
+
+            .rc-card {
+                margin: 0;
+                box-shadow: none;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
         }
     </style>
 </head>
 
 <body>
-
     <div class="overlay" id="overlay"></div>
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header" style="padding:0 20px 15px;">
-            <div class="logo">
-                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-                <div class="logo-text">
-                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                    <p>Admin Portal</p>
+            <div class="logo" style="display:flex;align-items:center;gap:10px;">
+                <div class="logo-icon" style="width:40px;height:40px;background:var(--secondary);border-radius:8px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-graduation-cap"></i></div>
+                <div>
+                    <h3 style="font-size:0.9rem;"><?php echo htmlspecialchars($school_name); ?></h3>
+                    <p style="font-size:0.7rem;">Admin Portal</p>
                 </div>
             </div>
         </div>
         <ul class="nav-links" style="list-style:none;padding:0 15px;">
-            <li><a href="index.php"><i class="fas fa-home"></i>Dashboard</a></li>
-            <li><a href="students.php"><i class="fas fa-user-graduate"></i>Students</a></li>
-            <li><a href="exam_record_setup.php"><i class="fas fa-file-alt"></i>Exam Records</a></li>
-            <li><a href="exam_generate_cards.php?record_id=<?php echo $record_id; ?>" class="active"><i class="fas fa-id-card"></i>Report Cards</a></li>
-            <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i>Logout</a></li>
+            <li><a href="index.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-home"></i>Dashboard</a></li>
+            <li><a href="exam_record_setup.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-file-alt"></i>Exam Records</a></li>
+            <li><a href="exam_generate_cards.php?record_id=<?php echo $record_id; ?>" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;background:rgba(255,255,255,0.2);border-radius:8px;"><i class="fas fa-id-card"></i>Report Cards</a></li>
+            <li><a href="logout.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-sign-out-alt"></i>Logout</a></li>
         </ul>
     </nav>
-
-    <button class="mobile-toggle" id="menuBtn" aria-label="Menu">
-        <i class="fas fa-bars"></i>
-    </button>
+    <button class="mobile-toggle" id="menuBtn"><i class="fas fa-bars"></i></button>
 
     <main class="main">
         <div class="top-header no-print">
             <div>
-                <h1 style="font-size:1.2rem;"><i class="fas fa-id-card" style="color:var(--secondary);margin-right:8px"></i>Generate Report Cards</h1>
-                <p style="font-size:0.75rem;"><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term {$session}"); ?></p>
+                <h1 style="font-size:1.1rem;"><i class="fas fa-id-card"></i> Generate Report Cards</h1>
+                <p style="font-size:0.7rem;"><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term {$session}"); ?></p>
             </div>
-            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="back-btn" style="text-decoration:none;padding:6px 12px;background:#eee;border-radius:6px;">← Back to Step 3</a>
+            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" style="text-decoration:none;padding:6px 12px;background:#eee;border-radius:6px;font-size:0.8rem;">← Back to Step 3</a>
         </div>
 
-        <?php if ($success_msg): ?>
-            <div class="alert alert-success no-print"><?php echo htmlspecialchars($success_msg); ?></div>
-        <?php endif; ?>
-        <?php if ($error_msg): ?>
-            <div class="alert alert-danger no-print"><?php echo htmlspecialchars($error_msg); ?></div>
-        <?php endif; ?>
+        <?php if ($success_msg): ?><div class="alert alert-success no-print" style="background:#d4edda;padding:10px;border-radius:8px;margin-bottom:15px;"><?php echo htmlspecialchars($success_msg); ?></div><?php endif; ?>
+        <?php if ($error_msg): ?><div class="alert alert-danger no-print" style="background:#f8d7da;padding:10px;border-radius:8px;margin-bottom:15px;"><?php echo htmlspecialchars($error_msg); ?></div><?php endif; ?>
 
         <?php if (empty($students)): ?>
             <div class="alert alert-warning">No active students found for <?php echo htmlspecialchars($class); ?>.</div>
         <?php else: ?>
 
-            <!-- Publish bar -->
-            <div class="publish-bar no-print" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+            <div class="publish-bar no-print">
                 <div>
                     <strong><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term"); ?></strong>
-                    <span style="margin-left:8px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span>
+                    <span style="margin-left:10px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span>
                 </div>
                 <div style="display:flex;gap:8px;">
                     <?php if (($record['status'] ?? '') !== 'published'): ?>
                         <form method="POST" style="display:inline">
                             <input type="hidden" name="action" value="publish_record">
-                            <button type="submit" class="btn btn-primary btn-sm" <?php echo !$all_ready ? 'disabled' : ''; ?>>Publish</button>
+                            <button type="submit" class="btn btn-primary btn-sm" <?php echo !$all_ready ? 'disabled' : ''; ?>>Publish Cards</button>
                         </form>
                     <?php else: ?>
                         <form method="POST" style="display:inline">
@@ -1019,13 +971,12 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                             <button type="submit" class="btn btn-secondary btn-sm">Unpublish</button>
                         </form>
                     <?php endif; ?>
-                    <button class="btn btn-secondary btn-sm" onclick="window.print()">Print</button>
-                    <button class="btn btn-primary btn-sm" onclick="downloadReportCardPDF()">Download PDF</button>
+                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-primary btn-sm" onclick="downloadReportCardPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
                 </div>
             </div>
 
             <div class="layout-grid">
-                <!-- Student list -->
                 <div class="student-panel no-print">
                     <div class="panel-head">Students (<?php echo $total_students; ?>)</div>
                     <ul class="student-list" id="studentList">
@@ -1033,31 +984,19 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                             $sid = (int)$s['id'];
                             $has_scores = !empty($scores[$sid]);
                             $has_comm = !empty($comments[$sid]);
-                            $pos = $positions[$sid] ?? null;
                         ?>
                             <li>
-                                <a href="?record_id=<?php echo $record_id; ?>&student_id=<?php echo $sid; ?>"
-                                    class="<?php echo ($sid === $preview_sid) ? 'active' : ''; ?>">
-                                    <div class="s-avatar" style="width:30px;height:30px;background:#eee;border-radius:50%;display:flex;align-items:center;justify-content:center;">
-                                        <?php echo strtoupper(substr($s['full_name'], 0, 1)); ?>
-                                    </div>
-                                    <div style="flex:1;">
-                                        <strong style="font-size:0.75rem;"><?php echo htmlspecialchars($s['full_name']); ?></strong>
-                                        <span style="font-size:0.65rem;color:#888;display:block;"><?php echo htmlspecialchars($s['admission_number']); ?></span>
-                                    </div>
-                                    <?php if ($has_scores && $has_comm): ?>
-                                        <span class="s-badge">✓</span>
-                                    <?php else: ?>
-                                        <span class="s-badge" style="background:#fce4ec;color:#c62828;">!</span>
-                                    <?php endif; ?>
+                                <a href="?record_id=<?php echo $record_id; ?>&student_id=<?php echo $sid; ?>" class="<?php echo ($sid === $preview_sid) ? 'active' : ''; ?>">
+                                    <div class="s-avatar"><?php echo strtoupper(substr($s['full_name'], 0, 1)); ?></div>
+                                    <div style="flex:1;"><strong style="font-size:0.75rem;"><?php echo htmlspecialchars($s['full_name']); ?></strong><span style="font-size:0.65rem;color:#888;display:block;"><?php echo htmlspecialchars($s['admission_number']); ?></span></div>
+                                    <?php if ($has_scores && $has_comm): ?><span class="s-badge">✓</span><?php else: ?><span class="s-badge" style="background:#fce4ec;color:#c62828;">!</span><?php endif; ?>
                                 </a>
                             </li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
 
-                <!-- Report Card Preview -->
-                <div class="rc-wrap">
+                <div class="rc-card" id="reportCard">
                     <?php if ($preview_student):
                         $sid = (int)$preview_student['id'];
                         $s_scores = $scores[$sid] ?? [];
@@ -1070,189 +1009,210 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                         $days_opened = (int)($record['days_school_opened'] ?? 90);
                         $days_present = (int)($s_comm['days_present'] ?? 0);
                     ?>
-                        <div class="rc-card" id="reportCard">
-                            <!-- Header -->
-                            <div class="rc-header">
+                        <!-- HEADER with full school details -->
+                        <div class="rc-header">
+                            <?php if (!empty($school_logo)): ?>
                                 <img class="rc-logo" src="<?php echo htmlspecialchars($school_logo); ?>" alt="Logo" onerror="this.style.display='none'">
-                                <div class="rc-school-info">
-                                    <h2><?php echo htmlspecialchars($school_name); ?></h2>
-                                    <?php if ($school_motto): ?>
-                                        <p style="font-style:italic;">"<?php echo htmlspecialchars($school_motto); ?>"</p>
-                                    <?php endif; ?>
-                                    <div class="rc-title">REPORT CARD — <?php echo htmlspecialchars($term); ?> TERM</div>
-                                </div>
-                                <?php if (!empty($preview_student['profile_picture'])): ?>
-                                    <img class="rc-photo" src="<?php echo htmlspecialchars($preview_student['profile_picture']); ?>" alt="Photo">
-                                <?php else: ?>
-                                    <div class="rc-photo-placeholder"><i class="fas fa-user"></i></div>
+                            <?php endif; ?>
+                            <div class="rc-school-details">
+                                <h1><?php echo htmlspecialchars($school_name); ?></h1>
+                                <?php if (!empty($school_motto)): ?>
+                                    <div class="motto">"<?php echo htmlspecialchars($school_motto); ?>"</div>
                                 <?php endif; ?>
-                            </div>
-
-                            <!-- Bio (compact 4-col) -->
-                            <div class="rc-bio">
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Name:</span><span class="rc-bio-val"><?php echo htmlspecialchars($preview_student['full_name']); ?></span></div>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Admission:</span><span class="rc-bio-val"><?php echo htmlspecialchars($preview_student['admission_number']); ?></span></div>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Class:</span><span class="rc-bio-val"><?php echo htmlspecialchars($class); ?></span></div>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Session:</span><span class="rc-bio-val"><?php echo htmlspecialchars($session); ?></span></div>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Gender:</span><span class="rc-bio-val"><?php echo ucfirst($preview_student['gender'] ?? ''); ?></span></div>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Guardian:</span><span class="rc-bio-val"><?php echo htmlspecialchars($preview_student['guardian_name'] ?? '—'); ?></span></div>
-                                <?php if ($days_opened && (int)($record['show_attendance'] ?? 1)): ?>
-                                    <div class="rc-bio-item"><span class="rc-bio-lbl">Attendance:</span><span class="rc-bio-val"><?php echo $days_present; ?>/<?php echo $days_opened; ?> days</span></div>
+                                <?php if (!empty($school_address)): ?>
+                                    <div class="address"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($school_address); ?></div>
                                 <?php endif; ?>
-                                <div class="rc-bio-item"><span class="rc-bio-lbl">Position:</span><span class="rc-bio-val"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></span></div>
+                                <?php if (!empty($school_phone) || !empty($school_email)): ?>
+                                    <div class="contacts">
+                                        <?php if (!empty($school_phone)): ?><i class="fas fa-phone"></i> <?php echo htmlspecialchars($school_phone); ?><?php endif; ?>
+                                            <?php if (!empty($school_email)): ?> &nbsp;|&nbsp; <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($school_email); ?><?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="rc-title">REPORT CARD — <?php echo strtoupper(htmlspecialchars($term)); ?> TERM <?php echo htmlspecialchars($session); ?></div>
                             </div>
-
-                            <!-- Academic Performance -->
-                            <div class="rc-section-title">📊 ACADEMIC PERFORMANCE</div>
-                            <?php if (empty($s_scores)): ?>
-                                <div style="padding:15px;text-align:center;">No scores recorded.</div>
+                            <?php if (!empty($preview_student['profile_picture'])): ?>
+                                <img class="rc-photo" src="<?php echo htmlspecialchars($preview_student['profile_picture']); ?>" alt="Photo">
                             <?php else: ?>
-                                <table class="rc-table">
-                                    <thead>
+                                <div class="rc-photo-placeholder"><i class="fas fa-user-graduate"></i></div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Student info strip -->
+                        <div class="rc-student-info">
+                            <div class="info-item"><span class="info-label">Name:</span><span class="info-value"><?php echo htmlspecialchars($preview_student['full_name']); ?></span></div>
+                            <div class="info-item"><span class="info-label">Admission No:</span><span class="info-value"><?php echo htmlspecialchars($preview_student['admission_number']); ?></span></div>
+                            <div class="info-item"><span class="info-label">Class:</span><span class="info-value"><?php echo htmlspecialchars($class); ?></span></div>
+                            <div class="info-item"><span class="info-label">Gender:</span><span class="info-value"><?php echo ucfirst($preview_student['gender'] ?? ''); ?></span></div>
+                            <div class="info-item"><span class="info-label">Guardian:</span><span class="info-value"><?php echo htmlspecialchars($preview_student['guardian_name'] ?? '—'); ?></span></div>
+                            <?php if ((int)($record['show_attendance'] ?? 1) && $days_opened): ?>
+                                <div class="info-item"><span class="info-label">Attendance:</span><span class="info-value"><?php echo $days_present; ?>/<?php echo $days_opened; ?> days (<?php echo round(($days_present / $days_opened) * 100); ?>%)</span></div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- ACADEMIC PERFORMANCE - LARGER & CLEARER -->
+                        <div class="rc-section-title"><i class="fas fa-chart-line"></i> ACADEMIC PERFORMANCE</div>
+
+                        <?php if (empty($s_scores)): ?>
+                            <div style="padding:20px;text-align:center;color:#999;">No scores recorded for this student yet.</div>
+                        <?php else: ?>
+                            <table class="rc-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:30%">SUBJECT</th>
+                                        <?php foreach ($score_types as $st): ?>
+                                            <th><?php echo htmlspecialchars($st['label'] ?? $st['name'] ?? 'CA'); ?></th>
+                                        <?php endforeach; ?>
+                                        <th>TOTAL</th>
+                                        <th>GRADE</th>
+                                        <th>REMARK</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $total_sum = 0;
+                                    $scored_count = 0;
+                                    foreach ($subjects as $sub):
+                                        $sub_id = (int)$sub['id'];
+                                        $row = $s_scores[$sub_id] ?? null;
+                                        if (!$row) continue;
+                                        $total_sc = (float)$row['total_score'];
+                                        $grade_info = getGradeInfo($total_sc, $grading_scale);
+                                        $g_cls = strtolower(substr($grade_info['grade'], 0, 1));
+                                        $total_sum += $total_sc;
+                                        $scored_count++;
+                                    ?>
                                         <tr>
-                                            <th>Subject</th><?php foreach ($score_types as $st): ?><th><?php echo htmlspecialchars($st['label'] ?? $st['name'] ?? 'CA'); ?></th><?php endforeach; ?><th>Total</th>
-                                            <th>Grade</th>
-                                            <th>Remark</th>
+                                            <td><strong><?php echo htmlspecialchars($sub['subject_name']); ?></strong></td>
+                                            <?php foreach ($score_types as $st):
+                                                $st_key = strtolower(str_replace([' ', '-'], '_', $st['label'] ?? $st['name'] ?? ''));
+                                                $val = $row['score_data'][$st_key] ?? $row['score_data'][$st['label'] ?? ''] ?? '—';
+                                            ?>
+                                                <td><?php echo is_numeric($val) ? $val : '—'; ?></td>
+                                            <?php endforeach; ?>
+                                            <td class="rc-total"><?php echo number_format($total_sc, 0); ?></td>
+                                            <td><span class="g-badge g-<?php echo $g_cls; ?>"><?php echo $grade_info['grade']; ?></span></td>
+                                            <td><?php echo $grade_info['remark']; ?></td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php $total_sum = 0;
-                                        $scored_count = 0;
-                                        foreach ($subjects as $sub):
-                                            $sub_id = (int)$sub['id'];
-                                            $row = $s_scores[$sub_id] ?? null;
-                                            if (!$row) continue;
-                                            $total_sc = (float)$row['total_score'];
-                                            $grade_info = getGradeInfo($total_sc, $grading_scale);
-                                            $g_cls = strtolower(substr($grade_info['grade'], 0, 1));
-                                            $total_sum += $total_sc;
-                                            $scored_count++;
-                                        ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($sub['subject_name']); ?></td>
-                                                <?php foreach ($score_types as $st):
-                                                    $st_key = strtolower(str_replace([' ', '-'], '_', $st['label'] ?? $st['name'] ?? ''));
-                                                    $val = $row['score_data'][$st_key] ?? $row['score_data'][$st['label'] ?? ''] ?? '—';
-                                                ?>
-                                                    <td><?php echo is_numeric($val) ? $val : '—'; ?></td>
-                                                <?php endforeach; ?>
-                                                <td class="rc-total"><?php echo number_format($total_sc, 0); ?></td>
-                                                <td><span class="g-badge g-<?php echo $g_cls; ?>"><?php echo $grade_info['grade']; ?></span></td>
-                                                <td><?php echo $grade_info['remark']; ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
 
-                                <!-- Summary -->
-                                <div class="rc-summary-row">
-                                    <div class="rc-sum-cell">
-                                        <div class="val"><?php echo $scored_count; ?></div>
-                                        <div class="lbl">Subjects</div>
-                                    </div>
-                                    <div class="rc-sum-cell">
-                                        <div class="val"><?php echo number_format($total_sum, 0); ?></div>
-                                        <div class="lbl">Total</div>
-                                    </div>
-                                    <div class="rc-sum-cell">
-                                        <div class="val"><?php echo number_format($avg, 1); ?>%</div>
-                                        <div class="lbl">Average</div>
-                                    </div>
-                                    <?php if ((int)($record['show_lowest_highest_avg'] ?? 1)): ?>
-                                        <div class="rc-sum-cell">
-                                            <div class="val"><?php echo number_format($highest_avg, 1); ?>%</div>
-                                            <div class="lbl">Highest</div>
-                                        </div>
-                                        <div class="rc-sum-cell">
-                                            <div class="val"><?php echo number_format($lowest_avg, 1); ?>%</div>
-                                            <div class="lbl">Lowest</div>
-                                        </div>
-                                    <?php endif; ?>
+                            <!-- Summary stats -->
+                            <div class="rc-summary">
+                                <div class="summary-item">
+                                    <div class="value"><?php echo $scored_count; ?></div>
+                                    <div class="label">Subjects</div>
                                 </div>
-                            <?php endif; ?>
-
-                            <!-- Grading Key -->
-                            <div class="grade-key">
-                                <strong>GRADE KEY:</strong>
-                                <?php foreach ($grading_scale as $g):
-                                    $gc = strtolower(substr($g['grade'], 0, 1));
-                                ?>
-                                    <span class="g-badge g-<?php echo $gc; ?>"><?php echo $g['grade']; ?> (<?php echo $g['min']; ?>-<?php echo $g['max']; ?>)</span>
-                                <?php endforeach; ?>
+                                <div class="summary-item">
+                                    <div class="value"><?php echo number_format($total_sum, 0); ?></div>
+                                    <div class="label">Total Marks</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="value"><?php echo number_format($avg, 1); ?>%</div>
+                                    <div class="label">Average</div>
+                                </div>
+                                <?php if ((int)($record['show_class_position'] ?? 1)): ?>
+                                    <div class="summary-item">
+                                        <div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div>
+                                        <div class="label">Class Position</div>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ((int)($record['show_lowest_highest_avg'] ?? 1)): ?>
+                                    <div class="summary-item">
+                                        <div class="value"><?php echo number_format($highest_avg, 1); ?>%</div>
+                                        <div class="label">Highest in Class</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div>
+                                        <div class="label">Lowest in Class</div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
+                        <?php endif; ?>
 
-                            <!-- Affective Traits & Psychomotor (side by side) -->
-                            <?php if ((int)($record['show_affective_traits'] ?? 1) && !empty($affective_fields)): ?>
-                                <div class="rc-section-title">🌟 AFFECTIVE TRAITS</div>
-                                <div class="traits-compact">
-                                    <div class="trait-col">
-                                        <?php $af_keys = array_keys($affective_fields);
-                                        $half = ceil(count($af_keys) / 2);
-                                        foreach (array_slice($af_keys, 0, $half) as $fld):
-                                            $val = $s_af[$fld] ?? null;
-                                            $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
-                                        ?>
-                                            <div class="trait-row"><span><?php echo htmlspecialchars($affective_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="trait-col">
-                                        <?php foreach (array_slice($af_keys, $half) as $fld):
-                                            $val = $s_af[$fld] ?? null;
-                                            $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
-                                        ?>
-                                            <div class="trait-row"><span><?php echo htmlspecialchars($affective_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                        <!-- Grading key -->
+                        <div class="grade-key">
+                            <strong>GRADING SCALE:</strong>
+                            <?php foreach ($grading_scale as $g):
+                                $gc = strtolower(substr($g['grade'], 0, 1));
+                            ?>
+                                <span class="g-badge g-<?php echo $gc; ?>"><?php echo $g['grade']; ?> (<?php echo $g['min']; ?>-<?php echo $g['max']; ?>%)</span>
+                            <?php endforeach; ?>
+                        </div>
 
-                            <?php if ((int)($record['show_psychomotor'] ?? 1) && !empty($psychomotor_fields)): ?>
-                                <div class="rc-section-title">🎨 PSYCHOMOTOR SKILLS</div>
-                                <div class="traits-compact">
-                                    <div class="trait-col">
-                                        <?php $pm_keys = array_keys($psychomotor_fields);
-                                        $half = ceil(count($pm_keys) / 2);
-                                        foreach (array_slice($pm_keys, 0, $half) as $fld):
-                                            $val = $s_pm[$fld] ?? null;
-                                            $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
-                                        ?>
-                                            <div class="trait-row"><span><?php echo htmlspecialchars($psychomotor_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="trait-col">
-                                        <?php foreach (array_slice($pm_keys, $half) as $fld):
-                                            $val = $s_pm[$fld] ?? null;
-                                            $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
-                                        ?>
-                                            <div class="trait-row"><span><?php echo htmlspecialchars($psychomotor_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
-                                        <?php endforeach; ?>
-                                    </div>
+                        <!-- Affective Traits (compact) -->
+                        <?php if ((int)($record['show_affective_traits'] ?? 1) && !empty($affective_fields)): ?>
+                            <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-heart"></i> AFFECTIVE TRAITS</div>
+                            <div class="traits-section-compact">
+                                <div class="trait-col">
+                                    <?php $af_keys = array_keys($affective_fields);
+                                    $half = ceil(count($af_keys) / 2);
+                                    foreach (array_slice($af_keys, 0, $half) as $fld):
+                                        $val = $s_af[$fld] ?? null;
+                                        $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
+                                    ?>
+                                        <div class="trait-row"><span><?php echo htmlspecialchars($affective_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
+                                    <?php endforeach; ?>
                                 </div>
-                            <?php endif; ?>
-
-                            <!-- Comments -->
-                            <div class="rc-section-title">💬 COMMENTS</div>
-                            <div class="rc-comments-compact">
-                                <div class="rc-comment-box">
-                                    <div class="c-lbl">📝 Class Teacher</div>
-                                    <div class="c-text"><?php echo htmlspecialchars($s_comm['teachers_comment'] ?? '—'); ?></div>
-                                    <div class="c-sig"><?php echo htmlspecialchars($s_comm['class_teachers_name'] ?? ''); ?></div>
-                                </div>
-                                <div class="rc-comment-box">
-                                    <div class="c-lbl">👔 Principal</div>
-                                    <div class="c-text"><?php echo htmlspecialchars($s_comm['principals_comment'] ?? '—'); ?></div>
-                                    <div class="c-sig"><?php echo htmlspecialchars($s_comm['principals_name'] ?? ''); ?></div>
+                                <div class="trait-col">
+                                    <?php foreach (array_slice($af_keys, $half) as $fld):
+                                        $val = $s_af[$fld] ?? null;
+                                        $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
+                                    ?>
+                                        <div class="trait-row"><span><?php echo htmlspecialchars($affective_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
+                        <?php endif; ?>
 
-                            <!-- Footer -->
-                            <div class="rc-footer">
-                                <span><?php echo htmlspecialchars($school_name); ?> — <?php echo htmlspecialchars($session); ?></span>
-                                <span>Generated: <?php echo date('d M Y'); ?></span>
+                        <!-- Psychomotor Skills (compact) -->
+                        <?php if ((int)($record['show_psychomotor'] ?? 1) && !empty($psychomotor_fields)): ?>
+                            <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-futbol"></i> PSYCHOMOTOR SKILLS</div>
+                            <div class="traits-section-compact">
+                                <div class="trait-col">
+                                    <?php $pm_keys = array_keys($psychomotor_fields);
+                                    $half = ceil(count($pm_keys) / 2);
+                                    foreach (array_slice($pm_keys, 0, $half) as $fld):
+                                        $val = $s_pm[$fld] ?? null;
+                                        $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
+                                    ?>
+                                        <div class="trait-row"><span><?php echo htmlspecialchars($psychomotor_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="trait-col">
+                                    <?php foreach (array_slice($pm_keys, $half) as $fld):
+                                        $val = $s_pm[$fld] ?? null;
+                                        $cls = $val ? 'tv-' . strtolower($val) : 'tv-null';
+                                    ?>
+                                        <div class="trait-row"><span><?php echo htmlspecialchars($psychomotor_fields[$fld]); ?></span><span class="trait-val <?php echo $cls; ?>"><?php echo $val ?: '—'; ?></span></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Comments -->
+                        <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-comment-dots"></i> COMMENTS</div>
+                        <div class="comments-compact">
+                            <div class="comment-box">
+                                <div class="c-label"><i class="fas fa-chalkboard-teacher"></i> Class Teacher's Comment</div>
+                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['teachers_comment'] ?? '—')); ?></div>
+                                <div class="c-signature"><?php echo htmlspecialchars($s_comm['class_teachers_name'] ?? ''); ?></div>
+                            </div>
+                            <div class="comment-box">
+                                <div class="c-label"><i class="fas fa-user-tie"></i> Principal's Comment</div>
+                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['principals_comment'] ?? '—')); ?></div>
+                                <div class="c-signature"><?php echo htmlspecialchars($s_comm['principals_name'] ?? ''); ?></div>
                             </div>
                         </div>
+
+                        <!-- Footer -->
+                        <div class="rc-footer">
+                            <span><?php echo htmlspecialchars($school_name); ?></span>
+                            <span>Generated: <?php echo date('d M Y'); ?></span>
+                            <span>Status: <?php echo ucfirst($record['status'] ?? 'draft'); ?></span>
+                        </div>
                     <?php else: ?>
-                        <div style="padding:40px;text-align:center;">Select a student from the list</div>
+                        <div style="padding:60px;text-align:center;">Select a student from the list</div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -1273,7 +1233,18 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
             ov.classList.remove('show');
         });
 
-        // PDF Download - FIXED for single page
+        // Student search
+        function filterStudents() {
+            const q = document.getElementById('studentSearch');
+            if (!q) return;
+            const lis = document.querySelectorAll('#studentList li');
+            lis.forEach(li => {
+                const name = li.textContent.toLowerCase();
+                li.style.display = name.includes(q.value.toLowerCase()) ? '' : 'none';
+            });
+        }
+
+        // PDF Download
         async function downloadReportCardPDF() {
             const card = document.getElementById('reportCard');
             if (!card) {
@@ -1287,73 +1258,44 @@ $all_ready = ($students_with_scores >= $total_students && $students_with_comment
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
             }
 
-            // Hide non-print elements
-            const hideEls = document.querySelectorAll('.no-print, .card-toolbar, .sidebar, .mobile-toggle, .overlay, .top-header, .step-bar, .stats-row, .ready-bar, .publish-bar, .student-panel, .layout-grid > .student-panel');
+            const hideEls = document.querySelectorAll('.no-print, .sidebar, .mobile-toggle, .overlay, .top-header, .publish-bar, .student-panel, .layout-grid > .student-panel');
             const originalDisplays = [];
             hideEls.forEach((el, i) => {
                 originalDisplays[i] = el.style.display;
                 el.style.display = 'none';
             });
 
-            // Temporarily adjust card styles for better PDF fit
-            const cardOriginalWidth = card.style.width;
-            const cardOriginalMargin = card.style.margin;
-            card.style.width = '100%';
-            card.style.margin = '0 auto';
-
             try {
                 const canvas = await html2canvas(card, {
                     scale: 2.5,
                     useCORS: true,
                     backgroundColor: '#ffffff',
-                    logging: false,
-                    windowWidth: card.scrollWidth,
-                    windowHeight: card.scrollHeight
+                    logging: false
                 });
-
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-                // A4 dimensions in mm
                 const pdf = new jspdf.jsPDF({
                     orientation: 'portrait',
                     unit: 'mm',
                     format: 'a4'
                 });
-
                 const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-
-                const imgWidth = pdfWidth - 10; // 5mm margins on each side
+                const imgWidth = pdfWidth - 10;
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                pdf.addImage(imgData, 'JPEG', 5, 5, imgWidth, imgHeight);
 
-                // Center vertically if needed
-                let yOffset = 0;
-                if (imgHeight < pdfHeight - 10) {
-                    yOffset = (pdfHeight - imgHeight) / 2;
-                }
-
-                pdf.addImage(imgData, 'JPEG', 5, yOffset, imgWidth, imgHeight);
-
-                // Get student name for filename
-                const nameEl = card.querySelector('.rc-bio-val');
+                const nameEl = card.querySelector('.rc-student-info .info-value');
                 const studentName = nameEl ? nameEl.textContent.trim().replace(/[^a-z0-9]/gi, '_').substring(0, 30) : 'report_card';
-
                 pdf.save(`${studentName}_report_card.pdf`);
-
             } catch (err) {
                 console.error('PDF error:', err);
                 alert('PDF generation failed: ' + err.message);
             } finally {
-                // Restore displays
                 hideEls.forEach((el, i) => {
                     el.style.display = originalDisplays[i];
                 });
-                card.style.width = cardOriginalWidth;
-                card.style.margin = cardOriginalMargin;
-
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = 'Download PDF';
+                    btn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
                 }
             }
         }

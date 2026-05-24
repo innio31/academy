@@ -1,5 +1,5 @@
 <?php
-// admin/manage-subjects.php - Complete Subject Management with Modal Selection
+// admin/manage-subjects.php - Complete Subject Management with Modal Selection & Modal Editing
 session_start();
 
 // Check if admin is logged in
@@ -30,6 +30,50 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+
+// ============================================
+// AJAX HANDLER FOR GETTING SUBJECT DETAILS
+// ============================================
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])) {
+    header('Content-Type: application/json');
+    try {
+        $subject_id = intval($_GET['id']);
+
+        $stmt = $pdo->prepare("
+            SELECT s.*, 
+                   GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
+            FROM subjects s
+            LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
+            WHERE s.id = ? AND s.school_id = ? AND s.is_central = 0
+            GROUP BY s.id
+        ");
+        $stmt->execute([$subject_id, $school_id]);
+        $subject = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($subject) {
+            echo json_encode([
+                'success' => true,
+                'subject' => [
+                    'id' => $subject['id'],
+                    'subject_name' => $subject['subject_name'],
+                    'description' => $subject['description'],
+                    'assigned_classes' => $subject['assigned_classes']
+                ]
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Subject not found'
+            ]);
+        }
+    } catch (Exception $e) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Database error: ' . $e->getMessage()
+        ]);
+    }
+    exit();
+}
 
 // ============================================
 // ENSURE TABLES EXIST
@@ -128,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
     }
 }
 
-// Update subject
+// Update subject (AJAX or regular POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
     try {
         $subject_id = $_POST['subject_id'];
@@ -156,9 +200,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
 
         $message = "Subject updated successfully";
         $message_type = "success";
+
+        // If AJAX request, return JSON
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => $message]);
+            exit();
+        }
     } catch (Exception $e) {
         $message = $e->getMessage();
         $message_type = "error";
+
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $message]);
+            exit();
+        }
     }
 }
 
@@ -246,24 +303,6 @@ $available_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
 if (empty($available_classes)) {
     $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
-}
-
-// Fetch subject for editing
-$edit_subject = null;
-if (isset($_GET['edit'])) {
-    $subject_id = $_GET['edit'];
-    $stmt = $pdo->prepare("
-        SELECT s.*, GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
-        FROM subjects s
-        LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
-        WHERE s.id = ? AND s.school_id = ?
-        GROUP BY s.id
-    ");
-    $stmt->execute([$subject_id, $school_id]);
-    $edit_subject = $stmt->fetch();
-    if ($edit_subject) {
-        $edit_subject['assigned_classes_array'] = $edit_subject['assigned_classes'] ? explode(',', $edit_subject['assigned_classes']) : [];
-    }
 }
 ?>
 
@@ -947,6 +986,29 @@ if (isset($_GET['edit'])) {
             margin-left: 12px;
         }
 
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn-loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
         @media (min-width: 768px) {
             .sidebar {
                 transform: translateX(0);
@@ -1006,7 +1068,7 @@ if (isset($_GET['edit'])) {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
-            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1023,7 +1085,7 @@ if (isset($_GET['edit'])) {
         </div>
 
         <?php if ($message): ?>
-            <div class="alert alert-<?php echo $message_type; ?>">
+            <div class="alert alert-<?php echo $message_type; ?>" id="alertMessage">
                 <i class="fas fa-<?php echo $message_type === 'error' ? 'exclamation-triangle' : 'check-circle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
@@ -1059,10 +1121,10 @@ if (isset($_GET['edit'])) {
                         </thead>
                         <tbody>
                             <?php foreach ($subjects as $subject): ?>
-                                <tr>
+                                <tr data-subject-id="<?php echo $subject['id']; ?>">
                                     <td><strong><?php echo htmlspecialchars($subject['subject_name']); ?></strong></td>
-                                    <td><?php echo $subject['description'] ? htmlspecialchars(substr($subject['description'], 0, 60)) . (strlen($subject['description']) > 60 ? '...' : '') : '<span style="color: #999;">—</span>'; ?></td>
-                                    <td>
+                                    <td class="subject-desc-cell"><?php echo $subject['description'] ? htmlspecialchars(substr($subject['description'], 0, 60)) . (strlen($subject['description']) > 60 ? '...' : '') : '<span style="color: #999;">—</span>'; ?></td>
+                                    <td class="subject-classes-cell">
                                         <?php if ($subject['assigned_classes']): ?>
                                             <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
                                                 <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
@@ -1081,7 +1143,7 @@ if (isset($_GET['edit'])) {
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <a href="?edit=<?php echo $subject['id']; ?>" class="action-btn edit-btn" title="Edit"><i class="fas fa-edit"></i></a>
+                                            <button class="action-btn edit-btn" onclick="openEditModal(<?php echo $subject['id']; ?>)" title="Edit"><i class="fas fa-edit"></i></button>
                                             <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Topics"><i class="fas fa-tags"></i></a>
                                             <a href="manage-questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Questions"><i class="fas fa-question-circle"></i></a>
                                             <?php $has_deps = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count']) > 0; ?>
@@ -1099,47 +1161,6 @@ if (isset($_GET['edit'])) {
                 </div>
             <?php endif; ?>
         </div>
-
-        <!-- Edit Subject Section -->
-        <?php if ($edit_subject): ?>
-            <div class="card">
-                <div class="card-header">
-                    <h2><i class="fas fa-edit"></i> Edit Subject: <?php echo htmlspecialchars($edit_subject['subject_name']); ?></h2>
-                    <a href="manage-subjects.php" class="btn btn-outline"><i class="fas fa-times"></i> Cancel</a>
-                </div>
-                <form method="POST">
-                    <input type="hidden" name="subject_id" value="<?php echo $edit_subject['id']; ?>">
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="form-label">Subject Name</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_subject['subject_name']); ?>" readonly disabled>
-                        <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Optional subject description"><?php echo htmlspecialchars($edit_subject['description'] ?? ''); ?></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Assign to Classes</label>
-                        <div class="checkbox-group" id="editClassCheckboxGroup">
-                            <?php foreach ($available_classes as $class): ?>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>" <?php echo in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
-                                    <label for="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <div style="margin-top: 12px;">
-                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
-                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
-                        </div>
-                    </div>
-                    <div style="margin-top: 24px; display: flex; gap: 12px;">
-                        <button type="submit" name="update_subject" class="btn btn-primary"><i class="fas fa-save"></i> Update Subject</button>
-                        <a href="manage-subjects.php" class="btn btn-outline">Cancel</a>
-                    </div>
-                </form>
-            </div>
-        <?php endif; ?>
     </div>
 
     <!-- Add Subjects Modal -->
@@ -1147,7 +1168,7 @@ if (isset($_GET['edit'])) {
         <div class="modal-content">
             <div class="modal-header">
                 <h3><i class="fas fa-plus-circle"></i> Add Subjects from National Curriculum</h3>
-                <button class="close-modal" onclick="closeModal()">&times;</button>
+                <button class="close-modal" onclick="closeModal('addSubjectsModal')">&times;</button>
             </div>
             <form method="POST" id="addSubjectsForm">
                 <div class="modal-body">
@@ -1201,8 +1222,31 @@ if (isset($_GET['edit'])) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addSubjectsModal')">Cancel</button>
                     <button type="submit" name="add_multiple_subjects" class="btn btn-primary" id="addSubjectsBtn"><i class="fas fa-plus-circle"></i> Add Selected Subjects</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Subject Modal -->
+    <div class="modal" id="editSubjectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Edit Subject</h3>
+                <button class="close-modal" onclick="closeModal('editSubjectModal')">&times;</button>
+            </div>
+            <form method="POST" id="editSubjectForm">
+                <input type="hidden" name="subject_id" id="edit_subject_id">
+                <div class="modal-body" id="editModalBody">
+                    <div style="text-align: center; padding: 40px;">
+                        <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                        <p>Loading subject details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('editSubjectModal')">Cancel</button>
+                    <button type="submit" name="update_subject" class="btn btn-primary" id="updateSubjectBtn"><i class="fas fa-save"></i> Update Subject</button>
                 </div>
             </form>
         </div>
@@ -1227,6 +1271,9 @@ if (isset($_GET['edit'])) {
     </div>
 
     <script>
+        // Available classes from PHP
+        const availableClasses = <?php echo json_encode($available_classes); ?>;
+
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
@@ -1262,22 +1309,24 @@ if (isset($_GET['edit'])) {
         }
 
         // Modal handling
-        const modal = document.getElementById('addSubjectsModal');
-        const openBtn = document.getElementById('openSubjectModalBtn');
-        const addForm = document.getElementById('addSubjectsForm');
-
-        if (openBtn) {
-            openBtn.onclick = () => modal.classList.add('active');
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
         }
 
-        function closeModal() {
-            modal.classList.remove('active');
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        const openAddBtn = document.getElementById('openSubjectModalBtn');
+        if (openAddBtn) {
+            openAddBtn.onclick = () => openModal('addSubjectsModal');
         }
 
         // Close on outside click
         window.onclick = (e) => {
-            if (e.target === modal) closeModal();
-            if (e.target === deleteModal) closeDeleteModal();
+            if (e.target.classList && e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
         };
 
         // Subject search in modal
@@ -1294,7 +1343,7 @@ if (isset($_GET['edit'])) {
             });
         }
 
-        // Selection functions
+        // Selection functions for add modal
         function updateSelectedCount() {
             const checkboxes = document.querySelectorAll('#subjectsList .subject-checkbox:checked');
             const count = checkboxes.length;
@@ -1327,6 +1376,7 @@ if (isset($_GET['edit'])) {
             checkboxes.forEach(cb => cb.checked = false);
         }
 
+        // Edit modal functions
         function selectAllEditClasses() {
             const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = true);
@@ -1335,6 +1385,149 @@ if (isset($_GET['edit'])) {
         function deselectAllEditClasses() {
             const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        function openEditModal(subjectId) {
+            // Open modal with loading state
+            const modal = document.getElementById('editSubjectModal');
+            const modalBody = document.getElementById('editModalBody');
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
+            openModal('editSubjectModal');
+
+            // Fetch subject data via AJAX
+            fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Build the edit form HTML
+                        const assignedClasses = data.subject.assigned_classes ? data.subject.assigned_classes.split(',') : [];
+                        let classesHtml = '';
+
+                        if (availableClasses.length > 0) {
+                            availableClasses.forEach(className => {
+                                const isChecked = assignedClasses.includes(className);
+                                const safeId = 'edit_class_' + className.replace(/[^a-zA-Z0-9]/g, '_');
+                                classesHtml += `
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" name="classes[]" value="${escapeHtml(className)}" id="${safeId}" ${isChecked ? 'checked' : ''}>
+                                        <label for="${safeId}">${escapeHtml(className)}</label>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
+                        }
+
+                        const formHtml = `
+                            <input type="hidden" name="subject_id" id="edit_subject_id" value="${data.subject.id}">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label class="form-label">Subject Name</label>
+                                <input type="text" id="edit_subject_name" class="form-control" value="${escapeHtml(data.subject.subject_name)}" readonly disabled>
+                                <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Optional subject description">${escapeHtml(data.subject.description || '')}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Assign to Classes</label>
+                                <div class="checkbox-group" id="editClassCheckboxGroup">
+                                    ${classesHtml}
+                                </div>
+                                <div style="margin-top: 12px;">
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
+                                </div>
+                            </div>
+                        `;
+
+                        modalBody.innerHTML = formHtml;
+                        document.getElementById('edit_subject_id').value = data.subject.id;
+                    } else {
+                        modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load subject details. Please try again.</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+                });
+        }
+
+        // Handle edit form submission via AJAX
+        const editForm = document.getElementById('editSubjectForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const submitBtn = document.getElementById('updateSubjectBtn');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Updating...';
+                submitBtn.disabled = true;
+
+                const formData = new FormData(this);
+                formData.append('update_subject', '1');
+
+                fetch('manage-subjects.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showAlert(data.message, 'success');
+                            closeModal('editSubjectModal');
+                            // Reload the page to reflect changes
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } else {
+                            showAlert(data.message, 'error');
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('An error occurred while updating the subject.', 'error');
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+                    });
+            });
+        }
+
+        // Helper function to show alerts
+        function showAlert(message, type) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+
+            const mainContent = document.querySelector('.main-content');
+            const topHeader = document.querySelector('.top-header');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i> ${escapeHtml(message)}`;
+
+            if (topHeader && topHeader.nextSibling) {
+                mainContent.insertBefore(alertDiv, topHeader.nextSibling);
+            } else {
+                mainContent.insertBefore(alertDiv, mainContent.firstChild);
+            }
+
+            setTimeout(() => {
+                alertDiv.style.transition = 'opacity 0.5s';
+                alertDiv.style.opacity = '0';
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // Delete modal
@@ -1359,7 +1552,7 @@ if (isset($_GET['edit'])) {
             });
         }
 
-        // Initialize selected count
+        // Initialize selected count for add modal
         updateSelectedCount();
 
         // Auto-hide alerts

@@ -4,8 +4,8 @@
     "description": "Great Optimist School Parent & Student Portal",
     "start_url": "/gos/login.php",
     "display": "standalone",
-    "theme_color": "#1B2A4A",
-    "background_color": "#1B2A4A",
+    "theme_color": "#722F37",
+    "background_color": "#ffffff",
     "orientation": "portrait",
     "scope": "/gos/",
     "icons": [

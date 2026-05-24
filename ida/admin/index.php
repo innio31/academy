@@ -787,7 +787,7 @@ try {
                 <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>!</p>
             </div>
             <div class="header-actions">
-                <button class="logout-btn" onclick="window.location.href='../ida/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='/ida/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>

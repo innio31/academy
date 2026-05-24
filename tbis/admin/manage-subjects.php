@@ -32,6 +32,50 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 
 // ============================================
+// AJAX HANDLER FOR GETTING SUBJECT DETAILS
+// ============================================
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])) {
+    header('Content-Type: application/json');
+    try {
+        $subject_id = intval($_GET['id']);
+
+        $stmt = $pdo->prepare("
+            SELECT s.*, 
+                   GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
+            FROM subjects s
+            LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
+            WHERE s.id = ? AND s.school_id = ? AND s.is_central = 0
+            GROUP BY s.id
+        ");
+        $stmt->execute([$subject_id, $school_id]);
+        $subject = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($subject) {
+            echo json_encode([
+                'success' => true,
+                'subject' => [
+                    'id' => $subject['id'],
+                    'subject_name' => $subject['subject_name'],
+                    'description' => $subject['description'],
+                    'assigned_classes' => $subject['assigned_classes']
+                ]
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Subject not found'
+            ]);
+        }
+    } catch (Exception $e) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Database error: ' . $e->getMessage()
+        ]);
+    }
+    exit();
+}
+
+// ============================================
 // ENSURE TABLES EXIST
 // ============================================
 
@@ -1194,25 +1238,10 @@ if (empty($available_classes)) {
             </div>
             <form method="POST" id="editSubjectForm">
                 <input type="hidden" name="subject_id" id="edit_subject_id">
-                <div class="modal-body">
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="form-label">Subject Name</label>
-                        <input type="text" id="edit_subject_name" class="form-control" readonly disabled>
-                        <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Optional subject description"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Assign to Classes</label>
-                        <div class="checkbox-group" id="editClassCheckboxGroup">
-                            <!-- Dynamically populated via JS -->
-                        </div>
-                        <div style="margin-top: 12px;">
-                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
-                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
-                        </div>
+                <div class="modal-body" id="editModalBody">
+                    <div style="text-align: center; padding: 40px;">
+                        <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                        <p>Loading subject details...</p>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1348,8 +1377,6 @@ if (empty($available_classes)) {
         }
 
         // Edit modal functions
-        let currentEditSubjectId = null;
-
         function selectAllEditClasses() {
             const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = true);
@@ -1361,96 +1388,68 @@ if (empty($available_classes)) {
         }
 
         function openEditModal(subjectId) {
-            // Show loading state
+            // Open modal with loading state
             const modal = document.getElementById('editSubjectModal');
-            const modalBody = modal.querySelector('.modal-body');
-            const originalContent = modalBody.innerHTML;
+            const modalBody = document.getElementById('editModalBody');
             modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
             openModal('editSubjectModal');
 
             // Fetch subject data via AJAX
-            fetch(`get-subject-details.php?id=${subjectId}`)
+            fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        currentEditSubjectId = data.subject.id;
-                        document.getElementById('edit_subject_id').value = data.subject.id;
-                        document.getElementById('edit_subject_name').value = data.subject.subject_name;
-                        document.getElementById('edit_description').value = data.subject.description || '';
-
-                        // Build class checkboxes
+                        // Build the edit form HTML
                         const assignedClasses = data.subject.assigned_classes ? data.subject.assigned_classes.split(',') : [];
-                        const checkboxGroup = document.getElementById('editClassCheckboxGroup');
-                        checkboxGroup.innerHTML = '';
+                        let classesHtml = '';
 
                         if (availableClasses.length > 0) {
                             availableClasses.forEach(className => {
                                 const isChecked = assignedClasses.includes(className);
                                 const safeId = 'edit_class_' + className.replace(/[^a-zA-Z0-9]/g, '_');
-                                const div = document.createElement('div');
-                                div.className = 'checkbox-item';
-                                div.innerHTML = `
-                                    <input type="checkbox" name="classes[]" value="${escapeHtml(className)}" id="${safeId}" ${isChecked ? 'checked' : ''}>
-                                    <label for="${safeId}">${escapeHtml(className)}</label>
+                                classesHtml += `
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" name="classes[]" value="${escapeHtml(className)}" id="${safeId}" ${isChecked ? 'checked' : ''}>
+                                        <label for="${safeId}">${escapeHtml(className)}</label>
+                                    </div>
                                 `;
-                                checkboxGroup.appendChild(div);
                             });
                         } else {
-                            checkboxGroup.innerHTML = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
+                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
                         }
 
-                        // Restore modal body content
-                        document.getElementById('edit_subject_name').value = data.subject.subject_name;
-                        document.getElementById('edit_description').value = data.subject.description || '';
-                        modalBody.innerHTML = originalContent;
-                        // Re-attach form elements to the body correctly
-                        const newContent = `
+                        const formHtml = `
+                            <input type="hidden" name="subject_id" id="edit_subject_id" value="${data.subject.id}">
                             <div class="form-group" style="margin-bottom: 20px;">
                                 <label class="form-label">Subject Name</label>
-                                <input type="text" id="edit_subject_name" class="form-control" readonly disabled>
+                                <input type="text" id="edit_subject_name" class="form-control" value="${escapeHtml(data.subject.subject_name)}" readonly disabled>
                                 <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
                             </div>
                             <div class="form-group" style="margin-bottom: 20px;">
                                 <label class="form-label">Description</label>
-                                <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Optional subject description"></textarea>
+                                <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Optional subject description">${escapeHtml(data.subject.description || '')}</textarea>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Assign to Classes</label>
-                                <div class="checkbox-group" id="editClassCheckboxGroup"></div>
+                                <div class="checkbox-group" id="editClassCheckboxGroup">
+                                    ${classesHtml}
+                                </div>
                                 <div style="margin-top: 12px;">
                                     <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
                                     <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
                                 </div>
                             </div>
                         `;
-                        modalBody.innerHTML = newContent;
-                        document.getElementById('edit_subject_id').value = data.subject.id;
-                        document.getElementById('edit_subject_name').value = data.subject.subject_name;
-                        document.getElementById('edit_description').value = data.subject.description || '';
 
-                        const newCheckboxGroup = document.getElementById('editClassCheckboxGroup');
-                        if (availableClasses.length > 0) {
-                            availableClasses.forEach(className => {
-                                const isChecked = assignedClasses.includes(className);
-                                const safeId = 'edit_class_' + className.replace(/[^a-zA-Z0-9]/g, '_');
-                                const div = document.createElement('div');
-                                div.className = 'checkbox-item';
-                                div.innerHTML = `
-                                    <input type="checkbox" name="classes[]" value="${escapeHtml(className)}" id="${safeId}" ${isChecked ? 'checked' : ''}>
-                                    <label for="${safeId}">${escapeHtml(className)}</label>
-                                `;
-                                newCheckboxGroup.appendChild(div);
-                            });
-                        } else {
-                            newCheckboxGroup.innerHTML = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
-                        }
+                        modalBody.innerHTML = formHtml;
+                        document.getElementById('edit_subject_id').value = data.subject.id;
                     } else {
                         modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load subject details.</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load subject details. Please try again.</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
                 });
         }
 
@@ -1478,7 +1477,6 @@ if (empty($available_classes)) {
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            // Show success message
                             showAlert(data.message, 'success');
                             closeModal('editSubjectModal');
                             // Reload the page to reflect changes

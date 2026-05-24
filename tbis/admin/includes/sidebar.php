@@ -183,7 +183,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <div class="logo">
             <div class="logo-icon">
                 <?php
-                // Check for logo at multiple possible locations
                 $logo_path = null;
                 $logo_locations = [
                     '/tbis/assets/logos/logo.png',
@@ -192,11 +191,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     'assets/logos/logo.png'
                 ];
 
-                // Check if SCHOOL_LOGO constant is defined
                 if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
                     $logo_path = SCHOOL_LOGO;
                 } else {
-                    // Try each possible location
                     foreach ($logo_locations as $location) {
                         if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
                             $logo_path = $location;

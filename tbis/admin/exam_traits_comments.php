@@ -1,6 +1,5 @@
 <?php
-// tbis/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
-// Saves to: affective_traits, psychomotor_skills, student_comments, student_positions
+// tbis/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance (FIXED)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -358,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ]);
         }
 
-        // ── 3. Comments & attendance (FIXED: Added school_id) ──────────────────────────────────────────
+        // ── 3. Comments & attendance (FIXED - correct number of parameters) ──────────────────────────────────────────
         $days_opened = (int)($record['days_school_opened'] ?? 90);
         $days_present = min((int)($_POST['days_present'] ?? 0), $days_opened);
         $days_absent  = $days_opened - $days_present;
@@ -373,37 +372,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $cm_id = $chk3->fetchColumn();
 
         if ($cm_id) {
-            $pdo->prepare("
+            // UPDATE query - 8 parameters
+            $updateComments = $pdo->prepare("
                 UPDATE student_comments SET
-                    teachers_comment=?,principals_comment=?,
-                    class_teachers_name=?,principals_name=?,
-                    days_present=?,days_absent=?,updated_at=NOW()
+                    teachers_comment=?,
+                    principals_comment=?,
+                    class_teachers_name=?,
+                    principals_name=?,
+                    days_present=?,
+                    days_absent=?,
+                    updated_at=NOW()
                 WHERE id=?
-            ")->execute([$tc, $pc, $tcn, $pcn, $days_present, $days_absent, $cm_id]);
-        } else {
-            // FIXED: Added school_id as the first parameter
-            $pdo->prepare("
-                INSERT INTO student_comments
-                    (school_id,student_id,session,term,
-                     teachers_comment,principals_comment,
-                     class_teachers_name,principals_name,
-                     days_present,days_absent,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
-            ")->execute([
-                $school_id,
-                $post_sid,
-                $session,
-                $term,
+            ");
+            $updateComments->execute([
                 $tc,
                 $pc,
                 $tcn,
                 $pcn,
                 $days_present,
                 $days_absent,
+                $cm_id
+            ]);
+        } else {
+            // INSERT query - 10 parameters exactly matching columns
+            $insertComments = $pdo->prepare("
+                INSERT INTO student_comments
+                    (school_id, student_id, session, term,
+                     teachers_comment, principals_comment,
+                     class_teachers_name, principals_name,
+                     days_present, days_absent, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $insertComments->execute([
+                $school_id,     // 1
+                $post_sid,      // 2
+                $session,       // 3
+                $term,          // 4
+                $tc,            // 5
+                $pc,            // 6
+                $tcn,           // 7
+                $pcn,           // 8
+                $days_present,  // 9
+                $days_absent    // 10
             ]);
         }
 
-        // ── 4. Promoted to (stored in student_positions) (FIXED: Added school_id) ──────────────────────
+        // ── 4. Promoted to (stored in student_positions) (FIXED) ──────────────────────
         $promoted_to = trim($_POST['promoted_to'] ?? '');
 
         $chk4 = $pdo->prepare("SELECT id FROM student_positions WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1");
@@ -411,15 +425,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $sp_id = $chk4->fetchColumn();
 
         if ($sp_id) {
-            $pdo->prepare("UPDATE student_positions SET promoted_to=?,updated_at=NOW() WHERE id=?")
-                ->execute([$promoted_to ?: null, $sp_id]);
+            $updatePositions = $pdo->prepare("
+                UPDATE student_positions SET promoted_to=?, updated_at=NOW() WHERE id=?
+            ");
+            $updatePositions->execute([$promoted_to ?: null, $sp_id]);
         } else {
-            // FIXED: Added school_id as the first parameter
-            $pdo->prepare("
+            $insertPositions = $pdo->prepare("
                 INSERT INTO student_positions
-                    (school_id,student_id,session,term,promoted_to,created_at,updated_at)
-                VALUES (?,?,?,?,?,NOW(),NOW())
-            ")->execute([$school_id, $post_sid, $session, $term, $promoted_to ?: null]);
+                    (school_id, student_id, session, term, promoted_to, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $insertPositions->execute([
+                $school_id,
+                $post_sid,
+                $session,
+                $term,
+                $promoted_to ?: null
+            ]);
         }
 
         // ── Mark exam record active if still draft ────────────────────────────
@@ -449,7 +471,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         exit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        error_log("traits save: " . $e->getMessage());
+        error_log("traits save error: " . $e->getMessage());
+        error_log("traits save trace: " . $e->getTraceAsString());
         $error_msg = "Error saving: " . htmlspecialchars($e->getMessage());
     }
 }

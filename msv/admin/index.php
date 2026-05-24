@@ -175,110 +175,6 @@ try {
             overflow-x: hidden;
         }
 
-        /* Scrolling Subscription Banner */
-        .subscription-banner {
-            position: relative;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            overflow: hidden;
-            margin-bottom: 20px;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .subscription-banner.expiring {
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            animation: pulse 1s infinite;
-        }
-
-        .subscription-banner.expired {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            animation: pulse 0.5s infinite;
-        }
-
-        .subscription-banner.active {
-            background: linear-gradient(135deg, #27ae60, #2ecc71);
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.9;
-            }
-
-            100% {
-                opacity: 1;
-            }
-        }
-
-        .scroll-container {
-            overflow: hidden;
-            white-space: nowrap;
-            padding: 15px 0;
-            position: relative;
-        }
-
-        .scroll-content {
-            display: inline-block;
-            animation: scrollText 25s linear infinite;
-            padding-right: 50px;
-        }
-
-        .scroll-content i {
-            margin: 0 10px;
-        }
-
-        .scroll-content span {
-            margin: 0 30px;
-            font-weight: 500;
-        }
-
-        @keyframes scrollText {
-            0% {
-                transform: translateX(100%);
-            }
-
-            100% {
-                transform: translateX(-100%);
-            }
-        }
-
-        .subscription-banner:hover .scroll-content {
-            animation-play-state: paused;
-        }
-
-        .banner-controls {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 10;
-            display: flex;
-            gap: 10px;
-        }
-
-        .banner-controls button {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .banner-controls button:hover {
-            background: rgba(255, 255, 255, 0.4);
-        }
-
-        .close-banner {
-            background: rgba(0, 0, 0, 0.3);
-        }
-
         /* Sidebar */
         .sidebar {
             position: fixed;
@@ -339,9 +235,80 @@ try {
             margin: 15px;
         }
 
+        /* Subscription Status in Sidebar */
+        .subscription-status {
+            margin: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .subscription-status .status-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .subscription-status .days-remaining {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .subscription-status .expiry-date {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .subscription-status.warning {
+            background: rgba(243, 156, 18, 0.3);
+            border-left: 3px solid var(--warning-color);
+        }
+
+        .subscription-status.warning .days-remaining {
+            color: var(--warning-color);
+        }
+
+        .subscription-status.danger {
+            background: rgba(231, 76, 60, 0.3);
+            border-left: 3px solid var(--danger-color);
+            animation: pulseRed 1s infinite;
+        }
+
+        .subscription-status.danger .days-remaining {
+            color: var(--danger-color);
+        }
+
+        .subscription-status.active {
+            background: rgba(39, 174, 96, 0.2);
+            border-left: 3px solid var(--success-color);
+        }
+
+        .subscription-status.active .days-remaining {
+            color: var(--success-color);
+        }
+
+        @keyframes pulseRed {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
         .nav-links {
             list-style: none;
             padding: 0 15px;
+            margin-top: 10px;
         }
 
         .nav-links li {
@@ -693,17 +660,6 @@ try {
             margin-top: 20px;
         }
 
-        /* Countdown Timer */
-        .countdown-timer {
-            display: inline-block;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-left: 15px;
-        }
-
         @media (min-width: 768px) {
 
             .mobile-menu-toggle,
@@ -731,17 +687,6 @@ try {
 
             .content-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .scroll-content {
-                animation-duration: 15s;
-            }
-
-            .countdown-timer {
-                display: block;
-                margin-left: 0;
-                margin-top: 8px;
-                text-align: center;
             }
         }
     </style>
@@ -772,13 +717,55 @@ try {
             <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
         </div>
 
+        <!-- Subscription Status in Sidebar -->
+        <?php
+        $status_class = '';
+        $status_text = '';
+        $display_days = $subscription_days_remaining;
+
+        if (!$subscription_active || $subscription_days_remaining <= 0) {
+            $status_class = 'danger';
+            $status_text = 'Expired';
+            $display_days = 0;
+        } elseif ($subscription_days_remaining <= 14) {
+            $status_class = 'danger';
+            $status_text = 'Expiring Soon';
+        } elseif ($subscription_days_remaining <= 30) {
+            $status_class = 'warning';
+            $status_text = 'Warning';
+        } else {
+            $status_class = 'active';
+            $status_text = 'Active';
+        }
+        ?>
+
+        <div class="subscription-status <?php echo $status_class; ?>">
+            <div class="status-label">
+                <i class="fas fa-calendar-alt"></i> Subscription
+            </div>
+            <div class="days-remaining">
+                <?php if ($display_days > 0): ?>
+                    <?php echo $display_days; ?> days
+                <?php else: ?>
+                    EXPIRED
+                <?php endif; ?>
+            </div>
+            <div class="expiry-date">
+                <?php if ($subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
+                    Expires: <?php echo date('M j, Y', strtotime($subscription_end_date)); ?>
+                <?php else: ?>
+                    No expiry date
+                <?php endif; ?>
+            </div>
+        </div>
+
         <div class="sidebar-content">
             <ul class="nav-links">
                 <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                 <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
                 <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
                 <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-                <li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
+                <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
                 <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
                 <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
                 <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
@@ -786,68 +773,13 @@ try {
                 <li><a href="ai-tools.php"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
                 <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
         </div>
     </div>
 
     <!-- Main Content -->
     <div class="main-content" id="mainContent">
-        <!-- Scrolling Subscription Banner -->
-        <?php
-        $banner_class = '';
-        $banner_message = '';
-        $banner_icon = '';
-
-        if (!$subscription_active) {
-            $banner_class = 'expired';
-            $banner_icon = 'fa-exclamation-triangle';
-            $banner_message = '⚠️ SUBSCRIPTION EXPIRED! ⚠️ Your subscription has expired. Please contact the school administrator immediately to renew your subscription and restore full access to all features.';
-        } elseif ($subscription_days_remaining <= $subscription_warning_days && $subscription_days_remaining > 0) {
-            $banner_class = 'expiring';
-            $banner_icon = 'fa-clock';
-            $banner_message = "⚠️ SUBSCRIPTION RENEWAL NOTICE ⚠️ Your subscription will expire in {$subscription_days_remaining} days on " . date('F j, Y', strtotime($subscription_end_date)) . ". Please contact the administrator to renew and avoid service interruption.";
-        } elseif ($subscription_active) {
-            $banner_class = 'active';
-            $banner_icon = 'fa-check-circle';
-            $banner_message = "✅ SUBSCRIPTION ACTIVE ✅ Your subscription is active until " . date('F j, Y', strtotime($subscription_end_date)) . ". Thank you for being a valued customer!";
-        } else {
-            $banner_class = 'expired';
-            $banner_icon = 'fa-exclamation-triangle';
-            $banner_message = '⚠️ SUBSCRIPTION STATUS UNKNOWN ⚠️ Unable to verify subscription status. Please contact support.';
-        }
-        ?>
-
-        <div class="subscription-banner <?php echo $banner_class; ?>" id="subscriptionBanner">
-            <div class="scroll-container">
-                <div class="scroll-content" id="scrollContent">
-                    <i class="fas <?php echo $banner_icon; ?>"></i>
-                    <span><?php echo $banner_message; ?></span>
-                    <?php if ($subscription_days_remaining > 0 && $subscription_days_remaining <= $subscription_warning_days): ?>
-                        <span class="countdown-timer">
-                            <i class="fas fa-hourglass-half"></i> <?php echo $subscription_days_remaining; ?> days remaining
-                        </span>
-                    <?php endif; ?>
-                    <?php if ($subscription_active && $subscription_end_date): ?>
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Expires: <?php echo date('F j, Y', strtotime($subscription_end_date)); ?></span>
-                    <?php endif; ?>
-                    <i class="fas fa-bell"></i>
-                </div>
-            </div>
-            <div class="banner-controls">
-                <button onclick="pauseScroll()" id="pauseBtn" title="Pause">
-                    <i class="fas fa-pause"></i>
-                </button>
-                <button onclick="resumeScroll()" id="resumeBtn" title="Resume" style="display: none;">
-                    <i class="fas fa-play"></i>
-                </button>
-                <button onclick="closeBanner()" class="close-banner" title="Close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        </div>
-
         <!-- Top Header -->
         <div class="top-header">
             <div class="header-title">
@@ -855,7 +787,7 @@ try {
                 <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>!</p>
             </div>
             <div class="header-actions">
-                <button class="logout-btn" onclick="window.location.href='/msv/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>
@@ -1009,83 +941,6 @@ try {
     </div>
 
     <script>
-        let scrollAnimation = null;
-        const scrollContent = document.getElementById('scrollContent');
-        const pauseBtn = document.getElementById('pauseBtn');
-        const resumeBtn = document.getElementById('resumeBtn');
-
-        // Pause scrolling
-        function pauseScroll() {
-            if (scrollContent) {
-                scrollContent.style.animationPlayState = 'paused';
-                pauseBtn.style.display = 'none';
-                resumeBtn.style.display = 'flex';
-            }
-        }
-
-        // Resume scrolling
-        function resumeScroll() {
-            if (scrollContent) {
-                scrollContent.style.animationPlayState = 'running';
-                pauseBtn.style.display = 'flex';
-                resumeBtn.style.display = 'none';
-            }
-        }
-
-        // Close banner (store in localStorage)
-        function closeBanner() {
-            const banner = document.getElementById('subscriptionBanner');
-            if (banner) {
-                banner.style.display = 'none';
-                localStorage.setItem('subscriptionBannerClosed', 'true');
-                localStorage.setItem('subscriptionBannerClosedTime', Date.now());
-            }
-        }
-
-        // Check if banner should be shown (re-show after 24 hours if closed)
-        function checkBannerStatus() {
-            const isClosed = localStorage.getItem('subscriptionBannerClosed');
-            const closedTime = localStorage.getItem('subscriptionBannerClosedTime');
-
-            if (isClosed === 'true' && closedTime) {
-                const hoursSinceClosed = (Date.now() - parseInt(closedTime)) / (1000 * 60 * 60);
-                // Re-show after 24 hours
-                if (hoursSinceClosed >= 24) {
-                    localStorage.removeItem('subscriptionBannerClosed');
-                    localStorage.removeItem('subscriptionBannerClosedTime');
-                    const banner = document.getElementById('subscriptionBanner');
-                    if (banner) {
-                        banner.style.display = 'block';
-                    }
-                }
-            }
-        }
-
-        // Check if expired subscription and banner is closed - still show after 12 hours
-        <?php if (!$subscription_active): ?>
-
-            function checkExpiredBannerStatus() {
-                const isClosed = localStorage.getItem('subscriptionBannerClosed');
-                const closedTime = localStorage.getItem('subscriptionBannerClosedTime');
-
-                if (isClosed === 'true' && closedTime) {
-                    const hoursSinceClosed = (Date.now() - parseInt(closedTime)) / (1000 * 60 * 60);
-                    // For expired, re-show every 12 hours
-                    if (hoursSinceClosed >= 12) {
-                        localStorage.removeItem('subscriptionBannerClosed');
-                        localStorage.removeItem('subscriptionBannerClosedTime');
-                        const banner = document.getElementById('subscriptionBanner');
-                        if (banner) {
-                            banner.style.display = 'block';
-                        }
-                    }
-                }
-            }
-            checkExpiredBannerStatus();
-        <?php else: ?>
-            checkBannerStatus();
-        <?php endif; ?>
-
         // Mobile menu functionality
         const mobileMenuToggle = document.getElementById('mobileMenuToggle');
         const sidebar = document.getElementById('sidebar');

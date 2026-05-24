@@ -998,6 +998,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
             <p><?php echo ucfirst($admin_role); ?></p>
         </div>
+
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
             <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
@@ -1009,7 +1010,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

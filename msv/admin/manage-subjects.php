@@ -1,8 +1,8 @@
 <?php
-// admin/manage-subjects.php - Complete Subject Management with Multi-Select Support
+// admin/manage-subjects.php - Complete Subject Management with Modal Selection
 session_start();
 
-// Check if admin is logged in (support both session styles)
+// Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header("Location: /msv/login.php");
     exit();
@@ -36,7 +36,6 @@ $primary_color = SCHOOL_PRIMARY;
 // ============================================
 
 try {
-    // Check if subject_classes table exists
     $stmt = $pdo->query("SHOW TABLES LIKE 'subject_classes'");
     if (!$stmt->fetch()) {
         $pdo->exec("CREATE TABLE subject_classes (
@@ -51,13 +50,11 @@ try {
         )");
     }
 
-    // Add is_central column to subjects if not exists
     $stmt = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'is_central'");
     if (!$stmt->fetch()) {
         $pdo->exec("ALTER TABLE subjects ADD COLUMN is_central TINYINT(1) DEFAULT 0");
     }
 
-    // Add school_id to be nullable for central subjects
     $stmt = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'school_id'");
     $col = $stmt->fetch();
     if ($col && $col['Null'] === 'NO') {
@@ -74,7 +71,7 @@ try {
 $message = '';
 $message_type = '';
 
-// Add multiple subjects from central list
+// Add multiple subjects
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
     try {
         $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
@@ -86,20 +83,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
 
         $added_count = 0;
         $skipped_count = 0;
-        $errors = [];
 
         foreach ($selected_subject_ids as $central_subject_id) {
-            // Get central subject details
             $stmt = $pdo->prepare("SELECT subject_name, description FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
             $stmt->execute([$central_subject_id]);
             $central_subject = $stmt->fetch();
 
             if (!$central_subject) {
-                $errors[] = "Subject ID $central_subject_id not found";
                 continue;
             }
 
-            // Check if subject already exists for this school
             $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ?");
             $stmt->execute([$central_subject['subject_name'], $school_id]);
             if ($stmt->fetch()) {
@@ -107,30 +100,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
                 continue;
             }
 
-            // Create school-specific copy of the subject
             $stmt = $pdo->prepare("INSERT INTO subjects (subject_name, description, school_id, is_central, created_at) VALUES (?, ?, ?, 0, NOW())");
             $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
             $new_subject_id = $pdo->lastInsertId();
 
-            // Insert class associations
             foreach ($classes as $class) {
                 if (!empty($class)) {
                     $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class, school_id) VALUES (?, ?, ?)");
                     $stmt->execute([$new_subject_id, $class, $school_id]);
                 }
             }
-
             $added_count++;
         }
 
         if ($added_count > 0) {
             $message = "$added_count subject(s) added successfully";
             if ($skipped_count > 0) {
-                $message .= ". $skipped_count subject(s) already existed and were skipped.";
+                $message .= ". $skipped_count subject(s) already existed.";
             }
             $message_type = "success";
         } else {
-            throw new Exception("No subjects were added. " . ($skipped_count > 0 ? "All selected subjects already exist." : "Please select subjects to add."));
+            throw new Exception("No subjects were added. " . ($skipped_count > 0 ? "Selected subjects already exist." : "Please select subjects."));
         }
     } catch (Exception $e) {
         $message = $e->getMessage();
@@ -138,74 +128,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
     }
 }
 
-// Add single subject (legacy - kept for compatibility)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_from_central'])) {
-    try {
-        $central_subject_id = $_POST['central_subject_id'];
-        $classes = $_POST['classes'] ?? [];
-
-        if (empty($central_subject_id)) {
-            throw new Exception("Please select a subject to add");
-        }
-
-        // Get central subject details
-        $stmt = $pdo->prepare("SELECT subject_name, description FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
-        $stmt->execute([$central_subject_id]);
-        $central_subject = $stmt->fetch();
-
-        if (!$central_subject) {
-            throw new Exception("Central subject not found");
-        }
-
-        // Check if subject already exists for this school
-        $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ?");
-        $stmt->execute([$central_subject['subject_name'], $school_id]);
-        if ($stmt->fetch()) {
-            throw new Exception("Subject '{$central_subject['subject_name']}' already exists for your school");
-        }
-
-        // Create school-specific copy of the subject
-        $stmt = $pdo->prepare("INSERT INTO subjects (subject_name, description, school_id, is_central, created_at) VALUES (?, ?, ?, 0, NOW())");
-        $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
-        $new_subject_id = $pdo->lastInsertId();
-
-        // Insert class associations
-        foreach ($classes as $class) {
-            if (!empty($class)) {
-                $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class, school_id) VALUES (?, ?, ?)");
-                $stmt->execute([$new_subject_id, $class, $school_id]);
-            }
-        }
-
-        $message = "Subject '{$central_subject['subject_name']}' added successfully";
-        $message_type = "success";
-    } catch (Exception $e) {
-        $message = $e->getMessage();
-        $message_type = "error";
-    }
-}
-
-// Update subject (only description and class assignments - name is locked)
+// Update subject
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
     try {
         $subject_id = $_POST['subject_id'];
         $description = trim($_POST['description'] ?? '');
         $classes = $_POST['classes'] ?? [];
 
-        // Verify subject belongs to this school
         $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
         $stmt->execute([$subject_id, $school_id]);
-        $subject = $stmt->fetch();
-
-        if (!$subject) {
-            throw new Exception("Subject not found or access denied");
+        if (!$stmt->fetch()) {
+            throw new Exception("Subject not found");
         }
 
-        // Update subject (name cannot be changed - it's locked)
         $stmt = $pdo->prepare("UPDATE subjects SET description = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$description, $subject_id]);
 
-        // Update class associations
         $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ? AND school_id = ?");
         $stmt->execute([$subject_id, $school_id]);
 
@@ -229,47 +167,33 @@ if (isset($_GET['delete'])) {
     try {
         $subject_id = $_GET['delete'];
 
-        // Verify subject belongs to this school and is not central
         $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
         $stmt->execute([$subject_id, $school_id]);
         $subject = $stmt->fetch();
-
         if (!$subject) {
-            throw new Exception("Subject not found or access denied");
+            throw new Exception("Subject not found");
         }
 
-        // Check for dependencies
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM objective_questions WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $objective_count = $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM subjective_questions WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $subjective_count = $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM theory_questions WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $theory_count = $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM topics WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $topic_count = $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM exams WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $exam_count = $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM student_scores WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-        $score_count = $stmt->fetchColumn();
-
-        $total_dependencies = $objective_count + $subjective_count + $theory_count + $topic_count + $exam_count + $score_count;
-
-        if ($total_dependencies > 0) {
-            throw new Exception("Cannot delete subject. It has $objective_count objective, $subjective_count subjective, $theory_count theory questions, $topic_count topics, $exam_count exams, and $score_count student scores.");
+        // Check dependencies
+        $checks = [
+            'objective_questions' => 'objective_count',
+            'subjective_questions' => 'subjective_count',
+            'theory_questions' => 'theory_count',
+            'exams' => 'exam_count',
+            'topics' => 'topic_count',
+            'student_scores' => 'score_count'
+        ];
+        $total = 0;
+        foreach ($checks as $table => $field) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM $table WHERE subject_id = ?");
+            $stmt->execute([$subject_id]);
+            $total += $stmt->fetchColumn();
         }
 
-        // Delete subject (cascade will handle subject_classes)
+        if ($total > 0) {
+            throw new Exception("Cannot delete subject. It has associated questions, exams, or scores.");
+        }
+
         $stmt = $pdo->prepare("DELETE FROM subjects WHERE id = ?");
         $stmt->execute([$subject_id]);
 
@@ -285,48 +209,16 @@ if (isset($_GET['delete'])) {
 // FETCH DATA
 // ============================================
 
-// Fetch available central subjects (not yet added to this school)
+// Fetch available central subjects
 $stmt = $pdo->prepare("
     SELECT s.* 
     FROM subjects s
     WHERE s.school_id IS NULL AND s.is_central = 1
-    AND s.subject_name NOT IN (
-        SELECT subject_name FROM subjects WHERE school_id = ?
-    )
-    ORDER BY 
-        CASE 
-            WHEN s.subject_name IN ('Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Civic Education', 'History', 'Digital Technologies') THEN 1
-            WHEN s.subject_name IN ('Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics', 'Government', 'Geography') THEN 2
-            WHEN s.subject_name IN ('Literature in English', 'Commerce', 'Financial Accounting', 'Marketing', 'Food and Nutrition', 'Catering and Craft Practice') THEN 3
-            ELSE 4
-        END,
-        s.subject_name
+    AND s.subject_name NOT IN (SELECT subject_name FROM subjects WHERE school_id = ?)
+    ORDER BY s.subject_name
 ");
 $stmt->execute([$school_id]);
-$available_central_subjects = $stmt->fetchAll();
-
-// Group subjects by category for better organization
-$core_subjects = [];
-$science_subjects = [];
-$arts_commerce_subjects = [];
-$trade_subjects = [];
-
-foreach ($available_central_subjects as $subject) {
-    $core = ['Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Civic Education', 'History', 'Digital Technologies', 'Christian Religious Studies', 'Physical and Health Education', 'Agricultural Science', 'French', 'Cultural and Creative Arts', 'Business Studies'];
-    $science = ['Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Intermediate Science'];
-    $arts_commerce = ['Literature in English', 'Economics', 'Government', 'Geography', 'Commerce', 'Financial Accounting', 'Marketing'];
-    $trade = ['Fashion Design and Garment Making', 'Computer Hardware and GSM Repairs', 'Livestock Farming', 'Horticulture and Crop Production', 'Beauty and Cosmetology', 'Food and Nutrition', 'Catering and Craft Practice', 'Technical Drawing', 'Visual Arts', 'Citizenship and Heritage Studies'];
-
-    if (in_array($subject['subject_name'], $core)) {
-        $core_subjects[] = $subject;
-    } elseif (in_array($subject['subject_name'], $science)) {
-        $science_subjects[] = $subject;
-    } elseif (in_array($subject['subject_name'], $arts_commerce)) {
-        $arts_commerce_subjects[] = $subject;
-    } else {
-        $trade_subjects[] = $subject;
-    }
-}
+$available_subjects = $stmt->fetchAll();
 
 // Fetch all subjects for this school
 $stmt = $pdo->prepare("
@@ -347,20 +239,11 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $subjects = $stmt->fetchAll();
 
-// Fetch all classes from students (for assignment)
-$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
-$stmt->execute([$school_id]);
-$classes_from_students = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Fetch available classes
+$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' UNION SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
+$stmt->execute([$school_id, $school_id]);
+$available_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-// Also get classes from exams
-$stmt = $pdo->prepare("SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
-$stmt->execute([$school_id]);
-$classes_from_exams = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-// Merge unique classes
-$available_classes = array_unique(array_merge($classes_from_students, $classes_from_exams));
-
-// If still empty, provide default classes
 if (empty($available_classes)) {
     $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
 }
@@ -370,8 +253,7 @@ $edit_subject = null;
 if (isset($_GET['edit'])) {
     $subject_id = $_GET['edit'];
     $stmt = $pdo->prepare("
-        SELECT s.*, 
-               GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
+        SELECT s.*, GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
         FROM subjects s
         LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
         WHERE s.id = ? AND s.school_id = ?
@@ -379,11 +261,8 @@ if (isset($_GET['edit'])) {
     ");
     $stmt->execute([$subject_id, $school_id]);
     $edit_subject = $stmt->fetch();
-
-    if ($edit_subject && $edit_subject['assigned_classes']) {
-        $edit_subject['assigned_classes_array'] = explode(',', $edit_subject['assigned_classes']);
-    } else {
-        $edit_subject['assigned_classes_array'] = [];
+    if ($edit_subject) {
+        $edit_subject['assigned_classes_array'] = $edit_subject['assigned_classes'] ? explode(',', $edit_subject['assigned_classes']) : [];
     }
 }
 ?>
@@ -393,27 +272,42 @@ if (isset($_GET['edit'])) {
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo htmlspecialchars($school_name); ?> - Manage Subjects</title>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
+            --primary-dark: #1a5a8a;
             --secondary-color: #d4af7a;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --info-color: #3498db;
-            --purple-color: #9b59b6;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-            --sidebar-width: 260px;
+            --success: #27ae60;
+            --success-light: #d5f4e6;
+            --warning: #f39c12;
+            --warning-light: #fef5e7;
+            --danger: #e74c3c;
+            --danger-light: #fbe9e7;
+            --info: #3498db;
+            --info-light: #eaf6ff;
+            --purple: #9b59b6;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --sidebar-width: 280px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
         }
 
         * {
@@ -424,10 +318,9 @@ if (isset($_GET['edit'])) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
+            background: var(--gray-100);
+            color: var(--gray-800);
             min-height: 100vh;
-            overflow-x: hidden;
         }
 
         /* Sidebar */
@@ -437,298 +330,190 @@ if (isset($_GET['edit'])) {
             left: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
+            background: linear-gradient(165deg, var(--primary-color), #1a3a5c);
             color: white;
-            padding: 20px 0;
-            transition: all 0.3s ease;
-            z-index: 100;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
             overflow-y: auto;
             transform: translateX(-100%);
+            box-shadow: var(--shadow-lg);
         }
 
         .sidebar.active {
             transform: translateX(0);
         }
 
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         .logo {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
+            gap: 12px;
         }
 
         .logo-icon {
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             background: var(--secondary-color);
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 20px;
         }
 
+        .logo-text h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .logo-text p {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
         .admin-info {
+            background: rgba(255, 255, 255, 0.08);
+            margin: 16px;
+            padding: 16px;
+            border-radius: var(--radius-lg);
             text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
+        }
+
+        .admin-info h4 {
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+
+        .admin-info p {
+            font-size: 0.7rem;
+            opacity: 0.8;
         }
 
         .nav-links {
             list-style: none;
-            padding: 0 15px;
+            padding: 12px;
         }
 
         .nav-links li {
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.85);
             text-decoration: none;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
         }
 
         .nav-links a:hover,
         .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .nav-links i {
+            width: 22px;
         }
 
         /* Main Content */
         .main-content {
-            margin-left: 0;
-            padding: 20px;
             min-height: 100vh;
+            padding: 20px;
+            transition: margin-left 0.3s;
         }
 
         .mobile-menu-btn {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
+            top: 16px;
+            left: 16px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
             background: var(--primary-color);
             color: white;
             border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             font-size: 20px;
             cursor: pointer;
+            box-shadow: var(--shadow-md);
         }
 
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
+            border-radius: var(--radius-lg);
+            padding: 20px 24px;
+            margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 16px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.8rem;
-            margin-bottom: 5px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 4px;
         }
 
-        .logout-btn {
-            background: var(--danger-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Form Styles */
-        .form-container {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .form-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--light-color);
-        }
-
-        .form-header h3 {
-            color: var(--primary-color);
-            font-size: 1.3rem;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--primary-color);
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        textarea.form-control {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        /* Read-only field */
-        .form-control[readonly] {
-            background-color: #f5f5f5;
-            cursor: not-allowed;
-        }
-
-        /* Multi-Select Subject Styles */
-        .subjects-multiselect {
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            max-height: 350px;
-            overflow-y: auto;
-        }
-
-        .subject-category {
-            margin-bottom: 15px;
-        }
-
-        .subject-category-header {
-            background: var(--light-color);
-            padding: 10px 15px;
-            font-weight: 600;
-            color: var(--primary-color);
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .subject-category-header:hover {
-            background: #e0e0e0;
-        }
-
-        .subject-list {
-            padding: 10px 15px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 10px;
-        }
-
-        .subject-checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px;
-            border-radius: 6px;
-            transition: background 0.2s;
-        }
-
-        .subject-checkbox-item:hover {
-            background: #f5f5f5;
-        }
-
-        .subject-checkbox-item input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: var(--primary-color);
-        }
-
-        .subject-checkbox-item label {
-            flex: 1;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-
-        .subject-checkbox-item .subject-desc {
-            font-size: 0.7rem;
-            color: #999;
-            display: block;
-        }
-
-        .select-all-buttons {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        /* Checkbox Group */
-        .checkbox-group {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 12px;
-            margin-top: 10px;
-            max-height: 250px;
-            overflow-y: auto;
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-        }
-
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .checkbox-item input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: var(--primary-color);
-        }
-
-        .checkbox-item label {
-            margin: 0;
-            cursor: pointer;
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.8rem;
         }
 
         /* Buttons */
         .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
             border: none;
-            cursor: pointer;
             font-weight: 500;
+            font-size: 0.8rem;
+            cursor: pointer;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.7rem;
         }
 
         .btn-primary {
@@ -736,98 +521,173 @@ if (isset($_GET['edit'])) {
             color: white;
         }
 
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
         .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #95a5a6;
+            background: var(--success);
             color: white;
         }
 
         .btn-warning {
-            background: var(--warning-color);
+            background: var(--warning);
             color: white;
         }
 
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.85rem;
+        .btn-danger {
+            background: var(--danger);
+            color: white;
         }
 
-        /* Table */
-        .table-container {
+        .btn-info {
+            background: var(--info);
+            color: white;
+        }
+
+        .btn-purple {
+            background: var(--purple);
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* Cards */
+        .card {
             background: white;
-            border-radius: 15px;
+            border-radius: var(--radius-lg);
             padding: 20px;
-            overflow-x: auto;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
         }
 
-        .table-header {
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .card-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        /* Filter Form */
+        .filter-form {
+            display: flex;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 16px;
+            align-items: flex-end;
         }
 
-        .search-box {
-            position: relative;
-            width: 250px;
+        .filter-group {
+            flex: 1;
+            min-width: 160px;
         }
 
-        .search-box input {
+        .form-label {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .form-control,
+        .form-select {
             width: 100%;
-            padding: 10px 15px 10px 40px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            transition: all 0.2s;
         }
 
-        .search-box i {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #999;
+        .form-control:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-control[readonly] {
+            background: var(--gray-50);
+            cursor: not-allowed;
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
+            min-width: 700px;
         }
 
         .data-table th {
-            background: var(--light-color);
+            text-align: left;
+            padding: 12px 16px;
+            background: var(--gray-50);
             font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            font-size: 0.8rem;
+            border-bottom: 1px solid var(--gray-200);
         }
 
         .data-table tr:hover {
-            background: #f9f9f9;
+            background: var(--gray-50);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .class-tag {
+            display: inline-block;
+            background: var(--info-light);
+            color: var(--info);
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            margin: 2px;
         }
 
         .count-badge {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            min-width: 28px;
-            height: 28px;
-            padding: 0 8px;
+            padding: 3px 8px;
             border-radius: 20px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             margin: 2px;
         }
@@ -852,26 +712,7 @@ if (isset($_GET['edit'])) {
             color: #f57c00;
         }
 
-        .count-badge.topic {
-            background: #fce4ec;
-            color: #c2185b;
-        }
-
-        .count-badge.score {
-            background: #e8eaf6;
-            color: #3949ab;
-        }
-
-        .class-tag {
-            display: inline-block;
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 3px 10px;
-            border-radius: 15px;
-            font-size: 0.75rem;
-            margin: 2px;
-        }
-
+        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -880,8 +721,8 @@ if (isset($_GET['edit'])) {
 
         .action-btn {
             padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 0.8rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
             cursor: pointer;
             text-decoration: none;
             display: inline-flex;
@@ -890,57 +731,31 @@ if (isset($_GET['edit'])) {
         }
 
         .edit-btn {
-            background: #3498db;
-            color: white;
-        }
-
-        .delete-btn {
-            background: #e74c3c;
+            background: var(--info);
             color: white;
         }
 
         .topics-btn {
-            background: #9b59b6;
+            background: var(--purple);
             color: white;
         }
 
         .questions-btn {
-            background: #27ae60;
+            background: var(--success);
+            color: white;
+        }
+
+        .delete-btn {
+            background: var(--danger);
             color: white;
         }
 
         .disabled-btn {
-            background: #bdc3c7;
+            background: var(--gray-300);
             cursor: not-allowed;
         }
 
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .alert-success {
-            background: #d5f4e6;
-            color: #155724;
-            border-left: 4px solid var(--success-color);
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid var(--danger-color);
-        }
-
-        .alert-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border-left: 4px solid var(--info-color);
-        }
-
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -949,7 +764,7 @@ if (isset($_GET['edit'])) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+            z-index: 1100;
             align-items: center;
             justify-content: center;
         }
@@ -960,60 +775,179 @@ if (isset($_GET['edit'])) {
 
         .modal-content {
             background: white;
-            border-radius: 15px;
+            border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 450px;
-        }
-
-        .modal-header,
-        .modal-footer {
-            padding: 15px 20px;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .modal-header {
-            border-bottom: 1px solid #eee;
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+
+        .modal-header h3 {
+            font-size: 1.1rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--gray-600);
         }
 
         .modal-body {
             padding: 20px;
         }
 
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 50px;
-            color: #999;
+        /* Subject Selection List */
+        .subjects-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
         }
 
-        .info-note {
-            background: #e8f4fd;
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+        .subject-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            color: #0066cc;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .subject-item:hover {
+            background: var(--gray-50);
+        }
+
+        .subject-item.selected {
+            background: var(--info-light);
+        }
+
+        .subject-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .subject-info {
+            flex: 1;
+        }
+
+        .subject-name {
+            font-weight: 600;
             font-size: 0.9rem;
         }
 
-        .selected-count {
-            background: var(--primary-color);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
+        .subject-desc {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+            margin-top: 2px;
+        }
+
+        /* Search Box */
+        .search-box {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-600);
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
             font-size: 0.85rem;
         }
 
-        @media (min-width: 769px) {
+        /* Checkbox Group */
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        /* Alert */
+        .alert {
+            padding: 14px 18px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.85rem;
+        }
+
+        .alert-success {
+            background: var(--success-light);
+            color: var(--success);
+            border-left: 4px solid var(--success);
+        }
+
+        .alert-error {
+            background: var(--danger-light);
+            color: var(--danger);
+            border-left: 4px solid var(--danger);
+        }
+
+        /* Selected Count Badge */
+        .selected-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-left: 12px;
+        }
+
+        @media (min-width: 768px) {
             .sidebar {
                 transform: translateX(0);
             }
@@ -1027,26 +961,17 @@ if (isset($_GET['edit'])) {
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
+            .main-content {
+                padding-top: 70px;
+            }
+
             .checkbox-group {
                 grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
             }
 
-            .table-header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .search-box {
-                width: 100%;
-            }
-
             .action-buttons {
                 flex-wrap: wrap;
-            }
-
-            .subject-list {
-                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -1057,11 +982,13 @@ if (isset($_GET['edit'])) {
 
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="logo-text">
+                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                    <p>Admin Panel</p>
+                </div>
             </div>
         </div>
         <div class="admin-info">
@@ -1073,15 +1000,17 @@ if (isset($_GET['edit'])) {
             <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
             <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
             <li><a href="manage-subjects.php" class="active"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-graduation-cap"></i> Manage Classes</a></li>
+            <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
+            <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
             <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -1090,515 +1019,358 @@ if (isset($_GET['edit'])) {
                 <h1>Manage Subjects</h1>
                 <p>Add subjects from the national curriculum or manage existing ones</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </button>
+            <button class="btn btn-primary" id="openSubjectModalBtn"><i class="fas fa-plus-circle"></i> Add Subjects</button>
         </div>
 
         <?php if ($message): ?>
             <div class="alert alert-<?php echo $message_type; ?>">
-                <i class="fas fa-<?php echo $message_type === 'error' ? 'exclamation-triangle' : ($message_type === 'info' ? 'info-circle' : 'check-circle'); ?>"></i>
+                <i class="fas fa-<?php echo $message_type === 'error' ? 'exclamation-triangle' : 'check-circle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <!-- Info Note -->
-        <div class="info-note">
-            <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
-            <span>Subjects are based on the approved NERDC national curriculum. Select multiple subjects below to add them to your school at once.</span>
-        </div>
-
-        <!-- Add Multiple Subjects from Central List -->
-        <div class="form-container">
-            <div class="form-header">
-                <h3><i class="fas fa-plus-circle"></i> Add Subjects from National Curriculum</h3>
-            </div>
-
-            <form method="POST" id="addSubjectsForm">
-                <div class="form-group">
-                    <label>Select Subjects <span id="selectedSubjectsCount" class="selected-count">0 selected</span></label>
-                    <div class="subjects-multiselect">
-                        <div class="select-all-buttons">
-                            <button type="button" class="btn btn-sm btn-primary" onclick="selectAllSubjects()">
-                                <i class="fas fa-check-double"></i> Select All
-                            </button>
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllSubjects()">
-                                <i class="fas fa-times"></i> Deselect All
-                            </button>
-                            <button type="button" class="btn btn-sm btn-success" onclick="selectCoreSubjects()">
-                                <i class="fas fa-star"></i> Select Core Subjects
-                            </button>
-                            <button type="button" class="btn btn-sm btn-info" onclick="selectScienceSubjects()">
-                                <i class="fas fa-flask"></i> Select Science Subjects
-                            </button>
-                        </div>
-
-                        <div class="subject-category">
-                            <div class="subject-category-header" onclick="toggleCategory('core')">
-                                <span><i class="fas fa-book-open"></i> Core Subjects</span>
-                                <i id="core-icon" class="fas fa-chevron-down"></i>
-                            </div>
-                            <div id="core-list" class="subject-list">
-                                <?php foreach ($core_subjects as $subject): ?>
-                                    <div class="subject-checkbox-item">
-                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
-                                        <label for="subj_<?php echo $subject['id']; ?>">
-                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
-                                            <?php if ($subject['description']): ?>
-                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
-                                            <?php endif; ?>
-                                        </label>
-                                    </div>
-                                <?php endforeach; ?>
-                                <?php if (empty($core_subjects)): ?>
-                                    <div class="subject-checkbox-item"><span style="color: #999;">No core subjects available</span></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-
-                        <div class="subject-category">
-                            <div class="subject-category-header" onclick="toggleCategory('science')">
-                                <span><i class="fas fa-flask"></i> Science Subjects</span>
-                                <i id="science-icon" class="fas fa-chevron-down"></i>
-                            </div>
-                            <div id="science-list" class="subject-list">
-                                <?php foreach ($science_subjects as $subject): ?>
-                                    <div class="subject-checkbox-item">
-                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
-                                        <label for="subj_<?php echo $subject['id']; ?>">
-                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
-                                            <?php if ($subject['description']): ?>
-                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
-                                            <?php endif; ?>
-                                        </label>
-                                    </div>
-                                <?php endforeach; ?>
-                                <?php if (empty($science_subjects)): ?>
-                                    <div class="subject-checkbox-item"><span style="color: #999;">No science subjects available</span></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-
-                        <div class="subject-category">
-                            <div class="subject-category-header" onclick="toggleCategory('arts_commerce')">
-                                <span><i class="fas fa-chart-line"></i> Arts & Commerce Subjects</span>
-                                <i id="arts_commerce-icon" class="fas fa-chevron-down"></i>
-                            </div>
-                            <div id="arts_commerce-list" class="subject-list">
-                                <?php foreach ($arts_commerce_subjects as $subject): ?>
-                                    <div class="subject-checkbox-item">
-                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
-                                        <label for="subj_<?php echo $subject['id']; ?>">
-                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
-                                            <?php if ($subject['description']): ?>
-                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
-                                            <?php endif; ?>
-                                        </label>
-                                    </div>
-                                <?php endforeach; ?>
-                                <?php if (empty($arts_commerce_subjects)): ?>
-                                    <div class="subject-checkbox-item"><span style="color: #999;">No arts/commerce subjects available</span></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-
-                        <div class="subject-category">
-                            <div class="subject-category-header" onclick="toggleCategory('trade')">
-                                <span><i class="fas fa-tools"></i> Trade/Entrepreneurship Subjects</span>
-                                <i id="trade-icon" class="fas fa-chevron-down"></i>
-                            </div>
-                            <div id="trade-list" class="subject-list">
-                                <?php foreach ($trade_subjects as $subject): ?>
-                                    <div class="subject-checkbox-item">
-                                        <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSubjectCount()">
-                                        <label for="subj_<?php echo $subject['id']; ?>">
-                                            <?php echo htmlspecialchars($subject['subject_name']); ?>
-                                            <?php if ($subject['description']): ?>
-                                                <span class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 50)); ?>...</span>
-                                            <?php endif; ?>
-                                        </label>
-                                    </div>
-                                <?php endforeach; ?>
-                                <?php if (empty($trade_subjects)): ?>
-                                    <div class="subject-checkbox-item"><span style="color: #999;">No trade subjects available</span></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Assign to Classes <span style="font-weight: normal; color: #666;">(Select which classes will offer these subjects)</span></label>
-                    <div class="checkbox-group" id="classCheckboxGroup">
-                        <?php if (!empty($available_classes)): ?>
-                            <?php foreach ($available_classes as $class): ?>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>"
-                                        id="class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                    <label for="class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                        <?php echo htmlspecialchars($class); ?>
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <p style="color: #999; grid-column: span 2;">No classes found. Add students or create exams with classes first.</p>
-                        <?php endif; ?>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllClasses()">
-                            <i class="fas fa-check-double"></i> Select All Classes
-                        </button>
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllClasses()">
-                            <i class="fas fa-times"></i> Deselect All Classes
-                        </button>
-                    </div>
-                    <small style="color: #666; display: block; margin-top: 8px;">
-                        <i class="fas fa-info-circle"></i> These classes will be assigned to ALL selected subjects
-                    </small>
-                </div>
-
-                <div class="form-actions" style="margin-top: 20px;">
-                    <button type="submit" name="add_multiple_subjects" class="btn btn-primary" id="addSubjectsBtn">
-                        <i class="fas fa-plus-circle"></i> Add Selected Subjects
-                    </button>
-                    <button type="reset" class="btn btn-secondary" onclick="deselectAllSubjects(); deselectAllClasses();">
-                        <i class="fas fa-redo"></i> Reset Selection
-                    </button>
-                </div>
-            </form>
-        </div>
-
         <!-- Subjects List -->
-        <div class="table-container">
-            <div class="table-header">
-                <h3><i class="fas fa-book"></i> Your School Subjects (<?php echo count($subjects); ?>)</h3>
-                <div class="search-box">
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-book"></i> Your School Subjects (<?php echo count($subjects); ?>)</h2>
+                <div class="search-box" style="width: 250px; margin: 0;">
                     <i class="fas fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Search subjects...">
                 </div>
             </div>
 
             <?php if (empty($subjects)): ?>
-                <div class="empty-state">
-                    <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 15px; color: #ccc;"></i>
+                <div style="text-align: center; padding: 50px; color: var(--gray-600);">
+                    <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 15px; color: var(--gray-300);"></i>
                     <h3>No Subjects Found</h3>
-                    <p>Add subjects from the national curriculum using the form above.</p>
+                    <p>Click "Add Subjects" to add subjects from the national curriculum.</p>
                 </div>
             <?php else: ?>
-                <table class="data-table" id="subjectsTable">
-                    <thead>
-                        <tr>
-                            <th>Subject Name</th>
-                            <th>Description</th>
-                            <th>Assigned Classes</th>
-                            <th>Usage Stats</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($subjects as $subject): ?>
+                <div class="table-container">
+                    <table class="data-table" id="subjectsTable">
+                        <thead>
                             <tr>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($subject['subject_name']); ?></strong>
-                                    <?php if ($edit_subject && $edit_subject['id'] == $subject['id']): ?>
-                                        <span style="color: var(--primary-color); font-size: 0.7rem;">(Editing)</span>
-                                    <?php endif; ?>
-        </div>
-        <td>
-            <?php
-                            $desc = $subject['description'] ?? '';
-                            echo $desc ? htmlspecialchars(substr($desc, 0, 60)) . (strlen($desc) > 60 ? '...' : '') : '<span style="color: #999;">—</span>';
-            ?>
-    </div>
-    <td>
-        <?php if ($subject['assigned_classes']): ?>
-            <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
-                <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <span style="color: #999;">Not assigned</span>
-        <?php endif; ?>
-        </div>
-    <td>
-        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <span class="count-badge objective" title="Objective Questions">📝 O: <?php echo $subject['objective_count']; ?></span>
-            <span class="count-badge subjective" title="Subjective Questions">✍️ S: <?php echo $subject['subjective_count']; ?></span>
-            <span class="count-badge theory" title="Theory Questions">📄 T: <?php echo $subject['theory_count']; ?></span>
-            <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
-            <span class="count-badge topic" title="Topics">🏷️ TP: <?php echo $subject['topic_count']; ?></span>
-            <span class="count-badge score" title="Student Scores">📊 SC: <?php echo $subject['score_count']; ?></span>
-        </div>
-        </div>
-    <td>
-        <div class="action-buttons">
-            <a href="?edit=<?php echo $subject['id']; ?>" class="action-btn edit-btn" title="Edit Subject (Class assignments)">
-                <i class="fas fa-edit"></i>
-            </a>
-            <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Manage Topics">
-                <i class="fas fa-tags"></i>
-            </a>
-            <a href="manage-questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Manage Questions">
-                <i class="fas fa-question-circle"></i>
-            </a>
-            <?php
-                            $has_dependencies = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count'] + $subject['topic_count'] + $subject['score_count']) > 0;
-            ?>
-            <?php if ($has_dependencies): ?>
-                <button class="action-btn delete-btn disabled-btn" disabled title="Cannot delete - has associated questions/exams/topics/scores">
-                    <i class="fas fa-trash"></i> Locked
-                </button>
-            <?php else: ?>
-                <button class="action-btn delete-btn" onclick="confirmDelete(<?php echo $subject['id']; ?>, '<?php echo addslashes($subject['subject_name']); ?>')" title="Delete Subject">
-                    <i class="fas fa-trash"></i>
-                </button>
+                                <th>Subject Name</th>
+                                <th>Description</th>
+                                <th>Assigned Classes</th>
+                                <th>Usage Stats</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($subjects as $subject): ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($subject['subject_name']); ?></strong></td>
+                                    <td><?php echo $subject['description'] ? htmlspecialchars(substr($subject['description'], 0, 60)) . (strlen($subject['description']) > 60 ? '...' : '') : '<span style="color: #999;">—</span>'; ?></td>
+                                    <td>
+                                        <?php if ($subject['assigned_classes']): ?>
+                                            <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
+                                                <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <span style="color: #999;">Not assigned</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                            <span class="count-badge objective" title="Objective Questions">📝 O: <?php echo $subject['objective_count']; ?></span>
+                                            <span class="count-badge subjective" title="Subjective Questions">✍️ S: <?php echo $subject['subjective_count']; ?></span>
+                                            <span class="count-badge theory" title="Theory Questions">📄 T: <?php echo $subject['theory_count']; ?></span>
+                                            <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="?edit=<?php echo $subject['id']; ?>" class="action-btn edit-btn" title="Edit"><i class="fas fa-edit"></i></a>
+                                            <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Topics"><i class="fas fa-tags"></i></a>
+                                            <a href="manage-questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Questions"><i class="fas fa-question-circle"></i></a>
+                                            <?php $has_deps = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count']) > 0; ?>
+                                            <?php if ($has_deps): ?>
+                                                <button class="action-btn delete-btn disabled-btn" disabled title="Has dependencies"><i class="fas fa-trash"></i></button>
+                                            <?php else: ?>
+                                                <button class="action-btn delete-btn" onclick="confirmDelete(<?php echo $subject['id']; ?>, '<?php echo addslashes($subject['subject_name']); ?>')" title="Delete"><i class="fas fa-trash"></i></button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php endif; ?>
         </div>
-        </div>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-    </table>
-<?php endif; ?>
-</div>
 
-<!-- Edit Subject Modal (in inline form) -->
-<?php if ($edit_subject): ?>
-    <div class="form-container" style="margin-top: 30px;">
-        <div class="form-header">
-            <h3><i class="fas fa-edit"></i> Edit Subject: <?php echo htmlspecialchars($edit_subject['subject_name']); ?></h3>
-            <a href="manage-subjects.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</a>
-        </div>
-
-        <form method="POST">
-            <input type="hidden" name="subject_id" value="<?php echo $edit_subject['id']; ?>">
-
-            <div class="form-group">
-                <label>Subject Name</label>
-                <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_subject['subject_name']); ?>" readonly disabled>
-                <small style="color: #666;">Subject names are fixed from the national curriculum and cannot be edited.</small>
+        <!-- Edit Subject Section -->
+        <?php if ($edit_subject): ?>
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-edit"></i> Edit Subject: <?php echo htmlspecialchars($edit_subject['subject_name']); ?></h2>
+                    <a href="manage-subjects.php" class="btn btn-outline"><i class="fas fa-times"></i> Cancel</a>
+                </div>
+                <form method="POST">
+                    <input type="hidden" name="subject_id" value="<?php echo $edit_subject['id']; ?>">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label class="form-label">Subject Name</label>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_subject['subject_name']); ?>" readonly disabled>
+                        <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Optional subject description"><?php echo htmlspecialchars($edit_subject['description'] ?? ''); ?></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Assign to Classes</label>
+                        <div class="checkbox-group" id="editClassCheckboxGroup">
+                            <?php foreach ($available_classes as $class): ?>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>" <?php echo in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
+                                    <label for="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
+                        </div>
+                    </div>
+                    <div style="margin-top: 24px; display: flex; gap: 12px;">
+                        <button type="submit" name="update_subject" class="btn btn-primary"><i class="fas fa-save"></i> Update Subject</button>
+                        <a href="manage-subjects.php" class="btn btn-outline">Cancel</a>
+                    </div>
+                </form>
             </div>
+        <?php endif; ?>
+    </div>
 
-            <div class="form-group">
-                <label>Description (Optional)</label>
-                <textarea name="description" class="form-control"
-                    placeholder="Brief description of the subject"><?php echo htmlspecialchars($edit_subject['description'] ?? ''); ?></textarea>
+    <!-- Add Subjects Modal -->
+    <div class="modal" id="addSubjectsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Add Subjects from National Curriculum</h3>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
             </div>
-
-            <div class="form-group">
-                <label>Assign to Classes</label>
-                <div class="checkbox-group" id="editClassCheckboxGroup">
-                    <?php if (!empty($available_classes)): ?>
-                        <?php foreach ($available_classes as $class): ?>
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>"
-                                    id="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"
-                                    <?php echo in_array($class, $edit_subject['assigned_classes_array']) ? 'checked' : ''; ?>>
-                                <label for="edit_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                    <?php echo htmlspecialchars($class); ?>
-                                </label>
+            <form method="POST" id="addSubjectsForm">
+                <div class="modal-body">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="subjectSearchInput" placeholder="Search subjects...">
+                    </div>
+                    <div class="subjects-list" id="subjectsList">
+                        <?php foreach ($available_subjects as $subject): ?>
+                            <div class="subject-item" data-subject-id="<?php echo $subject['id']; ?>" data-subject-name="<?php echo htmlspecialchars(strtolower($subject['subject_name'])); ?>">
+                                <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSelectedCount()">
+                                <div class="subject-info">
+                                    <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                    <?php if ($subject['description']): ?>
+                                        <div class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 100)); ?></div>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <p style="color: #999; grid-column: span 2;">No classes found.</p>
-                    <?php endif; ?>
-                </div>
-                <div style="margin-top: 10px;">
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllEditClasses()">
-                        <i class="fas fa-check-double"></i> Select All
-                    </button>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAllEditClasses()">
-                        <i class="fas fa-times"></i> Deselect All
-                    </button>
-                </div>
-            </div>
+                        <?php if (empty($available_subjects)): ?>
+                            <div style="padding: 40px; text-align: center; color: var(--gray-600);">
+                                <i class="fas fa-check-circle" style="font-size: 32px; margin-bottom: 10px; color: var(--success);"></i>
+                                <p>All subjects have been added to your school!</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div style="margin: 16px 0; display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-sm btn-primary" onclick="selectAllModalSubjects()"><i class="fas fa-check-double"></i> Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllModalSubjects()"><i class="fas fa-times"></i> Deselect All</button>
+                        <span id="modalSelectedCount" class="selected-count">0 selected</span>
+                    </div>
 
-            <div class="form-actions" style="margin-top: 20px;">
-                <button type="submit" name="update_subject" class="btn btn-success">
-                    <i class="fas fa-save"></i> Update Subject
-                </button>
-                <a href="manage-subjects.php" class="btn btn-secondary">
-                    <i class="fas fa-times"></i> Cancel
-                </a>
-            </div>
-        </form>
-    </div>
-<?php endif; ?>
-</div>
-
-<!-- Delete Confirmation Modal -->
-<div class="modal" id="deleteModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Confirm Delete</h3>
-            <button class="close-modal" onclick="closeModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p>Are you sure you want to delete <strong id="deleteSubjectName"></strong>?</p>
-            <p style="color: var(--danger-color); margin-top: 10px;">
-                <i class="fas fa-exclamation-triangle"></i> This action cannot be undone.
-            </p>
-        </div>
-        <div class="modal-footer" style="padding: 15px 20px; display: flex; justify-content: flex-end; gap: 10px;">
-            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-            <button class="btn btn-danger" id="confirmDeleteBtn">Delete Subject</button>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label class="form-label">Assign to Classes <span style="font-weight: normal; color: var(--gray-600);">(Select which classes will offer these subjects)</span></label>
+                        <div class="checkbox-group" id="modalClassCheckboxGroup">
+                            <?php if (!empty($available_classes)): ?>
+                                <?php foreach ($available_classes as $class): ?>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
+                                        <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Add students first.</p>
+                            <?php endif; ?>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllModalClasses()"><i class="fas fa-check-double"></i> Select All Classes</button>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllModalClasses()"><i class="fas fa-times"></i> Deselect All Classes</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                    <button type="submit" name="add_multiple_subjects" class="btn btn-primary" id="addSubjectsBtn"><i class="fas fa-plus-circle"></i> Add Selected Subjects</button>
+                </div>
+            </form>
         </div>
     </div>
-</div>
 
-<script>
-    // Mobile menu toggle
-    const mobileBtn = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('sidebar');
-    if (mobileBtn) {
-        mobileBtn.onclick = () => sidebar.classList.toggle('active');
-    }
+    <!-- Delete Confirmation Modal -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="close-modal" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteSubjectName"></strong>?</p>
+                <p style="color: var(--danger); margin-top: 10px;"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">Delete Subject</button>
+            </div>
+        </div>
+    </div>
 
-    // Close sidebar on outside click
-    document.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-            if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
+    <script>
+        // Mobile menu
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+        }
+        if (mobileBtn) mobileBtn.onclick = toggleSidebar;
+        if (overlay) overlay.onclick = toggleSidebar;
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
                 sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
             }
-        }
-    });
+        });
 
-    // Table search functionality
-    const searchInput = document.getElementById('searchInput');
-    const subjectsTable = document.getElementById('subjectsTable');
-    if (searchInput && subjectsTable) {
-        searchInput.addEventListener('keyup', function() {
-            const term = this.value.toLowerCase();
-            const rows = subjectsTable.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(term) ? '' : 'none';
+        // Table search
+        const searchInput = document.getElementById('searchInput');
+        const subjectsTable = document.getElementById('subjectsTable');
+        if (searchInput && subjectsTable) {
+            searchInput.addEventListener('keyup', function() {
+                const term = this.value.toLowerCase();
+                const rows = subjectsTable.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+                });
             });
-        });
-    }
-
-    // Subject multi-select functions
-    function updateSubjectCount() {
-        const checkboxes = document.querySelectorAll('.subject-checkbox:checked');
-        const count = checkboxes.length;
-        const countSpan = document.getElementById('selectedSubjectsCount');
-        if (countSpan) {
-            countSpan.textContent = count + ' selected';
-            countSpan.style.background = count > 0 ? 'var(--success-color)' : 'var(--primary-color)';
         }
-    }
 
-    function selectAllSubjects() {
-        const checkboxes = document.querySelectorAll('.subject-checkbox');
-        checkboxes.forEach(cb => cb.checked = true);
-        updateSubjectCount();
-    }
+        // Modal handling
+        const modal = document.getElementById('addSubjectsModal');
+        const openBtn = document.getElementById('openSubjectModalBtn');
+        const addForm = document.getElementById('addSubjectsForm');
 
-    function deselectAllSubjects() {
-        const checkboxes = document.querySelectorAll('.subject-checkbox');
-        checkboxes.forEach(cb => cb.checked = false);
-        updateSubjectCount();
-    }
-
-    function selectCoreSubjects() {
-        deselectAllSubjects();
-        const coreCheckboxes = document.querySelectorAll('#core-list .subject-checkbox');
-        coreCheckboxes.forEach(cb => cb.checked = true);
-        updateSubjectCount();
-    }
-
-    function selectScienceSubjects() {
-        deselectAllSubjects();
-        const scienceCheckboxes = document.querySelectorAll('#science-list .subject-checkbox');
-        scienceCheckboxes.forEach(cb => cb.checked = true);
-        updateSubjectCount();
-    }
-
-    // Category toggle functions
-    function toggleCategory(category) {
-        const list = document.getElementById(category + '-list');
-        const icon = document.getElementById(category + '-icon');
-        if (list.style.display === 'none') {
-            list.style.display = 'grid';
-            icon.className = 'fas fa-chevron-down';
-        } else {
-            list.style.display = 'none';
-            icon.className = 'fas fa-chevron-right';
+        if (openBtn) {
+            openBtn.onclick = () => modal.classList.add('active');
         }
-    }
 
-    // Initialize all categories as expanded
-    document.addEventListener('DOMContentLoaded', function() {
-        const categories = ['core', 'science', 'arts_commerce', 'trade'];
-        categories.forEach(cat => {
-            const list = document.getElementById(cat + '-list');
-            if (list) list.style.display = 'grid';
-        });
-        updateSubjectCount();
-    });
+        function closeModal() {
+            modal.classList.remove('active');
+        }
 
-    // Select/Deselect all classes for add form
-    function selectAllClasses() {
-        const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
-        checkboxes.forEach(cb => cb.checked = true);
-    }
+        // Close on outside click
+        window.onclick = (e) => {
+            if (e.target === modal) closeModal();
+            if (e.target === deleteModal) closeDeleteModal();
+        };
 
-    function deselectAllClasses() {
-        const checkboxes = document.querySelectorAll('#classCheckboxGroup input[type="checkbox"]');
-        checkboxes.forEach(cb => cb.checked = false);
-    }
+        // Subject search in modal
+        const subjectSearch = document.getElementById('subjectSearchInput');
+        const subjectItems = document.querySelectorAll('.subject-item');
 
-    // Select/Deselect all classes for edit form
-    function selectAllEditClasses() {
-        const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
-        checkboxes.forEach(cb => cb.checked = true);
-    }
+        if (subjectSearch) {
+            subjectSearch.addEventListener('keyup', function() {
+                const term = this.value.toLowerCase();
+                subjectItems.forEach(item => {
+                    const name = item.getAttribute('data-subject-name') || '';
+                    item.style.display = name.includes(term) ? 'flex' : 'none';
+                });
+            });
+        }
 
-    function deselectAllEditClasses() {
-        const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
-        checkboxes.forEach(cb => cb.checked = false);
-    }
-
-    // Delete modal
-    let deleteId = null;
-    let deleteName = '';
-
-    function confirmDelete(id, name) {
-        deleteId = id;
-        deleteName = name;
-        document.getElementById('deleteSubjectName').textContent = name;
-        document.getElementById('deleteModal').classList.add('active');
-    }
-
-    function closeModal() {
-        document.getElementById('deleteModal').classList.remove('active');
-        deleteId = null;
-    }
-
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', () => {
-            if (deleteId) {
-                window.location.href = `manage-subjects.php?delete=${deleteId}`;
+        // Selection functions
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('#subjectsList .subject-checkbox:checked');
+            const count = checkboxes.length;
+            const countSpan = document.getElementById('modalSelectedCount');
+            if (countSpan) {
+                countSpan.textContent = count + ' selected';
+                countSpan.style.background = count > 0 ? 'var(--success)' : 'var(--primary-color)';
             }
-        });
-    }
-
-    // Close modal with Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeModal();
         }
-    });
 
-    // Auto-hide alerts
-    setTimeout(() => {
-        document.querySelectorAll('.alert').forEach(alert => {
-            alert.style.opacity = '0';
-            alert.style.transition = 'opacity 0.5s';
-            setTimeout(() => alert.remove(), 500);
-        });
-    }, 5000);
-</script>
+        function selectAllModalSubjects() {
+            const checkboxes = document.querySelectorAll('#subjectsList .subject-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+            updateSelectedCount();
+        }
+
+        function deselectAllModalSubjects() {
+            const checkboxes = document.querySelectorAll('#subjectsList .subject-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateSelectedCount();
+        }
+
+        function selectAllModalClasses() {
+            const checkboxes = document.querySelectorAll('#modalClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+
+        function deselectAllModalClasses() {
+            const checkboxes = document.querySelectorAll('#modalClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        function selectAllEditClasses() {
+            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+
+        function deselectAllEditClasses() {
+            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        // Delete modal
+        let deleteId = null;
+        const deleteModal = document.getElementById('deleteModal');
+
+        function confirmDelete(id, name) {
+            deleteId = id;
+            document.getElementById('deleteSubjectName').textContent = name;
+            deleteModal.classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            deleteModal.classList.remove('active');
+            deleteId = null;
+        }
+
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                if (deleteId) window.location.href = `manage-subjects.php?delete=${deleteId}`;
+            });
+        }
+
+        // Initialize selected count
+        updateSelectedCount();
+
+        // Auto-hide alerts
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
 </body>
 
 </html>

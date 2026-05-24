@@ -146,6 +146,7 @@ $recent_results = $recent_stmt->fetchAll();
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -173,7 +174,12 @@ $recent_results = $recent_stmt->fetchAll();
             --sidebar-width: 260px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f5f6fa;
@@ -197,7 +203,10 @@ $recent_results = $recent_stmt->fetchAll();
             overflow-y: auto;
             transform: translateX(-100%);
         }
-        .sidebar.active { transform: translateX(0); }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
         .logo {
             display: flex;
@@ -206,6 +215,7 @@ $recent_results = $recent_stmt->fetchAll();
             padding: 0 20px;
             margin-bottom: 15px;
         }
+
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -216,25 +226,38 @@ $recent_results = $recent_stmt->fetchAll();
             justify-content: center;
             font-size: 20px;
         }
+
         .admin-info {
             text-align: center;
             padding: 15px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 15px 20px;
         }
-        .nav-links { list-style: none; padding: 0 15px; }
-        .nav-links li { margin-bottom: 5px; }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 15px;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             text-decoration: none;
             border-radius: 8px;
         }
-        .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
         /* Main Content */
         .main-content {
@@ -242,6 +265,7 @@ $recent_results = $recent_stmt->fetchAll();
             padding: 20px;
             min-height: 100vh;
         }
+
         .mobile-menu-btn {
             position: fixed;
             top: 20px;
@@ -256,6 +280,7 @@ $recent_results = $recent_stmt->fetchAll();
             font-size: 20px;
             cursor: pointer;
         }
+
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -267,7 +292,13 @@ $recent_results = $recent_stmt->fetchAll();
             flex-wrap: wrap;
             gap: 15px;
         }
-        .header-title h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 5px; }
+
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
         .logout-btn {
             background: var(--danger-color);
             color: white;
@@ -287,27 +318,42 @@ $recent_results = $recent_stmt->fetchAll();
             gap: 20px;
             margin-bottom: 30px;
         }
+
         .stat-card {
             background: white;
             padding: 20px;
             border-radius: 15px;
             text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
+
         .stat-value {
             font-size: 2rem;
             font-weight: 700;
             color: var(--primary-color);
         }
+
         .stat-label {
             color: #666;
             font-size: 0.85rem;
             margin-top: 5px;
         }
-        .stat-card.success { border-left: 4px solid var(--success-color); }
-        .stat-card.warning { border-left: 4px solid var(--warning-color); }
-        .stat-card.info { border-left: 4px solid var(--info-color); }
-        .stat-card.danger { border-left: 4px solid var(--danger-color); }
+
+        .stat-card.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .stat-card.warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .stat-card.info {
+            border-left: 4px solid var(--info-color);
+        }
+
+        .stat-card.danger {
+            border-left: 4px solid var(--danger-color);
+        }
 
         /* Filter Section */
         .filter-section {
@@ -316,23 +362,28 @@ $recent_results = $recent_stmt->fetchAll();
             border-radius: 10px;
             margin-bottom: 20px;
         }
+
         .filter-form {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             align-items: end;
         }
+
         .form-group {
             display: flex;
             flex-direction: column;
         }
+
         .form-group label {
             margin-bottom: 5px;
             font-weight: 500;
             color: var(--primary-color);
             font-size: 0.85rem;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             padding: 10px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
@@ -340,7 +391,9 @@ $recent_results = $recent_stmt->fetchAll();
             font-size: 0.9rem;
             width: 100%;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -352,29 +405,75 @@ $recent_results = $recent_stmt->fetchAll();
             border-radius: 10px;
             margin-bottom: 20px;
         }
+
         .chart-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
         }
+
         .chart-box {
             background: white;
             padding: 15px;
             border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
+
         .chart-box h4 {
             margin-bottom: 15px;
             color: var(--primary-color);
         }
-        canvas { max-height: 250px; width: 100%; }
+
+        canvas {
+            max-height: 250px;
+            width: 100%;
+        }
 
         /* Grade Badges */
-        .grade-A { background: #27ae60; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-        .grade-B { background: #2ecc71; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-        .grade-C { background: #f39c12; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-        .grade-D { background: #e67e22; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-        .grade-F { background: #e74c3c; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .grade-A {
+            background: #27ae60;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .grade-B {
+            background: #2ecc71;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .grade-C {
+            background: #f39c12;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .grade-D {
+            background: #e67e22;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .grade-F {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
 
         /* Table */
         .table-container {
@@ -383,11 +482,13 @@ $recent_results = $recent_stmt->fetchAll();
             overflow-x: auto;
             margin-bottom: 20px;
         }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
             min-width: 800px;
         }
+
         .data-table th {
             background: var(--primary-color);
             color: white;
@@ -396,13 +497,17 @@ $recent_results = $recent_stmt->fetchAll();
             font-weight: 600;
             font-size: 0.85rem;
         }
+
         .data-table td {
             padding: 12px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
             font-size: 0.85rem;
         }
-        .data-table tr:hover { background: #f9f9f9; }
+
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
 
         .btn {
             padding: 8px 16px;
@@ -416,9 +521,21 @@ $recent_results = $recent_stmt->fetchAll();
             gap: 8px;
             font-size: 0.85rem;
         }
-        .btn-primary { background: var(--primary-color); color: white; }
-        .btn-success { background: var(--success-color); color: white; }
-        .btn-secondary { background: #95a5a6; color: white; }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
 
         .modal {
             display: none;
@@ -427,12 +544,16 @@ $recent_results = $recent_stmt->fetchAll();
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: white;
             border-radius: 15px;
@@ -441,6 +562,7 @@ $recent_results = $recent_stmt->fetchAll();
             max-height: 80vh;
             overflow-y: auto;
         }
+
         .modal-header {
             padding: 15px 20px;
             border-bottom: 2px solid var(--light-color);
@@ -448,6 +570,7 @@ $recent_results = $recent_stmt->fetchAll();
             justify-content: space-between;
             align-items: center;
         }
+
         .modal-close {
             background: none;
             border: none;
@@ -456,23 +579,41 @@ $recent_results = $recent_stmt->fetchAll();
         }
 
         @media (min-width: 769px) {
-            .sidebar { transform: translateX(0); }
-            .main-content { margin-left: var(--sidebar-width); }
-            .mobile-menu-btn { display: none; }
+            .sidebar {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+
+            .mobile-menu-btn {
+                display: none;
+            }
         }
+
         @media (max-width: 768px) {
-            .filter-form { grid-template-columns: 1fr; }
-            .chart-grid { grid-template-columns: 1fr; }
+            .filter-form {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <div class="sidebar" id="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text"><h3><?php echo htmlspecialchars($school_name); ?></h3><p>Admin Panel</p></div>
+            <div class="logo-text">
+                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <p>Admin Panel</p>
+            </div>
         </div>
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
@@ -485,7 +626,7 @@ $recent_results = $recent_stmt->fetchAll();
             <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Subjects</a></li>
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Exams</a></li>
             <li><a href="view-results.php" class="active"><i class="fas fa-chart-bar"></i> Results</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -613,7 +754,7 @@ $recent_results = $recent_stmt->fetchAll();
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($results as $result): 
+                        <?php foreach ($results as $result):
                             $percentage = $result['percentage'] ?? 0;
                             $grade = $result['grade'] ?? 'F';
                             $grade_class = 'grade-' . $grade;
@@ -631,7 +772,7 @@ $recent_results = $recent_stmt->fetchAll();
                                     <button class="btn btn-primary btn-sm" onclick="viewResultDetails(<?php echo $result['id']; ?>)">
                                         <i class="fas fa-eye"></i> View
                                     </button>
-                                 </td>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -669,47 +810,55 @@ $recent_results = $recent_stmt->fetchAll();
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
-        if(mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
+        if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('active');
 
         // Charts
         <?php if (!empty($results)): ?>
-        // Grade Distribution Chart
-        const gradeCtx = document.getElementById('gradeChart').getContext('2d');
-        new Chart(gradeCtx, {
-            type: 'bar',
-            data: {
-                labels: ['A', 'B', 'C', 'D', 'F'],
-                datasets: [{
-                    label: 'Number of Students',
-                    data: [<?php echo $grade_counts['A']; ?>, <?php echo $grade_counts['B']; ?>, <?php echo $grade_counts['C']; ?>, <?php echo $grade_counts['D']; ?>, <?php echo $grade_counts['F']; ?>],
-                    backgroundColor: ['#27ae60', '#2ecc71', '#f39c12', '#e67e22', '#e74c3c'],
-                    borderRadius: 5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: { legend: { position: 'top' } }
-            }
-        });
+            // Grade Distribution Chart
+            const gradeCtx = document.getElementById('gradeChart').getContext('2d');
+            new Chart(gradeCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['A', 'B', 'C', 'D', 'F'],
+                    datasets: [{
+                        label: 'Number of Students',
+                        data: [<?php echo $grade_counts['A']; ?>, <?php echo $grade_counts['B']; ?>, <?php echo $grade_counts['C']; ?>, <?php echo $grade_counts['D']; ?>, <?php echo $grade_counts['F']; ?>],
+                        backgroundColor: ['#27ae60', '#2ecc71', '#f39c12', '#e67e22', '#e74c3c'],
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
 
-        // Pass/Fail Chart
-        const pfCtx = document.getElementById('passFailChart').getContext('2d');
-        new Chart(pfCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Pass (≥50%)', 'Fail (<50%)'],
-                datasets: [{
-                    data: [<?php echo $pass_count; ?>, <?php echo $fail_count; ?>],
-                    backgroundColor: ['#27ae60', '#e74c3c']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
+            // Pass/Fail Chart
+            const pfCtx = document.getElementById('passFailChart').getContext('2d');
+            new Chart(pfCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pass (≥50%)', 'Fail (<50%)'],
+                    datasets: [{
+                        data: [<?php echo $pass_count; ?>, <?php echo $fail_count; ?>],
+                        backgroundColor: ['#27ae60', '#e74c3c']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
         <?php endif; ?>
 
         function viewResultDetails(resultId) {
@@ -750,7 +899,10 @@ $recent_results = $recent_stmt->fetchAll();
             window.location.href = `export-results.php?${params.toString()}`;
         }
 
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
     </script>
 </body>
+
 </html>

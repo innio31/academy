@@ -30,11 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $can_take_attendance = isset($_POST['can_take_attendance']) ? 1 : 0;
         $can_view_reports = isset($_POST['can_view_reports']) ? 1 : 0;
         $assigned_classes = isset($_POST['assigned_classes']) ? implode(',', $_POST['assigned_classes']) : '';
-        
+
         // Check if exists
         $stmt = $pdo->prepare("SELECT id FROM attendance_permissions WHERE staff_id = ? AND school_id = ?");
         $stmt->execute([$staff_id, $school_id]);
-        
+
         if ($stmt->fetch()) {
             $stmt = $pdo->prepare("UPDATE attendance_permissions SET can_take_attendance = ?, can_view_reports = ?, assigned_classes = ? WHERE staff_id = ? AND school_id = ?");
             $stmt->execute([$can_take_attendance, $can_view_reports, $assigned_classes, $staff_id, $school_id]);
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt = $pdo->prepare("INSERT INTO attendance_permissions (school_id, staff_id, can_take_attendance, can_view_reports, assigned_classes) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$school_id, $staff_id, $can_take_attendance, $can_view_reports, $assigned_classes]);
         }
-        
+
         $success_message = "Staff permissions updated successfully!";
     }
 }
@@ -71,17 +71,18 @@ $active_events = $active_events->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title><?php echo $school_name; ?> - Attendance Management</title>
-    
+
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <style>
         * {
             margin: 0;
@@ -89,7 +90,7 @@ $active_events = $active_events->fetchAll();
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
-        
+
         :root {
             --primary-color: <?php echo $primary_color; ?>;
             --secondary-color: #d4af7a;
@@ -112,14 +113,14 @@ $active_events = $active_events->fetchAll();
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        
+
         body {
             font-family: 'Poppins', sans-serif;
             background: var(--gray-100);
             color: var(--gray-800);
             min-height: 100vh;
         }
-        
+
         /* Sidebar Styles */
         .sidebar {
             position: fixed;
@@ -134,83 +135,83 @@ $active_events = $active_events->fetchAll();
             transition: transform 0.3s ease;
             transform: translateX(-100%);
         }
-        
+
         .sidebar.open {
             transform: translateX(0);
         }
-        
+
         .sidebar-header {
             padding: 24px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
-        
+
         .sidebar-header h3 {
             font-size: 18px;
             margin-bottom: 4px;
         }
-        
+
         .sidebar-header p {
             font-size: 12px;
             opacity: 0.7;
         }
-        
+
         .admin-info {
             padding: 20px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             margin: 16px;
             border-radius: 12px;
             text-align: center;
         }
-        
+
         .admin-info h4 {
             font-size: 14px;
             margin-bottom: 4px;
         }
-        
+
         .admin-info p {
             font-size: 11px;
             opacity: 0.7;
         }
-        
+
         .nav-links {
             list-style: none;
             padding: 0 12px;
         }
-        
+
         .nav-links li {
             margin-bottom: 4px;
         }
-        
+
         .nav-links a {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 16px;
-            color: rgba(255,255,255,0.85);
+            color: rgba(255, 255, 255, 0.85);
             text-decoration: none;
             border-radius: 10px;
             transition: all 0.2s ease;
             font-size: 14px;
         }
-        
+
         .nav-links a:hover,
         .nav-links a.active {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, 0.15);
             color: white;
         }
-        
+
         .nav-links a i {
             width: 20px;
             text-align: center;
         }
-        
+
         /* Main Content */
         .main-content {
             margin-left: 0;
             min-height: 100vh;
             transition: margin-left 0.3s ease;
         }
-        
+
         /* Top Bar */
         .top-bar {
             background: white;
@@ -223,7 +224,7 @@ $active_events = $active_events->fetchAll();
             top: 0;
             z-index: 99;
         }
-        
+
         .menu-toggle {
             background: none;
             border: none;
@@ -237,33 +238,33 @@ $active_events = $active_events->fetchAll();
             align-items: center;
             justify-content: center;
         }
-        
+
         .menu-toggle:hover {
             background: var(--gray-100);
         }
-        
+
         .page-title {
             flex: 1;
         }
-        
+
         .page-title h1 {
             font-size: 20px;
             font-weight: 600;
             margin-bottom: 2px;
         }
-        
+
         .page-title p {
             font-size: 12px;
             color: var(--gray-500);
         }
-        
+
         /* Container */
         .container {
             padding: 20px;
             max-width: 1400px;
             margin: 0 auto;
         }
-        
+
         /* Cards */
         .card {
             background: white;
@@ -273,7 +274,7 @@ $active_events = $active_events->fetchAll();
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--gray-200);
         }
-        
+
         .card-title {
             font-size: 16px;
             font-weight: 600;
@@ -284,7 +285,7 @@ $active_events = $active_events->fetchAll();
             flex-wrap: wrap;
             gap: 12px;
         }
-        
+
         /* Stats Grid */
         .stats-grid {
             display: grid;
@@ -292,7 +293,7 @@ $active_events = $active_events->fetchAll();
             gap: 16px;
             margin-bottom: 20px;
         }
-        
+
         .stat-card {
             background: white;
             border-radius: 16px;
@@ -302,25 +303,25 @@ $active_events = $active_events->fetchAll();
             border: 1px solid var(--gray-200);
             transition: transform 0.2s ease;
         }
-        
+
         .stat-card:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
         }
-        
+
         .stat-number {
             font-size: 32px;
             font-weight: 800;
             color: var(--primary-color);
             line-height: 1;
         }
-        
+
         .stat-label {
             font-size: 13px;
             color: var(--gray-500);
             margin-top: 8px;
         }
-        
+
         /* Scanner */
         .scanner-container {
             background: var(--gray-900);
@@ -332,35 +333,35 @@ $active_events = $active_events->fetchAll();
             align-items: center;
             justify-content: center;
         }
-        
+
         #reader {
             width: 100%;
             min-height: 400px;
             display: none;
         }
-        
+
         #reader.active {
             display: block;
         }
-        
+
         .scanner-placeholder {
             text-align: center;
             padding: 80px 20px;
             color: white;
         }
-        
+
         .scanner-placeholder i {
             font-size: 64px;
             margin-bottom: 16px;
             opacity: 0.8;
         }
-        
+
         .scanner-placeholder p {
             font-size: 14px;
             opacity: 0.8;
             margin-bottom: 20px;
         }
-        
+
         /* Buttons */
         .btn {
             padding: 10px 20px;
@@ -375,36 +376,36 @@ $active_events = $active_events->fetchAll();
             font-family: inherit;
             transition: all 0.2s ease;
         }
-        
+
         .btn-primary {
             background: var(--primary-color);
             color: white;
         }
-        
+
         .btn-primary:hover {
             opacity: 0.9;
             transform: translateY(-1px);
         }
-        
+
         .btn-success {
             background: var(--success-color);
             color: white;
         }
-        
+
         .btn-danger {
             background: var(--danger-color);
             color: white;
         }
-        
+
         .btn-secondary {
             background: var(--gray-200);
             color: var(--gray-700);
         }
-        
+
         .btn-block {
             width: 100%;
         }
-        
+
         .camera-btn {
             background: var(--primary-color);
             color: white;
@@ -416,7 +417,7 @@ $active_events = $active_events->fetchAll();
             cursor: pointer;
             font-family: inherit;
         }
-        
+
         .stop-camera-btn {
             background: var(--danger-color);
             color: white;
@@ -429,14 +430,14 @@ $active_events = $active_events->fetchAll();
             margin-top: 12px;
             font-family: inherit;
         }
-        
+
         /* Scan Type Selector */
         .scan-type-selector {
             display: flex;
             gap: 12px;
             margin-bottom: 16px;
         }
-        
+
         .scan-type-btn {
             flex: 1;
             padding: 12px;
@@ -448,13 +449,13 @@ $active_events = $active_events->fetchAll();
             transition: all 0.2s ease;
             font-family: inherit;
         }
-        
+
         .scan-type-btn.active {
             border-color: var(--primary-color);
             background: var(--primary-color);
             color: white;
         }
-        
+
         /* Mode Toggle */
         .mode-toggle {
             display: flex;
@@ -464,7 +465,7 @@ $active_events = $active_events->fetchAll();
             border-radius: 12px;
             margin-bottom: 20px;
         }
-        
+
         .mode-btn {
             flex: 1;
             padding: 10px;
@@ -476,19 +477,19 @@ $active_events = $active_events->fetchAll();
             transition: all 0.2s ease;
             font-family: inherit;
         }
-        
+
         .mode-btn.active {
             background: var(--primary-color);
             color: white;
             box-shadow: var(--shadow-sm);
         }
-        
+
         /* Staff Permission Table */
         .permission-table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         .permission-table th,
         .permission-table td {
             padding: 12px;
@@ -496,13 +497,13 @@ $active_events = $active_events->fetchAll();
             border-bottom: 1px solid var(--gray-200);
             vertical-align: middle;
         }
-        
+
         .permission-table th {
             background: var(--gray-50);
             font-weight: 600;
             color: var(--gray-600);
         }
-        
+
         .permission-badge {
             display: inline-block;
             padding: 4px 10px;
@@ -510,41 +511,41 @@ $active_events = $active_events->fetchAll();
             font-size: 11px;
             font-weight: 600;
         }
-        
+
         .badge-enabled {
             background: #d1fae5;
             color: #065f46;
         }
-        
+
         .badge-disabled {
             background: #fee2e2;
             color: #991b1b;
         }
-        
+
         /* Tables */
         .table-container {
             overflow-x: auto;
         }
-        
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
         }
-        
+
         .data-table th,
         .data-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid var(--gray-200);
         }
-        
+
         .data-table th {
             font-weight: 600;
             color: var(--gray-600);
             background: var(--gray-50);
         }
-        
+
         /* Status Badges */
         .status-badge {
             display: inline-block;
@@ -553,22 +554,22 @@ $active_events = $active_events->fetchAll();
             font-size: 11px;
             font-weight: 600;
         }
-        
+
         .status-present {
             background: #d1fae5;
             color: #065f46;
         }
-        
+
         .status-late {
             background: #fed7aa;
             color: #92400e;
         }
-        
+
         .status-absent {
             background: #fee2e2;
             color: #991b1b;
         }
-        
+
         /* Feedback Toast */
         .scan-feedback {
             position: fixed;
@@ -586,18 +587,19 @@ $active_events = $active_events->fetchAll();
             z-index: 1100;
             box-shadow: var(--shadow-lg);
         }
-        
+
         @keyframes slideUp {
             from {
                 transform: translateY(100%);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
             }
         }
-        
+
         /* Modal */
         .modal {
             display: none;
@@ -606,16 +608,16 @@ $active_events = $active_events->fetchAll();
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1050;
             align-items: center;
             justify-content: center;
         }
-        
+
         .modal.show {
             display: flex;
         }
-        
+
         .modal-content {
             background: white;
             border-radius: 20px;
@@ -624,7 +626,7 @@ $active_events = $active_events->fetchAll();
             max-height: 85vh;
             overflow-y: auto;
         }
-        
+
         .modal-header {
             padding: 20px;
             border-bottom: 1px solid var(--gray-200);
@@ -635,18 +637,18 @@ $active_events = $active_events->fetchAll();
             top: 0;
             background: white;
         }
-        
+
         .modal-body {
             padding: 20px;
         }
-        
+
         .modal-footer {
             padding: 16px 20px;
             border-top: 1px solid var(--gray-200);
             display: flex;
             gap: 12px;
         }
-        
+
         .close-modal {
             background: none;
             border: none;
@@ -659,23 +661,23 @@ $active_events = $active_events->fetchAll();
             align-items: center;
             justify-content: center;
         }
-        
+
         .close-modal:hover {
             background: var(--gray-100);
         }
-        
+
         /* Form Elements */
         .form-group {
             margin-bottom: 16px;
         }
-        
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
             font-size: 14px;
         }
-        
+
         .form-control {
             width: 100%;
             padding: 12px;
@@ -685,12 +687,12 @@ $active_events = $active_events->fetchAll();
             font-size: 14px;
             transition: all 0.2s ease;
         }
-        
+
         .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
         }
-        
+
         /* Event Items */
         .event-item {
             background: white;
@@ -699,14 +701,14 @@ $active_events = $active_events->fetchAll();
             margin-bottom: 12px;
             border: 1px solid var(--gray-200);
         }
-        
+
         .event-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
         }
-        
+
         .event-badge {
             background: var(--info-color);
             color: white;
@@ -715,7 +717,7 @@ $active_events = $active_events->fetchAll();
             font-size: 11px;
             font-weight: 600;
         }
-        
+
         .attendance-list-item {
             padding: 12px;
             border-bottom: 1px solid var(--gray-200);
@@ -723,22 +725,22 @@ $active_events = $active_events->fetchAll();
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .attendance-list-item:last-child {
             border-bottom: none;
         }
-        
+
         .student-info h4 {
             font-size: 14px;
             font-weight: 600;
             margin-bottom: 4px;
         }
-        
+
         .student-info p {
             font-size: 12px;
             color: var(--gray-500);
         }
-        
+
         .live-indicator {
             display: inline-block;
             width: 8px;
@@ -748,12 +750,19 @@ $active_events = $active_events->fetchAll();
             margin-right: 8px;
             animation: pulse 1.5s infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
-        
+
         /* Tabs */
         .tabs {
             display: flex;
@@ -762,7 +771,7 @@ $active_events = $active_events->fetchAll();
             border-bottom: 2px solid var(--gray-200);
             flex-wrap: wrap;
         }
-        
+
         .tab-btn {
             padding: 10px 20px;
             background: none;
@@ -774,65 +783,72 @@ $active_events = $active_events->fetchAll();
             font-family: inherit;
             border-radius: 8px 8px 0 0;
         }
-        
+
         .tab-btn.active {
             color: var(--primary-color);
             border-bottom: 2px solid var(--primary-color);
             margin-bottom: -2px;
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         /* Alert */
         .alert {
             padding: 12px 16px;
             border-radius: 10px;
             margin-bottom: 16px;
         }
-        
+
         .alert-success {
             background: #d1fae5;
             color: #065f46;
             border-left: 4px solid var(--success-color);
         }
-        
+
         /* Responsive */
         @media (min-width: 769px) {
             .sidebar {
                 transform: translateX(0);
             }
+
             .main-content {
                 margin-left: var(--sidebar-width);
             }
+
             .menu-toggle {
                 display: none;
             }
+
             .scan-feedback {
                 left: auto;
                 right: 20px;
             }
         }
-        
+
         @media (max-width: 768px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 12px;
             }
+
             .container {
                 padding: 16px;
             }
+
             .card {
                 padding: 16px;
             }
+
             .tabs {
                 gap: 4px;
             }
+
             .tab-btn {
                 padding: 8px 12px;
                 font-size: 13px;
@@ -840,6 +856,7 @@ $active_events = $active_events->fetchAll();
         }
     </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
@@ -847,12 +864,12 @@ $active_events = $active_events->fetchAll();
             <h3><?php echo $school_name; ?></h3>
             <p>School Management System</p>
         </div>
-        
+
         <div class="admin-info">
             <h4><?php echo htmlspecialchars($admin_name); ?></h4>
             <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
         </div>
-        
+
         <ul class="nav-links">
             <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
             <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
@@ -864,10 +881,10 @@ $active_events = $active_events->fetchAll();
             <li><a href="attendance.php" class="active"><i class="fas fa-calendar-check"></i> Attendance</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
-    
+
     <!-- Main Content -->
     <div class="main-content">
         <!-- Top Bar -->
@@ -880,14 +897,14 @@ $active_events = $active_events->fetchAll();
                 <p>Track student attendance with QR scanning</p>
             </div>
         </div>
-        
+
         <div class="container">
             <?php if (isset($success_message)): ?>
                 <div class="alert alert-success">
                     <i class="fas fa-check-circle"></i> <?php echo $success_message; ?>
                 </div>
             <?php endif; ?>
-            
+
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('scanner')">
@@ -903,7 +920,7 @@ $active_events = $active_events->fetchAll();
                     <i class="fas fa-calendar-alt"></i> Events
                 </button>
             </div>
-            
+
             <!-- Tab 1: Scanner -->
             <div id="tab-scanner" class="tab-content active">
                 <!-- Scanner Card -->
@@ -911,7 +928,7 @@ $active_events = $active_events->fetchAll();
                     <div class="card-title">
                         <span><i class="fas fa-qrcode"></i> QR Scanner</span>
                     </div>
-                    
+
                     <div class="scan-type-selector">
                         <button class="scan-type-btn active" onclick="setScanType('check_in')">
                             <i class="fas fa-sign-in-alt"></i> Check In
@@ -920,7 +937,7 @@ $active_events = $active_events->fetchAll();
                             <i class="fas fa-sign-out-alt"></i> Check Out
                         </button>
                     </div>
-                    
+
                     <div class="scanner-container">
                         <div id="reader"></div>
                         <div id="scannerPlaceholder" class="scanner-placeholder">
@@ -935,7 +952,7 @@ $active_events = $active_events->fetchAll();
                         <span class="live-indicator"></span> Click "Start Camera" to begin scanning
                     </div>
                 </div>
-                
+
                 <!-- Today's Stats -->
                 <div class="card">
                     <div class="card-title">
@@ -961,7 +978,7 @@ $active_events = $active_events->fetchAll();
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Recent Scans -->
                 <div class="card">
                     <div class="card-title">
@@ -973,16 +990,24 @@ $active_events = $active_events->fetchAll();
                     <div class="table-container">
                         <table class="data-table">
                             <thead>
-                                <tr><th>Time</th><th>Student Name</th><th>Admission No</th><th>Type</th><th>Status</th></tr>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Student Name</th>
+                                    <th>Admission No</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                </tr>
                             </thead>
                             <tbody id="recentScansBody">
-                                <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+                                <tr>
+                                    <td colspan="5" style="text-align:center;">Loading...</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Tab 2: Reports -->
             <div id="tab-reports" class="tab-content">
                 <div class="card">
@@ -1004,7 +1029,7 @@ $active_events = $active_events->fetchAll();
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Absentee Alert -->
                 <div class="card">
                     <div class="card-title">
@@ -1029,7 +1054,7 @@ $active_events = $active_events->fetchAll();
                     <div id="absentList" style="margin-top: 16px;"></div>
                 </div>
             </div>
-            
+
             <!-- Tab 3: Staff Permissions -->
             <div id="tab-staff" class="tab-content">
                 <div class="card">
@@ -1044,7 +1069,7 @@ $active_events = $active_events->fetchAll();
                                 <option value="">Choose Staff Member</option>
                                 <?php foreach ($staff as $teacher): ?>
                                     <option value="<?php echo $teacher['id']; ?>">
-                                        <?php echo htmlspecialchars($teacher['full_name']); ?> 
+                                        <?php echo htmlspecialchars($teacher['full_name']); ?>
                                         (<?php echo ucfirst($teacher['role']); ?>)
                                         <?php echo $teacher['email'] ? ' - ' . $teacher['email'] : ''; ?>
                                     </option>
@@ -1053,13 +1078,13 @@ $active_events = $active_events->fetchAll();
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" name="can_take_attendance" value="1" checked> 
+                                <input type="checkbox" name="can_take_attendance" value="1" checked>
                                 Can Take Attendance
                             </label>
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" name="can_view_reports" value="1" checked> 
+                                <input type="checkbox" name="can_view_reports" value="1" checked>
                                 Can View Reports
                             </label>
                         </div>
@@ -1077,7 +1102,7 @@ $active_events = $active_events->fetchAll();
                         </button>
                     </form>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-title">
                         <span><i class="fas fa-list"></i> Current Staff Permissions</span>
@@ -1095,48 +1120,48 @@ $active_events = $active_events->fetchAll();
                             </thead>
                             <tbody>
                                 <?php foreach ($staff as $teacher): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($teacher['full_name']); ?></td>
-                                    <td><?php echo ucfirst($teacher['role']); ?></td>
-                                    <td>
-                                        <span class="permission-badge <?php echo $teacher['can_take_attendance'] ? 'badge-enabled' : 'badge-disabled'; ?>">
-                                            <?php echo $teacher['can_take_attendance'] ? 'Yes' : 'No'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="permission-badge <?php echo $teacher['can_view_reports'] ? 'badge-enabled' : 'badge-disabled'; ?>">
-                                            <?php echo $teacher['can_view_reports'] ? 'Yes' : 'No'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php 
-                                        if ($teacher['assigned_classes']) {
-                                            $class_ids = explode(',', $teacher['assigned_classes']);
-                                            $class_names = [];
-                                            foreach ($classes as $class) {
-                                                if (in_array($class['id'], $class_ids)) {
-                                                    $class_names[] = $class['class_name'];
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($teacher['full_name']); ?></td>
+                                        <td><?php echo ucfirst($teacher['role']); ?></td>
+                                        <td>
+                                            <span class="permission-badge <?php echo $teacher['can_take_attendance'] ? 'badge-enabled' : 'badge-disabled'; ?>">
+                                                <?php echo $teacher['can_take_attendance'] ? 'Yes' : 'No'; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="permission-badge <?php echo $teacher['can_view_reports'] ? 'badge-enabled' : 'badge-disabled'; ?>">
+                                                <?php echo $teacher['can_view_reports'] ? 'Yes' : 'No'; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            if ($teacher['assigned_classes']) {
+                                                $class_ids = explode(',', $teacher['assigned_classes']);
+                                                $class_names = [];
+                                                foreach ($classes as $class) {
+                                                    if (in_array($class['id'], $class_ids)) {
+                                                        $class_names[] = $class['class_name'];
+                                                    }
                                                 }
+                                                echo implode(', ', $class_names);
+                                            } else {
+                                                echo '<span class="permission-badge badge-enabled">All Classes</span>';
                                             }
-                                            echo implode(', ', $class_names);
-                                        } else {
-                                            echo '<span class="permission-badge badge-enabled">All Classes</span>';
-                                        }
-                                        ?>
-                                    </td>
-                                </tr>
+                                            ?>
+                                        </td>
+                                    </tr>
                                 <?php endforeach; ?>
                                 <?php if (count($staff) == 0): ?>
-                                <tr>
-                                    <td colspan="5" style="text-align:center;">No staff members found</td>
-                                </tr>
+                                    <tr>
+                                        <td colspan="5" style="text-align:center;">No staff members found</td>
+                                    </tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Tab 4: Events -->
             <div id="tab-events" class="tab-content">
                 <div class="card">
@@ -1152,7 +1177,7 @@ $active_events = $active_events->fetchAll();
             </div>
         </div>
     </div>
-    
+
     <!-- Create Event Modal -->
     <div class="modal" id="eventModal">
         <div class="modal-content">
@@ -1188,7 +1213,7 @@ $active_events = $active_events->fetchAll();
             </div>
         </div>
     </div>
-    
+
     <!-- Attendance List Modal -->
     <div class="modal" id="attendanceListModal">
         <div class="modal-content">
@@ -1199,21 +1224,26 @@ $active_events = $active_events->fetchAll();
             <div class="modal-body" id="attendanceListBody"></div>
         </div>
     </div>
-    
+
     <script>
         let html5QrcodeScanner = null;
         let currentScanType = 'check_in';
         let currentEventId = null;
         let isScannerActive = false;
-        
+
         // Initialize
-        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        
+        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
         // Sidebar toggle
         document.getElementById('menuToggle').onclick = function() {
             document.getElementById('sidebar').classList.toggle('open');
         };
-        
+
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('sidebar');
@@ -1224,46 +1254,52 @@ $active_events = $active_events->fetchAll();
                 }
             }
         });
-        
+
         // Tab switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+
             event.target.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
-            
+
             // Stop scanner when leaving scanner tab
             if (tabName !== 'scanner' && isScannerActive) {
                 stopScanner();
             }
-            
+
             // Load data for specific tabs
             if (tabName === 'events') {
                 loadEvents();
             }
         }
-        
+
         function setScanType(type) {
             currentScanType = type;
             document.querySelectorAll('.scan-type-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
         }
-        
+
         function startScanner() {
             if (html5QrcodeScanner && isScannerActive) {
                 showFeedback('Camera is already active', 'info');
                 return;
             }
-            
+
             document.getElementById('scannerPlaceholder').style.display = 'none';
             document.getElementById('reader').classList.add('active');
             document.getElementById('reader').style.display = 'block';
-            
+
             html5QrcodeScanner = new Html5Qrcode("reader");
-            html5QrcodeScanner.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+            html5QrcodeScanner.start({
+                    facingMode: "environment"
+                }, {
+                    fps: 10,
+                    qrbox: {
+                        width: 250,
+                        height: 250
+                    }
+                },
                 (decodedText) => {
                     handleScan(decodedText);
                 },
@@ -1273,7 +1309,7 @@ $active_events = $active_events->fetchAll();
             ).then(() => {
                 isScannerActive = true;
                 document.getElementById('scanStatus').innerHTML = '<span class="live-indicator"></span> Camera active - Ready to scan QR codes';
-                
+
                 if (!document.getElementById('stopCameraBtn')) {
                     const container = document.querySelector('.scanner-container');
                     const stopBtn = document.createElement('button');
@@ -1290,7 +1326,7 @@ $active_events = $active_events->fetchAll();
                 document.getElementById('reader').style.display = 'none';
             });
         }
-        
+
         function stopScanner() {
             if (html5QrcodeScanner && isScannerActive) {
                 html5QrcodeScanner.stop().then(() => {
@@ -1299,7 +1335,7 @@ $active_events = $active_events->fetchAll();
                     document.getElementById('reader').classList.remove('active');
                     document.getElementById('scannerPlaceholder').style.display = 'block';
                     document.getElementById('scanStatus').innerHTML = '<span class="live-indicator"></span> Camera stopped - Click "Start Camera" to begin scanning';
-                    
+
                     const stopBtn = document.getElementById('stopCameraBtn');
                     if (stopBtn) stopBtn.remove();
                 }).catch(err => {
@@ -1307,7 +1343,7 @@ $active_events = $active_events->fetchAll();
                 });
             }
         }
-        
+
         function handleScan(decodedText) {
             try {
                 let studentId;
@@ -1320,56 +1356,56 @@ $active_events = $active_events->fetchAll();
                     } else {
                         studentId = parseInt(decodedText);
                     }
-                } catch(e) {
+                } catch (e) {
                     studentId = parseInt(decodedText);
                 }
-                
+
                 if (studentId && studentId > 0) {
                     recordAttendance(studentId, currentScanType, currentEventId);
                 } else {
                     showFeedback('Invalid QR code format', 'error');
                 }
-            } catch(e) {
+            } catch (e) {
                 showFeedback('Invalid QR code', 'error');
             }
         }
-        
+
         function recordAttendance(studentId, scanType, eventId = null) {
             const requestData = {
                 action: 'record_attendance',
                 student_id: studentId,
                 scan_type: scanType
             };
-            
+
             if (eventId) {
                 requestData.event_id = eventId;
             }
-            
+
             fetch('attendance_api.php', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const emoji = scanType === 'check_in' ? '✅' : '👋';
-                    showFeedback(`${emoji} ${data.student_name} - ${scanType === 'check_in' ? 'Checked In' : 'Checked Out'} (${data.status})`, 'success');
-                    loadTodayStats();
-                    loadRecentScans();
-                } else {
-                    showFeedback(`❌ ${data.error || 'Failed to record attendance'}`, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showFeedback('Network error. Please check your connection.', 'error');
-            });
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const emoji = scanType === 'check_in' ? '✅' : '👋';
+                        showFeedback(`${emoji} ${data.student_name} - ${scanType === 'check_in' ? 'Checked In' : 'Checked Out'} (${data.status})`, 'success');
+                        loadTodayStats();
+                        loadRecentScans();
+                    } else {
+                        showFeedback(`❌ ${data.error || 'Failed to record attendance'}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showFeedback('Network error. Please check your connection.', 'error');
+                });
         }
-        
+
         function showFeedback(message, type) {
             const feedback = document.createElement('div');
             feedback.className = 'scan-feedback';
@@ -1382,12 +1418,12 @@ $active_events = $active_events->fetchAll();
             }
             feedback.innerHTML = message;
             document.body.appendChild(feedback);
-            
+
             setTimeout(() => {
                 feedback.remove();
             }, 3000);
         }
-        
+
         function loadTodayStats() {
             fetch('attendance_api.php?action=today_stats')
                 .then(response => response.json())
@@ -1403,7 +1439,7 @@ $active_events = $active_events->fetchAll();
                     console.error('Error loading stats:', error);
                 });
         }
-        
+
         function loadRecentScans() {
             fetch('attendance_api.php?action=recent_scans')
                 .then(response => response.json())
@@ -1432,7 +1468,7 @@ $active_events = $active_events->fetchAll();
                     console.error('Error loading scans:', error);
                 });
         }
-        
+
         function loadEvents() {
             fetch('attendance_api.php?action=get_active_events')
                 .then(response => response.json())
@@ -1440,7 +1476,7 @@ $active_events = $active_events->fetchAll();
                     if (data.success) {
                         const activeEvents = data.events.filter(e => e.status === 'active');
                         const pastEvents = data.events.filter(e => e.status !== 'active');
-                        
+
                         const activeContainer = document.getElementById('activeEventsList');
                         if (activeEvents.length === 0) {
                             activeContainer.innerHTML = `
@@ -1472,7 +1508,7 @@ $active_events = $active_events->fetchAll();
                                 </div>
                             `).join('');
                         }
-                        
+
                         const pastContainer = document.getElementById('pastEventsList');
                         if (pastEvents.length === 0) {
                             pastContainer.innerHTML = '<p style="text-align:center; color: var(--gray-500); padding: 20px;">No past events</p>';
@@ -1492,7 +1528,7 @@ $active_events = $active_events->fetchAll();
                     }
                 });
         }
-        
+
         function scanForEvent(eventId, type) {
             currentEventId = eventId;
             currentScanType = type;
@@ -1502,77 +1538,81 @@ $active_events = $active_events->fetchAll();
             }
             showFeedback(`Ready to scan for event: ${type === 'check_in' ? 'Check In' : 'Check Out'}`, 'success');
         }
-        
+
         function openEventModal() {
             document.getElementById('eventModal').classList.add('show');
         }
-        
+
         function closeEventModal() {
             document.getElementById('eventModal').classList.remove('show');
             document.getElementById('eventName').value = '';
             document.getElementById('eventType').value = 'check_in';
             document.getElementById('eventClass').value = '';
         }
-        
+
         function createEvent() {
             const eventName = document.getElementById('eventName').value;
             const eventType = document.getElementById('eventType').value;
             const classId = document.getElementById('eventClass').value;
-            
+
             if (!eventName) {
                 showFeedback('Please enter an event name', 'error');
                 return;
             }
-            
+
             fetch('attendance_api.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'create_event',
-                    event_name: eventName,
-                    event_type: eventType,
-                    class_id: classId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    closeEventModal();
-                    showFeedback('Event created successfully!', 'success');
-                    loadEvents();
-                } else {
-                    showFeedback(data.error || 'Failed to create event', 'error');
-                }
-            })
-            .catch(error => {
-                showFeedback('Network error', 'error');
-            });
-        }
-        
-        function closeEvent(eventId) {
-            if (confirm('Close this event? No more scans will be recorded.')) {
-                fetch('attendance_api.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
-                        action: 'close_event',
-                        event_id: eventId
+                        action: 'create_event',
+                        event_name: eventName,
+                        event_type: eventType,
+                        class_id: classId
                     })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showFeedback('Event closed', 'success');
+                        closeEventModal();
+                        showFeedback('Event created successfully!', 'success');
                         loadEvents();
+                    } else {
+                        showFeedback(data.error || 'Failed to create event', 'error');
                     }
+                })
+                .catch(error => {
+                    showFeedback('Network error', 'error');
                 });
+        }
+
+        function closeEvent(eventId) {
+            if (confirm('Close this event? No more scans will be recorded.')) {
+                fetch('attendance_api.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            action: 'close_event',
+                            event_id: eventId
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showFeedback('Event closed', 'success');
+                            loadEvents();
+                        }
+                    });
             }
         }
-        
+
         function viewEventAttendance(eventId) {
             showFeedback('Event attendance details coming soon', 'info');
         }
-        
+
         function showAttendanceList() {
             const date = new Date().toISOString().split('T')[0];
             fetch(`attendance_api.php?action=get_daily_stats&date=${date}`)
@@ -1582,13 +1622,13 @@ $active_events = $active_events->fetchAll();
                         const modal = document.getElementById('attendanceListModal');
                         const title = document.getElementById('attendanceListTitle');
                         const body = document.getElementById('attendanceListBody');
-                        
+
                         title.innerHTML = `Attendance - ${data.date}`;
-                        
+
                         const presentStudents = data.attendance.filter(s => s.scan_type === 'check_in' && s.status !== 'late');
                         const lateStudents = data.attendance.filter(s => s.status === 'late');
                         const absentStudents = data.attendance.filter(s => !s.scan_type);
-                        
+
                         body.innerHTML = `
                             <div class="stats-grid" style="margin-bottom: 16px;">
                                 <div class="stat-card">
@@ -1635,12 +1675,12 @@ $active_events = $active_events->fetchAll();
                                 </div>
                             `).join('') || '<p>No absent students</p>'}
                         `;
-                        
+
                         modal.classList.add('show');
                     }
                 });
         }
-        
+
         function showHistory() {
             const date = new Date().toISOString().split('T')[0];
             fetch(`attendance_api.php?action=get_history&date=${date}`)
@@ -1650,9 +1690,9 @@ $active_events = $active_events->fetchAll();
                         const modal = document.getElementById('attendanceListModal');
                         const title = document.getElementById('attendanceListTitle');
                         const body = document.getElementById('attendanceListBody');
-                        
+
                         title.innerHTML = `Attendance History - ${date}`;
-                        
+
                         if (!data.logs || data.logs.length === 0) {
                             body.innerHTML = '<p style="text-align:center;">No attendance records for this date</p>';
                         } else {
@@ -1678,12 +1718,12 @@ $active_events = $active_events->fetchAll();
                                 </div>
                             `;
                         }
-                        
+
                         modal.classList.add('show');
                     }
                 });
         }
-        
+
         function loadHistoryByDate() {
             const date = document.getElementById('historyDate').value;
             fetch(`attendance_api.php?action=get_history&date=${date}`)
@@ -1711,18 +1751,18 @@ $active_events = $active_events->fetchAll();
                     }
                 });
         }
-        
+
         function loadAbsentList() {
             const classId = document.getElementById('absentClass').value;
             const date = document.getElementById('absentDate').value;
-            
+
             fetch(`attendance_api.php?action=get_daily_stats&date=${date}&class_id=${classId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         const absentStudents = data.attendance.filter(s => !s.scan_type);
                         const container = document.getElementById('absentList');
-                        
+
                         if (absentStudents.length === 0) {
                             container.innerHTML = '<div class="alert alert-success">No absent students for this date!</div>';
                         } else {
@@ -1752,22 +1792,22 @@ $active_events = $active_events->fetchAll();
                     }
                 });
         }
-        
+
         function exportReport() {
             alert('Export feature will be available soon. You can copy the data from the table.');
         }
-        
+
         function closeAttendanceListModal() {
             document.getElementById('attendanceListModal').classList.remove('show');
         }
-        
+
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
+
         // Auto-refresh every 10 seconds
         setInterval(() => {
             if (document.getElementById('tab-scanner').classList.contains('active')) {
@@ -1775,7 +1815,7 @@ $active_events = $active_events->fetchAll();
                 loadRecentScans();
             }
         }, 10000);
-        
+
         // Close modals on outside click
         window.onclick = function(event) {
             const modal = document.getElementById('eventModal');
@@ -1787,11 +1827,11 @@ $active_events = $active_events->fetchAll();
                 closeAttendanceListModal();
             }
         };
-        
+
         // Initial load
         loadTodayStats();
         loadRecentScans();
-        
+
         // Clean up on page unload
         window.addEventListener('beforeunload', function() {
             if (html5QrcodeScanner && isScannerActive) {
@@ -1800,4 +1840,5 @@ $active_events = $active_events->fetchAll();
         });
     </script>
 </body>
+
 </html>

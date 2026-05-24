@@ -992,15 +992,6 @@ if (isset($_GET['get_student'])) {
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
-
     <div class="main-content" id="mainContent">
         <div class="top-header">
             <div class="header-title">
@@ -1781,6 +1772,10 @@ if (isset($_GET['get_student'])) {
             });
         };
     </script>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 </body>
 
 </html>

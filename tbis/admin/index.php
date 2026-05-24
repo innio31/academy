@@ -694,6 +694,7 @@ try {
 
 <body>
 
+    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->

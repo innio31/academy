@@ -1,5 +1,5 @@
 <?php
-// admin/manage-students.php - Complete Student Management with Compact Class List
+// admin/manage-students.php - Complete Student Management with First/Last Name Fields
 session_start();
 
 // Check if admin is logged in
@@ -31,17 +31,45 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 
 // ============================================
+// ENSURE FIRST_NAME & LAST_NAME COLUMNS EXIST
+// ============================================
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM students LIKE 'first_name'");
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE students ADD COLUMN first_name VARCHAR(100) AFTER admission_number");
+    }
+
+    $stmt = $pdo->query("SHOW COLUMNS FROM students LIKE 'last_name'");
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE students ADD COLUMN last_name VARCHAR(100) AFTER first_name");
+    }
+} catch (Exception $e) {
+    error_log("Table alter error: " . $e->getMessage());
+}
+
+// ============================================
 // HANDLE POST REQUESTS
 // ============================================
 
-// Add new student (with auto QR generation)
+// Add new student
 if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
     $admission_number = trim($_POST['admission_number']);
-    $full_name = trim($_POST['full_name']);
+    $first_name = trim($_POST['first_name']);
+    $last_name = trim($_POST['last_name']);
+    $full_name = $first_name . ' ' . $last_name;
     $class_id = $_POST['class_id'];
     $status = 'active';
     $parent_phone = trim($_POST['parent_phone'] ?? '');
     $parent_email = trim($_POST['parent_email'] ?? '');
+
+    // Password: use custom password if provided, otherwise use last_name
+    $custom_password = trim($_POST['password'] ?? '');
+    if (!empty($custom_password)) {
+        $password = password_hash($custom_password, PASSWORD_DEFAULT);
+    } else {
+        $password = password_hash(strtolower($last_name), PASSWORD_DEFAULT);
+    }
 
     // Get class name from class_id
     $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id = ? AND school_id = ?");
@@ -49,12 +77,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
     $class = $stmt->fetch();
     $class_name = $class ? $class['class_name'] : '';
 
-    $surname = explode(' ', $full_name)[0];
-    $password = password_hash(strtolower($surname), PASSWORD_DEFAULT);
-
     try {
-        $stmt = $pdo->prepare("INSERT INTO students (admission_number, password, full_name, class, class_id, status, parent_phone, parent_email, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$admission_number, $password, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email, $school_id]);
+        $stmt = $pdo->prepare("INSERT INTO students (admission_number, first_name, last_name, password, full_name, class, class_id, status, parent_phone, parent_email, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$admission_number, $first_name, $last_name, $password, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email, $school_id]);
 
         $student_id = $pdo->lastInsertId();
 
@@ -87,11 +112,23 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
 if (isset($_POST['action']) && $_POST['action'] === 'update_student') {
     $student_id = $_POST['student_id'];
     $admission_number = trim($_POST['admission_number']);
-    $full_name = trim($_POST['full_name']);
+    $first_name = trim($_POST['first_name']);
+    $last_name = trim($_POST['last_name']);
+    $full_name = $first_name . ' ' . $last_name;
     $class_id = $_POST['class_id'];
     $status = $_POST['status'] ?? 'active';
     $parent_phone = trim($_POST['parent_phone'] ?? '');
     $parent_email = trim($_POST['parent_email'] ?? '');
+
+    // Update password if provided
+    $custom_password = trim($_POST['password'] ?? '');
+    $password_sql = "";
+    $password_params = [];
+    if (!empty($custom_password)) {
+        $hashed_password = password_hash($custom_password, PASSWORD_DEFAULT);
+        $password_sql = ", password = ?";
+        $password_params = [$hashed_password];
+    }
 
     // Get class name
     $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id = ? AND school_id = ?");
@@ -100,8 +137,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_student') {
     $class_name = $class ? $class['class_name'] : '';
 
     try {
-        $stmt = $pdo->prepare("UPDATE students SET admission_number = ?, full_name = ?, class = ?, class_id = ?, status = ?, parent_phone = ?, parent_email = ? WHERE id = ? AND school_id = ?");
-        $stmt->execute([$admission_number, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email, $student_id, $school_id]);
+        $sql = "UPDATE students SET admission_number = ?, first_name = ?, last_name = ?, full_name = ?, class = ?, class_id = ?, status = ?, parent_phone = ?, parent_email = ?" . $password_sql . " WHERE id = ? AND school_id = ?";
+        $params = array_merge([$admission_number, $first_name, $last_name, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email], $password_params, [$student_id, $school_id]);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
 
         // Handle image upload if provided
         if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
@@ -238,12 +277,14 @@ if ($selected_class_id > 0) {
         $params = [$school_id, $selected_class_id];
 
         if (!empty($search_query)) {
-            $sql .= " AND (s.full_name LIKE ? OR s.admission_number LIKE ?)";
+            $sql .= " AND (s.full_name LIKE ? OR s.admission_number LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)";
+            $params[] = "%$search_query%";
+            $params[] = "%$search_query%";
             $params[] = "%$search_query%";
             $params[] = "%$search_query%";
         }
 
-        $sql .= " ORDER BY s.full_name";
+        $sql .= " ORDER BY s.last_name, s.first_name";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $students = $stmt->fetchAll();
@@ -526,7 +567,7 @@ if (isset($_GET['get_student'])) {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
+            padding: 14px 20px;
             border-bottom: 1px solid var(--gray-200);
             cursor: pointer;
             transition: background 0.2s;
@@ -542,7 +583,7 @@ if (isset($_GET['get_student'])) {
 
         .class-name {
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: var(--gray-800);
         }
 
@@ -551,11 +592,7 @@ if (isset($_GET['get_student'])) {
             align-items: center;
             gap: 6px;
             color: var(--gray-600);
-            font-size: 0.8rem;
-        }
-
-        .class-student-count i {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
         }
 
         /* Back Navigation Bar */
@@ -836,6 +873,12 @@ if (isset($_GET['get_student'])) {
             font-size: 0.8rem;
         }
 
+        .form-group label .optional {
+            font-weight: normal;
+            color: var(--gray-600);
+            font-size: 0.7rem;
+        }
+
         .form-control {
             width: 100%;
             padding: 8px 12px;
@@ -843,6 +886,12 @@ if (isset($_GET['get_student'])) {
             border-radius: var(--radius-md);
             font-family: inherit;
             font-size: 0.85rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
         }
 
         .profile-picture-preview {
@@ -895,6 +944,12 @@ if (isset($_GET['get_student'])) {
             color: var(--gray-600);
         }
 
+        .password-hint {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+            margin-top: 5px;
+        }
+
         @media (min-width: 769px) {
             .sidebar {
                 transform: translateX(0);
@@ -926,6 +981,11 @@ if (isset($_GET['get_student'])) {
             .info-label {
                 width: 100%;
                 margin-bottom: 5px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
             }
         }
     </style>
@@ -960,7 +1020,7 @@ if (isset($_GET['get_student'])) {
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1094,7 +1154,7 @@ if (isset($_GET['get_student'])) {
                                 <?php if (!empty($student['profile_picture'])): ?>
                                     <img src="<?php echo htmlspecialchars($student['profile_picture']); ?>" alt="<?php echo htmlspecialchars($student['full_name']); ?>">
                                 <?php else: ?>
-                                    <?php echo strtoupper(substr($student['full_name'], 0, 1)); ?>
+                                    <?php echo strtoupper(substr($student['first_name'] ?: $student['full_name'], 0, 1)); ?>
                                 <?php endif; ?>
                             </div>
                             <div class="student-info">
@@ -1138,19 +1198,25 @@ if (isset($_GET['get_student'])) {
                 <div class="modal-body">
                     <div class="image-preview-container">
                         <img id="addImagePreview" class="profile-picture-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23ddd'/%3E%3Ctext x='50' y='67' text-anchor='middle' fill='%23999' font-size='40'%3E📷%3C/text%3E%3C/svg%3E">
-                        <small>Click to upload photo (max 100KB)</small>
+                        <small style="display: block; text-align: center;">Click to upload photo (max 100KB)</small>
                     </div>
                     <div class="form-group">
                         <label>Profile Picture</label>
                         <input type="file" name="profile_picture" class="form-control" accept="image/jpeg,image/png,image/gif" onchange="previewImage(this, 'addImagePreview')">
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" name="first_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" name="last_name" class="form-control" required>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Admission Number *</label>
                         <input type="text" name="admission_number" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Full Name *</label>
-                        <input type="text" name="full_name" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label>Class *</label>
@@ -1164,6 +1230,13 @@ if (isset($_GET['get_student'])) {
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>Password <span class="optional">(optional - leave blank to use last name)</span></label>
+                        <input type="text" name="password" class="form-control" placeholder="Leave blank to auto-generate from last name">
+                        <div class="password-hint">
+                            <i class="fas fa-info-circle"></i> If left blank, password will be set to student's last name (lowercase)
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label>Parent Phone</label>
                         <input type="text" name="parent_phone" class="form-control">
                     </div>
@@ -1172,7 +1245,7 @@ if (isset($_GET['get_student'])) {
                         <input type="email" name="parent_email" class="form-control">
                     </div>
                     <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i> QR code will be auto-generated. Default password is student's surname (lowercase)
+                        <i class="fas fa-info-circle"></i> QR code will be auto-generated after adding the student.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1196,22 +1269,28 @@ if (isset($_GET['get_student'])) {
                 <div class="modal-body">
                     <div class="image-preview-container">
                         <img id="editImagePreview" class="profile-picture-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23ddd'/%3E%3Ctext x='50' y='67' text-anchor='middle' fill='%23999' font-size='40'%3E📷%3C/text%3E%3C/svg%3E">
-                        <small>Click to change photo (max 100KB)</small>
+                        <small style="display: block; text-align: center;">Click to change photo (max 100KB)</small>
                     </div>
                     <div class="form-group">
                         <label>Profile Picture</label>
                         <input type="file" name="profile_picture" class="form-control" accept="image/jpeg,image/png,image/gif" onchange="previewImage(this, 'editImagePreview')">
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" id="edit_first_name" name="first_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" id="edit_last_name" name="last_name" class="form-control" required>
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label>Admission Number</label>
+                        <label>Admission Number *</label>
                         <input type="text" id="edit_admission_number" name="admission_number" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label>Full Name</label>
-                        <input type="text" id="edit_full_name" name="full_name" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Class</label>
+                        <label>Class *</label>
                         <select name="class_id" id="edit_class_id" class="form-control" required>
                             <option value="">Select Class</option>
                             <?php foreach ($all_classes as $class): ?>
@@ -1220,6 +1299,13 @@ if (isset($_GET['get_student'])) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Password <span class="optional">(optional - leave blank to keep current)</span></label>
+                        <input type="text" name="password" class="form-control" placeholder="Leave blank to keep current password">
+                        <div class="password-hint">
+                            <i class="fas fa-info-circle"></i> Only enter if you want to change the password.
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Parent Phone</label>
@@ -1280,7 +1366,7 @@ if (isset($_GET['get_student'])) {
                 <div id="reader" style="width:100%;"></div>
                 <div id="scanResult" style="display:none; margin-top:15px;">
                     <div class="alert alert-info" id="scanStudentInfo"></div>
-                    <div class="action-buttons" id="scanActions" style="justify-content:center;">
+                    <div class="action-buttons" style="justify-content:center;">
                         <button class="btn btn-primary btn-sm" onclick="viewScannedStudent()">
                             <i class="fas fa-user"></i> View Details
                         </button>
@@ -1429,13 +1515,15 @@ if (isset($_GET['get_student'])) {
             if (student.profile_picture && student.profile_picture.trim() !== '') {
                 profilePicHtml = `<img src="${student.profile_picture}" class="profile-picture-preview" style="width:80px;height:80px;margin:0 auto;">`;
             } else {
-                profilePicHtml = `<div class="student-avatar" style="width:80px;height:80px;margin:0 auto;font-size:1.5rem;">${student.full_name.charAt(0)}</div>`;
+                profilePicHtml = `<div class="student-avatar" style="width:80px;height:80px;margin:0 auto;font-size:1.5rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
             }
 
             modalBody.innerHTML = `
                 <div style="text-align:center; margin-bottom:15px;">${profilePicHtml}</div>
-                <div class="info-row"><div class="info-label">Admission No:</div><div class="info-value"><strong>${student.admission_number}</strong></div></div>
+                <div class="info-row"><div class="info-label">First Name:</div><div class="info-value">${escapeHtml(student.first_name || '—')}</div></div>
+                <div class="info-row"><div class="info-label">Last Name:</div><div class="info-value">${escapeHtml(student.last_name || '—')}</div></div>
                 <div class="info-row"><div class="info-label">Full Name:</div><div class="info-value">${escapeHtml(student.full_name)}</div></div>
+                <div class="info-row"><div class="info-label">Admission No:</div><div class="info-value"><strong>${student.admission_number}</strong></div></div>
                 <div class="info-row"><div class="info-label">Class:</div><div class="info-value">${student.class_name_formatted || student.class}</div></div>
                 <div class="info-row"><div class="info-label">Parent Phone:</div><div class="info-value">${student.parent_phone || 'Not provided'}</div></div>
                 <div class="info-row"><div class="info-label">Parent Email:</div><div class="info-value">${student.parent_email || 'Not provided'}</div></div>
@@ -1479,16 +1567,26 @@ if (isset($_GET['get_student'])) {
 
         function closeAddModal() {
             document.getElementById('addStudentModal').style.display = 'none';
+            // Reset form fields
+            document.querySelector('#addStudentModal input[name="first_name"]').value = '';
+            document.querySelector('#addStudentModal input[name="last_name"]').value = '';
+            document.querySelector('#addStudentModal input[name="admission_number"]').value = '';
+            document.querySelector('#addStudentModal input[name="password"]').value = '';
+            document.querySelector('#addStudentModal input[name="parent_phone"]').value = '';
+            document.querySelector('#addStudentModal input[name="parent_email"]').value = '';
+            document.getElementById('addImagePreview').src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="50" fill="%23ddd"/%3E%3Ctext x="50" y="67" text-anchor="middle" fill="%23999" font-size="40"%3E📷%3C/text%3E%3C/svg%3E';
         }
 
         function openEditModal(student) {
             document.getElementById('edit_student_id').value = student.id;
+            document.getElementById('edit_first_name').value = student.first_name || '';
+            document.getElementById('edit_last_name').value = student.last_name || '';
             document.getElementById('edit_admission_number').value = student.admission_number;
-            document.getElementById('edit_full_name').value = student.full_name;
             document.getElementById('edit_class_id').value = student.class_id;
             document.getElementById('edit_parent_phone').value = student.parent_phone || '';
             document.getElementById('edit_parent_email').value = student.parent_email || '';
             document.getElementById('edit_status').value = student.status;
+            document.querySelector('#editStudentModal input[name="password"]').value = '';
 
             if (student.profile_picture && student.profile_picture.trim() !== '') {
                 document.getElementById('editImagePreview').src = student.profile_picture;
@@ -1631,7 +1729,7 @@ if (isset($_GET['get_student'])) {
         function displayScanResult(student) {
             const scanResult = document.getElementById('scanResult');
             const scanStudentInfo = document.getElementById('scanStudentInfo');
-            let avatarHtml = student.profile_picture ? `<img src="${student.profile_picture}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;">` : `<div style="width:50px;height:50px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2rem;">${student.full_name.charAt(0)}</div>`;
+            let avatarHtml = student.profile_picture ? `<img src="${student.profile_picture}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;">` : `<div style="width:50px;height:50px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
             scanStudentInfo.innerHTML = `<div style="text-align:center;">${avatarHtml}<h4 style="margin:8px 0 4px;">${escapeHtml(student.full_name)}</h4><p style="font-size:0.75rem;">Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p></div>`;
             scanResult.style.display = 'block';
         }
@@ -1662,7 +1760,7 @@ if (isset($_GET['get_student'])) {
             if (student.profile_picture) {
                 avatarDiv.innerHTML = `<img src="${student.profile_picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
             } else {
-                avatarDiv.innerHTML = student.full_name.charAt(0);
+                avatarDiv.innerHTML = student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0);
                 avatarDiv.style.display = 'flex';
                 avatarDiv.style.alignItems = 'center';
                 avatarDiv.style.justifyContent = 'center';

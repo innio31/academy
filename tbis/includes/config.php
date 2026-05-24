@@ -30,7 +30,7 @@ define('SCHOOL_NAME', 'Topfolex British International School');
 define('SCHOOL_PRIMARY', '#FF0000');   // white
 define('SCHOOL_SECONDARY', '#6A5ACD'); // slate blue
 define('SCHOOL_ACCENT', '#FFFFFF');    // red
-define('SCHOOL_LOGO', 'gos/assets/logos/logo.png');  // Added back
+define('SCHOOL_LOGO', 'tbis/assets/logos/logo.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
 define('SCHOOL_ADDRESS', 'Topfolex British International School, Ewekoro, Ogun, Nigeria');  // Added back
 define('SCHOOL_PHONE', '08033627316');  // Added back
@@ -190,7 +190,7 @@ function verifySubscription($pdo, $redirect = true)
             $_SESSION['subscription_message'] = $subscription_status['message'];
 
             // Redirect to subscription expired page
-            header("Location: /gos/subscription-expired.php");
+            header("Location: /tbis/subscription-expired.php");
             exit();
         }
         return false;

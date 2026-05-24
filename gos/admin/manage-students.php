@@ -1,5 +1,5 @@
 <?php
-// admin/manage-students.php - Complete Student Management with Auto QR & Image Upload
+// admin/manage-students.php - Complete Student Management with Compact Class List
 session_start();
 
 // Check if admin is logged in
@@ -200,23 +200,37 @@ if (isset($_POST['action']) && $_POST['action'] === 'remove_picture') {
 }
 
 // ============================================
-// GET STUDENTS (ONLY WHEN CLASS SELECTED)
+// GET DATA
 // ============================================
 
+// Get all classes for display
+$classes = $pdo->prepare("SELECT * FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+$classes->execute([$school_id]);
+$all_classes = $classes->fetchAll();
+
+// Get student count for each class
+foreach ($all_classes as &$class) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE class_id = ? AND school_id = ?");
+    $stmt->execute([$class['id'], $school_id]);
+    $class['student_count'] = $stmt->fetchColumn();
+}
+
+// Get current selected class
 $selected_class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$view_mode = isset($_GET['class_id']) ? 'students' : 'classes';
 
 $students = [];
-$class_info = null;
+$current_class = null;
 
 if ($selected_class_id > 0) {
-    // Get class info
+    // Get current class info
     $stmt = $pdo->prepare("SELECT * FROM classes WHERE id = ? AND school_id = ?");
     $stmt->execute([$selected_class_id, $school_id]);
-    $class_info = $stmt->fetch();
+    $current_class = $stmt->fetch();
 
-    if ($class_info) {
-        // Build query
+    if ($current_class) {
+        // Build query to get students
         $sql = "SELECT s.*, 
                 (SELECT SUM(amount) FROM bills WHERE student_id = s.id AND status != 'paid') as total_owed
                 FROM students s 
@@ -236,11 +250,6 @@ if ($selected_class_id > 0) {
     }
 }
 
-// Get all classes for dropdown
-$classes = $pdo->prepare("SELECT * FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
-$classes->execute([$school_id]);
-$classes = $classes->fetchAll();
-
 // Get student for modal (AJAX)
 if (isset($_GET['get_student'])) {
     $student_id = $_GET['get_student'];
@@ -258,6 +267,7 @@ if (isset($_GET['get_student'])) {
     exit();
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -270,19 +280,32 @@ if (isset($_GET['get_student'])) {
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
+            --primary-dark: #1a5a8a;
             --secondary-color: #d4af7a;
             --success-color: #27ae60;
             --danger-color: #e74c3c;
             --warning-color: #f39c12;
             --info-color: #3498db;
+            --purple-color: #9b59b6;
             --light-color: #ecf0f1;
             --dark-color: #2c3e50;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-400: #9ca3af;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
             --sidebar-width: 260px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         * {
@@ -293,11 +316,12 @@ if (isset($_GET['get_student'])) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
+            background: var(--gray-100);
+            color: var(--gray-800);
             min-height: 100vh;
         }
 
+        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -307,8 +331,9 @@ if (isset($_GET['get_student'])) {
             background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
             color: white;
             padding: 20px 0;
-            transition: all 0.3s ease;
-            z-index: 100;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
             transform: translateX(-100%);
         }
 
@@ -319,9 +344,30 @@ if (isset($_GET['get_student'])) {
         .logo {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             padding: 0 20px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--secondary-color);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .logo-text p {
+            font-size: 0.7rem;
+            opacity: 0.8;
         }
 
         .admin-info {
@@ -357,6 +403,11 @@ if (isset($_GET['get_student'])) {
             background: rgba(255, 255, 255, 0.2);
         }
 
+        .nav-links i {
+            width: 20px;
+        }
+
+        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
@@ -382,18 +433,31 @@ if (isset($_GET['get_student'])) {
         .top-header {
             background: white;
             padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            box-shadow: var(--shadow-sm);
         }
 
+        .header-title h1 {
+            color: var(--primary-color);
+            font-size: 1.4rem;
+            margin-bottom: 4px;
+        }
+
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.75rem;
+        }
+
+        /* Buttons */
         .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 8px 18px;
+            border-radius: var(--radius-md);
             border: none;
             cursor: pointer;
             font-weight: 500;
@@ -401,12 +465,17 @@ if (isset($_GET['get_student'])) {
             align-items: center;
             gap: 8px;
             text-decoration: none;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
         .btn-primary {
             background: var(--primary-color);
             color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
         }
 
         .btn-success {
@@ -429,67 +498,164 @@ if (isset($_GET['get_student'])) {
             color: white;
         }
 
-        .btn-small {
-            padding: 6px 12px;
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray-200);
+            color: var(--gray-800);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.7rem;
+        }
+
+        /* Class List - Compact View */
+        .class-list {
+            background: white;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .class-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .class-item:hover {
+            background: var(--gray-50);
+        }
+
+        .class-item:last-child {
+            border-bottom: none;
+        }
+
+        .class-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--gray-800);
+        }
+
+        .class-student-count {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--gray-600);
             font-size: 0.8rem;
         }
 
-        .class-selector {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .class-selector-form {
-            display: flex;
-            gap: 15px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .class-selector-form .form-group {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 10px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-family: inherit;
+        .class-student-count i {
             font-size: 0.9rem;
         }
 
-        select.form-control,
-        input[type="file"].form-control {
-            cursor: pointer;
-            padding: 8px 15px;
+        /* Back Navigation Bar */
+        .back-nav {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
         }
 
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .back-btn:hover {
+            text-decoration: underline;
+        }
+
+        .class-dropdown {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .class-dropdown span {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+
+        .class-dropdown select {
+            padding: 8px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        /* Search Bar */
+        .search-bar {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .search-bar input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 15px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        /* Student List */
         .students-list {
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-lg);
             overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
 
         .student-item {
             display: flex;
             align-items: center;
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--gray-200);
             cursor: pointer;
-            transition: background 0.3s ease;
+            transition: background 0.2s;
         }
 
         .student-item:hover {
-            background: #f8f9fa;
+            background: var(--gray-50);
         }
 
         .student-avatar {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
@@ -497,7 +663,7 @@ if (isset($_GET['get_student'])) {
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 1.2rem;
+            font-size: 1rem;
             margin-right: 15px;
             flex-shrink: 0;
             overflow: hidden;
@@ -515,28 +681,62 @@ if (isset($_GET['get_student'])) {
 
         .student-name {
             font-weight: 600;
-            font-size: 1rem;
-            color: #333;
+            font-size: 0.9rem;
+            color: var(--gray-800);
         }
 
         .student-admission {
-            font-size: 0.8rem;
-            color: #666;
+            font-size: 0.7rem;
+            color: var(--gray-600);
         }
 
         .student-checkbox {
             margin-right: 15px;
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             cursor: pointer;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 600;
         }
 
+        .status-active {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: var(--danger-color);
+        }
+
+        .bulk-bar {
+            background: white;
+            padding: 12px 20px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .selected-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+        }
+
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -545,23 +745,23 @@ if (isset($_GET['get_student'])) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+            z-index: 10000;
             align-items: center;
             justify-content: center;
         }
 
         .modal-content {
             background: white;
-            border-radius: 15px;
+            border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 650px;
+            max-width: 600px;
             max-height: 90vh;
             overflow-y: auto;
         }
 
         .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -570,13 +770,17 @@ if (isset($_GET['get_student'])) {
             background: white;
         }
 
+        .modal-header h3 {
+            font-size: 1rem;
+        }
+
         .modal-body {
             padding: 20px;
         }
 
         .modal-footer {
-            padding: 20px;
-            border-top: 1px solid #eee;
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
             display: flex;
             justify-content: flex-end;
             gap: 10px;
@@ -588,14 +792,19 @@ if (isset($_GET['get_student'])) {
         .close-modal {
             background: none;
             border: none;
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             cursor: pointer;
+            color: var(--gray-600);
         }
 
         .alert {
-            padding: 12px 20px;
-            border-radius: 8px;
+            padding: 10px 15px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
         }
 
         .alert-success {
@@ -616,96 +825,6 @@ if (isset($_GET['get_student'])) {
             border-left: 4px solid var(--info-color);
         }
 
-        .info-row {
-            display: flex;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .info-label {
-            width: 140px;
-            font-weight: 600;
-            color: #666;
-        }
-
-        .info-value {
-            flex: 1;
-            color: #333;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .bulk-bar {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .profile-picture-preview {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin: 10px auto;
-            display: block;
-            border: 3px solid var(--primary-color);
-        }
-
-        .qr-code-img {
-            max-width: 150px;
-            margin: 10px auto;
-            display: block;
-            border: 1px solid #ddd;
-            padding: 5px;
-        }
-
-        .selected-count {
-            background: var(--primary-color);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .status-active {
-            background: #d5f4e6;
-            color: var(--success-color);
-        }
-
-        .status-inactive {
-            background: #f8d7da;
-            color: var(--danger-color);
-        }
-
-        .status-archived {
-            background: #fff3cd;
-            color: var(--warning-color);
-        }
-
-        .image-preview-container {
-            text-align: center;
-            margin-bottom: 15px;
-        }
-
         .form-group {
             margin-bottom: 15px;
         }
@@ -714,7 +833,66 @@ if (isset($_GET['get_student'])) {
             display: block;
             margin-bottom: 5px;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        .profile-picture-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 10px auto;
+            display: block;
+            border: 3px solid var(--primary-color);
+        }
+
+        .info-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .info-label {
+            width: 120px;
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 0.8rem;
+        }
+
+        .info-value {
+            flex: 1;
+            color: var(--gray-800);
+            font-size: 0.85rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .qr-code-img {
+            max-width: 120px;
+            margin: 10px auto;
+            display: block;
+            border: 1px solid var(--gray-200);
+            padding: 5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-600);
         }
 
         @media (min-width: 769px) {
@@ -732,17 +910,13 @@ if (isset($_GET['get_student'])) {
         }
 
         @media (max-width: 768px) {
-            .class-selector-form {
-                flex-direction: column;
+            .main-content {
+                padding-top: 70px;
             }
 
-            .bulk-bar {
+            .back-nav {
                 flex-direction: column;
-                align-items: stretch;
-            }
-
-            .action-buttons {
-                justify-content: center;
+                align-items: flex-start;
             }
 
             .info-row {
@@ -754,121 +928,6 @@ if (isset($_GET['get_student'])) {
                 margin-bottom: 5px;
             }
         }
-
-        .text-muted {
-            color: #999;
-        }
-
-        .mt-2 {
-            margin-top: 10px;
-        }
-
-        /* Additional styles for scan feature */
-        .quick-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-
-        .attendance-summary {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-
-        .bill-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .bill-amount {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .bill-status-pending {
-            color: var(--warning-color);
-        }
-
-        .bill-status-paid {
-            color: var(--success-color);
-        }
-
-        .total-amount {
-            font-size: 1.3rem;
-            font-weight: bold;
-            text-align: right;
-            padding-top: 15px;
-            margin-top: 15px;
-            border-top: 2px solid #eee;
-        }
-
-        /* Bill item styles */
-        .bill-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .bill-amount {
-            font-size: 1.1rem;
-            font-weight: bold;
-        }
-
-        .bill-status-pending {
-            color: #e74c3c;
-        }
-
-        .bill-status-paid {
-            color: #27ae60;
-        }
-
-        .total-amount {
-            font-size: 1.2rem;
-            font-weight: bold;
-            text-align: right;
-            padding-top: 15px;
-            margin-top: 15px;
-            border-top: 2px solid #eee;
-        }
-
-        /* Attendance modal styles */
-        #attendanceStudentAvatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            color: white;
-            margin: 0 auto;
-            overflow: hidden;
-        }
-
-        /* Fix for modal z-index */
-        .modal {
-            z-index: 10000;
-        }
-
-        /* Scanner result styles */
-        #scanResult {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 15px;
-            border: 1px solid #ddd;
-        }
     </style>
 </head>
 
@@ -879,6 +938,7 @@ if (isset($_GET['get_student'])) {
 
     <div class="sidebar" id="sidebar">
         <div class="logo">
+            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
             <div class="logo-text">
                 <h3><?php echo $school_name; ?></h3>
                 <p>Admin Panel</p>
@@ -895,21 +955,20 @@ if (isset($_GET['get_student'])) {
             <li><a href="manage-students.php" class="active"><i class="fas fa-users"></i> Manage Students</a></li>
             <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
             <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-book"></i> Manage Classes</a></li>
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
     <div class="main-content" id="mainContent">
         <div class="top-header">
-            <div>
+            <div class="header-title">
                 <h1>Manage Students</h1>
-                <p>Select a class to view and manage students</p>
+                <p><?php echo $view_mode === 'students' && $current_class ? 'Viewing: ' . htmlspecialchars($current_class['class_name']) : 'Select a class to manage students'; ?></p>
             </div>
             <div>
                 <button class="btn btn-info" onclick="openScanner()">
@@ -928,48 +987,79 @@ if (isset($_GET['get_student'])) {
             </div>
         <?php endif; ?>
 
-        <!-- Class Selector -->
-        <div class="class-selector">
-            <form method="GET" class="class-selector-form">
-                <div class="form-group">
-                    <label>Select Class</label>
-                    <select name="class_id" class="form-control" required onchange="this.form.submit()">
-                        <option value="">-- Select a class --</option>
-                        <?php foreach ($classes as $class): ?>
+        <!-- CLASSES VIEW (when no class selected) -->
+        <?php if ($view_mode === 'classes'): ?>
+            <div class="class-list">
+                <?php foreach ($all_classes as $class): ?>
+                    <div class="class-item" onclick="window.location.href='?class_id=<?php echo $class['id']; ?>'">
+                        <div class="class-name">
+                            <i class="fas fa-chalkboard" style="color: var(--primary-color); width: 24px;"></i>
+                            <?php echo htmlspecialchars($class['class_name']); ?>
+                        </div>
+                        <div class="class-student-count">
+                            <i class="fas fa-user-graduate"></i>
+                            <?php echo $class['student_count']; ?> student<?php echo $class['student_count'] != 1 ? 's' : ''; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+
+                <?php if (empty($all_classes)): ?>
+                    <div class="empty-state">
+                        <i class="fas fa-layer-group" style="font-size: 40px; margin-bottom: 12px; color: var(--gray-400);"></i>
+                        <p>No classes found. Please add classes first.</p>
+                        <a href="manage-classes.php" class="btn btn-primary" style="margin-top: 10px;">Manage Classes</a>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- STUDENTS VIEW (when class selected) -->
+        <?php elseif ($view_mode === 'students' && $current_class): ?>
+
+            <!-- Back Navigation Bar -->
+            <div class="back-nav">
+                <div>
+                    <button class="back-btn" onclick="window.location.href='manage-students.php'">
+                        <i class="fas fa-arrow-left"></i> Back to Classes
+                    </button>
+                </div>
+                <div class="class-dropdown">
+                    <span>Switch class:</span>
+                    <select id="classDropdown" onchange="switchClass(this.value)">
+                        <?php foreach ($all_classes as $class): ?>
                             <option value="<?php echo $class['id']; ?>" <?php echo $selected_class_id == $class['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($class['class_name']); ?> (<?php echo htmlspecialchars($class['class_code']); ?>)
+                                <?php echo htmlspecialchars($class['class_name']); ?> (<?php echo $class['student_count']; ?> students)
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <?php if ($selected_class_id > 0): ?>
-                    <div class="form-group">
-                        <input type="text" name="search" class="form-control" placeholder="Search students..." value="<?php echo htmlspecialchars($search_query); ?>">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Search</button>
-                    <a href="manage-students.php?class_id=<?php echo $selected_class_id; ?>" class="btn btn-warning">Reset</a>
-                <?php endif; ?>
-            </form>
-        </div>
+            </div>
 
-        <?php if ($selected_class_id > 0 && $class_info): ?>
+            <!-- Search Bar -->
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search by name or admission number..." value="<?php echo htmlspecialchars($search_query); ?>">
+                <button class="btn btn-primary" onclick="searchStudents()"><i class="fas fa-search"></i> Search</button>
+                <?php if (!empty($search_query)): ?>
+                    <a href="?class_id=<?php echo $selected_class_id; ?>" class="btn btn-outline"><i class="fas fa-times"></i> Clear</a>
+                <?php endif; ?>
+            </div>
+
             <!-- Bulk Actions Bar -->
             <div class="bulk-bar">
                 <div>
-                    <label>
+                    <label style="font-size: 0.85rem;">
                         <input type="checkbox" id="selectAll"> Select All
                     </label>
                     <span id="selectedCount" class="selected-count" style="margin-left: 10px;">0 selected</span>
                 </div>
 
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <form method="POST" id="transferForm" style="display: inline-flex; gap: 10px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <form method="POST" id="transferForm" style="display: inline-flex; gap: 8px;">
                         <input type="hidden" name="action" value="transfer_students">
                         <input type="hidden" name="selected_students" id="transferSelectedStudents">
                         <input type="hidden" name="current_class_id" value="<?php echo $selected_class_id; ?>">
-                        <select name="target_class_id" class="form-control" style="width: auto;" required>
-                            <option value="">Transfer/Promote to...</option>
-                            <?php foreach ($classes as $class): ?>
+                        <select name="target_class_id" class="form-control" style="width: auto; padding: 6px 10px;" required>
+                            <option value="">Move to...</option>
+                            <?php foreach ($all_classes as $class): ?>
                                 <?php if ($class['id'] != $selected_class_id): ?>
                                     <option value="<?php echo $class['id']; ?>">
                                         <?php echo htmlspecialchars($class['class_name']); ?>
@@ -977,13 +1067,13 @@ if (isset($_GET['get_student'])) {
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </select>
-                        <button type="submit" class="btn btn-success" onclick="return prepareTransfer()">
-                            <i class="fas fa-arrow-right"></i> Move Selected
+                        <button type="submit" class="btn btn-success btn-sm" onclick="return prepareTransfer()">
+                            <i class="fas fa-arrow-right"></i> Move
                         </button>
                     </form>
 
-                    <a href="bulk_generate_qr.php?class_id=<?php echo $selected_class_id; ?>" class="btn btn-info">
-                        <i class="fas fa-qrcode"></i> Generate Class QR Codes
+                    <a href="bulk_generate_qr.php?class_id=<?php echo $selected_class_id; ?>" class="btn btn-info btn-sm">
+                        <i class="fas fa-qrcode"></i> Generate QR Codes
                     </a>
                 </div>
             </div>
@@ -992,9 +1082,9 @@ if (isset($_GET['get_student'])) {
             <div class="students-list">
                 <?php if (empty($students)): ?>
                     <div class="empty-state">
-                        <i class="fas fa-user-graduate" style="font-size: 48px; margin-bottom: 15px;"></i>
-                        <p>No students found in this class</p>
-                        <button class="btn btn-primary" onclick="openAddModal()">Add Student</button>
+                        <i class="fas fa-user-graduate" style="font-size: 40px; margin-bottom: 12px; color: var(--gray-400);"></i>
+                        <p>No students found in <?php echo htmlspecialchars($current_class['class_name']); ?></p>
+                        <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="margin-top: 10px;">Add Student</button>
                     </div>
                 <?php else: ?>
                     <?php foreach ($students as $student): ?>
@@ -1019,16 +1109,6 @@ if (isset($_GET['get_student'])) {
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
-            </div>
-        <?php elseif ($selected_class_id > 0 && !$class_info): ?>
-            <div class="alert alert-error">
-                <i class="fas fa-exclamation-triangle"></i> Class not found
-            </div>
-        <?php else: ?>
-            <div class="empty-state">
-                <i class="fas fa-layer-group" style="font-size: 48px; margin-bottom: 15px;"></i>
-                <p>Please select a class to view students</p>
-                <a href="manage-classes.php" class="btn btn-primary">Manage Classes</a>
             </div>
         <?php endif; ?>
     </div>
@@ -1076,7 +1156,7 @@ if (isset($_GET['get_student'])) {
                         <label>Class *</label>
                         <select name="class_id" class="form-control" required>
                             <option value="">Select Class</option>
-                            <?php foreach ($classes as $class): ?>
+                            <?php foreach ($all_classes as $class): ?>
                                 <option value="<?php echo $class['id']; ?>" <?php echo $selected_class_id == $class['id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($class['class_name']); ?>
                                 </option>
@@ -1096,7 +1176,7 @@ if (isset($_GET['get_student'])) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-warning" onclick="closeAddModal()">Cancel</button>
+                    <button type="button" class="btn btn-outline" onclick="closeAddModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Add Student</button>
                 </div>
             </form>
@@ -1134,7 +1214,7 @@ if (isset($_GET['get_student'])) {
                         <label>Class</label>
                         <select name="class_id" id="edit_class_id" class="form-control" required>
                             <option value="">Select Class</option>
-                            <?php foreach ($classes as $class): ?>
+                            <?php foreach ($all_classes as $class): ?>
                                 <option value="<?php echo $class['id']; ?>">
                                     <?php echo htmlspecialchars($class['class_name']); ?>
                                 </option>
@@ -1159,7 +1239,7 @@ if (isset($_GET['get_student'])) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-warning" onclick="closeEditModal()">Cancel</button>
+                    <button type="button" class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Update Student</button>
                 </div>
             </form>
@@ -1168,28 +1248,28 @@ if (isset($_GET['get_student'])) {
 
     <!-- QR Code Modal -->
     <div class="modal" id="qrModal">
-        <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-content" style="max-width: 380px;">
             <div class="modal-header">
                 <h3><i class="fas fa-qrcode"></i> <span id="qrStudentName"></span></h3>
                 <button class="close-modal" onclick="closeQRModal()">&times;</button>
             </div>
             <div class="modal-body" style="text-align:center;">
-                <img id="qrCodeImage" src="" style="width:250px; height:250px; margin:10px auto; border:1px solid #ddd; padding:10px;">
-                <div class="alert alert-info" style="margin-top: 10px;">
+                <img id="qrCodeImage" src="" style="width:200px; height:200px; margin:10px auto; border:1px solid #ddd; padding:8px;">
+                <div class="alert alert-info" style="margin-top: 10px; font-size:0.75rem;">
                     <i class="fas fa-print"></i> Print and stick on student's ID card
                 </div>
-                <div class="action-buttons" style="justify-content:center; margin-top: 10px;">
-                    <button class="btn btn-primary" onclick="printQRCode()"><i class="fas fa-print"></i> Print</button>
-                    <button class="btn btn-success" onclick="downloadQRCode()"><i class="fas fa-download"></i> Download</button>
+                <div class="action-buttons" style="justify-content:center; margin-top: 8px;">
+                    <button class="btn btn-primary btn-sm" onclick="printQRCode()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-success btn-sm" onclick="downloadQRCode()"><i class="fas fa-download"></i> Download</button>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-warning" onclick="closeQRModal()">Close</button>
+                <button class="btn btn-outline btn-sm" onclick="closeQRModal()">Close</button>
             </div>
         </div>
     </div>
 
-    <!-- Scan QR Modal - Enhanced Version -->
+    <!-- Scan QR Modal -->
     <div class="modal" id="scanModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1201,26 +1281,23 @@ if (isset($_GET['get_student'])) {
                 <div id="scanResult" style="display:none; margin-top:15px;">
                     <div class="alert alert-info" id="scanStudentInfo"></div>
                     <div class="action-buttons" id="scanActions" style="justify-content:center;">
-                        <button class="btn btn-primary" onclick="viewScannedStudent()">
-                            <i class="fas fa-user"></i> View Full Details
+                        <button class="btn btn-primary btn-sm" onclick="viewScannedStudent()">
+                            <i class="fas fa-user"></i> View Details
                         </button>
-                        <button class="btn btn-success" onclick="markAttendanceFromScan()">
+                        <button class="btn btn-success btn-sm" onclick="markAttendanceFromScan()">
                             <i class="fas fa-calendar-check"></i> Mark Attendance
-                        </button>
-                        <button class="btn btn-info" onclick="viewBillsFromScan()">
-                            <i class="fas fa-money-bill"></i> View Bills
                         </button>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" onclick="startScanner()"><i class="fas fa-play"></i> Start Camera</button>
-                <button class="btn btn-warning" onclick="stopScanner()"><i class="fas fa-stop"></i> Stop Camera</button>
+                <button class="btn btn-primary btn-sm" onclick="startScanner()"><i class="fas fa-play"></i> Start Camera</button>
+                <button class="btn btn-outline btn-sm" onclick="stopScanner()"><i class="fas fa-stop"></i> Stop Camera</button>
             </div>
         </div>
     </div>
 
-    <!-- Attendance Modal (for marking attendance from scan) -->
+    <!-- Attendance Modal -->
     <div class="modal" id="attendanceModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1231,10 +1308,10 @@ if (isset($_GET['get_student'])) {
                 <input type="hidden" name="action" value="mark_attendance">
                 <input type="hidden" name="student_id" id="attendanceStudentId">
                 <div class="modal-body">
-                    <div style="text-align:center; margin-bottom:20px;">
-                        <div id="attendanceStudentAvatar" class="student-avatar" style="width:80px;height:80px;margin:0 auto;">📷</div>
-                        <h3 id="attendanceStudentName" style="margin-top:10px;"></h3>
-                        <p id="attendanceStudentClass" style="color:#666;"></p>
+                    <div style="text-align:center; margin-bottom:15px;">
+                        <div id="attendanceStudentAvatar" class="student-avatar" style="width:60px;height:60px;margin:0 auto;font-size:1.5rem;">📷</div>
+                        <h3 id="attendanceStudentName" style="margin-top:8px; font-size:1rem;"></h3>
+                        <p id="attendanceStudentClass" style="color:#666; font-size:0.75rem;"></p>
                     </div>
                     <div class="form-group">
                         <label>Attendance Status</label>
@@ -1248,34 +1325,19 @@ if (isset($_GET['get_student'])) {
                         <label>Date</label>
                         <input type="date" name="date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
                     </div>
-                    <div class="alert alert-info" id="attendanceInfo"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-warning" onclick="closeAttendanceModal()">Cancel</button>
-                    <button type="submit" class="btn btn-success">Save Attendance</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeAttendanceModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm">Save Attendance</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Bills Modal (for viewing bills from scan) -->
-    <div class="modal" id="billsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-money-bill-wave"></i> Student Bills & Payments</h3>
-                <button class="close-modal" onclick="closeBillsModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="billsModalBody">
-                <div style="text-align:center;">Loading...</div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        let html5QrcodeScanner = null;
+        let currentScanner = null;
         let currentStudentData = null;
         let scannedStudentData = null;
-        let currentScanner = null;
 
         // Sidebar toggle
         document.getElementById('mobileMenuBtn').onclick = () => {
@@ -1293,6 +1355,21 @@ if (isset($_GET['get_student'])) {
             }
         }
 
+        // Class switcher
+        function switchClass(classId) {
+            window.location.href = '?class_id=' + classId;
+        }
+
+        // Search students
+        function searchStudents() {
+            const searchTerm = document.getElementById('searchInput').value;
+            window.location.href = '?class_id=<?php echo $selected_class_id; ?>&search=' + encodeURIComponent(searchTerm);
+        }
+
+        document.getElementById('searchInput')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchStudents();
+        });
+
         // Checkbox selection
         function updateSelectedCount() {
             const checked = document.querySelectorAll('.student-checkbox:checked').length;
@@ -1300,7 +1377,7 @@ if (isset($_GET['get_student'])) {
             if (countSpan) countSpan.innerHTML = checked + ' selected';
             const selectAll = document.getElementById('selectAll');
             const allBoxes = document.querySelectorAll('.student-checkbox');
-            if (selectAll) selectAll.checked = checked === allBoxes.length && checked > 0;
+            if (selectAll && allBoxes.length) selectAll.checked = checked === allBoxes.length && checked > 0;
         }
 
         if (document.getElementById('selectAll')) {
@@ -1311,22 +1388,20 @@ if (isset($_GET['get_student'])) {
         }
 
         document.querySelectorAll('.student-checkbox').forEach(cb => cb.addEventListener('change', updateSelectedCount));
+        updateSelectedCount();
 
         function prepareTransfer() {
             const selected = [];
             document.querySelectorAll('.student-checkbox:checked').forEach(cb => selected.push(cb.value));
-
             if (selected.length === 0) {
                 alert('Please select at least one student to transfer');
                 return false;
             }
-
             const targetClass = document.querySelector('select[name="target_class_id"]').value;
             if (!targetClass) {
                 alert('Please select a target class');
                 return false;
             }
-
             document.getElementById('transferSelectedStudents').value = selected.join(',');
             return confirm(`Transfer ${selected.length} student(s) to the selected class?`);
         }
@@ -1334,7 +1409,6 @@ if (isset($_GET['get_student'])) {
         // View student details
         function viewStudent(studentId, event) {
             if (event.target.type === 'checkbox') return;
-
             fetch(`?get_student=${studentId}`)
                 .then(response => response.json())
                 .then(data => {
@@ -1349,76 +1423,33 @@ if (isset($_GET['get_student'])) {
 
         function displayStudentModal(student) {
             const modalBody = document.getElementById('studentModalBody');
-
-            // Use the QR generation endpoint
-            const qrImageUrl = `generate_qr.php?student_id=${student.id}&mode=display`;
+            const qrImageUrl = `generate_qr.php?student_id=${student.id}&mode=display&t=${Date.now()}`;
 
             let profilePicHtml = '';
             if (student.profile_picture && student.profile_picture.trim() !== '') {
-                profilePicHtml = `<img src="${student.profile_picture}" class="profile-picture-preview" style="width:100px;height:100px;margin:0 auto;">`;
+                profilePicHtml = `<img src="${student.profile_picture}" class="profile-picture-preview" style="width:80px;height:80px;margin:0 auto;">`;
             } else {
-                profilePicHtml = `<div class="student-avatar" style="width:100px;height:100px;margin:0 auto;font-size:2rem;">${student.full_name.charAt(0)}</div>`;
+                profilePicHtml = `<div class="student-avatar" style="width:80px;height:80px;margin:0 auto;font-size:1.5rem;">${student.full_name.charAt(0)}</div>`;
             }
 
             modalBody.innerHTML = `
-                <div style="text-align:center; margin-bottom:20px;">
-                    ${profilePicHtml}
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Admission No:</div>
-                    <div class="info-value"><strong>${student.admission_number}</strong></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Full Name:</div>
-                    <div class="info-value">${escapeHtml(student.full_name)}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Class:</div>
-                    <div class="info-value">${student.class_name_formatted || student.class}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Parent Phone:</div>
-                    <div class="info-value">${student.parent_phone || 'Not provided'}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Parent Email:</div>
-                    <div class="info-value">${student.parent_email || 'Not provided'}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Status:</div>
-                    <div class="info-value">
-                        <span class="status-badge status-${student.status}">${student.status.toUpperCase()}</span>
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">QR Code:</div>
-                    <div class="info-value">
-                        <img src="${qrImageUrl}" class="qr-code-img" alt="QR Code" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'150\\' height=\\'150\\' viewBox=\\'0 0 150 150\\'%3E%3Crect width=\\'150\\' height=\\'150\\' fill=\\'%23f0f0f0\\'/%3E%3Ctext x=\\'75\\' y=\\'75\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%23999\\' font-size=\\'12\\'%3EQR Code%3C/text%3E%3C/svg%3E'">
-                        <div class="mt-2">
-                            <button class="btn btn-info btn-small" onclick="showQRCode(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')">
-                                <i class="fas fa-expand"></i> View Full Size
-                            </button>
-                            <button class="btn btn-warning btn-small" onclick="regenerateQR(${student.id})">
-                                <i class="fas fa-sync-alt"></i> Regenerate QR
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <div style="text-align:center; margin-bottom:15px;">${profilePicHtml}</div>
+                <div class="info-row"><div class="info-label">Admission No:</div><div class="info-value"><strong>${student.admission_number}</strong></div></div>
+                <div class="info-row"><div class="info-label">Full Name:</div><div class="info-value">${escapeHtml(student.full_name)}</div></div>
+                <div class="info-row"><div class="info-label">Class:</div><div class="info-value">${student.class_name_formatted || student.class}</div></div>
+                <div class="info-row"><div class="info-label">Parent Phone:</div><div class="info-value">${student.parent_phone || 'Not provided'}</div></div>
+                <div class="info-row"><div class="info-label">Parent Email:</div><div class="info-value">${student.parent_email || 'Not provided'}</div></div>
+                <div class="info-row"><div class="info-label">Status:</div><div class="info-value"><span class="status-badge status-${student.status}">${student.status.toUpperCase()}</span></div></div>
+                <div class="info-row"><div class="info-label">QR Code:</div><div class="info-value"><img src="${qrImageUrl}" class="qr-code-img"><div class="mt-2"><button class="btn btn-info btn-sm" onclick="showQRCode(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')"><i class="fas fa-expand"></i> View Full Size</button> <button class="btn btn-warning btn-sm" onclick="regenerateQR(${student.id})"><i class="fas fa-sync-alt"></i> Regenerate QR</button></div></div></div>
                 <div class="action-buttons">
-                    <button class="btn btn-primary" onclick="editStudentFromModal()">
-                        <i class="fas fa-edit"></i> Edit Student
-                    </button>
-                    <form method="POST" action="manage-students.php?class_id=${currentClassId()}" style="display:inline;">
+                    <button class="btn btn-primary btn-sm" onclick="editStudentFromModal()"><i class="fas fa-edit"></i> Edit</button>
+                    <form method="POST" action="manage-students.php?class_id=<?php echo $selected_class_id; ?>" style="display:inline;">
                         <input type="hidden" name="action" value="remove_picture">
                         <input type="hidden" name="student_id" value="${student.id}">
-                        <input type="hidden" name="class_id" value="${currentClassId()}">
-                        <button type="submit" class="btn btn-warning" onclick="return confirm('Remove profile picture?')">
-                            <i class="fas fa-image"></i> Remove Photo
-                        </button>
+                        <input type="hidden" name="class_id" value="<?php echo $selected_class_id; ?>">
+                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Remove profile picture?')"><i class="fas fa-image"></i> Remove Photo</button>
                     </form>
-                    <button class="btn btn-danger" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')"><i class="fas fa-trash"></i> Delete</button>
                 </div>
             `;
             document.getElementById('studentModal').style.display = 'flex';
@@ -1429,10 +1460,6 @@ if (isset($_GET['get_student'])) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }
-
-        function currentClassId() {
-            return <?php echo $selected_class_id; ?>;
         }
 
         function editStudentFromModal() {
@@ -1446,14 +1473,12 @@ if (isset($_GET['get_student'])) {
             document.getElementById('studentModal').style.display = 'none';
         }
 
-        // Modal functions
         function openAddModal() {
             document.getElementById('addStudentModal').style.display = 'flex';
         }
 
         function closeAddModal() {
             document.getElementById('addStudentModal').style.display = 'none';
-            document.getElementById('addImagePreview').src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'50\' fill=\'%23ddd\'/%3E%3Ctext x=\'50\' y=\'67\' text-anchor=\'middle\' fill=\'%23999\' font-size=\'40\'%3E📷%3C/text%3E%3C/svg%3E';
         }
 
         function openEditModal(student) {
@@ -1465,13 +1490,11 @@ if (isset($_GET['get_student'])) {
             document.getElementById('edit_parent_email').value = student.parent_email || '';
             document.getElementById('edit_status').value = student.status;
 
-            // Set image preview
             if (student.profile_picture && student.profile_picture.trim() !== '') {
                 document.getElementById('editImagePreview').src = student.profile_picture;
             } else {
-                document.getElementById('editImagePreview').src = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'50\' fill=\'%23ddd\'/%3E%3Ctext x=\'50\' y=\'67\' text-anchor=\'middle\' fill=\'%23999\' font-size=\'40\'%3E📷%3C/text%3E%3C/svg%3E';
+                document.getElementById('editImagePreview').src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="50" fill="%23ddd"/%3E%3Ctext x="50" y="67" text-anchor="middle" fill="%23999" font-size="40"%3E📷%3C/text%3E%3C/svg%3E';
             }
-
             document.getElementById('editStudentModal').style.display = 'flex';
         }
 
@@ -1483,17 +1506,12 @@ if (isset($_GET['get_student'])) {
             if (confirm(`Delete student "${name}"? This cannot be undone.`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.innerHTML = `
-                    <input type="hidden" name="action" value="delete_student">
-                    <input type="hidden" name="student_id" value="${id}">
-                    <input type="hidden" name="class_id" value="${currentClassId()}">
-                `;
+                form.innerHTML = `<input type="hidden" name="action" value="delete_student"><input type="hidden" name="student_id" value="${id}"><input type="hidden" name="class_id" value="<?php echo $selected_class_id; ?>">`;
                 document.body.appendChild(form);
                 form.submit();
             }
         }
 
-        // QR Code functions
         function showQRCode(studentId, studentName) {
             document.getElementById('qrStudentName').innerText = studentName;
             document.getElementById('qrCodeImage').src = `generate_qr.php?student_id=${studentId}&mode=display&t=${Date.now()}`;
@@ -1507,7 +1525,6 @@ if (isset($_GET['get_student'])) {
                     .then(data => {
                         if (data.success) {
                             alert('QR code generated successfully!');
-                            // Refresh the student modal
                             viewStudent(studentId, {
                                 target: {
                                     type: ''
@@ -1517,10 +1534,7 @@ if (isset($_GET['get_student'])) {
                             alert('Error: ' + (data.error || 'Unknown error'));
                         }
                     })
-                    .catch(error => {
-                        alert('Error generating QR code');
-                        console.error(error);
-                    });
+                    .catch(error => alert('Error generating QR code'));
             }
         }
 
@@ -1531,43 +1545,7 @@ if (isset($_GET['get_student'])) {
         function printQRCode() {
             const img = document.getElementById('qrCodeImage');
             const win = window.open('');
-            win.document.write(`
-                <html>
-                    <head>
-                        <title>Print QR Code</title>
-                        <style>
-                            body {
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                height: 100vh;
-                                margin: 0;
-                                font-family: Arial, sans-serif;
-                            }
-                            .container {
-                                text-align: center;
-                            }
-                            img {
-                                width: 300px;
-                                height: 300px;
-                                border: 2px solid #ddd;
-                                padding: 10px;
-                            }
-                            h3 {
-                                margin-top: 20px;
-                                color: #333;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <img src="${img.src}">
-                            <h3>Student QR Code</h3>
-                        </div>
-                        <script>window.print();<\/script>
-                    </body>
-                </html>
-            `);
+            win.document.write(`<html><head><title>Print QR Code</title><style>body{display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}img{width:250px;height:250px;border:1px solid #ddd;padding:10px;}</style></head><body><img src="${img.src}"><script>window.print();<\/script></body></html>`);
         }
 
         function downloadQRCode() {
@@ -1577,34 +1555,23 @@ if (isset($_GET['get_student'])) {
             link.click();
         }
 
-        // Scanner functions (UPDATED with working code)
-        let currentScannedStudent = null;
-
+        // Scanner functions
         function openScanner() {
             document.getElementById('scanModal').style.display = 'flex';
             document.getElementById('scanResult').style.display = 'none';
             scannedStudentData = null;
-            currentScannedStudent = null;
         }
 
         function closeScanModal() {
-            if (currentScanner) {
-                stopScanner();
-            }
+            if (currentScanner) stopScanner();
             document.getElementById('scanModal').style.display = 'none';
-            document.getElementById('scanResult').style.display = 'none';
         }
 
         function startScanner() {
-            if (currentScanner) {
-                currentScanner.stop();
-            }
-
+            if (currentScanner) currentScanner.stop();
             const readerElement = document.getElementById('reader');
             if (!readerElement) return;
-
             readerElement.innerHTML = '';
-
             currentScanner = new Html5Qrcode("reader");
             currentScanner.start({
                     facingMode: "environment"
@@ -1615,25 +1582,14 @@ if (isset($_GET['get_student'])) {
                         height: 250
                     }
                 },
-                (decodedText) => {
-                    handleScannedData(decodedText);
-                },
-                (error) => {
-                    console.log("Scanning...");
-                }
-            ).catch(err => {
-                console.error("Failed to start scanner:", err);
-                alert("Failed to start camera. Please ensure camera permissions are granted.");
-            });
+                (decodedText) => handleScannedData(decodedText),
+                (error) => console.log("Scanning...")
+            ).catch(err => alert("Failed to start camera. Please grant camera permissions."));
         }
 
         function stopScanner() {
             if (currentScanner) {
-                currentScanner.stop().then(() => {
-                    currentScanner = null;
-                }).catch(err => {
-                    console.error("Error stopping scanner:", err);
-                });
+                currentScanner.stop().then(() => currentScanner = null).catch(err => console.error(err));
             }
         }
 
@@ -1645,7 +1601,6 @@ if (isset($_GET['get_student'])) {
                 } catch (e) {
                     data = JSON.parse(decodedText);
                 }
-
                 if (data.type === 'student' && data.id) {
                     stopScanner();
                     fetchScannedStudentInfo(data.id);
@@ -1658,7 +1613,7 @@ if (isset($_GET['get_student'])) {
                     stopScanner();
                     fetchScannedStudentInfo(studentId);
                 } else {
-                    alert('Invalid QR code. Please scan a valid student QR code.');
+                    alert('Invalid QR code');
                 }
             }
         }
@@ -1667,43 +1622,24 @@ if (isset($_GET['get_student'])) {
             fetch(`?get_student=${studentId}`)
                 .then(response => response.json())
                 .then(data => {
-                    currentScannedStudent = data;
+                    scannedStudentData = data;
                     displayScanResult(data);
                 })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error loading student details');
-                });
+                .catch(error => alert('Error loading student details'));
         }
 
         function displayScanResult(student) {
             const scanResult = document.getElementById('scanResult');
             const scanStudentInfo = document.getElementById('scanStudentInfo');
-
-            let avatarHtml = '';
-            if (student.profile_picture && student.profile_picture.trim() !== '') {
-                avatarHtml = `<img src="${student.profile_picture}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
-            } else {
-                avatarHtml = `<div class="student-avatar" style="width:60px;height:60px;margin:0 auto;font-size:1.5rem;display:flex;align-items:center;justify-content:center;">${student.full_name.charAt(0)}</div>`;
-            }
-
-            scanStudentInfo.innerHTML = `
-                <div style="text-align:center;">
-                    ${avatarHtml}
-                    <h3 style="margin:10px 0 5px;">${escapeHtml(student.full_name)}</h3>
-                    <p style="color:#666;">Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p>
-                    <p style="color:#666;">Parent: ${student.parent_phone || 'No phone'}</p>
-                </div>
-            `;
-
+            let avatarHtml = student.profile_picture ? `<img src="${student.profile_picture}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;">` : `<div style="width:50px;height:50px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2rem;">${student.full_name.charAt(0)}</div>`;
+            scanStudentInfo.innerHTML = `<div style="text-align:center;">${avatarHtml}<h4 style="margin:8px 0 4px;">${escapeHtml(student.full_name)}</h4><p style="font-size:0.75rem;">Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p></div>`;
             scanResult.style.display = 'block';
         }
 
         function viewScannedStudent() {
-            if (currentScannedStudent) {
+            if (scannedStudentData) {
                 closeScanModal();
-                // Call the existing viewStudent function
-                viewStudent(currentScannedStudent.id, {
+                viewStudent(scannedStudentData.id, {
                     target: {
                         type: ''
                     }
@@ -1712,168 +1648,60 @@ if (isset($_GET['get_student'])) {
         }
 
         function markAttendanceFromScan() {
-            if (currentScannedStudent) {
+            if (scannedStudentData) {
                 closeScanModal();
-                // Open attendance modal with the scanned student
-                openAttendanceModalFromScan(currentScannedStudent);
+                openAttendanceModal(scannedStudentData);
             }
         }
 
-        function openAttendanceModalFromScan(student) {
+        function openAttendanceModal(student) {
             document.getElementById('attendanceStudentId').value = student.id;
             document.getElementById('attendanceStudentName').innerHTML = escapeHtml(student.full_name);
             document.getElementById('attendanceStudentClass').innerHTML = `Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}`;
-
             const avatarDiv = document.getElementById('attendanceStudentAvatar');
-            if (student.profile_picture && student.profile_picture.trim() !== '') {
+            if (student.profile_picture) {
                 avatarDiv.innerHTML = `<img src="${student.profile_picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
             } else {
                 avatarDiv.innerHTML = student.full_name.charAt(0);
                 avatarDiv.style.display = 'flex';
                 avatarDiv.style.alignItems = 'center';
                 avatarDiv.style.justifyContent = 'center';
-                avatarDiv.style.fontSize = '2rem';
                 avatarDiv.style.background = 'var(--primary-color)';
                 avatarDiv.style.color = 'white';
             }
-
-            // Check if attendance already marked today
-            const today = new Date().toISOString().split('T')[0];
-            fetch(`check_attendance.php?student_id=${student.id}&date=${today}`)
-                .then(response => response.json())
-                .then(data => {
-                    const infoDiv = document.getElementById('attendanceInfo');
-                    if (data.marked) {
-                        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> Attendance already marked as "${data.status}" for today. You can update it.`;
-                        document.querySelector('#attendanceForm select[name="status"]').value = data.status;
-                    } else {
-                        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> No attendance recorded for today.`;
-                        document.querySelector('#attendanceForm select[name="status"]').value = 'present';
-                    }
-                })
-                .catch(() => {
-                    document.getElementById('attendanceInfo').innerHTML = '';
-                });
-
             document.getElementById('attendanceModal').style.display = 'flex';
-        }
-
-        function viewBillsFromScan() {
-            if (currentScannedStudent) {
-                closeScanModal();
-                openBillsModalFromScan(currentScannedStudent);
-            }
-        }
-
-        function openBillsModalFromScan(student) {
-            const modalBody = document.getElementById('billsModalBody');
-            modalBody.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Loading bills...</div>';
-            document.getElementById('billsModal').style.display = 'flex';
-
-            // Fetch bills for this student
-            fetch(`get_student_bills.php?student_id=${student.id}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        modalBody.innerHTML = `<div class="alert alert-error">Error: ${data.error}</div>`;
-                        return;
-                    }
-
-                    let billsHtml = `
-                        <div style="text-align:center; margin-bottom:20px;">
-                            <h3>${escapeHtml(student.full_name)}</h3>
-                            <p>Admission: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p>
-                        </div>
-                    `;
-
-                    if (data.bills && data.bills.length > 0) {
-                        let totalPending = 0;
-                        let totalPaid = 0;
-
-                        billsHtml += `<h4>Fee Summary</h4>`;
-
-                        data.bills.forEach(bill => {
-                            const isPaid = bill.status === 'paid';
-                            if (!isPaid) totalPending += parseFloat(bill.amount);
-                            if (isPaid) totalPaid += parseFloat(bill.amount);
-
-                            billsHtml += `
-                                <div class="bill-item">
-                                    <div>
-                                        <strong>${escapeHtml(bill.description || bill.bill_type)}</strong><br>
-                                        <small>Due: ${bill.due_date || 'Not set'} | ${bill.status.toUpperCase()}</small>
-                                    </div>
-                                    <div class="bill-amount ${bill.status === 'paid' ? 'bill-status-paid' : 'bill-status-pending'}">
-                                        ₦${parseFloat(bill.amount).toLocaleString()}
-                                    </div>
-                                </div>
-                            `;
-                        });
-
-                        billsHtml += `
-                            <div class="total-amount">
-                                <div>Total Paid: <span style="color:green;">₦${totalPaid.toLocaleString()}</span></div>
-                                <div>Total Outstanding: <span style="color:#e74c3c;">₦${totalPending.toLocaleString()}</span></div>
-                            </div>
-                        `;
-                    } else {
-                        billsHtml += `<div class="alert alert-info">No bills found for this student.</div>`;
-                    }
-
-                    modalBody.innerHTML = billsHtml;
-                })
-                .catch(error => {
-                    modalBody.innerHTML = `<div class="alert alert-error">Error loading bills: ${error.message}</div>`;
-                });
-        }
-
-        function closeBillsModal() {
-            document.getElementById('billsModal').style.display = 'none';
         }
 
         function closeAttendanceModal() {
             document.getElementById('attendanceModal').style.display = 'none';
         }
 
-        // Handle attendance form submission
-        if (document.getElementById('attendanceForm')) {
-            document.getElementById('attendanceForm').addEventListener('submit', function(e) {
-                e.preventDefault();
+        document.getElementById('attendanceForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('mark_attendance_api.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Attendance marked successfully!');
+                        closeAttendanceModal();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => alert('Error marking attendance'));
+        });
 
-                const formData = new FormData(this);
-
-                fetch('mark_attendance_api.php', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Attendance marked successfully!');
-                            closeAttendanceModal();
-                        } else {
-                            alert('Error: ' + (data.error || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        alert('Error marking attendance: ' + error.message);
-                    });
-            });
-        }
-
-        // Initialize checkbox count
-        updateSelectedCount();
-
-        // Close modals when clicking outside
         window.onclick = function(event) {
-            const modals = ['studentModal', 'addStudentModal', 'editStudentModal', 'qrModal', 'scanModal', 'attendanceModal', 'billsModal'];
+            const modals = ['studentModal', 'addStudentModal', 'editStudentModal', 'qrModal', 'scanModal', 'attendanceModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target === modal) {
                     modal.style.display = 'none';
-                    if (modalId === 'scanModal' && currentScanner) {
-                        stopScanner();
-                    }
+                    if (modalId === 'scanModal' && currentScanner) stopScanner();
                 }
             });
         };

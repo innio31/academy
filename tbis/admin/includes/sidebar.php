@@ -46,10 +46,6 @@ if (!isset($subscription_active)) {
 }
 ?>
 
-<!-- Mobile Menu Toggle Button -->
-<button class="mobile-menu-toggle" id="mobileMenuToggle">
-    <i class="fas fa-bars"></i>
-</button>
 
 <!-- Sidebar Overlay -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -210,6 +206,60 @@ if (!isset($subscription_active)) {
     .logo-icon i {
         font-size: 24px;
         color: white;
+    }
+
+    /* Simple Subscription Status Styling */
+    .subscription-status {
+        margin: 15px;
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .subscription-status .status-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+    }
+
+    .subscription-status .days-remaining {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin: 5px 0;
+    }
+
+    .subscription-status .expiry-date {
+        font-size: 0.7rem;
+        opacity: 0.8;
+    }
+
+    /* Status colors */
+    .subscription-status.active {
+        background: rgba(39, 174, 96, 0.2);
+        border-left: 3px solid #27ae60;
+    }
+
+    .subscription-status.active .days-remaining {
+        color: #27ae60;
+    }
+
+    .subscription-status.warning {
+        background: rgba(243, 156, 18, 0.2);
+        border-left: 3px solid #f39c12;
+    }
+
+    .subscription-status.warning .days-remaining {
+        color: #f39c12;
+    }
+
+    .subscription-status.danger {
+        background: rgba(231, 76, 60, 0.2);
+        border-left: 3px solid #e74c3c;
+    }
+
+    .subscription-status.danger .days-remaining {
+        color: #e74c3c;
     }
 </style>
 

@@ -1040,6 +1040,12 @@ if (empty($available_classes)) {
 </head>
 
 <body>
+    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1533,10 +1539,6 @@ if (empty($available_classes)) {
             });
         }, 5000);
     </script>
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
 </body>
 
 </html>

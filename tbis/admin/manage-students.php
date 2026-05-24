@@ -992,6 +992,10 @@ if (isset($_GET['get_student'])) {
 </head>
 
 <body>
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+
     <div class="main-content" id="mainContent">
         <div class="top-header">
             <div class="header-title">

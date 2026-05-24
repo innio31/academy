@@ -136,11 +136,13 @@ $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
         $stmt = $pdo->prepare("
-            SELECT student_id, score_data, total_score, grade, subject_position
-              FROM student_scores
-             WHERE school_id=? AND subject_id=? AND session=? AND term=?
-        ");
-        $stmt->execute([$school_id, $active_subject_id, $session, $term]);
+    SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+      FROM student_scores ss
+      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+     WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+       AND st.class=?
+");
+        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -157,10 +159,12 @@ if (!empty($subjects)) {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
         $stmt = $pdo->prepare("
-            SELECT DISTINCT subject_id FROM student_scores
-             WHERE school_id=? AND session=? AND term=? AND subject_id IN ($ph)
-        ");
-        $stmt->execute(array_merge([$school_id, $session, $term], $sub_ids));
+    SELECT DISTINCT ss.subject_id FROM student_scores ss
+      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+     WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+       AND st.class=? AND ss.subject_id IN ($ph)
+");
+        $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) { /* non-fatal */
     }

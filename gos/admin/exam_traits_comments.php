@@ -1,6 +1,5 @@
 <?php
-// ida/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance
-// Saves to: affective_traits, psychomotor_skills, student_comments, student_positions
+// gos/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance (FIXED)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -10,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /ida/login.php");
+    header("Location: /gos/login.php");
     exit();
 }
 if (isset($_SESSION['admin_id'])) {
@@ -293,10 +292,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         } else {
             $pdo->prepare("
                 INSERT INTO affective_traits
-                    (student_id,session,term,punctuality,attendance,politeness,honesty,
+                    (school_id,student_id,session,term,punctuality,attendance,politeness,honesty,
                      neatness,reliability,relationship,self_control,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
             ")->execute([
+                $school_id,
                 $post_sid,
                 $session,
                 $term,
@@ -358,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             ]);
         }
 
-        // ── 3. Comments & attendance (FIXED: Added school_id) ──────────────────────────────────────────
+        // ── 3. Comments & attendance (FIXED - correct number of parameters) ──────────────────────────────────────────
         $days_opened = (int)($record['days_school_opened'] ?? 90);
         $days_present = min((int)($_POST['days_present'] ?? 0), $days_opened);
         $days_absent  = $days_opened - $days_present;
@@ -373,37 +373,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $cm_id = $chk3->fetchColumn();
 
         if ($cm_id) {
-            $pdo->prepare("
+            // UPDATE query - 8 parameters
+            $updateComments = $pdo->prepare("
                 UPDATE student_comments SET
-                    teachers_comment=?,principals_comment=?,
-                    class_teachers_name=?,principals_name=?,
-                    days_present=?,days_absent=?,updated_at=NOW()
+                    teachers_comment=?,
+                    principals_comment=?,
+                    class_teachers_name=?,
+                    principals_name=?,
+                    days_present=?,
+                    days_absent=?,
+                    updated_at=NOW()
                 WHERE id=?
-            ")->execute([$tc, $pc, $tcn, $pcn, $days_present, $days_absent, $cm_id]);
-        } else {
-            // FIXED: Added school_id as the first parameter
-            $pdo->prepare("
-                INSERT INTO student_comments
-                    (school_id,student_id,session,term,
-                     teachers_comment,principals_comment,
-                     class_teachers_name,principals_name,
-                     days_present,days_absent,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
-            ")->execute([
-                $school_id,
-                $post_sid,
-                $session,
-                $term,
+            ");
+            $updateComments->execute([
                 $tc,
                 $pc,
                 $tcn,
                 $pcn,
                 $days_present,
                 $days_absent,
+                $cm_id
+            ]);
+        } else {
+            // INSERT query - 10 parameters exactly matching columns
+            $insertComments = $pdo->prepare("
+                INSERT INTO student_comments
+                    (school_id, student_id, session, term,
+                     teachers_comment, principals_comment,
+                     class_teachers_name, principals_name,
+                     days_present, days_absent, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $insertComments->execute([
+                $school_id,     // 1
+                $post_sid,      // 2
+                $session,       // 3
+                $term,          // 4
+                $tc,            // 5
+                $pc,            // 6
+                $tcn,           // 7
+                $pcn,           // 8
+                $days_present,  // 9
+                $days_absent    // 10
             ]);
         }
 
-        // ── 4. Promoted to (stored in student_positions) (FIXED: Added school_id) ──────────────────────
+        // ── 4. Promoted to (stored in student_positions) (FIXED) ──────────────────────
         $promoted_to = trim($_POST['promoted_to'] ?? '');
 
         $chk4 = $pdo->prepare("SELECT id FROM student_positions WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1");
@@ -411,15 +426,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $sp_id = $chk4->fetchColumn();
 
         if ($sp_id) {
-            $pdo->prepare("UPDATE student_positions SET promoted_to=?,updated_at=NOW() WHERE id=?")
-                ->execute([$promoted_to ?: null, $sp_id]);
+            $updatePositions = $pdo->prepare("
+                UPDATE student_positions SET promoted_to=?, updated_at=NOW() WHERE id=?
+            ");
+            $updatePositions->execute([$promoted_to ?: null, $sp_id]);
         } else {
-            // FIXED: Added school_id as the first parameter
-            $pdo->prepare("
+            $insertPositions = $pdo->prepare("
                 INSERT INTO student_positions
-                    (school_id,student_id,session,term,promoted_to,created_at,updated_at)
-                VALUES (?,?,?,?,?,NOW(),NOW())
-            ")->execute([$school_id, $post_sid, $session, $term, $promoted_to ?: null]);
+                    (school_id, student_id, session, term, promoted_to, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $insertPositions->execute([
+                $school_id,
+                $post_sid,
+                $session,
+                $term,
+                $promoted_to ?: null
+            ]);
         }
 
         // ── Mark exam record active if still draft ────────────────────────────
@@ -449,7 +472,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         exit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        error_log("traits save: " . $e->getMessage());
+        error_log("traits save error: " . $e->getMessage());
+        error_log("traits save trace: " . $e->getTraceAsString());
         $error_msg = "Error saving: " . htmlspecialchars($e->getMessage());
     }
 }
@@ -1370,7 +1394,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1611,7 +1635,14 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                                 </div>
                                 <div class="action-bar">
                                     <div class="left"><?php if ($prev_student): ?><a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $prev_student['id']; ?>" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i> Previous student</a><?php endif; ?></div>
-                                    <div class="right"><button type="submit" class="btn btn-primary" id="saveNextBtn"><?php if ($next_student): ?><i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i><?php else: ?><i class="fas fa-check-circle"></i> Save &amp; finish<?php endif; ?></button></div>
+                                    <div class="right">
+                                        <?php if ($next_student): ?>
+                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $next_student['id']; ?>" class="btn btn-secondary" title="Skip this student without saving"><i class="fas fa-forward"></i> Skip</a>
+                                        <?php else: ?>
+                                            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>&student_id=<?php echo $active_sid; ?>" class="btn btn-secondary" title="Skip without saving"><i class="fas fa-forward"></i> Skip</a>
+                                        <?php endif; ?>
+                                        <button type="submit" class="btn btn-primary" id="saveNextBtn"><?php if ($next_student): ?><i class="fas fa-save"></i> Save &amp; next student <i class="fas fa-chevron-right"></i><?php else: ?><i class="fas fa-check-circle"></i> Save &amp; finish<?php endif; ?></button>
+                                    </div>
                                 </div>
                             </div>
                         </form>

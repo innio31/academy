@@ -1,5 +1,5 @@
 <?php
-// ida/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
+// gos/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /ida/login.php");
+    header("Location: /gos/login.php");
     exit();
 }
 
@@ -136,11 +136,13 @@ $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
         $stmt = $pdo->prepare("
-            SELECT student_id, score_data, total_score, grade, subject_position
-              FROM student_scores
-             WHERE school_id=? AND subject_id=? AND session=? AND term=?
-        ");
-        $stmt->execute([$school_id, $active_subject_id, $session, $term]);
+    SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+      FROM student_scores ss
+      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+     WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+       AND st.class=?
+");
+        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -157,10 +159,12 @@ if (!empty($subjects)) {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
         $stmt = $pdo->prepare("
-            SELECT DISTINCT subject_id FROM student_scores
-             WHERE school_id=? AND session=? AND term=? AND subject_id IN ($ph)
-        ");
-        $stmt->execute(array_merge([$school_id, $session, $term], $sub_ids));
+    SELECT DISTINCT ss.subject_id FROM student_scores ss
+      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+     WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+       AND st.class=? AND ss.subject_id IN ($ph)
+");
+        $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) { /* non-fatal */
     }
@@ -1096,6 +1100,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 grid-template-columns: repeat(3, 1fr);
             }
         }
+
+        /* ── Desktop Subject Panel ───────────────────────────────────────────────── */
+        .desktop-layout {
+            display: block;
+        }
+
+        @media (min-width: 768px) {
+            .desktop-layout {
+                display: grid;
+                grid-template-columns: 240px 1fr;
+                gap: 20px;
+                align-items: start;
+            }
+
+            .desktop-subject-panel {
+                background: white;
+                border-radius: var(--radius-md);
+                box-shadow: var(--shadow-sm);
+                overflow: hidden;
+                position: sticky;
+                top: 20px;
+            }
+
+            .desktop-subject-panel .panel-header {
+                padding: 12px 16px;
+                background: var(--primary-color);
+                color: white;
+                font-size: 0.85rem;
+                font-weight: 600;
+            }
+
+            .desktop-subject-panel .panel-list {
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+
+            .desktop-subject-panel .panel-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 16px;
+                font-size: 0.82rem;
+                text-decoration: none;
+                color: #333;
+                border-bottom: 1px solid var(--light-color);
+                transition: var(--transition);
+            }
+
+            .desktop-subject-panel .panel-item:hover {
+                background: #f5f6fa;
+            }
+
+            .desktop-subject-panel .panel-item.active {
+                background: #eef3ff;
+                color: var(--primary-color);
+                font-weight: 600;
+                border-left: 3px solid var(--primary-color);
+            }
+        }
+
+        @media (max-width: 767px) {
+            .desktop-subject-panel {
+                display: none;
+            }
+        }
     </style>
 </head>
 
@@ -1137,7 +1206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -1256,159 +1325,183 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             </div>
         <?php else: ?>
 
-            <!-- Mobile Subject Selector (Dropdown) -->
-            <div class="mobile-subject-selector">
-                <div class="selector-header" onclick="toggleSubjectDropdown()">
-                    <span><i class="fas fa-book-open"></i> <?php echo $active_subject_name ?: 'Select Subject'; ?></span>
-                    <i class="fas fa-chevron-down" id="dropdownIcon"></i>
+            <!-- Desktop Layout Wrapper -->
+            <div class="desktop-layout">
+
+                <!-- Desktop Subject Panel (hidden on mobile) -->
+                <div class="desktop-subject-panel">
+                    <div class="panel-header"><i class="fas fa-book-open"></i> Subjects</div>
+                    <div class="panel-list">
+                        <?php foreach ($subjects as $sub):
+                            $is_done = isset($subjects_with_scores[(int)$sub['id']]);
+                        ?>
+                            <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
+                                class="panel-item <?php echo (int)$sub['id'] === $active_subject_id ? 'active' : ''; ?>">
+                                <span><?php echo htmlspecialchars($sub['subject_name']); ?></span>
+                                <span class="<?php echo $is_done ? 'done-dot' : 'pending-dot'; ?>"></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-                <div class="subject-dropdown-list" id="subjectDropdownList">
-                    <?php foreach ($subjects as $sub):
-                        $is_done = isset($subjects_with_scores[(int)$sub['id']]);
-                    ?>
-                        <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
-                            class="subject-dropdown-item <?php echo (int)$sub['id'] === $active_subject_id ? 'active' : ''; ?>">
-                            <span><?php echo htmlspecialchars($sub['subject_name']); ?></span>
-                            <span class="<?php echo $is_done ? 'done-dot' : 'pending-dot'; ?>"></span>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
-            </div>
 
-            <?php if ($active_subject_id > 0 && $active_subject_name !== ''): ?>
-                <form method="POST" id="scoreForm">
-                    <input type="hidden" name="action" value="save_scores">
-                    <input type="hidden" name="subject_id" value="<?php echo $active_subject_id; ?>">
+                <!-- Right side: mobile dropdown + score form -->
+                <div>
 
-                    <div class="score-card">
-                        <div class="score-card-header">
-                            <h2><i class="fas fa-pencil-alt"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
-                            <div class="meta">
-                                <?php echo htmlspecialchars($class); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
-                                · Max: <?php echo (int)$record['max_score']; ?> marks
-                                (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
-                            </div>
+                    <!-- Mobile Subject Selector (Dropdown) -->
+                    <div class="mobile-subject-selector">
+                        <div class="selector-header" onclick="toggleSubjectDropdown()">
+                            <span><i class="fas fa-book-open"></i> <?php echo $active_subject_name ?: 'Select Subject'; ?></span>
+                            <i class="fas fa-chevron-down" id="dropdownIcon"></i>
                         </div>
-
-                        <!-- Staff Assignment -->
-                        <div class="assign-bar">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <select id="staffAssign" onchange="saveStaffAssignment(this.value)">
-                                <option value="">— Not assigned —</option>
-                                <?php foreach ($staff_list as $sf): ?>
-                                    <option value="<?php echo htmlspecialchars($sf['staff_id']); ?>" <?php echo $sf['staff_id'] === $assigned_staff_id ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($sf['full_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <span id="assignMsg" style="font-size:0.7rem;color:var(--success-color);display:none"><i class="fas fa-check"></i> Saved</span>
-                        </div>
-
-                        <!-- Mobile Score Cards -->
-                        <div class="mobile-score-list" id="mobileScoreList">
-                            <?php foreach ($students as $idx => $stu):
-                                $stu_id = (int)$stu['id'];
-                                $saved = $existing_scores[$stu_id] ?? null;
-                                $initials = strtoupper(substr($stu['full_name'], 0, 2));
-                                $graded = $saved ? getGradeInfo((float)$saved['total_score'], $grading_scale) : null;
-                                $gc = $graded ? 'g-' . strtolower($graded['grade'][0]) : '';
+                        <div class="subject-dropdown-list" id="subjectDropdownList">
+                            <?php foreach ($subjects as $sub):
+                                $is_done = isset($subjects_with_scores[(int)$sub['id']]);
                             ?>
-                                <div class="score-student-card" id="studentCard_<?php echo $stu_id; ?>">
-                                    <div class="student-header">
-                                        <div class="student-avatar"><?php echo htmlspecialchars($initials); ?></div>
-                                        <div class="student-details">
-                                            <div class="student-name"><?php echo htmlspecialchars($stu['full_name']); ?></div>
-                                            <div class="student-adm">Adm: <?php echo htmlspecialchars($stu['admission_number']); ?></div>
-                                        </div>
-                                    </div>
-                                    <div class="score-fields">
-                                        <?php foreach ($score_types as $st):
-                                            $lbl = $st['label'];
-                                            $maxVal = (int)$st['max'];
-                                            $val = $saved ? ($saved['score_data'][$lbl] ?? '') : '';
-                                            $filled = ($val !== '' && $val !== null);
-                                        ?>
-                                            <div class="score-field">
-                                                <label><?php echo htmlspecialchars($lbl); ?> / <?php echo $maxVal; ?></label>
-                                                <input type="number"
-                                                    name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
-                                                    class="score-input <?php echo $filled ? 'filled' : ''; ?>"
-                                                    value="<?php echo $filled ? htmlspecialchars((string)$val) : ''; ?>"
-                                                    min="0" max="<?php echo $maxVal; ?>" step="0.5"
-                                                    data-max="<?php echo $maxVal; ?>"
-                                                    data-student="<?php echo $stu_id; ?>"
-                                                    data-field="<?php echo htmlspecialchars($lbl); ?>"
-                                                    oninput="onScoreInput(this, <?php echo $stu_id; ?>)"
-                                                    inputmode="decimal">
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="result-row">
-                                        <div>
-                                            <span class="total-score" id="total_<?php echo $stu_id; ?>">
-                                                <?php echo $saved ? number_format((float)$saved['total_score'], 1) : '—'; ?>
-                                            </span>
-                                            <span class="remark-text" id="remark_<?php echo $stu_id; ?>">
-                                                <?php echo $graded ? $graded['remark'] : ''; ?>
-                                            </span>
-                                        </div>
-                                        <div id="grade_<?php echo $stu_id; ?>">
-                                            <?php if ($graded): ?>
-                                                <span class="grade-badge <?php echo $gc; ?>"><?php echo htmlspecialchars($graded['grade']); ?></span>
-                                            <?php else: ?>
-                                                <span class="grade-badge g-f">—</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
+                                <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
+                                    class="subject-dropdown-item <?php echo (int)$sub['id'] === $active_subject_id ? 'active' : ''; ?>">
+                                    <span><?php echo htmlspecialchars($sub['subject_name']); ?></span>
+                                    <span class="<?php echo $is_done ? 'done-dot' : 'pending-dot'; ?>"></span>
+                                </a>
                             <?php endforeach; ?>
                         </div>
+                    </div>
 
-                        <!-- Footer -->
-                        <div class="score-footer">
-                            <div class="footer-buttons">
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="fillZeros()">
-                                    <i class="fas fa-fill-drip"></i> Fill zeros
-                                </button>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllInputs()">
-                                    <i class="fas fa-undo"></i> Clear
-                                </button>
-                                <button type="submit" class="btn btn-primary" id="saveBtn">
-                                    <i class="fas fa-save"></i> Save
-                                </button>
-                            </div>
-                            <?php if ($next_subject): ?>
-                                <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $next_subject['id']; ?>" class="btn btn-secondary btn-sm">
-                                    Next: <?php echo htmlspecialchars($next_subject['subject_name']); ?> <i class="fas fa-arrow-right"></i>
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </form>
+                    <?php if ($active_subject_id > 0 && $active_subject_name !== ''): ?>
+                        <form method="POST" id="scoreForm">
+                            <input type="hidden" name="action" value="save_scores">
+                            <input type="hidden" name="subject_id" value="<?php echo $active_subject_id; ?>">
 
-                <!-- Completion Alert -->
-                <?php if ($completed_subjects >= $total_subjects): ?>
-                    <div class="alert alert-success" style="margin-top: 12px;">
-                        <i class="fas fa-check-circle"></i>
-                        <div>
-                            <strong>All <?php echo $total_subjects; ?> subjects complete!</strong>
-                            <div style="margin-top: 8px;">
-                                <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm">
-                                    <i class="fas fa-arrow-right"></i> Traits &amp; comments
-                                </a>
+                            <div class="score-card">
+                                <div class="score-card-header">
+                                    <h2><i class="fas fa-pencil-alt"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
+                                    <div class="meta">
+                                        <?php echo htmlspecialchars($class); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
+                                        · Max: <?php echo (int)$record['max_score']; ?> marks
+                                        (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
+                                    </div>
+                                </div>
+
+                                <!-- Staff Assignment -->
+                                <div class="assign-bar">
+                                    <i class="fas fa-chalkboard-teacher"></i>
+                                    <select id="staffAssign" onchange="saveStaffAssignment(this.value)">
+                                        <option value="">— Not assigned —</option>
+                                        <?php foreach ($staff_list as $sf): ?>
+                                            <option value="<?php echo htmlspecialchars($sf['staff_id']); ?>" <?php echo $sf['staff_id'] === $assigned_staff_id ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($sf['full_name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <span id="assignMsg" style="font-size:0.7rem;color:var(--success-color);display:none"><i class="fas fa-check"></i> Saved</span>
+                                </div>
+
+                                <!-- Score Cards -->
+                                <div class="mobile-score-list" id="mobileScoreList">
+                                    <?php foreach ($students as $idx => $stu):
+                                        $stu_id = (int)$stu['id'];
+                                        $saved = $existing_scores[$stu_id] ?? null;
+                                        $initials = strtoupper(substr($stu['full_name'], 0, 2));
+                                        $graded = $saved ? getGradeInfo((float)$saved['total_score'], $grading_scale) : null;
+                                        $gc = $graded ? 'g-' . strtolower($graded['grade'][0]) : '';
+                                    ?>
+                                        <div class="score-student-card" id="studentCard_<?php echo $stu_id; ?>">
+                                            <div class="student-header">
+                                                <div class="student-avatar"><?php echo htmlspecialchars($initials); ?></div>
+                                                <div class="student-details">
+                                                    <div class="student-name"><?php echo htmlspecialchars($stu['full_name']); ?></div>
+                                                    <div class="student-adm">Adm: <?php echo htmlspecialchars($stu['admission_number']); ?></div>
+                                                </div>
+                                            </div>
+                                            <div class="score-fields">
+                                                <?php foreach ($score_types as $st):
+                                                    $lbl = $st['label'];
+                                                    $maxVal = (int)$st['max'];
+                                                    $val = $saved ? ($saved['score_data'][$lbl] ?? '') : '';
+                                                    $filled = ($val !== '' && $val !== null);
+                                                ?>
+                                                    <div class="score-field">
+                                                        <label><?php echo htmlspecialchars($lbl); ?> / <?php echo $maxVal; ?></label>
+                                                        <input type="number"
+                                                            name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
+                                                            class="score-input <?php echo $filled ? 'filled' : ''; ?>"
+                                                            value="<?php echo $filled ? htmlspecialchars((string)$val) : ''; ?>"
+                                                            min="0" max="<?php echo $maxVal; ?>" step="0.5"
+                                                            data-max="<?php echo $maxVal; ?>"
+                                                            data-student="<?php echo $stu_id; ?>"
+                                                            data-field="<?php echo htmlspecialchars($lbl); ?>"
+                                                            oninput="onScoreInput(this, <?php echo $stu_id; ?>)"
+                                                            inputmode="decimal">
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                            <div class="result-row">
+                                                <div>
+                                                    <span class="total-score" id="total_<?php echo $stu_id; ?>">
+                                                        <?php echo $saved ? number_format((float)$saved['total_score'], 1) : '—'; ?>
+                                                    </span>
+                                                    <span class="remark-text" id="remark_<?php echo $stu_id; ?>">
+                                                        <?php echo $graded ? $graded['remark'] : ''; ?>
+                                                    </span>
+                                                </div>
+                                                <div id="grade_<?php echo $stu_id; ?>">
+                                                    <?php if ($graded): ?>
+                                                        <span class="grade-badge <?php echo $gc; ?>"><?php echo htmlspecialchars($graded['grade']); ?></span>
+                                                    <?php else: ?>
+                                                        <span class="grade-badge g-f">—</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="score-footer">
+                                    <div class="footer-buttons">
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="fillZeros()">
+                                            <i class="fas fa-fill-drip"></i> Fill zeros
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllInputs()">
+                                            <i class="fas fa-undo"></i> Clear
+                                        </button>
+                                        <button type="submit" class="btn btn-primary" id="saveBtn">
+                                            <i class="fas fa-save"></i> Save
+                                        </button>
+                                    </div>
+                                    <?php if ($next_subject): ?>
+                                        <a href="exam_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $next_subject['id']; ?>" class="btn btn-secondary btn-sm">
+                                            Next: <?php echo htmlspecialchars($next_subject['subject_name']); ?> <i class="fas fa-arrow-right"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Completion Alert -->
+                        <?php if ($completed_subjects >= $total_subjects): ?>
+                            <div class="alert alert-success" style="margin-top: 12px;">
+                                <i class="fas fa-check-circle"></i>
+                                <div>
+                                    <strong>All <?php echo $total_subjects; ?> subjects complete!</strong>
+                                    <div style="margin-top: 8px;">
+                                        <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="btn btn-success btn-sm">
+                                            <i class="fas fa-arrow-right"></i> Traits &amp; comments
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <div class="score-card">
+                            <div class="empty-state">
+                                <i class="fas fa-hand-point-left"></i>
+                                <h3>Select a subject</h3>
+                                <p>Choose a subject from the list above to start entering scores.</p>
                             </div>
                         </div>
-                    </div>
-                <?php endif; ?>
-            <?php else: ?>
-                <div class="score-card">
-                    <div class="empty-state">
-                        <i class="fas fa-hand-point-left"></i>
-                        <h3>Select a subject</h3>
-                        <p>Choose a subject from the list above to start entering scores.</p>
-                    </div>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
+            </div>
         <?php endif; ?>
 
         <div style="text-align: center; padding: 20px; color: #999; font-size: 0.7rem; border-top: 1px solid var(--light-color); margin-top: 20px">

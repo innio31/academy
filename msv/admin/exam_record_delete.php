@@ -1,5 +1,5 @@
 <?php
-// gos/admin/exam_record_delete.php — Delete an exam record (Admin only)
+// tbis/admin/exam_record_delete.php — Delete an exam record (Admin only)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 $admin_id   = $_SESSION['admin_id']   ?? $_SESSION['user_id'];

@@ -80,6 +80,16 @@ try {
     $error_message = "Error loading page data. Please try again.";
 }
 
+// ── Flash messages from delete/clone operations ───────────────────────────────
+if (isset($_SESSION['flash_success'])) {
+    $success_message = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+if (isset($_SESSION['flash_error'])) {
+    $error_message = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+
 // ── Grading system presets ────────────────────────────────────────────────────
 $grading_presets = [
     'simple' => [
@@ -1586,6 +1596,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
         }
         if (!empty($all_records)):
         ?>
+            <!-- Exam records list with enhanced actions -->
             <div class="form-card">
                 <div class="form-card-header">
                     <div class="card-icon"><i class="fas fa-list"></i></div>
@@ -1607,18 +1618,39 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                         <tbody>
                             <?php foreach ($all_records as $r):
                                 $badge_class = 'badge-' . ($r['status'] ?? 'draft');
+                                $can_delete = in_array($r['status'] ?? 'draft', ['draft', 'active']);
                             ?>
-                                <tr>
+                                <tr id="record-row-<?php echo $r['id']; ?>">
                                     <td><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></td>
                                     <td><?php echo htmlspecialchars($r['session']); ?></td>
                                     <td><?php echo htmlspecialchars($r['term']); ?> Term</td>
                                     <td><?php echo htmlspecialchars($r['class']); ?></td>
-                                    <td><span class="status-badge" style="padding:3px 10px;border-radius:20px;font-size:0.72rem;background:#ecf0f1;"><?php echo ucfirst($r['status'] ?? 'draft'); ?></span></td>
+                                    <td>
+                                        <span class="status-badge" style="padding:3px 10px;border-radius:20px;font-size:0.72rem;background:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#d4edda' : '#ecf0f1'; ?>;color:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#155724' : '#666'; ?>;">
+                                            <?php echo ucfirst($r['status'] ?? 'draft'); ?>
+                                        </span>
+                                    </td>
                                     <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
                                     <td>
-                                        <div style="display:flex;gap:6px">
-                                            <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm"><i class="fas fa-edit"></i></a>
-                                            <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-pencil-alt"></i></a>
+                                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                            <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm" title="Enter Scores">
+                                                <i class="fas fa-pencil-alt"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-info btn-sm" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone" style="background:#17a2b8;color:white;">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                            <?php if ($can_delete): ?>
+                                                <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')" title="Delete">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot delete published/archived records" style="opacity:0.5;">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -1626,7 +1658,69 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                         </tbody>
                     </table>
                 </div>
+                <?php if (count($all_records) >= 20): ?>
+                    <div style="margin-top:15px;text-align:center;">
+                        <small class="text-muted">Showing last 20 records. <a href="report_card_dashboard.php">View all in dashboard →</a></small>
+                    </div>
+                <?php endif; ?>
             </div>
+
+            <!-- Delete Confirmation Modal -->
+            <div id="deleteModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;">
+                <div style="background:white;border-radius:var(--radius-md);max-width:450px;width:90%;margin:20px;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+                    <div style="padding:20px;border-bottom:1px solid #eee;">
+                        <h3 style="color:var(--danger-color);margin:0;"><i class="fas fa-exclamation-triangle"></i> Delete Exam Record</h3>
+                    </div>
+                    <div style="padding:20px;">
+                        <p>Are you sure you want to delete <strong id="deleteRecordName"></strong>?</p>
+                        <p style="color:#999;font-size:0.85rem;margin-top:10px;">This action cannot be undone. All associated scores and data will be permanently removed.</p>
+                        <form id="deleteForm" method="POST" action="exam_record_delete.php" style="margin-top:20px;">
+                            <input type="hidden" name="record_id" id="deleteRecordId" value="">
+                            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                                <button type="submit" class="btn btn-danger">Yes, Delete Record</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                .btn-info:hover {
+                    background: #138496 !important;
+                }
+
+                .btn-danger:hover {
+                    background: #c82333 !important;
+                }
+            </style>
+
+            <script>
+                function showDeleteModal(id, name) {
+                    document.getElementById('deleteRecordId').value = id;
+                    document.getElementById('deleteRecordName').textContent = name;
+                    document.getElementById('deleteModal').style.display = 'flex';
+                }
+
+                function closeDeleteModal() {
+                    document.getElementById('deleteModal').style.display = 'none';
+                    document.getElementById('deleteRecordId').value = '';
+                    document.getElementById('deleteRecordName').textContent = '';
+                }
+
+                function cloneRecord(id) {
+                    if (confirm('Clone this exam record? All settings will be copied, and you can edit the cloned version.')) {
+                        window.location.href = 'exam_record_clone.php?id=' + id;
+                    }
+                }
+
+                // Close modal when clicking outside
+                document.getElementById('deleteModal')?.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeDeleteModal();
+                    }
+                });
+            </script>
         <?php endif; ?>
 
         <div style="text-align:center;padding:20px;color:#999;font-size:0.8rem;border-top:1px solid var(--light-color);margin-top:10px">

@@ -87,7 +87,7 @@ if (!isset($subscription_active)) {
                 <?php endif; ?>
             </div>
             <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
                 <p>Admin Panel</p>
             </div>
         </div>
@@ -179,12 +179,45 @@ if (!isset($subscription_active)) {
     </div>
 </div>
 
+<style>
+    /* Additional styles for sidebar - add to your main page CSS or keep here */
+    .logo-text .school-name {
+        white-space: normal !important;
+        word-wrap: break-word;
+        line-height: 1.2;
+        font-size: 0.9rem;
+    }
+
+    /* Ensure logo icon doesn't squish the image */
+    .logo-icon {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+    }
+
+    .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .logo-icon i {
+        font-size: 24px;
+        color: white;
+    }
+</style>
+
 <script>
     // Mobile menu functionality
     (function() {
         'use strict';
 
-        // Function to initialize sidebar functionality
         function initSidebar() {
             const mobileMenuToggle = document.getElementById('mobileMenuToggle');
             const sidebar = document.getElementById('sidebar');
@@ -192,7 +225,6 @@ if (!isset($subscription_active)) {
             const body = document.body;
 
             if (!mobileMenuToggle || !sidebar || !sidebarOverlay) {
-                console.warn('Sidebar elements not found');
                 return;
             }
 
@@ -229,7 +261,6 @@ if (!isset($subscription_active)) {
                 closeSidebar();
             });
 
-            // Close sidebar when clicking a link (on mobile only)
             const navLinks = document.querySelectorAll('.nav-links a');
             navLinks.forEach(function(link) {
                 link.addEventListener('click', function() {
@@ -259,7 +290,6 @@ if (!isset($subscription_active)) {
             });
         }
 
-        // Run when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initSidebar);
         } else {

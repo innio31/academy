@@ -14,7 +14,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 ?>
 <!DOCTYPE html>
 <style>
-    /* Sidebar styles - will be merged with your existing CSS */
+    /* Sidebar styles */
     .sidebar {
         position: fixed;
         top: 0;
@@ -34,9 +34,24 @@ $current_page = basename($_SERVER['PHP_SELF']);
         transform: translateX(0);
     }
 
+    /* Custom scrollbar for sidebar */
+    .sidebar::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 5px;
+    }
+
     .sidebar-header {
         padding: 0 20px 20px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 15px;
     }
 
     .logo {
@@ -46,35 +61,56 @@ $current_page = basename($_SERVER['PHP_SELF']);
     }
 
     .logo-icon {
-        width: 44px;
-        height: 44px;
-        background: var(--secondary-color, #3498db);
-        border-radius: var(--radius-sm, 8px);
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px;
+        border-radius: var(--radius-sm, 10px);
+        background: rgba(255, 255, 255, 0.15);
         overflow: hidden;
     }
 
+    /* Logo image styling - FIXED: No squishing */
     .logo-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        width: auto;
+        height: auto;
+        max-width: 80%;
+        max-height: 80%;
+        object-fit: contain;
+        display: block;
+    }
+
+    /* Icon styling when no logo */
+    .logo-icon i {
+        font-size: 24px;
+        color: white;
+    }
+
+    .logo-text {
+        flex: 1;
+        min-width: 0;
     }
 
     .logo-text h3 {
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 600;
         margin: 0;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .logo-text p {
         font-size: 0.7rem;
         opacity: 0.8;
         margin: 0;
+        line-height: 1.3;
     }
 
+    /* Admin Info Section */
     .admin-info {
         text-align: center;
         padding: 15px;
@@ -86,6 +122,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
     .admin-info h4 {
         margin: 0 0 5px 0;
         font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .admin-info p {
@@ -94,12 +134,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
         opacity: 0.8;
     }
 
+    /* Subscription Status */
     .subscription-status {
         margin: 15px;
         padding: 12px;
         border-radius: 10px;
         background: rgba(255, 255, 255, 0.1);
         text-align: center;
+        transition: all 0.3s ease;
     }
 
     .subscription-status .status-label {
@@ -129,6 +171,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     .subscription-status.danger {
         background: rgba(231, 76, 60, 0.3);
         border-left: 3px solid var(--danger-color, #e74c3c);
+        animation: pulseRed 1.5s infinite;
     }
 
     .subscription-status.active {
@@ -136,10 +179,29 @@ $current_page = basename($_SERVER['PHP_SELF']);
         border-left: 3px solid var(--success-color, #27ae60);
     }
 
+    @keyframes pulseRed {
+        0% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.7;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+
+    /* Navigation Links */
+    .sidebar-content {
+        margin-top: 10px;
+    }
+
     .nav-links {
         list-style: none;
         padding: 0 15px;
-        margin-top: 10px;
+        margin: 0;
     }
 
     .nav-links li {
@@ -155,10 +217,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
         text-decoration: none;
         border-radius: 8px;
         transition: all 0.3s ease;
+        font-size: 0.85rem;
+        font-weight: 400;
     }
 
     .nav-links a:hover {
         background: rgba(255, 255, 255, 0.15);
+        transform: translateX(3px);
     }
 
     .nav-links a.active {
@@ -169,11 +234,100 @@ $current_page = basename($_SERVER['PHP_SELF']);
     .nav-links i {
         width: 20px;
         text-align: center;
+        font-size: 1rem;
     }
 
+    /* Mobile Menu Elements */
+    .mobile-menu-toggle {
+        position: fixed;
+        top: 15px;
+        left: 15px;
+        z-index: 1001;
+        width: 44px;
+        height: 44px;
+        background: var(--primary-color, #2c3e50);
+        color: white;
+        border: none;
+        border-radius: var(--radius-md, 8px);
+        font-size: 20px;
+        cursor: pointer;
+        display: none;
+        box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.08));
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .sidebar-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Desktop Styles */
     @media (min-width: 768px) {
         .sidebar {
             transform: translateX(0);
+        }
+
+        .mobile-menu-toggle {
+            display: none !important;
+        }
+    }
+
+    /* Mobile Styles */
+    @media (max-width: 767px) {
+        .mobile-menu-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .logo-text h3 {
+            font-size: 0.85rem;
+        }
+
+        .admin-info h4 {
+            font-size: 0.85rem;
+        }
+
+        .nav-links a {
+            padding: 10px 12px;
+            font-size: 0.8rem;
+        }
+    }
+
+    /* Small screens (480px and below) */
+    @media (max-width: 480px) {
+        .sidebar {
+            width: 85%;
+            max-width: 280px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+        }
+
+        .logo-text h3 {
+            font-size: 0.8rem;
         }
     }
 </style>
@@ -183,6 +337,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <div class="logo">
             <div class="logo-icon">
                 <?php
+                // Check for logo at multiple possible locations
                 $logo_path = null;
                 $logo_locations = [
                     '/tbis/assets/logos/logo.png',
@@ -191,9 +346,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     'assets/logos/logo.png'
                 ];
 
+                // Check if SCHOOL_LOGO constant is defined
                 if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
                     $logo_path = SCHOOL_LOGO;
                 } else {
+                    // Try each possible location
                     foreach ($logo_locations as $location) {
                         if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
                             $logo_path = $location;
@@ -318,7 +475,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
         const sidebarOverlay = document.getElementById('sidebarOverlay');
 
         if (mobileMenuToggle && sidebar && sidebarOverlay) {
-            mobileMenuToggle.addEventListener('click', function() {
+            mobileMenuToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
                 sidebar.classList.toggle('active');
                 sidebarOverlay.classList.toggle('active');
                 document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
@@ -332,7 +490,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
             // Close sidebar on mobile when clicking a link
             document.querySelectorAll('.nav-links a').forEach(link => {
-                link.addEventListener('click', () => {
+                link.addEventListener('click', function() {
                     if (window.innerWidth <= 767) {
                         sidebar.classList.remove('active');
                         sidebarOverlay.classList.remove('active');
@@ -340,6 +498,27 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     }
                 });
             });
+
+            // Close sidebar when pressing Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    sidebarOverlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
         }
     })();
+
+    // Handle window resize - reset sidebar state on desktop
+    window.addEventListener('resize', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        if (window.innerWidth >= 768) {
+            if (sidebar) sidebar.classList.remove('active');
+            if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    });
 </script>

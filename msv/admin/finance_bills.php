@@ -30,6 +30,94 @@ $secondary_color = SCHOOL_SECONDARY;
 // Get current session
 $current_session = date('Y') . '/' . (date('Y') + 1);
 
+// Helper function to post to ledger and income
+function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_date, $student_name, $admin_id)
+{
+    try {
+        // Get or create income account for school fees
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name LIKE '%School Fees%' AND account_type = 'income' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $income_account = $stmt->fetch();
+
+        if (!$income_account) {
+            // Create default income account
+            $stmt = $pdo->prepare("INSERT INTO fin_accounts (school_id, account_name, account_type, opening_balance, current_balance, is_active) VALUES (?, 'School Fees Income', 'income', 0, 0, 1)");
+            $stmt->execute([$school_id]);
+            $income_account_id = $pdo->lastInsertId();
+        } else {
+            $income_account_id = $income_account['id'];
+        }
+
+        // Get cash account (default asset account)
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_type = 'asset' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $cash_account = $stmt->fetch();
+        $cash_account_id = $cash_account ? $cash_account['id'] : null;
+
+        if ($cash_account_id) {
+            // Get current balances
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$cash_account_id]);
+            $cash_balance = $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$income_account_id]);
+            $income_balance = $stmt->fetchColumn();
+
+            // Post debit to cash account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'debit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_cash_balance = $cash_balance + $amount;
+            $stmt->execute([$school_id, $cash_account_id, $payment_date, $amount, $new_cash_balance, "Payment from " . $student_name, $payment_id, $admin_id]);
+
+            // Update cash account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $cash_account_id]);
+
+            // Post credit to income account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'credit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_income_balance = $income_balance - $amount;
+            $stmt->execute([$school_id, $income_account_id, $payment_date, $amount, $new_income_balance, "School fees from " . $student_name, $payment_id, $admin_id]);
+
+            // Update income account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $income_account_id]);
+
+            return true;
+        }
+        return false;
+    } catch (Exception $e) {
+        error_log("Ledger posting error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function generateReceiptNumber($pdo, $school_id)
+{
+    $year = date('Y');
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) + 1 as next_num 
+        FROM fin_receipts 
+        WHERE school_id = ? AND YEAR(issued_at) = ?
+    ");
+    $stmt->execute([$school_id, $year]);
+    $next = $stmt->fetchColumn();
+    return "RCP/" . $year . "/" . str_pad($next, 6, "0", STR_PAD_LEFT);
+}
+
+function getStudentName($pdo, $student_id)
+{
+    $stmt = $pdo->prepare("SELECT full_name FROM students WHERE id = ?");
+    $stmt->execute([$student_id]);
+    $student = $stmt->fetch();
+    return $student ? $student['full_name'] : 'Unknown Student';
+}
+
 // Handle actions
 $message = '';
 $message_type = '';
@@ -37,8 +125,81 @@ $message_type = '';
 // Process POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
+        // Record payment from modal
+        if ($_POST['action'] === 'record_payment_modal') {
+            $bill_id = intval($_POST['bill_id'] ?? 0);
+            $student_id = intval($_POST['student_id'] ?? 0);
+            $amount_paid = floatval($_POST['amount_paid'] ?? 0);
+            $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
+            $payment_method = $_POST['payment_method'] ?? 'cash';
+            $reference_number = trim($_POST['reference_number'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
+
+            if ($amount_paid <= 0) {
+                $message = "Please enter a valid amount";
+                $message_type = "error";
+            } else {
+                try {
+                    // Get bill details
+                    $stmt = $pdo->prepare("
+                        SELECT b.*, s.full_name as student_name, s.class, s.admission_number
+                        FROM fin_bills b
+                        JOIN students s ON b.student_id = s.id
+                        WHERE b.id = ? AND b.school_id = ?
+                    ");
+                    $stmt->execute([$bill_id, $school_id]);
+                    $bill = $stmt->fetch();
+
+                    if (!$bill) {
+                        throw new Exception("Bill not found");
+                    }
+
+                    $student_id = $bill['student_id'];
+                    $bill_amount = $bill['amount'];
+                    $current_paid = $bill['amount_paid'];
+                    $student_name = $bill['student_name'];
+
+                    // Insert payment record
+                    $stmt = $pdo->prepare("
+                        INSERT INTO fin_payments (school_id, bill_id, student_id, amount_paid, payment_date, payment_method, reference_number, notes, status, recorded_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?, NOW())
+                    ");
+                    $stmt->execute([$school_id, $bill_id, $student_id, $amount_paid, $payment_date, $payment_method, $reference_number, $notes, $admin_id]);
+
+                    $payment_id = $pdo->lastInsertId();
+
+                    // Update bill paid amount
+                    $new_paid = $current_paid + $amount_paid;
+                    $new_status = ($new_paid >= $bill_amount) ? 'paid' : 'part_paid';
+                    $stmt = $pdo->prepare("UPDATE fin_bills SET amount_paid = ?, status = ?, updated_at = NOW() WHERE id = ? AND school_id = ?");
+                    $stmt->execute([$new_paid, $new_status, $bill_id, $school_id]);
+
+                    // Create receipt
+                    $receipt_number = generateReceiptNumber($pdo, $school_id);
+                    $stmt = $pdo->prepare("
+                        INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
+                        VALUES (?, ?, ?, ?, ?, NOW(), ?)
+                    ");
+                    $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $amount_paid]);
+
+                    // Post to ledger and income accounts
+                    $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount_paid, $payment_date, $student_name, $admin_id);
+
+                    if ($ledger_posted) {
+                        $message = "Payment recorded successfully! Receipt #$receipt_number";
+                    } else {
+                        $message = "Payment recorded but ledger posting failed. Receipt #$receipt_number";
+                    }
+                    $message_type = "success";
+                } catch (Exception $e) {
+                    $message = "Error recording payment: " . $e->getMessage();
+                    $message_type = "error";
+                }
+            }
+        }
+
         // Update bill amount
-        if ($_POST['action'] === 'update_amount' && isset($_POST['bill_id'])) {
+        elseif ($_POST['action'] === 'update_amount' && isset($_POST['bill_id'])) {
             $bill_id = intval($_POST['bill_id']);
             $new_amount = floatval($_POST['amount']);
             $notes = trim($_POST['notes'] ?? '');
@@ -48,22 +209,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message_type = "error";
             } else {
                 try {
-                    // Get current bill info for audit
-                    $stmt = $pdo->prepare("SELECT amount, status FROM fin_bills WHERE id = ? AND school_id = ?");
-                    $stmt->execute([$bill_id, $school_id]);
-                    $old_bill = $stmt->fetch();
+                    $stmt = $pdo->prepare("UPDATE fin_bills SET amount = ?, updated_at = NOW() WHERE id = ? AND school_id = ?");
+                    $stmt->execute([$new_amount, $bill_id, $school_id]);
 
-                    if ($old_bill) {
-                        $stmt = $pdo->prepare("UPDATE fin_bills SET amount = ?, updated_at = NOW() WHERE id = ? AND school_id = ?");
-                        $stmt->execute([$new_amount, $bill_id, $school_id]);
-
-                        // Update balance in related payments? No, payments are separate
-                        $message = "Bill amount updated successfully!";
-                        $message_type = "success";
-                    } else {
-                        $message = "Bill not found";
-                        $message_type = "error";
-                    }
+                    $message = "Bill amount updated successfully!";
+                    $message_type = "success";
                 } catch (Exception $e) {
                     $message = "Error updating bill: " . $e->getMessage();
                     $message_type = "error";
@@ -107,7 +257,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message_type = "error";
             } else {
                 try {
-                    // Get student class
                     $stmt = $pdo->prepare("SELECT class, full_name FROM students WHERE id = ? AND school_id = ?");
                     $stmt->execute([$student_id, $school_id]);
                     $student = $stmt->fetch();
@@ -135,12 +284,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Handle GET actions
 if (isset($_GET['action'])) {
-    // Delete bill
     if ($_GET['action'] === 'delete' && isset($_GET['id'])) {
         $bill_id = intval($_GET['id']);
 
         try {
-            // Check if any payments exist for this bill
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_payments WHERE bill_id = ? AND school_id = ?");
             $stmt->execute([$bill_id, $school_id]);
             $payment_count = $stmt->fetchColumn();
@@ -222,6 +369,7 @@ $stmt = $pdo->prepare("
     SELECT b.*, 
            s.full_name as student_name, 
            s.admission_number,
+           s.class,
            s.profile_picture,
            (SELECT COALESCE(SUM(amount_paid), 0) FROM fin_payments WHERE bill_id = b.id AND status = 'verified') as total_paid
     FROM fin_bills b
@@ -565,6 +713,11 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             color: white;
         }
 
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
         .btn-sm {
             padding: 5px 10px;
             font-size: 0.7rem;
@@ -741,6 +894,50 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             background: var(--success-color);
             border-radius: 3px;
             transition: width 0.3s ease;
+        }
+
+        /* Payment Modal Styles */
+        .payment-modal-content {
+            max-width: 550px;
+        }
+
+        .bill-preview {
+            background: #f8f9fa;
+            border-radius: var(--radius-sm);
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .bill-preview h4 {
+            color: var(--primary-color);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .bill-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.8rem;
+        }
+
+        .bill-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .bill-info-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .bill-info-value {
+            color: #333;
+        }
+
+        .balance-amount {
+            color: var(--success-color);
+            font-weight: 700;
         }
 
         /* Pagination */
@@ -1144,7 +1341,7 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <a href="finance_payments.php?bill_id=<?php echo $bill['id']; ?>" class="action-icon pay">
+                                            <a href="#" onclick="showPaymentModal(<?php echo $bill['id']; ?>, '<?php echo htmlspecialchars($bill['student_name']); ?>', '<?php echo htmlspecialchars($bill['description']); ?>', <?php echo $bill['amount']; ?>, <?php echo $bill['total_paid']; ?>, '<?php echo htmlspecialchars($bill['class']); ?>', '<?php echo htmlspecialchars($bill['admission_number']); ?>')" class="action-icon pay">
                                                 <i class="fas fa-money-bill"></i> Pay
                                             </a>
                                             <a href="#" onclick="showEditModal(<?php echo $bill['id']; ?>, <?php echo $bill['amount']; ?>, '<?php echo htmlspecialchars($bill['description']); ?>')" class="action-icon edit">
@@ -1190,6 +1387,95 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         <!-- Footer -->
         <div class="footer">
             <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - Finance Management System</p>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content payment-modal-content">
+            <form method="POST" action="" id="paymentForm">
+                <input type="hidden" name="action" value="record_payment_modal">
+                <input type="hidden" name="bill_id" id="payment_bill_id">
+                <input type="hidden" name="student_id" id="payment_student_id">
+
+                <div class="modal-header">
+                    <h3><i class="fas fa-money-bill-wave"></i> Record Payment</h3>
+                    <button type="button" onclick="closePaymentModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Bill Preview Section -->
+                    <div class="bill-preview" id="billPreview">
+                        <h4><i class="fas fa-receipt"></i> Bill Details</h4>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Student:</span>
+                            <span class="bill-info-value" id="preview_student_name"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Admission No:</span>
+                            <span class="bill-info-value" id="preview_admission_no"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Class:</span>
+                            <span class="bill-info-value" id="preview_class"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Bill Description:</span>
+                            <span class="bill-info-value" id="preview_description"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Total Amount:</span>
+                            <span class="bill-info-value" id="preview_total_amount"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Already Paid:</span>
+                            <span class="bill-info-value" id="preview_paid_amount"></span>
+                        </div>
+                        <div class="bill-info-row">
+                            <span class="bill-info-label">Balance Due:</span>
+                            <span class="bill-info-value balance-amount" id="preview_balance"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Amount Paid (₦) *</label>
+                        <input type="number" name="amount_paid" id="payment_amount" step="0.01" required placeholder="Enter amount" onchange="validateAmount()">
+                        <small id="amount_hint" style="color: #666; font-size: 0.7rem;"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Date *</label>
+                        <input type="date" name="payment_date" required value="<?php echo date('Y-m-d'); ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Method *</label>
+                        <select name="payment_method" required>
+                            <option value="cash">Cash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="pos">POS</option>
+                            <option value="online">Online Payment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Reference Number</label>
+                        <input type="text" name="reference_number" placeholder="Transaction/Cheque/Receipt No.">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea name="notes" rows="2" placeholder="Additional payment notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closePaymentModal()" class="btn btn-warning">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Record Payment
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1256,6 +1542,9 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     </div>
 
     <script>
+        // Variables for payment modal
+        let currentBillBalance = 0;
+
         // Mobile menu functionality
         document.addEventListener('DOMContentLoaded', function() {
             const mobileMenuBtn = document.getElementById('mobileMenuBtn');
@@ -1283,6 +1572,44 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             }, 100);
         });
 
+        // Payment Modal Functions
+        function showPaymentModal(billId, studentName, description, totalAmount, paidAmount, studentClass, admissionNo) {
+            const balance = totalAmount - paidAmount;
+            currentBillBalance = balance;
+
+            document.getElementById('payment_bill_id').value = billId;
+            document.getElementById('preview_student_name').innerHTML = studentName;
+            document.getElementById('preview_admission_no').innerHTML = admissionNo;
+            document.getElementById('preview_class').innerHTML = studentClass;
+            document.getElementById('preview_description').innerHTML = description;
+            document.getElementById('preview_total_amount').innerHTML = '₦' + parseFloat(totalAmount).toLocaleString();
+            document.getElementById('preview_paid_amount').innerHTML = '₦' + parseFloat(paidAmount).toLocaleString();
+            document.getElementById('preview_balance').innerHTML = '₦' + balance.toLocaleString();
+
+            const amountInput = document.getElementById('payment_amount');
+            amountInput.value = '';
+            amountInput.max = balance;
+            amountInput.placeholder = 'Max: ₦' + balance.toLocaleString();
+
+            document.getElementById('amount_hint').innerHTML = 'Maximum payable: ₦' + balance.toLocaleString();
+
+            document.getElementById('paymentModal').classList.add('active');
+        }
+
+        function validateAmount() {
+            const amountInput = document.getElementById('payment_amount');
+            const amount = parseFloat(amountInput.value);
+
+            if (amount > currentBillBalance) {
+                alert('Amount cannot exceed the bill balance of ₦' + currentBillBalance.toLocaleString());
+                amountInput.value = currentBillBalance;
+            }
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('active');
+        }
+
         function showEditModal(billId, currentAmount, description) {
             document.getElementById('edit_bill_id').value = billId;
             document.getElementById('edit_amount').value = currentAmount;
@@ -1308,8 +1635,12 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
 
         // Close modals when clicking outside
         window.onclick = function(event) {
+            const paymentModal = document.getElementById('paymentModal');
             const editModal = document.getElementById('editModal');
             const cancelModal = document.getElementById('cancelModal');
+            if (event.target === paymentModal) {
+                closePaymentModal();
+            }
             if (event.target === editModal) {
                 closeEditModal();
             }

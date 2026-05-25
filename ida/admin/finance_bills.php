@@ -30,12 +30,30 @@ $secondary_color = SCHOOL_SECONDARY;
 // Get current session
 $current_session = date('Y') . '/' . (date('Y') + 1);
 
-// Helper function to post to ledger and income
-function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_date, $student_name, $admin_id)
+// Helper function to post to ledger, income, and cashflow
+function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_date, $student_name, $admin_id, $bill_id, $session = null, $term = null)
 {
     try {
-        // Get or create income account for school fees
-        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name LIKE '%School Fees%' AND account_type = 'income' LIMIT 1");
+        // Get current session/term from bill if not provided
+        if (!$session || !$term) {
+            $stmt = $pdo->prepare("SELECT session, term FROM fin_bills WHERE id = ? AND school_id = ?");
+            $stmt->execute([$bill_id, $school_id]);
+            $bill_data = $stmt->fetch();
+            if ($bill_data) {
+                $session = $session ?: $bill_data['session'];
+                $term = $term ?: $bill_data['term'];
+            }
+        }
+
+        if (!$session) {
+            $session = date('Y') . '/' . (date('Y') + 1);
+        }
+        if (!$term) {
+            $term = 'First';
+        }
+
+        // ==================== 1. GET OR CREATE INCOME ACCOUNT ====================
+        $stmt = $pdo->prepare("SELECT id, current_balance FROM fin_accounts WHERE school_id = ? AND account_type = 'income' AND (account_name LIKE '%School Fees%' OR account_name LIKE '%Tuition%') LIMIT 1");
         $stmt->execute([$school_id]);
         $income_account = $stmt->fetch();
 
@@ -44,53 +62,129 @@ function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_
             $stmt = $pdo->prepare("INSERT INTO fin_accounts (school_id, account_name, account_type, opening_balance, current_balance, is_active) VALUES (?, 'School Fees Income', 'income', 0, 0, 1)");
             $stmt->execute([$school_id]);
             $income_account_id = $pdo->lastInsertId();
+            $income_balance = 0;
         } else {
             $income_account_id = $income_account['id'];
+            $income_balance = $income_account['current_balance'];
         }
 
-        // Get cash account (default asset account)
-        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_type = 'asset' LIMIT 1");
+        // ==================== 2. GET OR CREATE CASH/ASSET ACCOUNT ====================
+        $stmt = $pdo->prepare("SELECT id, current_balance FROM fin_accounts WHERE school_id = ? AND account_type = 'asset' ORDER BY id LIMIT 1");
         $stmt->execute([$school_id]);
         $cash_account = $stmt->fetch();
-        $cash_account_id = $cash_account ? $cash_account['id'] : null;
 
-        if ($cash_account_id) {
-            // Get current balances
-            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
-            $stmt->execute([$cash_account_id]);
-            $cash_balance = $stmt->fetchColumn();
-
-            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
-            $stmt->execute([$income_account_id]);
-            $income_balance = $stmt->fetchColumn();
-
-            // Post debit to cash account
-            $stmt = $pdo->prepare("
-                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
-                VALUES (?, ?, ?, 'debit', ?, ?, ?, 'payment', ?, ?, NOW())
-            ");
-            $new_cash_balance = $cash_balance + $amount;
-            $stmt->execute([$school_id, $cash_account_id, $payment_date, $amount, $new_cash_balance, "Payment from " . $student_name, $payment_id, $admin_id]);
-
-            // Update cash account balance
-            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$amount, $cash_account_id]);
-
-            // Post credit to income account
-            $stmt = $pdo->prepare("
-                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
-                VALUES (?, ?, ?, 'credit', ?, ?, ?, 'payment', ?, ?, NOW())
-            ");
-            $new_income_balance = $income_balance - $amount;
-            $stmt->execute([$school_id, $income_account_id, $payment_date, $amount, $new_income_balance, "School fees from " . $student_name, $payment_id, $admin_id]);
-
-            // Update income account balance
-            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$amount, $income_account_id]);
-
-            return true;
+        if (!$cash_account) {
+            // Create default cash account
+            $stmt = $pdo->prepare("INSERT INTO fin_accounts (school_id, account_name, account_type, opening_balance, current_balance, is_active) VALUES (?, 'Cash Account', 'asset', 0, 0, 1)");
+            $stmt->execute([$school_id]);
+            $cash_account_id = $pdo->lastInsertId();
+            $cash_balance = 0;
+        } else {
+            $cash_account_id = $cash_account['id'];
+            $cash_balance = $cash_account['current_balance'];
         }
-        return false;
+
+        // ==================== 3. GET OR CREATE INCOME CATEGORY ====================
+        $stmt = $pdo->prepare("SELECT id FROM fin_categories WHERE school_id = ? AND type IN ('income', 'both') AND name LIKE '%School Fees%' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $category = $stmt->fetch();
+
+        if (!$category) {
+            $stmt = $pdo->prepare("INSERT INTO fin_categories (school_id, name, type, is_active) VALUES (?, 'School Fees', 'income', 1)");
+            $stmt->execute([$school_id]);
+            $category_id = $pdo->lastInsertId();
+        } else {
+            $category_id = $category['id'];
+        }
+
+        // ==================== 4. POST DEBIT TO CASH ACCOUNT (LEDGER) ====================
+        $new_cash_balance = $cash_balance + $amount;
+
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, session, term, posted_by, created_at)
+            VALUES (?, ?, ?, 'debit', ?, ?, ?, 'payment', ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $school_id,
+            $cash_account_id,
+            $payment_date,
+            $amount,
+            $new_cash_balance,
+            "Payment received from " . $student_name . " (Bill #" . $bill_id . ")",
+            $payment_id,
+            $session,
+            $term,
+            $admin_id
+        ]);
+
+        // Update cash account balance
+        $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$amount, $cash_account_id]);
+
+        // ==================== 5. POST CREDIT TO INCOME ACCOUNT (LEDGER) ====================
+        $new_income_balance = $income_balance + $amount;  // Income accounts increase on credit
+
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, session, term, posted_by, created_at)
+            VALUES (?, ?, ?, 'credit', ?, ?, ?, 'payment', ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $school_id,
+            $income_account_id,
+            $payment_date,
+            $amount,
+            $new_income_balance,
+            "School fees payment from " . $student_name . " (Bill #" . $bill_id . ")",
+            $payment_id,
+            $session,
+            $term,
+            $admin_id
+        ]);
+
+        // Update income account balance
+        $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$amount, $income_account_id]);
+
+        // ==================== 6. INSERT INTO fin_income TABLE ====================
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_income (school_id, category_id, account_id, income_date, source, description, amount, session, term, reference, recorded_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $school_id,
+            $category_id,
+            $cash_account_id,
+            $payment_date,
+            $student_name,
+            "School fees payment for bill #" . $bill_id . " - " . $student_name,
+            $amount,
+            $session,
+            $term,
+            "PAY-" . $payment_id,
+            $admin_id
+        ]);
+
+        // ==================== 7. INSERT INTO fin_cashflow (Optional but recommended) ====================
+        // Get current cash balance from cash account after update
+        $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+        $stmt->execute([$cash_account_id]);
+        $current_cash_balance = $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_cashflow (school_id, flow_date, flow_type, amount, balance_after, description, source_ref, account_id, created_at)
+            VALUES (?, ?, 'inflow', ?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $school_id,
+            $payment_date,
+            $amount,
+            $current_cash_balance,
+            "Payment received - " . $student_name,
+            "payment:" . $payment_id,
+            $cash_account_id
+        ]);
+
+        return true;
     } catch (Exception $e) {
         error_log("Ledger posting error: " . $e->getMessage());
         return false;
@@ -183,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $amount_paid]);
 
                     // Post to ledger and income accounts
-                    $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount_paid, $payment_date, $student_name, $admin_id);
+                    $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount_paid, $payment_date, $student_name, $admin_id, $bill_id);
 
                     if ($ledger_posted) {
                         $message = "Payment recorded successfully! Receipt #$receipt_number";
@@ -195,6 +289,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = "Error recording payment: " . $e->getMessage();
                     $message_type = "error";
                 }
+            }
+        }
+
+        // Handle payment deletion/void
+        elseif ($_POST['action'] === 'void_payment') {
+            $payment_id = intval($_POST['payment_id']);
+            $void_reason = trim($_POST['void_reason'] ?? '');
+
+            try {
+                // Get payment details first
+                $stmt = $pdo->prepare("
+                    SELECT p.*, b.id as bill_id, b.amount_paid as bill_paid, b.amount as bill_amount, b.status as bill_status,
+                           s.full_name as student_name
+                    FROM fin_payments p
+                    LEFT JOIN fin_bills b ON p.bill_id = b.id
+                    LEFT JOIN students s ON p.student_id = s.id
+                    WHERE p.id = ? AND p.school_id = ? AND p.status = 'verified'
+                ");
+                $stmt->execute([$payment_id, $school_id]);
+                $payment = $stmt->fetch();
+
+                if (!$payment) {
+                    throw new Exception("Payment not found or already voided");
+                }
+
+                // Reverse ledger entries
+                $stmt = $pdo->prepare("
+                    DELETE FROM fin_ledger 
+                    WHERE ref_type = 'payment' AND ref_id = ? AND school_id = ?
+                ");
+                $stmt->execute([$payment_id, $school_id]);
+
+                // Reverse cash account balance
+                $stmt = $pdo->prepare("
+                    UPDATE fin_accounts 
+                    SET current_balance = current_balance - ? 
+                    WHERE account_type = 'asset' AND school_id = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$payment['amount_paid'], $school_id]);
+
+                // Reverse income account balance
+                $stmt = $pdo->prepare("
+                    UPDATE fin_accounts 
+                    SET current_balance = current_balance + ? 
+                    WHERE account_type = 'income' AND school_id = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$payment['amount_paid'], $school_id]);
+
+                // Update bill amount_paid
+                if ($payment['bill_id']) {
+                    $new_paid = max(0, $payment['bill_paid'] - $payment['amount_paid']);
+                    $new_status = ($new_paid <= 0) ? 'pending' : (($new_paid >= $payment['bill_amount']) ? 'paid' : 'part_paid');
+                    $stmt = $pdo->prepare("
+                        UPDATE fin_bills 
+                        SET amount_paid = ?, status = ?, updated_at = NOW() 
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([$new_paid, $new_status, $payment['bill_id']]);
+                }
+
+                // Delete receipt
+                $stmt = $pdo->prepare("DELETE FROM fin_receipts WHERE payment_id = ? AND school_id = ?");
+                $stmt->execute([$payment_id, $school_id]);
+
+                // Mark payment as voided
+                $stmt = $pdo->prepare("
+                    UPDATE fin_payments 
+                    SET status = 'voided', 
+                        rejection_reason = CONCAT('VOIDED: ', ?),
+                        verified_by = NULL,
+                        verified_at = NULL
+                    WHERE id = ? AND school_id = ?
+                ");
+                $stmt->execute([$void_reason, $payment_id, $school_id]);
+
+                $message = "Payment has been voided successfully! All ledger entries and receipts have been reversed.";
+                $message_type = "success";
+            } catch (Exception $e) {
+                $message = "Error voiding payment: " . $e->getMessage();
+                $message_type = "error";
             }
         }
 
@@ -426,6 +602,21 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $stmt->execute([$_GET['edit'], $school_id]);
     $edit_bill = $stmt->fetch();
 }
+
+// Get recent payments for display (to show void button)
+$stmt = $pdo->prepare("
+    SELECT p.*, 
+           s.full_name as student_name,
+           b.description as bill_description
+    FROM fin_payments p
+    LEFT JOIN students s ON p.student_id = s.id
+    LEFT JOIN fin_bills b ON p.bill_id = b.id
+    WHERE p.school_id = ? AND p.status = 'verified'
+    ORDER BY p.created_at DESC
+    LIMIT 20
+");
+$stmt->execute([$school_id]);
+$recent_payments = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -776,6 +967,7 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             background: white;
             border-radius: var(--radius-md);
             padding: 20px;
+            margin-bottom: 20px;
             box-shadow: var(--shadow-sm);
         }
 
@@ -838,6 +1030,11 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             color: #6c757d;
         }
 
+        .status-voided {
+            background: #d1d1d1;
+            color: #555;
+        }
+
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -878,6 +1075,15 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         .action-icon.delete {
             background: #6c757d;
             color: white;
+        }
+
+        .action-icon.delete-payment {
+            background: #dc3545;
+            color: white;
+        }
+
+        .action-icon.delete-payment:hover {
+            background: #c82333;
         }
 
         .progress-bar {
@@ -1420,6 +1626,91 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             <?php endif; ?>
         </div>
 
+        <!-- Recent Payments Section with Void Option -->
+        <div class="table-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--primary-color); font-size: 1rem;">
+                    <i class="fas fa-history"></i> Recent Payments
+                    <span style="font-size: 0.75rem; color: #666;">(Last 20 verified payments)</span>
+                </h3>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recent_payments)): ?>
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                                    <i class="fas fa-credit-card" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
+                                    No payments recorded yet
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($recent_payments as $payment): ?>
+                                <tr>
+                                    <td><?php echo date('d M Y', strtotime($payment['payment_date'])); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($payment['student_name']); ?></strong>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($payment['bill_description'] ?? 'Manual Payment'); ?></td>
+                                    <td style="font-weight: 600; color: var(--success-color);">₦<?php echo number_format($payment['amount_paid'], 2); ?></td>
+                                    <td>
+                                        <?php
+                                        $method_icon = 'fa-money-bill';
+                                        switch ($payment['payment_method']) {
+                                            case 'bank_transfer':
+                                                $method_icon = 'fa-university';
+                                                break;
+                                            case 'pos':
+                                                $method_icon = 'fa-credit-card';
+                                                break;
+                                            case 'cheque':
+                                                $method_icon = 'fa-file-invoice';
+                                                break;
+                                            case 'online':
+                                                $method_icon = 'fa-globe';
+                                                break;
+                                        }
+                                        ?>
+                                        <i class="fas <?php echo $method_icon; ?>"></i>
+                                        <?php echo ucfirst(str_replace('_', ' ', $payment['payment_method'])); ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($payment['reference_number'] ?: 'N/A'); ?></td>
+                                    <td>
+                                        <span class="status-badge status-paid">
+                                            <i class="fas fa-check-circle"></i> Verified
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="#" onclick="showVoidModal(<?php echo $payment['id']; ?>, '<?php echo htmlspecialchars($payment['student_name']); ?>', <?php echo $payment['amount_paid']; ?>, '<?php echo htmlspecialchars($payment['bill_description'] ?? 'Manual Payment'); ?>')" class="action-icon delete-payment">
+                                                <i class="fas fa-trash-alt"></i> Void
+                                            </a>
+                                            <a href="finance_receipts.php?payment_id=<?php echo $payment['id']; ?>" class="action-icon view">
+                                                <i class="fas fa-receipt"></i> Receipt
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Footer -->
         <div class="footer">
             <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - Finance Management System</p>
@@ -1577,6 +1868,42 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         </div>
     </div>
 
+    <!-- Void Payment Modal -->
+    <div id="voidPaymentModal" class="modal">
+        <div class="modal-content">
+            <form method="POST" action="" id="voidPaymentForm">
+                <input type="hidden" name="action" value="void_payment">
+                <input type="hidden" name="payment_id" id="void_payment_id">
+
+                <div class="modal-header">
+                    <h3><i class="fas fa-trash-alt"></i> Void Payment</h3>
+                    <button type="button" onclick="closeVoidModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="void_payment_info" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-radius: 8px;"></div>
+                    <div class="form-group">
+                        <label>Reason for Voiding *</label>
+                        <textarea name="void_reason" rows="3" required placeholder="e.g., Wrong amount entered, Duplicate payment, Wrong student"></textarea>
+                    </div>
+                    <p style="color: var(--danger-color); font-size: 0.75rem; margin-top: 10px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This action will:
+                    </p>
+                    <ul style="margin-left: 20px; font-size: 0.75rem; color: #666;">
+                        <li>Reverse all ledger entries</li>
+                        <li>Delete the associated receipt</li>
+                        <li>Update the bill balance</li>
+                        <li>This action CANNOT be undone</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeVoidModal()" class="btn btn-warning">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Void Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Variables for payment modal
         let currentBillBalance = 0;
@@ -1669,11 +1996,28 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             document.getElementById('cancelModal').classList.remove('active');
         }
 
+        function showVoidModal(paymentId, studentName, amount, description) {
+            document.getElementById('void_payment_id').value = paymentId;
+            document.getElementById('void_payment_info').innerHTML = `
+                <strong>⚠️ You are about to void this payment:</strong><br>
+                <strong>Student:</strong> ${studentName}<br>
+                <strong>Amount:</strong> ₦${parseFloat(amount).toLocaleString()}<br>
+                <strong>Payment:</strong> ${description}<br><br>
+                <span style="color: #856404;">This will reverse the transaction completely.</span>
+            `;
+            document.getElementById('voidPaymentModal').classList.add('active');
+        }
+
+        function closeVoidModal() {
+            document.getElementById('voidPaymentModal').classList.remove('active');
+        }
+
         // Close modals when clicking outside
         window.onclick = function(event) {
             const paymentModal = document.getElementById('paymentModal');
             const editModal = document.getElementById('editModal');
             const cancelModal = document.getElementById('cancelModal');
+            const voidModal = document.getElementById('voidPaymentModal');
             if (event.target === paymentModal) {
                 closePaymentModal();
             }
@@ -1682,6 +2026,9 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             }
             if (event.target === cancelModal) {
                 closeCancelModal();
+            }
+            if (event.target === voidModal) {
+                closeVoidModal();
             }
         }
     </script>

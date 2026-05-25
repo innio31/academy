@@ -1,5 +1,5 @@
 <?php
-// eagles/admin/finance_bill_types.php - Manage Bill Templates
+// tbis/admin/finance_bill_types.php - Manage Bill Templates (FIXED)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /eagles/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 
@@ -29,6 +29,47 @@ $secondary_color = SCHOOL_SECONDARY;
 
 // Get current session
 $current_session = date('Y') . '/' . (date('Y') + 1);
+
+// Ensure fin_categories table exists (create if not)
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `fin_categories` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `school_id` int(11) NOT NULL,
+            `name` varchar(100) NOT NULL,
+            `type` enum('income','expenditure','both') NOT NULL DEFAULT 'income',
+            `description` text DEFAULT NULL,
+            `is_active` tinyint(1) NOT NULL DEFAULT 1,
+            `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+            PRIMARY KEY (`id`),
+            KEY `idx_fin_categories_school` (`school_id`),
+            CONSTRAINT `fk_fincat_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    // Insert default categories if none exist
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_categories WHERE school_id = ?");
+    $stmt->execute([$school_id]);
+    if ($stmt->fetchColumn() == 0) {
+        $default_categories = [
+            ['School Fees', 'income', 'Student tuition and fees'],
+            ['PTA Levies', 'income', 'PTA contributions'],
+            ['Donations', 'income', 'Donations and grants'],
+            ['Salaries', 'expenditure', 'Staff salaries and wages'],
+            ['Maintenance', 'expenditure', 'School maintenance costs'],
+            ['Stationery', 'expenditure', 'Office and school supplies'],
+            ['Utilities', 'expenditure', 'Electricity, water, internet'],
+            ['Examination Fees', 'income', 'Exam registration fees'],
+        ];
+
+        $stmt = $pdo->prepare("INSERT INTO fin_categories (school_id, name, type, description) VALUES (?, ?, ?, ?)");
+        foreach ($default_categories as $cat) {
+            $stmt->execute([$school_id, $cat[0], $cat[1], $cat[2]]);
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error creating fin_categories: " . $e->getMessage());
+}
 
 // Handle actions
 $message = '';
@@ -243,34 +284,34 @@ $filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $filter_term = isset($_GET['term']) ? $_GET['term'] : 'all';
 $filter_class = isset($_GET['class']) ? $_GET['class'] : 'all';
 
-// Build query
-$where_clauses = ["school_id = ?"];
+// Build query - FIXED: specify which table's school_id to use
+$where_clauses = ["bt.school_id = ?"];
 $params = [$school_id];
 
 if ($filter_status !== 'all') {
-    $where_clauses[] = "is_active = ?";
+    $where_clauses[] = "bt.is_active = ?";
     $params[] = ($filter_status === 'active') ? 1 : 0;
 }
 
 if ($filter_term !== 'all') {
-    $where_clauses[] = "term = ?";
+    $where_clauses[] = "bt.term = ?";
     $params[] = $filter_term;
 }
 
 if ($filter_class !== 'all') {
-    $where_clauses[] = "(applies_to_class = ? OR applies_to_class IS NULL)";
+    $where_clauses[] = "(bt.applies_to_class = ? OR bt.applies_to_class IS NULL)";
     $params[] = $filter_class;
 }
 
 $where_sql = implode(" AND ", $where_clauses);
 
 // Get total count
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bill_types WHERE $where_sql");
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bill_types bt WHERE $where_sql");
 $stmt->execute($params);
 $total_records = $stmt->fetchColumn();
 $total_pages = ceil($total_records / $per_page);
 
-// Get bill types
+// Get bill types - FIXED: specify table aliases
 $stmt = $pdo->prepare("
     SELECT bt.*, c.name as category_name
     FROM fin_bill_types bt
@@ -288,7 +329,7 @@ $stmt->execute([$school_id]);
 $categories = $stmt->fetchAll();
 
 // Get unique classes from students for filter
-$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND status = 'active' ORDER BY class");
+$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND status = 'active' AND class IS NOT NULL AND class != '' ORDER BY class");
 $stmt->execute([$school_id]);
 $available_classes = $stmt->fetchAll();
 

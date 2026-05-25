@@ -1,5 +1,5 @@
 <?php
-// eagles/admin/includes/sidebar.php - Reusable sidebar component
+// tbis/admin/includes/sidebar.php - Reusable sidebar component
 // Fully dynamic school theme integration – reads constants from config.php
 
 // Make sure required variables are available
@@ -137,7 +137,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/eagles/assets/logos/logo.png',
+                    '/tbis/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -372,7 +372,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </div>
 
         <!-- Logout -->
-        <a href="/eagles/logout.php" class="nav-item standalone logout">
+        <a href="/tbis/logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>

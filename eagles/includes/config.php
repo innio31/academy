@@ -20,21 +20,21 @@ define('DB_NAME', 'impactdi_school_portal');
 // ============================================
 // SCHOOL IDENTIFICATION
 // ============================================
-define('SCHOOL_ID', 5);
-define('SCHOOL_CODE', 'TBIS');
+define('SCHOOL_ID', 6);
+define('SCHOOL_CODE', 'EAGCIT');
 
 // ============================================
 // SCHOOL INFORMATION
 // ============================================
-define('SCHOOL_NAME', 'Topfolex British International School');
-define('SCHOOL_PRIMARY', '#FF0000');   // white
-define('SCHOOL_SECONDARY', '#6A5ACD'); // slate blue
-define('SCHOOL_ACCENT', '#FFFFFF');    // red
-define('SCHOOL_LOGO', 'tbis/assets/logos/logo.png');  // Added back
-define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
-define('SCHOOL_ADDRESS', 'Topfolex British International School, Ewekoro, Ogun, Nigeria');  // Added back
-define('SCHOOL_PHONE', '08033627316');  // Added back
-define('SCHOOL_EMAIL', 'topfolexgloballtd@gmail.com');  // Added back
+define('SCHOOL_NAME', 'Eagles Citadel Nursery and Primary School');
+define('SCHOOL_PRIMARY',   '#2B3DA0'); // deep royal blue (background)
+define('SCHOOL_SECONDARY', '#2E9E4F'); // rich green (leaves)
+define('SCHOOL_ACCENT',    '#FFFFFF'); // white (chevron & diamond)
+define('SCHOOL_LOGO', 'eagles/assets/logos/logo.png');  // Added back
+define('SCHOOL_MOTTO', ' ...where every child is a genius');  // Added back
+define('SCHOOL_ADDRESS', 'Eagles Citadel, Abeokuta, Ogun, Nigeria');  // Added back
+define('SCHOOL_PHONE', '07067875337');  // Added back
+define('SCHOOL_EMAIL', 'eacteam2023@gmail.com');  // Added back
 
 // ============================================
 // SYSTEM CONFIGURATION

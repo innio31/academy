@@ -4,6 +4,40 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 date_default_timezone_set('Africa/Lagos');
 
+// ============================================
+// GLOBAL CACHE CONTROL - Prevents Browser Caching
+// ============================================
+// Force no caching for ALL pages to ensure fresh data after updates
+// This eliminates the need to manually clear browser cache
+
+// Only send headers if not already sent (prevents errors)
+if (!headers_sent()) {
+    // Disable all forms of caching
+    header("Cache-Control: no-store, no-cache, must-revalidate, no-transform, max-age=0, post-check=0, pre-check=0");
+    header("Pragma: no-cache");
+    header("Expires: Thu, 01 Jan 1970 00:00:00 GMT");
+
+    // Force revalidation every time
+    header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+
+    // Generate unique ETag that changes with each request
+    header("ETag: " . md5(uniqid() . time() . $_SERVER['SCRIPT_NAME']));
+
+    // Additional: Tell proxies and browsers not to store
+    header("Cache-Control: private, no-cache, no-store, proxy-revalidate");
+
+    // For AJAX/API responses
+    if (
+        strpos($_SERVER['SCRIPT_NAME'], 'ajax') !== false ||
+        strpos($_SERVER['REQUEST_URI'], '/api/') !== false
+    ) {
+        header("Content-Type: application/json; charset=utf-8");
+    }
+}
+// ============================================
+// END CACHE CONTROL
+// ============================================
+
 // Start session if not started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -30,11 +64,11 @@ define('SCHOOL_NAME', 'Impact Digital Academy');
 define('SCHOOL_PRIMARY', '#1a3a8f');
 define('SCHOOL_SECONDARY', '#d4500a');
 define('SCHOOL_ACCENT', '#ffffff');
-define('SCHOOL_LOGO', 'ida/assets/logos/logo.png');  // Added back
-define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
-define('SCHOOL_ADDRESS', 'Impact Digital Academy');  // Added back
-define('SCHOOL_PHONE', '09035448295');  // Added back
-define('SCHOOL_EMAIL', 'dig2skills@gmail.com');  // Added back
+define('SCHOOL_LOGO', 'ida/assets/logos/logo.png');
+define('SCHOOL_MOTTO', 'Excellence in Digital Education');
+define('SCHOOL_ADDRESS', 'Impact Digital Academy');
+define('SCHOOL_PHONE', '09035448295');
+define('SCHOOL_EMAIL', 'dig2skills@gmail.com');
 
 // ============================================
 // SYSTEM CONFIGURATION
@@ -242,7 +276,6 @@ if (!in_array($current_file, $excluded_pages)) {
 
 // Store subscription status globally for use in pages
 $subscription_status = getCurrentSubscriptionStatus();
-
 
 // Make subscription status available globally
 if (!isset($subscription_status)) {

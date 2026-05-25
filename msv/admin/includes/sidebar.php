@@ -479,7 +479,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .logo-text h3.school-name {
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         font-weight: 700;
         color: var(--sb-text-bright);
         line-height: 1.25;
@@ -489,7 +489,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .logo-text p {
-        font-size: 0.68rem;
+        font-size: 0.72rem;
         color: var(--sb-text);
         text-transform: uppercase;
         letter-spacing: 0.06em;
@@ -512,7 +512,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         border-radius: 50%;
         background: var(--sb-logo-grad);
         color: #fff;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         font-weight: 700;
         display: flex;
         align-items: center;
@@ -521,7 +521,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .admin-details h4 {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         font-weight: 600;
         color: var(--sb-text-bright);
         margin: 0 0 2px;
@@ -532,7 +532,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .admin-details p {
-        font-size: 0.68rem;
+        font-size: 0.72rem;
         color: var(--sb-text);
         margin: 0;
         text-transform: capitalize;
@@ -569,13 +569,13 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         display: flex;
         align-items: center;
         gap: 7px;
-        font-size: 0.72rem;
+        font-size: 0.78rem;
         color: var(--sb-text);
         flex-shrink: 0;
     }
 
     .sub-left i {
-        font-size: 0.75rem;
+        font-size: 0.82rem;
     }
 
     .sub-right {
@@ -584,7 +584,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     .days-badge {
         display: block;
-        font-size: 0.78rem;
+        font-size: 0.85rem;
         font-weight: 700;
         line-height: 1.2;
     }
@@ -604,7 +604,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     .expiry-text {
         display: block;
-        font-size: 0.62rem;
+        font-size: 0.68rem;
         color: var(--sb-text);
         margin-top: 1px;
     }
@@ -625,7 +625,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         padding: 10px 18px;
         color: var(--sb-text);
         text-decoration: none;
-        font-size: 0.84rem;
+        font-size: 0.95rem;
         font-weight: 500;
         transition: background var(--sb-transition), color var(--sb-transition);
         border-radius: 0;
@@ -678,7 +678,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         border: none;
         cursor: pointer;
         color: var(--sb-text);
-        font-size: 0.84rem;
+        font-size: 0.95rem;
         font-weight: 500;
         text-align: left;
         transition: background var(--sb-transition), color var(--sb-transition);
@@ -706,7 +706,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .chevron {
-        font-size: 0.65rem;
+        font-size: 0.7rem;
         color: var(--sb-text);
         transition: transform 0.25s ease;
     }
@@ -717,7 +717,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     /* Coming soon badge */
     .coming-soon-badge {
-        font-size: 0.58rem;
+        font-size: 0.62rem;
         font-weight: 700;
         letter-spacing: 0.05em;
         text-transform: uppercase;
@@ -730,11 +730,11 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     /* Icon wrapper */
     .nav-icon {
-        width: 20px;
+        width: 22px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         flex-shrink: 0;
     }
 
@@ -760,14 +760,14 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         padding: 8px 18px 8px 46px;
         color: var(--sb-text);
         text-decoration: none;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         transition: background var(--sb-transition), color var(--sb-transition);
         position: relative;
     }
 
     .nav-group-items li a i {
-        font-size: 0.75rem;
-        width: 16px;
+        font-size: 0.85rem;
+        width: 18px;
         text-align: center;
         flex-shrink: 0;
     }

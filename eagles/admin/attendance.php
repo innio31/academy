@@ -3,7 +3,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 

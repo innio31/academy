@@ -1,42 +1,42 @@
 {
-    "name": "Topfolex British International School Portal",
-    "short_name": "Topfolex",
-    "description": "Topfolex British International School Parent & Student Portal",
-    "start_url": "/tbis/login.php",
+    "name": "Eagles Citadel Nursery and Primary School Portal",
+    "short_name": "Eagles Citadel",
+    "description": "Eagles Citadel Nursery and Primary School Parent & Student Portal",
+    "start_url": "/eagles/login.php",
     "display": "standalone",
     "theme_color": "#ffffff",
     "background_color": "#ffffff",
     "orientation": "portrait",
-    "scope": "/tbis/",
+    "scope": "/eagles/",
     "icons": [
         {
-            "src": "/tbis/assets/logos/tbis-192.png",
+            "src": "/eagles/assets/logos/eagles-192.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "/tbis/assets/logos/tbis-512.png",
+            "src": "/eagles/assets/logos/eagles-512.png",
             "sizes": "512x512",
             "type": "image/png"
         }
     ],
     "screenshots": [
         {
-            "src": "/tbis/assets/screenshots/mobile-home.png",
+            "src": "/eagles/assets/screenshots/mobile-home.png",
             "sizes": "1080x1920",
             "type": "image/png",
             "form_factor": "narrow",
             "label": "Home Screen"
         },
         {
-            "src": "/tbis/assets/screenshots/mobile-dashboard.png",
+            "src": "/eagles/assets/screenshots/mobile-dashboard.png",
             "sizes": "1080x1920",
             "type": "image/png",
             "form_factor": "narrow",
             "label": "Student Dashboard"
         },
         {
-            "src": "/tbis/assets/screenshots/desktop-home.png",
+            "src": "/eagles/assets/screenshots/desktop-home.png",
             "sizes": "1280x720",
             "type": "image/png",
             "form_factor": "wide",

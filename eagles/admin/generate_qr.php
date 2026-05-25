@@ -15,7 +15,7 @@ $stmt = $pdo->prepare("SELECT qr_code FROM students WHERE id = ? AND school_id =
 $stmt->execute([$student_id, SCHOOL_ID]);
 $qr_path = $stmt->fetchColumn();
 
-// FIXED: Check if file exists with correct path including /tbis/
+// FIXED: Check if file exists with correct path including /eagles/
 if ($qr_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $qr_path)) {
     $file_path = $_SERVER['DOCUMENT_ROOT'] . $qr_path;
     $file_info = finfo_open(FILEINFO_MIME_TYPE);

@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -687,7 +687,7 @@ $theory_questions = $pdo->query("
             <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
             <li><a href="manage-topics.php"><i class="fas fa-list"></i> Manage Topics</a></li>
             <li><a href="manage-questions.php"><i class="fas fa-question-circle"></i> School Questions</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../eagles/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

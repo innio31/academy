@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance (FIXED)
+// eagles/admin/exam_traits_comments.php — Step 3: Traits, Comments & Attendance (FIXED)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 if (isset($_SESSION['admin_id'])) {

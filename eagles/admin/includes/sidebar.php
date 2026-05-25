@@ -159,6 +159,11 @@ if (!isset($subscription_active)) {
             <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>">
                     <i class="fas fa-file-invoice"></i> Process Results
                 </a></li>
+            <li>
+                <a href="admissions.php" <?php echo basename($_SERVER['PHP_SELF']) === 'admissions.php' ? 'class="active"' : ''; ?>>
+                    <i class="fas fa-user-plus"></i> <span>Admissions</span>
+                </a>
+            </li>
             <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
                     <i class="fas fa-robot"></i> AI Teaching Tools
                 </a></li>

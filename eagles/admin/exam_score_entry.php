@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
+// eagles/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 

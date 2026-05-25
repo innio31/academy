@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/id_cards.php - ID Card Generation System
+// eagles/admin/id_cards.php - ID Card Generation System
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Auth check
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -1265,7 +1265,7 @@ if (isset($_GET['action'])) {
             <div class="logo">
                 <div class="logo-icon">
                     <?php if (!empty($school['logo_path'])): ?>
-                        <img src="/tbis/assets/logos/logo.png" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                        <img src="/eagles/assets/logos/logo.png" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                         <i class="fas fa-graduation-cap" style="display:none;"></i>
                     <?php else: ?>
                         <i class="fas fa-graduation-cap"></i>
@@ -1448,7 +1448,7 @@ if (isset($_GET['action'])) {
         const SCHOOL = {
             name: <?= json_encode($school_name) ?>,
             motto: <?= json_encode($school['motto'] ?? '') ?>,
-            logo: '/tbis/assets/logos/logo.png',
+            logo: '/eagles/assets/logos/logo.png',
             email: <?= json_encode($school['contact_email'] ?? '') ?>,
             phone: <?= json_encode($school['contact_phone'] ?? '') ?>,
             school_id: <?= (int)$school_id ?>
@@ -1626,7 +1626,7 @@ if (isset($_GET['action'])) {
             // Generate QR codes after DOM insert
             students.forEach(s => {
                 // Use the pre-generated QR image saved by the system
-                const qrSrc = `/tbis/uploads/qrcodes/student_${s.id}.png`;
+                const qrSrc = `/eagles/uploads/qrcodes/student_${s.id}.png`;
                 const frontEl = document.getElementById(`qr-front-${s.id}`);
                 const backEl = document.getElementById(`qr-back-${s.id}`);
                 if (frontEl && CARD_SETTINGS.show_qr) {
@@ -1640,7 +1640,7 @@ if (isset($_GET['action'])) {
             openModal('preview-modal');
         }
 
-        // (QR codes are loaded from pre-generated images at /tbis/uploads/qrcodes/student_[id].png)
+        // (QR codes are loaded from pre-generated images at /eagles/uploads/qrcodes/student_[id].png)
 
         // ─── Build card HTML ──────────────────────────────────────────────
         function buildFrontHTML(s) {

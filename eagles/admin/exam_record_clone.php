@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/exam_record_clone.php — Clone an exam record (Admin only)
+// eagles/admin/exam_record_clone.php — Clone an exam record (Admin only)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 

@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -1361,7 +1361,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                 <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong> |
                     Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if ($message): ?>

@@ -1,9 +1,9 @@
 <?php
-// tbis/admin/library.php - Admin Library Management
+// eagles/admin/library.php - Admin Library Management
 session_start();
 
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -486,7 +486,7 @@ $stats = $stats->fetch();
             <li><a href="manage-students.php"><i class="fas fa-users"></i> Students</a></li>
             <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
             <li><a href="library.php" class="active"><i class="fas fa-book"></i> Library</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../eagles/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -495,7 +495,7 @@ $stats = $stats->fetch();
             <div class="header-title">
                 <h1><i class="fas fa-book"></i> Library Management</h1>
             </div>
-            <button class="btn" onclick="window.location.href='/tbis/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='/eagles/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if (isset($message)): ?>

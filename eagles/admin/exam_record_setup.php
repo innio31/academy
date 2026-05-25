@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/exam_record_setup.php - Create / Edit Exam Record Setup
+// eagles/admin/exam_record_setup.php - Create / Edit Exam Record Setup
 
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth check ────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 

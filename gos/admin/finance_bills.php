@@ -1061,6 +1061,42 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                 flex: 1;
             }
         }
+
+        /* Add to existing modal styles */
+        .modal {
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal-content {
+            max-height: 90vh;
+            overflow-y: auto;
+            margin: auto;
+        }
+
+        .payment-modal-content {
+            max-width: 550px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        /* For mobile devices */
+        @media (max-width: 767px) {
+            .modal-content {
+                max-height: 95vh;
+                width: 95%;
+            }
+
+            .payment-modal-content {
+                max-height: 90vh;
+            }
+
+            .modal-body {
+                max-height: calc(85vh - 120px);
+                overflow-y: auto;
+                padding-right: 5px;
+            }
+        }
     </style>
 </head>
 

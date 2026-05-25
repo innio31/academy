@@ -27,9 +27,9 @@ define('SCHOOL_CODE', 'TBIS');
 // SCHOOL INFORMATION
 // ============================================
 define('SCHOOL_NAME', 'Topfolex British International School');
-define('SCHOOL_PRIMARY', '#FF0000');   // white
-define('SCHOOL_SECONDARY', '#6A5ACD'); // slate blue
-define('SCHOOL_ACCENT', '#FFFFFF');    // red
+define('SCHOOL_PRIMARY', '#6A5ACD');
+define('SCHOOL_SECONDARY', '#fae20c');
+define('SCHOOL_ACCENT', '#FFFFFF');
 define('SCHOOL_LOGO', 'tbis/assets/logos/logo.png');  // Added back
 define('SCHOOL_MOTTO', 'Excellence in Digital Education');  // Added back
 define('SCHOOL_ADDRESS', 'Topfolex British International School, Ewekoro, Ogun, Nigeria');  // Added back

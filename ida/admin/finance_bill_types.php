@@ -1,5 +1,5 @@
 <?php
-// eagles/admin/finance_bill_types.php - Manage Bill Templates (FIXED - Display Issue Resolved)
+// ida/admin/finance_bill_types.php - Manage Bill Templates (FIXED - Display Issue Resolved)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /eagles/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 

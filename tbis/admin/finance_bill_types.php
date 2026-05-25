@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/finance_bill_types.php - Manage Bill Templates (FIXED)
+// tbis/admin/finance_bill_types.php - Manage Bill Templates (FIXED - Display Issue Resolved)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -104,6 +104,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $message = "Bill template created successfully!";
                     $message_type = "success";
+
+                    // Clear any edit parameters after successful creation
+                    header("Location: finance_bill_types.php?success=1");
+                    exit();
                 } catch (Exception $e) {
                     $message = "Error creating bill template: " . $e->getMessage();
                     $message_type = "error";
@@ -139,6 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $message = "Bill template updated successfully!";
                     $message_type = "success";
+
+                    // Redirect to clear edit mode
+                    header("Location: finance_bill_types.php?updated=1");
+                    exit();
                 } catch (Exception $e) {
                     $message = "Error updating bill template: " . $e->getMessage();
                     $message_type = "error";
@@ -284,7 +292,7 @@ $filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $filter_term = isset($_GET['term']) ? $_GET['term'] : 'all';
 $filter_class = isset($_GET['class']) ? $_GET['class'] : 'all';
 
-// Build query - FIXED: specify which table's school_id to use
+// Build query - FIXED: proper WHERE clause construction
 $where_clauses = ["bt.school_id = ?"];
 $params = [$school_id];
 
@@ -299,19 +307,25 @@ if ($filter_term !== 'all') {
 }
 
 if ($filter_class !== 'all') {
-    $where_clauses[] = "(bt.applies_to_class = ? OR bt.applies_to_class IS NULL)";
+    $where_clauses[] = "bt.applies_to_class = ?";
     $params[] = $filter_class;
 }
 
 $where_sql = implode(" AND ", $where_clauses);
 
+// Debug: Log the query and params
+error_log("WHERE SQL: " . $where_sql);
+error_log("PARAMS: " . print_r($params, true));
+
 // Get total count
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bill_types bt WHERE $where_sql");
 $stmt->execute($params);
 $total_records = $stmt->fetchColumn();
-$total_pages = ceil($total_records / $per_page);
+error_log("Total records found: " . $total_records);
 
-// Get bill types - FIXED: specify table aliases
+$total_pages = $total_records > 0 ? ceil($total_records / $per_page) : 1;
+
+// Get bill types - FIXED: proper query with correct column references
 $stmt = $pdo->prepare("
     SELECT bt.*, c.name as category_name
     FROM fin_bill_types bt
@@ -322,6 +336,8 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute($params);
 $bill_types = $stmt->fetchAll();
+
+error_log("Bill types fetched: " . count($bill_types));
 
 // Get categories for dropdown
 $stmt = $pdo->prepare("SELECT id, name FROM fin_categories WHERE school_id = ? AND is_active = 1 ORDER BY name");
@@ -339,6 +355,19 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $stmt = $pdo->prepare("SELECT * FROM fin_bill_types WHERE id = ? AND school_id = ?");
     $stmt->execute([$_GET['edit'], $school_id]);
     $edit_data = $stmt->fetch();
+}
+
+// Debug: Check if there are any bill types in database
+$debug_stmt = $pdo->prepare("SELECT COUNT(*) as total FROM fin_bill_types WHERE school_id = ?");
+$debug_stmt->execute([$school_id]);
+$debug_count = $debug_stmt->fetchColumn();
+error_log("Total bill types in database for school_id $school_id: " . $debug_count);
+
+if ($debug_count > 0 && empty($bill_types)) {
+    // If there are records but none fetched, there's a filter issue
+    error_log("WARNING: Found $debug_count records but none fetched. Check filters.");
+    // Display a warning for debugging
+    $debug_message = "Debug: Found $debug_count templates but none match current filters.";
 }
 ?>
 <!DOCTYPE html>

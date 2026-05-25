@@ -1137,7 +1137,7 @@ try {
 
     <?php
     // Include sidebar
-    require_once 'includes/sidebar.php';
+    require_once '../includes/sidebar.php';
     ?>
 </body>
 

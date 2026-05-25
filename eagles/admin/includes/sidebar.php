@@ -1,5 +1,5 @@
 <?php
-// eagles/admin/includes/sidebar.php - Reusable sidebar component
+// tbis/admin/includes/sidebar.php - Reusable sidebar component with dynamic school theming
 
 // Make sure required variables are available
 if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
@@ -10,6 +10,11 @@ if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
 
 // Get current page for active state
 $current_page = basename($_SERVER['PHP_SELF']);
+
+// Load school theme colors from config (if constants are defined)
+$school_primary = defined('SCHOOL_PRIMARY') ? SCHOOL_PRIMARY : '#2B3DA0';
+$school_secondary = defined('SCHOOL_SECONDARY') ? SCHOOL_SECONDARY : '#2E9E4F';
+$school_accent = defined('SCHOOL_ACCENT') ? SCHOOL_ACCENT : '#FFFFFF';
 
 // Subscription status check
 if (!isset($subscription_active)) {
@@ -44,37 +49,25 @@ if (!isset($subscription_active)) {
         error_log("Sidebar subscription check error: " . $e->getMessage());
     }
 }
-
-// Determine which nav group is active based on current page
-$portal_pages = ['manage-students.php', 'manage-staff.php', 'manage-classes.php', 'manage-subjects.php', 'attendance.php'];
-$exam_pages   = ['manage-exams.php', 'view-results.php', 'exam_record_setup.php'];
-$resources_pages = ['ai-tools.php', 'reports.php', 'sync.php'];
-$bills_pages  = ['billing.php', 'invoices.php', 'payments.php'];
-
-$portal_active    = in_array($current_page, $portal_pages);
-$exam_active      = in_array($current_page, $exam_pages);
-$resources_active = in_array($current_page, $resources_pages);
-$bills_active     = in_array($current_page, $bills_pages);
 ?>
 
 <!-- Sidebar Overlay -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-
-    <!-- Header -->
+<!-- Sidebar with dynamic theme -->
+<div class="sidebar" id="sidebar" data-primary="<?php echo $school_primary; ?>" data-secondary="<?php echo $school_secondary; ?>" data-accent="<?php echo $school_accent; ?>">
     <div class="sidebar-header">
         <div class="logo">
             <div class="logo-icon">
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/eagles/assets/logos/logo.png',
+                    '/tbis/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
                 ];
+
                 if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
                     $logo_path = SCHOOL_LOGO;
                 } else {
@@ -85,36 +78,34 @@ $bills_active     = in_array($current_page, $bills_pages);
                         }
                     }
                 }
-                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)): ?>
+
+                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)):
+                ?>
                     <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
                 <?php else: ?>
-                    <i class="fas fa-graduation-cap"></i>
+                    <i class="fas fa-graduation-cap" style="color: <?php echo $school_accent; ?>;"></i>
                 <?php endif; ?>
             </div>
             <div class="logo-text">
-                <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
+                <h3 class="school-name" style="color: <?php echo $school_accent; ?>;"><?php echo htmlspecialchars($school_name); ?></h3>
+                <p style="color: <?php echo $school_accent; ?>; opacity: 0.8;">Admin Panel</p>
             </div>
         </div>
     </div>
 
-    <!-- Admin Info -->
     <div class="admin-info">
-        <div class="admin-avatar">
-            <?php echo strtoupper(substr($admin_name, 0, 1)); ?>
-        </div>
-        <div class="admin-details">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
+        <h4 style="color: <?php echo $school_accent; ?>;"><?php echo htmlspecialchars($admin_name); ?></h4>
+        <p style="color: <?php echo $school_accent; ?>; opacity: 0.7;"><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
     </div>
 
     <!-- Subscription Status -->
     <?php
     $status_class = '';
     $display_days = $subscription_days_remaining ?? 0;
+
     if (!$subscription_active || $display_days <= 0) {
-        $status_class = 'danger'; $display_days = 0;
+        $status_class = 'danger';
+        $display_days = 0;
     } elseif ($display_days <= 14) {
         $status_class = 'danger';
     } elseif ($display_days <= 30) {
@@ -124,627 +115,425 @@ $bills_active     = in_array($current_page, $bills_pages);
     }
     ?>
     <div class="subscription-status <?php echo $status_class; ?>">
-        <div class="sub-left">
-            <i class="fas fa-calendar-alt"></i>
-            <span class="sub-label">Subscription</span>
+        <div class="status-label">
+            <i class="fas fa-calendar-alt"></i> Subscription
         </div>
-        <div class="sub-right">
+        <div class="days-remaining">
             <?php if ($display_days > 0): ?>
-                <span class="days-badge"><?php echo $display_days; ?> days</span>
+                <?php echo $display_days; ?> days
             <?php else: ?>
-                <span class="days-badge expired">EXPIRED</span>
+                EXPIRED
             <?php endif; ?>
+        </div>
+        <div class="expiry-date">
             <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
-                <span class="expiry-text">Expires <?php echo date('M j, Y', strtotime($subscription_end_date)); ?></span>
+                Expires: <?php echo date('M j, Y', strtotime($subscription_end_date)); ?>
             <?php else: ?>
-                <span class="expiry-text">No expiry set</span>
+                No expiry date
             <?php endif; ?>
         </div>
     </div>
 
-    <!-- Navigation -->
-    <nav class="sidebar-nav">
-
-        <!-- Dashboard (standalone) -->
-        <a href="index.php" class="nav-item standalone <?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
-            <span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span>
-            <span class="nav-label">Dashboard</span>
-        </a>
-
-        <!-- Portal Group -->
-        <div class="nav-group <?php echo $portal_active ? 'open' : ''; ?>" data-group="portal">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $portal_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-school"></i></span>
-                <span class="nav-label">Portal</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-user-graduate"></i> Students
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chalkboard-teacher"></i> Staff
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-layer-group"></i> Classes
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-book"></i> Subjects
-                    </a>
-                </li>
-                <li>
-                    <a href="attendance.php" class="<?php echo $current_page == 'attendance.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar-check"></i> Attendance
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Exams & Results Group -->
-        <div class="nav-group <?php echo $exam_active ? 'open' : ''; ?>" data-group="exams">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $exam_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
-                <span class="nav-label">Exams & Results</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-pen-alt"></i> Manage Exams
-                    </a>
-                </li>
-                <li>
-                    <a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-bar"></i> View Results
-                    </a>
-                </li>
-                <li>
-                    <a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-invoice"></i> Process Results
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Resources Group -->
-        <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-cubes"></i></span>
-                <span class="nav-label">Resources</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-robot"></i> AI Teaching Tools
-                    </a>
-                </li>
-                <li>
-                    <a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-line"></i> Reports
-                    </a>
-                </li>
-                <li>
-                    <a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-sync-alt"></i> Sync to Cloud
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Bills Group -->
-        <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-receipt"></i></span>
-                <span class="nav-label">Bills</span>
-                <span class="group-badge coming-soon-badge">Soon</span>
-            </button>
-            <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="billing.php" class="<?php echo $current_page == 'billing.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-invoice-dollar"></i> Billing
-                    </a>
-                </li>
-                <li>
-                    <a href="invoices.php" class="<?php echo $current_page == 'invoices.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-list-alt"></i> Invoices
-                    </a>
-                </li>
-                <li>
-                    <a href="payments.php" class="<?php echo $current_page == 'payments.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-money-check-alt"></i> Payments
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Logout -->
-        <a href="/eagles/logout.php" class="nav-item standalone logout">
-            <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
-            <span class="nav-label">Logout</span>
-        </a>
-
-    </nav>
+    <div class="sidebar-content">
+        <ul class="nav-links">
+            <li><a href="index.php" class="<?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a></li>
+            <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-users"></i> Manage Students
+                </a></li>
+            <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-chalkboard-teacher"></i> Manage Staff
+                </a></li>
+            <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-book"></i> Manage Subjects
+                </a></li>
+            <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-layer-group"></i> Manage Classes
+                </a></li>
+            <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-file-alt"></i> Manage Exams
+                </a></li>
+            <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-chart-bar"></i> View Results
+                </a></li>
+            <li><a href="attendance.php" class="<?php echo $current_page == 'attendance.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-calendar-check"></i> Attendance Reports
+                </a></li>
+            <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-file-invoice"></i> Process Results
+                </a></li>
+            <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-robot"></i> AI Teaching Tools
+                </a></li>
+            <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-chart-line"></i> Reports
+                </a></li>
+            <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>">
+                    <i class="fas fa-sync-alt"></i> Sync to Cloud
+                </a></li>
+            <li><a href="/tbis/logout.php">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a></li>
+        </ul>
+    </div>
 </div>
 
 <style>
-/* ============================================================
-   SIDEBAR — Grouped Dropdown Navigation
-   ============================================================ */
-
-:root {
-    --sb-bg:          #0f172a;
-    --sb-surface:     #1e293b;
-    --sb-border:      rgba(255,255,255,0.07);
-    --sb-text:        #94a3b8;
-    --sb-text-bright: #e2e8f0;
-    --sb-accent:      #3b82f6;
-    --sb-accent-glow: rgba(59,130,246,0.18);
-    --sb-hover:       rgba(255,255,255,0.05);
-    --sb-active-bg:   rgba(59,130,246,0.15);
-    --sb-radius:      10px;
-    --sb-width:       260px;
-    --sb-transition:  0.22s ease;
-}
-
-/* ---------- Base ---------- */
-.sidebar {
-    width: var(--sb-width);
-    height: 100vh;
-    background: var(--sb-bg);
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0; left: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    z-index: 1000;
-    border-right: 1px solid var(--sb-border);
-    scrollbar-width: thin;
-    scrollbar-color: var(--sb-surface) transparent;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-.sidebar::-webkit-scrollbar { width: 4px; }
-.sidebar::-webkit-scrollbar-track { background: transparent; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--sb-surface); border-radius: 4px; }
-
-/* ---------- Header ---------- */
-.sidebar-header {
-    padding: 20px 18px 16px;
-    border-bottom: 1px solid var(--sb-border);
-    flex-shrink: 0;
-}
-
-.logo { display: flex; align-items: center; gap: 12px; }
-
-.logo-icon {
-    width: 44px; height: 44px;
-    flex-shrink: 0;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(59,130,246,0.35);
-}
-
-.logo-icon img { width: 100%; height: 100%; object-fit: cover; }
-.logo-icon i   { font-size: 22px; color: #fff; }
-
-.logo-text h3.school-name {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--sb-text-bright);
-    line-height: 1.25;
-    white-space: normal;
-    word-break: break-word;
-    margin: 0 0 2px;
-}
-
-.logo-text p {
-    font-size: 0.68rem;
-    color: var(--sb-text);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin: 0;
-}
-
-/* ---------- Admin Info ---------- */
-.admin-info {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--sb-border);
-    flex-shrink: 0;
-}
-
-.admin-avatar {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-}
-
-.admin-details h4 {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--sb-text-bright);
-    margin: 0 0 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 160px;
-}
-
-.admin-details p {
-    font-size: 0.68rem;
-    color: var(--sb-text);
-    margin: 0;
-    text-transform: capitalize;
-}
-
-/* ---------- Subscription ---------- */
-.subscription-status {
-    margin: 12px 14px;
-    padding: 10px 13px;
-    border-radius: var(--sb-radius);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-.subscription-status.active  { background: rgba(16,185,129,0.12); border-left: 3px solid #10b981; }
-.subscription-status.warning { background: rgba(245,158,11,0.12);  border-left: 3px solid #f59e0b; }
-.subscription-status.danger  { background: rgba(239,68,68,0.12);   border-left: 3px solid #ef4444; }
-
-.sub-left {
-    display: flex; align-items: center; gap: 7px;
-    font-size: 0.72rem;
-    color: var(--sb-text);
-    flex-shrink: 0;
-}
-.sub-left i { font-size: 0.75rem; }
-
-.sub-right { text-align: right; }
-
-.days-badge {
-    display: block;
-    font-size: 0.78rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-.subscription-status.active  .days-badge { color: #10b981; }
-.subscription-status.warning .days-badge { color: #f59e0b; }
-.subscription-status.danger  .days-badge,
-.days-badge.expired               { color: #ef4444; }
-
-.expiry-text {
-    display: block;
-    font-size: 0.62rem;
-    color: var(--sb-text);
-    margin-top: 1px;
-}
-
-/* ---------- Nav ---------- */
-.sidebar-nav {
-    flex: 1;
-    padding: 8px 0 20px;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Standalone items (Dashboard, Logout) */
-.nav-item.standalone {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 10px 18px;
-    color: var(--sb-text);
-    text-decoration: none;
-    font-size: 0.84rem;
-    font-weight: 500;
-    transition: background var(--sb-transition), color var(--sb-transition);
-    border-radius: 0;
-    position: relative;
-}
-
-.nav-item.standalone:hover {
-    background: var(--sb-hover);
-    color: var(--sb-text-bright);
-}
-
-.nav-item.standalone.active {
-    background: var(--sb-active-bg);
-    color: var(--sb-accent);
-}
-
-.nav-item.standalone.active::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 4px; bottom: 4px;
-    width: 3px;
-    background: var(--sb-accent);
-    border-radius: 0 3px 3px 0;
-}
-
-.nav-item.standalone.logout {
-    margin-top: auto;
-    border-top: 1px solid var(--sb-border);
-}
-
-.nav-item.standalone.logout:hover { color: #ef4444; }
-
-/* Nav group wrapper */
-.nav-group { flex-shrink: 0; }
-
-/* Section separator label */
-.nav-section-label {
-    padding: 14px 18px 4px;
-    font-size: 0.62rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: rgba(148,163,184,0.45);
-    flex-shrink: 0;
-}
-
-/* Group toggle button */
-.nav-group-toggle {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 10px 18px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--sb-text);
-    font-size: 0.84rem;
-    font-weight: 500;
-    text-align: left;
-    transition: background var(--sb-transition), color var(--sb-transition);
-    position: relative;
-}
-
-.nav-group-toggle:hover {
-    background: var(--sb-hover);
-    color: var(--sb-text-bright);
-}
-
-.nav-group.open > .nav-group-toggle {
-    color: var(--sb-text-bright);
-    background: var(--sb-hover);
-}
-
-.nav-label { flex: 1; }
-
-.group-badge {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.chevron {
-    font-size: 0.65rem;
-    color: var(--sb-text);
-    transition: transform 0.25s ease;
-}
-
-.nav-group.open .chevron {
-    transform: rotate(180deg);
-}
-
-/* Coming soon badge */
-.coming-soon-badge {
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: #f59e0b;
-    background: rgba(245,158,11,0.15);
-    border: 1px solid rgba(245,158,11,0.3);
-    padding: 2px 6px;
-    border-radius: 20px;
-}
-
-/* Icon wrapper */
-.nav-icon {
-    width: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.85rem;
-    flex-shrink: 0;
-}
-
-/* Group item list */
-.nav-group-items {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-    background: rgba(0,0,0,0.15);
-}
-
-.nav-group-items.expanded {
-    max-height: 400px;
-}
-
-.nav-group-items li a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 18px 8px 46px;
-    color: var(--sb-text);
-    text-decoration: none;
-    font-size: 0.8rem;
-    transition: background var(--sb-transition), color var(--sb-transition);
-    position: relative;
-}
-
-.nav-group-items li a i {
-    font-size: 0.75rem;
-    width: 16px;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-.nav-group-items li a:hover {
-    background: var(--sb-hover);
-    color: var(--sb-text-bright);
-}
-
-.nav-group-items li a.active {
-    color: var(--sb-accent);
-    background: var(--sb-active-bg);
-}
-
-.nav-group-items li a.active::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 3px; bottom: 3px;
-    width: 3px;
-    background: var(--sb-accent);
-    border-radius: 0 3px 3px 0;
-}
-
-/* Vertical connector line for group items */
-.nav-group.open .nav-group-items {
-    border-left: 1px solid var(--sb-border);
-    margin-left: 28px;
-}
-
-.nav-group.open .nav-group-items li a {
-    padding-left: 20px;
-}
-
-.nav-group.open .nav-group-items li a.active::before {
-    left: -1px;
-}
-
-/* ---------- Overlay ---------- */
-.sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 999;
-    backdrop-filter: blur(2px);
-}
-
-.sidebar-overlay.active { display: block; }
-
-/* ---------- Mobile ---------- */
-@media (max-width: 767px) {
+    /* Base sidebar styles - will be overlaid with dynamic colors via JS */
     .sidebar {
-        transform: translateX(-100%);
-        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 1001;
+        width: 280px;
+        background: var(--sidebar-primary, #2B3DA0);
+        color: var(--sidebar-accent, #FFFFFF);
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 1000;
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
     }
 
-    .sidebar.active {
-        transform: translateX(0);
-        box-shadow: 8px 0 32px rgba(0,0,0,0.5);
+    .sidebar::-webkit-scrollbar {
+        width: 6px;
     }
-}
+
+    .sidebar::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.1);
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.3);
+        border-radius: 3px;
+    }
+
+    .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .logo-text .school-name {
+        white-space: normal !important;
+        word-wrap: break-word;
+        line-height: 1.2;
+        font-size: 0.9rem;
+        margin: 0 0 4px 0;
+    }
+
+    .logo-text p {
+        margin: 0;
+        font-size: 0.7rem;
+        opacity: 0.8;
+    }
+
+    .logo-icon {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+    }
+
+    .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .logo-icon i {
+        font-size: 24px;
+    }
+
+    .admin-info {
+        padding: 20px;
+        text-align: center;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .admin-info h4 {
+        margin: 0 0 5px 0;
+        font-size: 1rem;
+    }
+
+    .admin-info p {
+        margin: 0;
+        font-size: 0.8rem;
+    }
+
+    /* Subscription Status Styling */
+    .subscription-status {
+        margin: 15px;
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(4px);
+    }
+
+    .subscription-status .status-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+        opacity: 0.9;
+    }
+
+    .subscription-status .days-remaining {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin: 5px 0;
+    }
+
+    .subscription-status .expiry-date {
+        font-size: 0.7rem;
+        opacity: 0.8;
+    }
+
+    /* Status colors - keep these semantic */
+    .subscription-status.active {
+        background: rgba(46, 158, 79, 0.25);
+        border-left: 3px solid #2E9E4F;
+    }
+
+    .subscription-status.active .days-remaining {
+        color: #2E9E4F;
+    }
+
+    .subscription-status.warning {
+        background: rgba(243, 156, 18, 0.25);
+        border-left: 3px solid #f39c12;
+    }
+
+    .subscription-status.warning .days-remaining {
+        color: #f39c12;
+    }
+
+    .subscription-status.danger {
+        background: rgba(231, 76, 60, 0.25);
+        border-left: 3px solid #e74c3c;
+    }
+
+    .subscription-status.danger .days-remaining {
+        color: #e74c3c;
+    }
+
+    .sidebar-content {
+        padding: 10px 0;
+    }
+
+    .nav-links {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .nav-links li {
+        margin: 5px 15px;
+    }
+
+    .nav-links li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 15px;
+        color: var(--sidebar-accent, #FFFFFF);
+        text-decoration: none;
+        border-radius: 10px;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+
+    .nav-links li a i {
+        width: 20px;
+        font-size: 1rem;
+        text-align: center;
+    }
+
+    .nav-links li a:hover {
+        background: rgba(255,255,255,0.15);
+        transform: translateX(5px);
+    }
+
+    .nav-links li a.active {
+        background: var(--sidebar-secondary, #2E9E4F);
+        color: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    /* Sidebar Overlay for mobile */
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 999;
+        display: none;
+    }
+
+    .sidebar-overlay.active {
+        display: block;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 767px) {
+        .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+    }
+
+    @media (min-width: 768px) {
+        .sidebar {
+            transform: translateX(0) !important;
+        }
+        
+        .sidebar-overlay {
+            display: none !important;
+        }
+    }
 </style>
 
 <script>
-(function () {
-    'use strict';
+    // Apply dynamic school theme colors to sidebar
+    (function() {
+        'use strict';
 
-    /* ── Accordion groups ── */
-    function initGroups() {
-        document.querySelectorAll('.nav-group').forEach(function (group) {
-            var toggle = group.querySelector('.nav-group-toggle');
-            var items  = group.querySelector('.nav-group-items');
+        function applySchoolTheme() {
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar) return;
 
-            if (!toggle || !items) return;
+            const primary = sidebar.getAttribute('data-primary') || '#2B3DA0';
+            const secondary = sidebar.getAttribute('data-secondary') || '#2E9E4F';
+            const accent = sidebar.getAttribute('data-accent') || '#FFFFFF';
 
-            toggle.addEventListener('click', function () {
-                var isOpen = group.classList.contains('open');
+            // Set CSS custom properties on sidebar element
+            sidebar.style.setProperty('--sidebar-primary', primary);
+            sidebar.style.setProperty('--sidebar-secondary', secondary);
+            sidebar.style.setProperty('--sidebar-accent', accent);
 
-                // Close all sibling groups (accordion behaviour)
-                document.querySelectorAll('.nav-group.open').forEach(function (g) {
-                    if (g !== group) {
-                        g.classList.remove('open');
-                        g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false');
-                        g.querySelector('.nav-group-items').classList.remove('expanded');
+            // Also set background directly for immediate effect
+            sidebar.style.background = primary;
+
+            // Style the active nav link with secondary color
+            const style = document.createElement('style');
+            style.textContent = `
+                .sidebar .nav-links li a.active {
+                    background: ${secondary} !important;
+                }
+                .sidebar .logo-icon {
+                    background: rgba(255,255,255,0.2);
+                }
+                .sidebar .subscription-status.active .days-remaining {
+                    color: ${secondary};
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Apply theme as soon as possible
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', applySchoolTheme);
+        } else {
+            applySchoolTheme();
+        }
+    })();
+
+    // Mobile menu functionality
+    (function() {
+        'use strict';
+
+        function initSidebar() {
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const body = document.body;
+
+            if (!mobileMenuToggle || !sidebar || !sidebarOverlay) {
+                return;
+            }
+
+            function openSidebar() {
+                sidebar.classList.add('active');
+                sidebarOverlay.classList.add('active');
+                body.classList.add('menu-open');
+                body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+                body.classList.remove('menu-open');
+                body.style.overflow = '';
+            }
+
+            function toggleSidebar() {
+                if (sidebar.classList.contains('active')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            }
+
+            mobileMenuToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
+            });
+
+            sidebarOverlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeSidebar();
+            });
+
+            const navLinks = document.querySelectorAll('.nav-links a');
+            navLinks.forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 767) {
+                        setTimeout(closeSidebar, 150);
                     }
                 });
+            });
 
-                if (isOpen) {
-                    group.classList.remove('open');
-                    toggle.setAttribute('aria-expanded', 'false');
-                    items.classList.remove('expanded');
-                } else {
-                    group.classList.add('open');
-                    toggle.setAttribute('aria-expanded', 'true');
-                    items.classList.add('expanded');
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                    closeSidebar();
                 }
             });
-        });
-    }
 
-    /* ── Mobile sidebar ── */
-    function initMobileSidebar() {
-        var toggle   = document.getElementById('mobileMenuToggle');
-        var sidebar  = document.getElementById('sidebar');
-        var overlay  = document.getElementById('sidebarOverlay');
-        var body     = document.body;
+            let resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (window.innerWidth >= 768) {
+                        sidebar.classList.remove('active');
+                        sidebarOverlay.classList.remove('active');
+                        body.classList.remove('menu-open');
+                        body.style.overflow = '';
+                    }
+                }, 250);
+            });
+        }
 
-        if (!sidebar || !overlay) return;
-
-        function open()  { sidebar.classList.add('active'); overlay.classList.add('active'); body.style.overflow = 'hidden'; }
-        function close() { sidebar.classList.remove('active'); overlay.classList.remove('active'); body.style.overflow = ''; }
-
-        if (toggle) toggle.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); sidebar.classList.contains('active') ? close() : open(); });
-
-        overlay.addEventListener('click', close);
-
-        document.querySelectorAll('.nav-links a, .nav-item.standalone, .nav-group-items a').forEach(function (a) {
-            a.addEventListener('click', function () { if (window.innerWidth <= 767) setTimeout(close, 150); });
-        });
-
-        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-
-        var resizeTimer;
-        window.addEventListener('resize', function () {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(function () {
-                if (window.innerWidth >= 768) close();
-            }, 250);
-        });
-    }
-
-    function init() { initGroups(); initMobileSidebar(); }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSidebar);
+        } else {
+            initSidebar();
+        }
+    })();
 </script>

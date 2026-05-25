@@ -351,7 +351,7 @@ try {
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
-            left: 15px;
+            right: 20px;
             z-index: 1001;
             width: 44px;
             height: 44px;
@@ -689,94 +689,37 @@ try {
                 grid-template-columns: 1fr;
             }
         }
+
+        .mobile-menu-btn {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 20px;
+            cursor: pointer;
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">
-        <i class="fas fa-bars"></i>
-    </button>
+
+    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-graduation-cap"></i>
-                </div>
-                <div class="logo-text">
-                    <h3><?php echo $school_name; ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-
-        <!-- Subscription Status in Sidebar -->
-        <?php
-        $status_class = '';
-        $status_text = '';
-        $display_days = $subscription_days_remaining;
-
-        if (!$subscription_active || $subscription_days_remaining <= 0) {
-            $status_class = 'danger';
-            $status_text = 'Expired';
-            $display_days = 0;
-        } elseif ($subscription_days_remaining <= 14) {
-            $status_class = 'danger';
-            $status_text = 'Expiring Soon';
-        } elseif ($subscription_days_remaining <= 30) {
-            $status_class = 'warning';
-            $status_text = 'Warning';
-        } else {
-            $status_class = 'active';
-            $status_text = 'Active';
-        }
-        ?>
-
-        <div class="subscription-status <?php echo $status_class; ?>">
-            <div class="status-label">
-                <i class="fas fa-calendar-alt"></i> Subscription
-            </div>
-            <div class="days-remaining">
-                <?php if ($display_days > 0): ?>
-                    <?php echo $display_days; ?> days
-                <?php else: ?>
-                    EXPIRED
-                <?php endif; ?>
-            </div>
-            <div class="expiry-date">
-                <?php if ($subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
-                    Expires: <?php echo date('M j, Y', strtotime($subscription_end_date)); ?>
-                <?php else: ?>
-                    No expiry date
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <div class="sidebar-content">
-            <ul class="nav-links">
-                <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-                <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-                <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-                <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
-                <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-                <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-                <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-                <li><a href="exam_record_setup.php"><i class="fas fa-calendar-check"></i> Process Results</a></li>
-                <li><a href="ai-tools.php"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
-                <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
-        </div>
-    </div>
 
     <!-- Main Content -->
     <div class="main-content" id="mainContent">
@@ -941,35 +884,32 @@ try {
     </div>
 
     <script>
-        // Mobile menu functionality
-        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        // Mobile menu functionality - FIXED
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 
-        if (mobileMenuToggle) {
-            mobileMenuToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('active');
-                sidebarOverlay.classList.toggle('active');
-                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-            });
-        }
+            // Wait for sidebar to load (since it's included at the bottom)
+            setTimeout(function() {
+                const sidebar = document.getElementById('sidebar');
+                const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('active');
-                sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            });
-        }
-
-        document.querySelectorAll('.nav-links a').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 767) {
-                    sidebar.classList.remove('active');
-                    sidebarOverlay.classList.remove('active');
-                    document.body.style.overflow = '';
+                if (mobileMenuBtn && sidebar) {
+                    mobileMenuBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        sidebar.classList.toggle('active');
+                        if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
+                        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                    });
                 }
-            });
+
+                if (sidebarOverlay) {
+                    sidebarOverlay.addEventListener('click', function() {
+                        sidebar.classList.remove('active');
+                        sidebarOverlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    });
+                }
+            }, 100);
         });
 
         // Add animation to stat cards on load
@@ -986,6 +926,10 @@ try {
             });
         });
     </script>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 </body>
 
 </html>

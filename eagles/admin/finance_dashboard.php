@@ -3,7 +3,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
-require_once '../../includes/config.php';
+require_once '../includes/config.php';
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
@@ -1137,7 +1137,7 @@ try {
 
     <?php
     // Include sidebar
-    require_once '../includes/sidebar.php';
+    require_once 'includes/sidebar.php';
     ?>
 </body>
 

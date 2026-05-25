@@ -324,47 +324,47 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
             </button>
             <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
                 <li>
-                    <a href="finance/finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>">
+                    <a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>">
                         <i class="fas fa-chart-pie"></i> Dashboard
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>">
+                    <a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>">
                         <i class="fas fa-tags"></i> Bill Types / Templates
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>">
+                    <a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>">
                         <i class="fas fa-file-invoice"></i> Manage Bills
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>">
+                    <a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>">
                         <i class="fas fa-money-bill-wave"></i> Record Payments
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>">
+                    <a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>">
                         <i class="fas fa-print"></i> Receipts
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>">
+                    <a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>">
                         <i class="fas fa-file-alt"></i> Invoices
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>">
+                    <a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>">
                         <i class="fas fa-exchange-alt"></i> Income/Expenditure
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>">
+                    <a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>">
                         <i class="fas fa-book"></i> General Ledger
                     </a>
                 </li>
                 <li>
-                    <a href="finance/finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>">
+                    <a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>">
                         <i class="fas fa-chart-line"></i> Financial Reports
                     </a>
                 </li>

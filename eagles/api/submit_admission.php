@@ -1,9 +1,15 @@
 <?php
-// submit_admission.php - API endpoint for admission form submissions
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: https://eaglescitadel.acad.com.ng');
-header('Access-Control-Allow-Methods: POST');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Max-Age: 86400'); // cache preflight for 24hrs
+
+// Handle preflight OPTIONS request immediately
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 // Database connection
 $host = 'localhost';

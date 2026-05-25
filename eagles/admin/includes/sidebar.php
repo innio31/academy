@@ -405,7 +405,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         --sb-logo-grad: <?php echo $logo_gradient; ?>;
 
         --sb-radius: 10px;
-        --sb-width: 260px;
+        --sb-width: 280px;
         --sb-transition: 0.22s ease;
     }
 
@@ -443,7 +443,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     /* ---------- Header ---------- */
     .sidebar-header {
-        padding: 20px 18px 16px;
+        padding: 24px 20px 20px;
         border-bottom: 1px solid var(--sb-border);
         flex-shrink: 0;
     }
@@ -451,14 +451,14 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     .logo {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
     }
 
     .logo-icon {
-        width: 44px;
-        height: 44px;
+        width: 52px;
+        height: 52px;
         flex-shrink: 0;
-        border-radius: 10px;
+        border-radius: 12px;
         background: var(--sb-logo-grad);
         display: flex;
         align-items: center;
@@ -474,25 +474,25 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .logo-icon i {
-        font-size: 22px;
+        font-size: 26px;
         color: #fff;
     }
 
     .logo-text h3.school-name {
-        font-size: 0.95rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: var(--sb-text-bright);
-        line-height: 1.25;
+        line-height: 1.3;
         white-space: normal;
         word-break: break-word;
-        margin: 0 0 2px;
+        margin: 0 0 4px;
     }
 
     .logo-text p {
-        font-size: 0.72rem;
+        font-size: 0.8rem;
         color: var(--sb-text);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         margin: 0;
     }
 
@@ -500,19 +500,19 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     .admin-info {
         display: flex;
         align-items: center;
-        gap: 11px;
-        padding: 14px 18px;
+        gap: 14px;
+        padding: 18px 20px;
         border-bottom: 1px solid var(--sb-border);
         flex-shrink: 0;
     }
 
     .admin-avatar {
-        width: 36px;
-        height: 36px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         background: var(--sb-logo-grad);
         color: #fff;
-        font-size: 0.95rem;
+        font-size: 1.1rem;
         font-weight: 700;
         display: flex;
         align-items: center;
@@ -521,18 +521,18 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .admin-details h4 {
-        font-size: 0.9rem;
+        font-size: 1rem;
         font-weight: 600;
         color: var(--sb-text-bright);
-        margin: 0 0 2px;
+        margin: 0 0 3px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 160px;
+        max-width: 170px;
     }
 
     .admin-details p {
-        font-size: 0.72rem;
+        font-size: 0.8rem;
         color: var(--sb-text);
         margin: 0;
         text-transform: capitalize;
@@ -540,13 +540,13 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     /* ---------- Subscription ---------- */
     .subscription-status {
-        margin: 12px 14px;
-        padding: 10px 13px;
+        margin: 16px 16px;
+        padding: 12px 16px;
         border-radius: var(--sb-radius);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: 10px;
         flex-shrink: 0;
     }
 
@@ -568,14 +568,14 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     .sub-left {
         display: flex;
         align-items: center;
-        gap: 7px;
-        font-size: 0.78rem;
+        gap: 8px;
+        font-size: 0.85rem;
         color: var(--sb-text);
         flex-shrink: 0;
     }
 
     .sub-left i {
-        font-size: 0.82rem;
+        font-size: 0.9rem;
     }
 
     .sub-right {
@@ -584,9 +584,9 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     .days-badge {
         display: block;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.3;
     }
 
     .subscription-status.active .days-badge {
@@ -604,15 +604,15 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     .expiry-text {
         display: block;
-        font-size: 0.68rem;
+        font-size: 0.72rem;
         color: var(--sb-text);
-        margin-top: 1px;
+        margin-top: 2px;
     }
 
     /* ---------- Nav ---------- */
     .sidebar-nav {
         flex: 1;
-        padding: 8px 0 20px;
+        padding: 12px 0 24px;
         display: flex;
         flex-direction: column;
     }
@@ -621,11 +621,11 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     .nav-item.standalone {
         display: flex;
         align-items: center;
-        gap: 11px;
-        padding: 10px 18px;
+        gap: 14px;
+        padding: 12px 20px;
         color: var(--sb-text);
         text-decoration: none;
-        font-size: 0.95rem;
+        font-size: 1rem;
         font-weight: 500;
         transition: background var(--sb-transition), color var(--sb-transition);
         border-radius: 0;
@@ -646,8 +646,8 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         content: '';
         position: absolute;
         left: 0;
-        top: 4px;
-        bottom: 4px;
+        top: 6px;
+        bottom: 6px;
         width: 3px;
         background: var(--sb-accent-clr);
         border-radius: 0 3px 3px 0;
@@ -672,13 +672,13 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         width: 100%;
         display: flex;
         align-items: center;
-        gap: 11px;
-        padding: 10px 18px;
+        gap: 14px;
+        padding: 12px 20px;
         background: none;
         border: none;
         cursor: pointer;
         color: var(--sb-text);
-        font-size: 0.95rem;
+        font-size: 1rem;
         font-weight: 500;
         text-align: left;
         transition: background var(--sb-transition), color var(--sb-transition);
@@ -706,7 +706,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .chevron {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         color: var(--sb-text);
         transition: transform 0.25s ease;
     }
@@ -717,24 +717,24 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     /* Coming soon badge */
     .coming-soon-badge {
-        font-size: 0.62rem;
+        font-size: 0.68rem;
         font-weight: 700;
         letter-spacing: 0.05em;
         text-transform: uppercase;
         color: #f59e0b;
         background: rgba(245, 158, 11, 0.15);
         border: 1px solid rgba(245, 158, 11, 0.3);
-        padding: 2px 6px;
+        padding: 3px 8px;
         border-radius: 20px;
     }
 
     /* Icon wrapper */
     .nav-icon {
-        width: 22px;
+        width: 24px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         flex-shrink: 0;
     }
 
@@ -750,24 +750,24 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     }
 
     .nav-group-items.expanded {
-        max-height: 400px;
+        max-height: 500px;
     }
 
     .nav-group-items li a {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 8px 18px 8px 46px;
+        gap: 12px;
+        padding: 10px 20px 10px 52px;
         color: var(--sb-text);
         text-decoration: none;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         transition: background var(--sb-transition), color var(--sb-transition);
         position: relative;
     }
 
     .nav-group-items li a i {
-        font-size: 0.85rem;
-        width: 18px;
+        font-size: 0.9rem;
+        width: 20px;
         text-align: center;
         flex-shrink: 0;
     }
@@ -786,8 +786,8 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         content: '';
         position: absolute;
         left: 0;
-        top: 3px;
-        bottom: 3px;
+        top: 4px;
+        bottom: 4px;
         width: 3px;
         background: var(--sb-accent-clr);
         border-radius: 0 3px 3px 0;
@@ -796,11 +796,466 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
     /* Vertical connector line for group items */
     .nav-group.open .nav-group-items {
         border-left: 1px solid var(--sb-border);
-        margin-left: 28px;
+        margin-left: 32px;
     }
 
     .nav-group.open .nav-group-items li a {
-        padding-left: 20px;
+        padding-left: 24px;
+    }
+
+    .nav-group.open .nav-group-items li a.active::before {
+        left: -1px;
+    }
+
+    /* ---------- Overlay ---------- */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 999;
+        backdrop-filter: blur(2px);
+    }
+
+    .sidebar-overlay.active {
+        display: block;
+    }
+
+    /* ---------- Mobile ---------- */
+    @media (max-width: 767px) {
+        .sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1001;
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+        }
+    }
+</style>
+<style>
+    /* ============================================================
+   SIDEBAR — Dynamic School Theme Integration
+   Fully respects SCHOOL_PRIMARY, SCHOOL_SECONDARY, SCHOOL_ACCENT
+   ============================================================ */
+
+    /* Theme CSS variables — injected from config.php constants */
+    :root {
+        --sb-primary: <?php echo $sb_primary; ?>;
+        --sb-secondary: <?php echo $sb_secondary; ?>;
+        --sb-accent: <?php echo $sb_accent; ?>;
+
+        /* Derived tokens */
+        --sb-bg: <?php echo $sb_bg; ?>;
+        --sb-surface: <?php echo $sb_surface; ?>;
+        --sb-border: <?php echo $sb_border; ?>;
+        --sb-text: <?php echo $text_muted; ?>;
+        --sb-text-bright: <?php echo $text_bright; ?>;
+        --sb-accent-clr: <?php echo $sb_secondary; ?>;
+        --sb-accent-glow: rgba(<?php echo sbHexToRgb($sb_secondary); ?>, 0.18);
+        --sb-hover: <?php echo $sb_hover_bg; ?>;
+        --sb-active-bg: <?php echo $sb_active_bg; ?>;
+        --sb-logo-grad: <?php echo $logo_gradient; ?>;
+
+        --sb-radius: 10px;
+        --sb-width: 280px;
+        --sb-transition: 0.22s ease;
+    }
+
+    /* ---------- Base ---------- */
+    .sidebar {
+        width: var(--sb-width);
+        height: 100vh;
+        background: var(--sb-bg);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 1000;
+        border-right: 1px solid var(--sb-border);
+        scrollbar-width: thin;
+        scrollbar-color: var(--sb-surface) transparent;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .sidebar::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+        background: var(--sb-surface);
+        border-radius: 4px;
+    }
+
+    /* ---------- Header ---------- */
+    .sidebar-header {
+        padding: 24px 20px 20px;
+        border-bottom: 1px solid var(--sb-border);
+        flex-shrink: 0;
+    }
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .logo-icon {
+        width: 52px;
+        height: 52px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        background: var(--sb-logo-grad);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: 0 4px 12px var(--sb-accent-glow);
+    }
+
+    .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .logo-icon i {
+        font-size: 26px;
+        color: #fff;
+    }
+
+    .logo-text h3.school-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--sb-text-bright);
+        line-height: 1.3;
+        white-space: normal;
+        word-break: break-word;
+        margin: 0 0 4px;
+    }
+
+    .logo-text p {
+        font-size: 0.8rem;
+        color: var(--sb-text);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0;
+    }
+
+    /* ---------- Admin Info ---------- */
+    .admin-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--sb-border);
+        flex-shrink: 0;
+    }
+
+    .admin-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--sb-logo-grad);
+        color: #fff;
+        font-size: 1.1rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .admin-details h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--sb-text-bright);
+        margin: 0 0 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 170px;
+    }
+
+    .admin-details p {
+        font-size: 0.8rem;
+        color: var(--sb-text);
+        margin: 0;
+        text-transform: capitalize;
+    }
+
+    /* ---------- Subscription ---------- */
+    .subscription-status {
+        margin: 16px 16px;
+        padding: 12px 16px;
+        border-radius: var(--sb-radius);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .subscription-status.active {
+        background: rgba(16, 185, 129, 0.12);
+        border-left: 3px solid #10b981;
+    }
+
+    .subscription-status.warning {
+        background: rgba(245, 158, 11, 0.12);
+        border-left: 3px solid #f59e0b;
+    }
+
+    .subscription-status.danger {
+        background: rgba(239, 68, 68, 0.12);
+        border-left: 3px solid #ef4444;
+    }
+
+    .sub-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: var(--sb-text);
+        flex-shrink: 0;
+    }
+
+    .sub-left i {
+        font-size: 0.9rem;
+    }
+
+    .sub-right {
+        text-align: right;
+    }
+
+    .days-badge {
+        display: block;
+        font-size: 0.95rem;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .subscription-status.active .days-badge {
+        color: #10b981;
+    }
+
+    .subscription-status.warning .days-badge {
+        color: #f59e0b;
+    }
+
+    .subscription-status.danger .days-badge,
+    .days-badge.expired {
+        color: #ef4444;
+    }
+
+    .expiry-text {
+        display: block;
+        font-size: 0.72rem;
+        color: var(--sb-text);
+        margin-top: 2px;
+    }
+
+    /* ---------- Nav ---------- */
+    .sidebar-nav {
+        flex: 1;
+        padding: 12px 0 24px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Standalone items (Dashboard, Logout) */
+    .nav-item.standalone {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 20px;
+        color: var(--sb-text);
+        text-decoration: none;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: background var(--sb-transition), color var(--sb-transition);
+        border-radius: 0;
+        position: relative;
+    }
+
+    .nav-item.standalone:hover {
+        background: var(--sb-hover);
+        color: var(--sb-text-bright);
+    }
+
+    .nav-item.standalone.active {
+        background: var(--sb-active-bg);
+        color: var(--sb-accent-clr);
+    }
+
+    .nav-item.standalone.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 3px;
+        background: var(--sb-accent-clr);
+        border-radius: 0 3px 3px 0;
+    }
+
+    .nav-item.standalone.logout {
+        margin-top: auto;
+        border-top: 1px solid var(--sb-border);
+    }
+
+    .nav-item.standalone.logout:hover {
+        color: #ef4444;
+    }
+
+    /* Nav group wrapper */
+    .nav-group {
+        flex-shrink: 0;
+    }
+
+    /* Group toggle button */
+    .nav-group-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 20px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--sb-text);
+        font-size: 1rem;
+        font-weight: 500;
+        text-align: left;
+        transition: background var(--sb-transition), color var(--sb-transition);
+        position: relative;
+    }
+
+    .nav-group-toggle:hover {
+        background: var(--sb-hover);
+        color: var(--sb-text-bright);
+    }
+
+    .nav-group.open>.nav-group-toggle {
+        color: var(--sb-text-bright);
+        background: var(--sb-hover);
+    }
+
+    .nav-label {
+        flex: 1;
+    }
+
+    .group-badge {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .chevron {
+        font-size: 0.75rem;
+        color: var(--sb-text);
+        transition: transform 0.25s ease;
+    }
+
+    .nav-group.open .chevron {
+        transform: rotate(180deg);
+    }
+
+    /* Coming soon badge */
+    .coming-soon-badge {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #f59e0b;
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        padding: 3px 8px;
+        border-radius: 20px;
+    }
+
+    /* Icon wrapper */
+    .nav-icon {
+        width: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+
+    /* Group item list */
+    .nav-group-items {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background: rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-group-items.expanded {
+        max-height: 500px;
+    }
+
+    .nav-group-items li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 20px 10px 52px;
+        color: var(--sb-text);
+        text-decoration: none;
+        font-size: 0.95rem;
+        transition: background var(--sb-transition), color var(--sb-transition);
+        position: relative;
+    }
+
+    .nav-group-items li a i {
+        font-size: 0.9rem;
+        width: 20px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .nav-group-items li a:hover {
+        background: var(--sb-hover);
+        color: var(--sb-text-bright);
+    }
+
+    .nav-group-items li a.active {
+        color: var(--sb-accent-clr);
+        background: var(--sb-active-bg);
+    }
+
+    .nav-group-items li a.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 4px;
+        bottom: 4px;
+        width: 3px;
+        background: var(--sb-accent-clr);
+        border-radius: 0 3px 3px 0;
+    }
+
+    /* Vertical connector line for group items */
+    .nav-group.open .nav-group-items {
+        border-left: 1px solid var(--sb-border);
+        margin-left: 32px;
+    }
+
+    .nav-group.open .nav-group-items li a {
+        padding-left: 24px;
     }
 
     .nav-group.open .nav-group-items li a.active::before {

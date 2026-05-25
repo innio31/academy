@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: https://eaglescitadel.acad.com.ng');
+header('Access-Control-Allow-Origin: https://www.eaglescitadel.acad.com.ng');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Max-Age: 86400'); // cache preflight for 24hrs

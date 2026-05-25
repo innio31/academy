@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/includes/sidebar.php - Reusable sidebar component
+// eagles/admin/includes/sidebar.php - Reusable sidebar component
 
 // Make sure required variables are available
 if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
@@ -58,7 +58,7 @@ if (!isset($subscription_active)) {
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/tbis/assets/logos/logo.png',
+                    '/eagles/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -173,7 +173,7 @@ if (!isset($subscription_active)) {
             <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>">
                     <i class="fas fa-sync-alt"></i> Sync to Cloud
                 </a></li>
-            <li><a href="/tbis/logout.php">
+            <li><a href="/eagles/logout.php">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a></li>
         </ul>

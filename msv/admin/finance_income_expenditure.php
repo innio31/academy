@@ -1,5 +1,5 @@
 <?php
-// msv/admin/finance_income_expenditure.php - Manage Income & Expenditure
+// msv/admin/finance_payments.php - Manage Payments
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -34,278 +34,403 @@ $current_session = date('Y') . '/' . (date('Y') + 1);
 $message = '';
 $message_type = '';
 
+// Helper function to post to ledger and income
+function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_date, $student_name, $admin_id)
+{
+    try {
+        // Get or create income account for school fees
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name LIKE '%School Fees%' AND account_type = 'income' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $income_account = $stmt->fetch();
+
+        if (!$income_account) {
+            // Create default income account
+            $stmt = $pdo->prepare("INSERT INTO fin_accounts (school_id, account_name, account_type, opening_balance, current_balance, is_active) VALUES (?, 'School Fees Income', 'income', 0, 0, 1)");
+            $stmt->execute([$school_id]);
+            $income_account_id = $pdo->lastInsertId();
+        } else {
+            $income_account_id = $income_account['id'];
+        }
+
+        // Get cash account (default asset account)
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_type = 'asset' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $cash_account = $stmt->fetch();
+        $cash_account_id = $cash_account ? $cash_account['id'] : null;
+
+        if ($cash_account_id) {
+            // Get current balances
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$cash_account_id]);
+            $cash_balance = $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$income_account_id]);
+            $income_balance = $stmt->fetchColumn();
+
+            // Post debit to cash account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'debit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_cash_balance = $cash_balance + $amount;
+            $stmt->execute([$school_id, $cash_account_id, $payment_date, $amount, $new_cash_balance, "Payment from " . $student_name, $payment_id, $admin_id]);
+
+            // Update cash account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $cash_account_id]);
+
+            // Post credit to income account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'credit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_income_balance = $income_balance - $amount;
+            $stmt->execute([$school_id, $income_account_id, $payment_date, $amount, $new_income_balance, "School fees from " . $student_name, $payment_id, $admin_id]);
+
+            // Update income account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $income_account_id]);
+
+            return true;
+        }
+        return false;
+    } catch (Exception $e) {
+        error_log("Ledger posting error: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Process POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
-        // Add Income
-        if ($_POST['action'] === 'add_income') {
-            $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
-            $account_id = !empty($_POST['account_id']) ? intval($_POST['account_id']) : null;
-            $income_date = $_POST['income_date'] ?? date('Y-m-d');
-            $source = trim($_POST['source']);
-            $description = trim($_POST['description']);
-            $amount = floatval($_POST['amount']);
-            $session = trim($_POST['session'] ?? $current_session);
-            $term = trim($_POST['term'] ?? 'First');
-            $reference = trim($_POST['reference'] ?? '');
-            $proof_path = null;
-
-            if (empty($source) || $amount <= 0) {
-                $message = "Please fill in source and amount";
-                $message_type = "error";
-            } else {
-                try {
-                    // Handle file upload
-                    if (isset($_FILES['proof_file']) && $_FILES['proof_file']['error'] == 0) {
-                        $upload_dir = '../uploads/finance/';
-                        if (!file_exists($upload_dir)) {
-                            mkdir($upload_dir, 0777, true);
-                        }
-                        $file_ext = pathinfo($_FILES['proof_file']['name'], PATHINFO_EXTENSION);
-                        $file_name = 'income_' . time() . '_' . uniqid() . '.' . $file_ext;
-                        $upload_path = $upload_dir . $file_name;
-                        if (move_uploaded_file($_FILES['proof_file']['tmp_name'], $upload_path)) {
-                            $proof_path = '/uploads/finance/' . $file_name;
-                        }
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO fin_income (school_id, category_id, account_id, income_date, source, description, amount, session, term, reference, proof_path, recorded_by, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([$school_id, $category_id, $account_id, $income_date, $source, $description, $amount, $session, $term, $reference, $proof_path, $admin_id]);
-
-                    // Add to cashflow
-                    $stmt = $pdo->prepare("
-                        INSERT INTO fin_cashflow (school_id, flow_date, flow_type, amount, balance_after, description, source_ref, account_id, created_at)
-                        VALUES (?, ?, 'inflow', ?, (SELECT COALESCE(SUM(CASE WHEN flow_type = 'inflow' THEN amount ELSE -amount END), 0) + ? FROM fin_cashflow WHERE school_id = ?), ?, 'income:' || LAST_INSERT_ID(), ?, NOW())
-                    ");
-                    $stmt->execute([$school_id, $income_date, $amount, $amount, $school_id, $description, $account_id]);
-
-                    $message = "Income recorded successfully!";
-                    $message_type = "success";
-                } catch (Exception $e) {
-                    $message = "Error recording income: " . $e->getMessage();
-                    $message_type = "error";
-                }
-            }
-        }
-
-        // Add Expenditure
-        elseif ($_POST['action'] === 'add_expenditure') {
-            $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
-            $account_id = !empty($_POST['account_id']) ? intval($_POST['account_id']) : null;
-            $expense_date = $_POST['expense_date'] ?? date('Y-m-d');
-            $payee = trim($_POST['payee']);
-            $description = trim($_POST['description']);
-            $amount = floatval($_POST['amount']);
-            $session = trim($_POST['session'] ?? $current_session);
-            $term = trim($_POST['term'] ?? 'First');
+        // Record new payment
+        if ($_POST['action'] === 'record_payment') {
+            $bill_id = intval($_POST['bill_id'] ?? 0);
+            $student_id = intval($_POST['student_id'] ?? 0);
+            $amount_paid = floatval($_POST['amount_paid'] ?? 0);
+            $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
             $payment_method = $_POST['payment_method'] ?? 'cash';
-            $reference = trim($_POST['reference'] ?? '');
-            $proof_path = null;
+            $reference_number = trim($_POST['reference_number'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
+            $account_id = !empty($_POST['account_id']) ? intval($_POST['account_id']) : null;
 
-            if (empty($payee) || $amount <= 0) {
-                $message = "Please fill in payee and amount";
+            if ($amount_paid <= 0) {
+                $message = "Please enter a valid amount";
                 $message_type = "error";
             } else {
                 try {
-                    // Handle file upload
-                    if (isset($_FILES['proof_file']) && $_FILES['proof_file']['error'] == 0) {
-                        $upload_dir = '../uploads/finance/';
-                        if (!file_exists($upload_dir)) {
-                            mkdir($upload_dir, 0777, true);
+                    // If bill_id is provided, get student_id from bill
+                    if ($bill_id > 0) {
+                        $stmt = $pdo->prepare("SELECT student_id, amount, amount_paid FROM fin_bills WHERE id = ? AND school_id = ?");
+                        $stmt->execute([$bill_id, $school_id]);
+                        $bill = $stmt->fetch();
+
+                        if (!$bill) {
+                            throw new Exception("Bill not found");
                         }
-                        $file_ext = pathinfo($_FILES['proof_file']['name'], PATHINFO_EXTENSION);
-                        $file_name = 'expense_' . time() . '_' . uniqid() . '.' . $file_ext;
-                        $upload_path = $upload_dir . $file_name;
-                        if (move_uploaded_file($_FILES['proof_file']['tmp_name'], $upload_path)) {
-                            $proof_path = '/uploads/finance/' . $file_name;
-                        }
+                        $student_id = $bill['student_id'];
+                        $bill_amount = $bill['amount'];
+                        $current_paid = $bill['amount_paid'];
+                    } elseif ($student_id > 0) {
+                        // Manual payment without specific bill
+                        $bill_amount = 0;
+                        $current_paid = 0;
+                    } else {
+                        throw new Exception("Please select either a bill or a student");
                     }
 
+                    // Insert payment record
                     $stmt = $pdo->prepare("
-                        INSERT INTO fin_expenditure (school_id, category_id, account_id, expense_date, payee, description, amount, session, term, payment_method, reference, proof_path, recorded_by, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        INSERT INTO fin_payments (school_id, bill_id, student_id, amount_paid, payment_date, payment_method, reference_number, notes, account_id, status, recorded_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_verification', ?, NOW())
                     ");
-                    $stmt->execute([$school_id, $category_id, $account_id, $expense_date, $payee, $description, $amount, $session, $term, $payment_method, $reference, $proof_path, $admin_id]);
+                    $stmt->execute([$school_id, $bill_id > 0 ? $bill_id : null, $student_id, $amount_paid, $payment_date, $payment_method, $reference_number, $notes, $account_id, $admin_id]);
 
-                    // Add to cashflow
-                    $stmt = $pdo->prepare("
-                        INSERT INTO fin_cashflow (school_id, flow_date, flow_type, amount, balance_after, description, source_ref, account_id, created_at)
-                        VALUES (?, ?, 'outflow', ?, (SELECT COALESCE(SUM(CASE WHEN flow_type = 'inflow' THEN amount ELSE -amount END), 0) - ? FROM fin_cashflow WHERE school_id = ?), ?, 'expenditure:' || LAST_INSERT_ID(), ?, NOW())
-                    ");
-                    $stmt->execute([$school_id, $expense_date, $amount, $amount, $school_id, $description, $account_id]);
+                    $payment_id = $pdo->lastInsertId();
 
-                    $message = "Expenditure recorded successfully!";
-                    $message_type = "success";
+                    // Auto-verify if payment method is cash or if amount is small
+                    if ($payment_method === 'cash' || $amount_paid < 5000) {
+                        // Auto-verify
+                        $stmt = $pdo->prepare("
+                            UPDATE fin_payments 
+                            SET status = 'verified', verified_by = ?, verified_at = NOW() 
+                            WHERE id = ? AND school_id = ?
+                        ");
+                        $stmt->execute([$admin_id, $payment_id, $school_id]);
+
+                        // Update bill paid amount
+                        if ($bill_id > 0) {
+                            $new_paid = $current_paid + $amount_paid;
+                            $new_status = ($new_paid >= $bill_amount) ? 'paid' : 'part_paid';
+                            $stmt = $pdo->prepare("UPDATE fin_bills SET amount_paid = ?, status = ?, updated_at = NOW() WHERE id = ? AND school_id = ?");
+                            $stmt->execute([$new_paid, $new_status, $bill_id, $school_id]);
+                        }
+
+                        // Get student name for receipt and ledger
+                        $student_name = getStudentName($pdo, $student_id);
+
+                        // Create receipt
+                        $receipt_number = generateReceiptNumber($pdo, $school_id);
+                        $stmt = $pdo->prepare("
+                            INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
+                            VALUES (?, ?, ?, ?, ?, NOW(), ?)
+                        ");
+                        $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $amount_paid]);
+
+                        // Post to ledger and income accounts
+                        $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount_paid, $payment_date, $student_name, $admin_id);
+
+                        if ($ledger_posted) {
+                            $message = "Payment recorded and verified successfully! Receipt #$receipt_number";
+                        } else {
+                            $message = "Payment recorded and verified but ledger posting failed. Receipt #$receipt_number";
+                        }
+                        $message_type = "success";
+                    } else {
+                        $message = "Payment recorded successfully! Waiting for verification.";
+                        $message_type = "success";
+                    }
                 } catch (Exception $e) {
-                    $message = "Error recording expenditure: " . $e->getMessage();
+                    $message = "Error recording payment: " . $e->getMessage();
                     $message_type = "error";
                 }
             }
         }
 
-        // Delete record
-        elseif ($_POST['action'] === 'delete') {
-            $type = $_POST['record_type'];
-            $record_id = intval($_POST['record_id']);
+        // Verify payment
+        elseif ($_POST['action'] === 'verify_payment') {
+            $payment_id = intval($_POST['payment_id']);
 
             try {
-                if ($type === 'income') {
-                    $stmt = $pdo->prepare("DELETE FROM fin_income WHERE id = ? AND school_id = ?");
-                    $stmt->execute([$record_id, $school_id]);
-                } else {
-                    $stmt = $pdo->prepare("DELETE FROM fin_expenditure WHERE id = ? AND school_id = ?");
-                    $stmt->execute([$record_id, $school_id]);
+                // Get payment details
+                $stmt = $pdo->prepare("
+                    SELECT p.*, b.amount as bill_amount, b.amount_paid as current_paid, b.student_id, s.full_name as student_name
+                    FROM fin_payments p
+                    LEFT JOIN fin_bills b ON p.bill_id = b.id
+                    LEFT JOIN students s ON p.student_id = s.id
+                    WHERE p.id = ? AND p.school_id = ? AND p.status = 'pending_verification'
+                ");
+                $stmt->execute([$payment_id, $school_id]);
+                $payment = $stmt->fetch();
+
+                if (!$payment) {
+                    throw new Exception("Payment not found or already verified");
                 }
-                $message = "Record deleted successfully!";
+
+                // Update payment status
+                $stmt = $pdo->prepare("
+                    UPDATE fin_payments 
+                    SET status = 'verified', verified_by = ?, verified_at = NOW() 
+                    WHERE id = ? AND school_id = ?
+                ");
+                $stmt->execute([$admin_id, $payment_id, $school_id]);
+
+                // Update bill if applicable
+                if ($payment['bill_id']) {
+                    $new_paid = $payment['current_paid'] + $payment['amount_paid'];
+                    $new_status = ($new_paid >= $payment['bill_amount']) ? 'paid' : 'part_paid';
+                    $stmt = $pdo->prepare("
+                        UPDATE fin_bills 
+                        SET amount_paid = ?, status = ?, updated_at = NOW() 
+                        WHERE id = ? AND school_id = ?
+                    ");
+                    $stmt->execute([$new_paid, $new_status, $payment['bill_id'], $school_id]);
+                }
+
+                // Generate receipt
+                $receipt_number = generateReceiptNumber($pdo, $school_id);
+                $student_name = $payment['student_name'] ?? getStudentName($pdo, $payment['student_id']);
+                $stmt = $pdo->prepare("
+                    INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
+                    VALUES (?, ?, ?, ?, ?, NOW(), ?)
+                ");
+                $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $payment['amount_paid']]);
+
+                // Post to ledger and income accounts
+                $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $payment['amount_paid'], $payment['payment_date'], $student_name, $admin_id);
+
+                if ($ledger_posted) {
+                    $message = "Payment verified successfully! Receipt #$receipt_number generated and ledger updated.";
+                } else {
+                    $message = "Payment verified successfully! Receipt #$receipt_number generated but ledger posting failed.";
+                }
                 $message_type = "success";
             } catch (Exception $e) {
-                $message = "Error deleting record: " . $e->getMessage();
+                $message = "Error verifying payment: " . $e->getMessage();
+                $message_type = "error";
+            }
+        }
+
+        // Reject payment
+        elseif ($_POST['action'] === 'reject_payment') {
+            $payment_id = intval($_POST['payment_id']);
+            $rejection_reason = trim($_POST['rejection_reason'] ?? '');
+
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE fin_payments 
+                    SET status = 'rejected', rejection_reason = ? 
+                    WHERE id = ? AND school_id = ? AND status = 'pending_verification'
+                ");
+                $stmt->execute([$rejection_reason, $payment_id, $school_id]);
+
+                $message = "Payment rejected successfully!";
+                $message_type = "success";
+            } catch (Exception $e) {
+                $message = "Error rejecting payment: " . $e->getMessage();
                 $message_type = "error";
             }
         }
     }
 }
 
-// Get filters
-$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'income';
+// Helper functions
+function generateReceiptNumber($pdo, $school_id)
+{
+    $year = date('Y');
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) + 1 as next_num 
+        FROM fin_receipts 
+        WHERE school_id = ? AND YEAR(issued_at) = ?
+    ");
+    $stmt->execute([$school_id, $year]);
+    $next = $stmt->fetchColumn();
+    return "RCP/" . $year . "/" . str_pad($next, 6, "0", STR_PAD_LEFT);
+}
+
+function getStudentName($pdo, $student_id)
+{
+    $stmt = $pdo->prepare("SELECT full_name FROM students WHERE id = ?");
+    $stmt->execute([$student_id]);
+    $student = $stmt->fetch();
+    return $student ? $student['full_name'] : 'Unknown Student';
+}
+
+// Pagination
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $per_page = 20;
 $offset = ($page - 1) * $per_page;
 
-// Filter variables
-$filter_category = isset($_GET['category']) ? intval($_GET['category']) : 0;
-$filter_session = isset($_GET['session']) ? $_GET['session'] : 'all';
-$filter_term = isset($_GET['term']) ? $_GET['term'] : 'all';
+// Filters
+$filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
+$filter_bill_id = isset($_GET['bill_id']) ? intval($_GET['bill_id']) : null;
 $filter_date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
 $filter_date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
+$filter_search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Build where clause for income
-$income_where = ["i.school_id = ?"];
-$income_params = [$school_id];
+// Build query
+$where_clauses = ["p.school_id = ?"];
+$params = [$school_id];
 
-if ($filter_category > 0) {
-    $income_where[] = "i.category_id = ?";
-    $income_params[] = $filter_category;
+if ($filter_bill_id) {
+    $where_clauses[] = "p.bill_id = ?";
+    $params[] = $filter_bill_id;
 }
-if ($filter_session !== 'all') {
-    $income_where[] = "i.session = ?";
-    $income_params[] = $filter_session;
+
+if ($filter_status !== 'all') {
+    $where_clauses[] = "p.status = ?";
+    $params[] = $filter_status;
 }
-if ($filter_term !== 'all') {
-    $income_where[] = "i.term = ?";
-    $income_params[] = $filter_term;
-}
+
 if ($filter_date_from) {
-    $income_where[] = "i.income_date >= ?";
-    $income_params[] = $filter_date_from;
+    $where_clauses[] = "p.payment_date >= ?";
+    $params[] = $filter_date_from;
 }
+
 if ($filter_date_to) {
-    $income_where[] = "i.income_date <= ?";
-    $income_params[] = $filter_date_to;
+    $where_clauses[] = "p.payment_date <= ?";
+    $params[] = $filter_date_to;
 }
 
-$income_where_sql = implode(" AND ", $income_where);
+if (!empty($filter_search)) {
+    $where_clauses[] = "(s.full_name LIKE ? OR s.admission_number LIKE ? OR p.reference_number LIKE ?)";
+    $params[] = "%$filter_search%";
+    $params[] = "%$filter_search%";
+    $params[] = "%$filter_search%";
+}
 
-// Get income records
+$where_sql = implode(" AND ", $where_clauses);
+
+// Get total count
 $stmt = $pdo->prepare("
-    SELECT i.*, c.name as category_name
-    FROM fin_income i
-    LEFT JOIN fin_categories c ON i.category_id = c.id
-    WHERE $income_where_sql
-    ORDER BY i.income_date DESC, i.created_at DESC
+    SELECT COUNT(*) 
+    FROM fin_payments p
+    JOIN students s ON p.student_id = s.id
+    WHERE $where_sql
+");
+$stmt->execute($params);
+$total_records = $stmt->fetchColumn();
+$total_pages = ceil($total_records / $per_page);
+
+// Get payments with student and bill info
+$stmt = $pdo->prepare("
+    SELECT p.*, 
+           s.full_name as student_name, 
+           s.admission_number,
+           s.class,
+           b.description as bill_description,
+           b.amount as bill_amount,
+           CONCAT(a.full_name, ' (', a.role, ')') as verified_by_name
+    FROM fin_payments p
+    JOIN students s ON p.student_id = s.id
+    LEFT JOIN fin_bills b ON p.bill_id = b.id
+    LEFT JOIN admin_users a ON p.verified_by = a.id
+    WHERE $where_sql
+    ORDER BY 
+        CASE p.status 
+            WHEN 'pending_verification' THEN 1
+            ELSE 2
+        END,
+        p.payment_date DESC,
+        p.created_at DESC
     LIMIT $offset, $per_page
 ");
-$stmt->execute($income_params);
-$income_records = $stmt->fetchAll();
+$stmt->execute($params);
+$payments = $stmt->fetchAll();
 
-// Get total income count
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_income i WHERE $income_where_sql");
-$stmt->execute($income_params);
-$total_income = $stmt->fetchColumn();
-$income_pages = ceil($total_income / $per_page);
-
-// Build where clause for expenditure
-$exp_where = ["e.school_id = ?"];
-$exp_params = [$school_id];
-
-if ($filter_category > 0) {
-    $exp_where[] = "e.category_id = ?";
-    $exp_params[] = $filter_category;
-}
-if ($filter_session !== 'all') {
-    $exp_where[] = "e.session = ?";
-    $exp_params[] = $filter_session;
-}
-if ($filter_term !== 'all') {
-    $exp_where[] = "e.term = ?";
-    $exp_params[] = $filter_term;
-}
-if ($filter_date_from) {
-    $exp_where[] = "e.expense_date >= ?";
-    $exp_params[] = $filter_date_from;
-}
-if ($filter_date_to) {
-    $exp_where[] = "e.expense_date <= ?";
-    $exp_params[] = $filter_date_to;
-}
-
-$exp_where_sql = implode(" AND ", $exp_where);
-
-// Get expenditure records
-$stmt = $pdo->prepare("
-    SELECT e.*, c.name as category_name
-    FROM fin_expenditure e
-    LEFT JOIN fin_categories c ON e.category_id = c.id
-    WHERE $exp_where_sql
-    ORDER BY e.expense_date DESC, e.created_at DESC
-    LIMIT $offset, $per_page
-");
-$stmt->execute($exp_params);
-$expenditure_records = $stmt->fetchAll();
-
-// Get total expenditure count
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_expenditure e WHERE $exp_where_sql");
-$stmt->execute($exp_params);
-$total_expenditure = $stmt->fetchColumn();
-$exp_pages = ceil($total_expenditure / $per_page);
-
-// Get summary statistics
+// Get statistics
 $stmt = $pdo->prepare("
     SELECT 
-        COALESCE(SUM(amount), 0) as total_income,
-        COALESCE(SUM(CASE WHEN MONTH(income_date) = MONTH(CURRENT_DATE()) AND YEAR(income_date) = YEAR(CURRENT_DATE()) THEN amount ELSE 0 END), 0) as monthly_income
-    FROM fin_income WHERE school_id = ?
+        COUNT(*) as total_payments,
+        COALESCE(SUM(CASE WHEN status = 'verified' THEN amount_paid ELSE 0 END), 0) as total_verified,
+        COALESCE(SUM(CASE WHEN status = 'pending_verification' THEN amount_paid ELSE 0 END), 0) as total_pending,
+        COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount_paid ELSE 0 END), 0) as total_rejected,
+        COUNT(CASE WHEN status = 'pending_verification' THEN 1 END) as pending_count
+    FROM fin_payments p
+    WHERE p.school_id = ?
 ");
 $stmt->execute([$school_id]);
-$income_stats = $stmt->fetch();
+$stats = $stmt->fetch();
 
+// Get bills for dropdown (only pending/part_paid)
 $stmt = $pdo->prepare("
-    SELECT 
-        COALESCE(SUM(amount), 0) as total_expenditure,
-        COALESCE(SUM(CASE WHEN MONTH(expense_date) = MONTH(CURRENT_DATE()) AND YEAR(expense_date) = YEAR(CURRENT_DATE()) THEN amount ELSE 0 END), 0) as monthly_expenditure
-    FROM fin_expenditure WHERE school_id = ?
+    SELECT b.id, b.description, s.full_name as student_name, b.amount, b.amount_paid, (b.amount - b.amount_paid) as balance
+    FROM fin_bills b
+    JOIN students s ON b.student_id = s.id
+    WHERE b.school_id = ? AND b.status IN ('pending', 'part_paid')
+    ORDER BY s.full_name
 ");
 $stmt->execute([$school_id]);
-$exp_stats = $stmt->fetch();
+$bills = $stmt->fetchAll();
 
-$net_position = $income_stats['total_income'] - $exp_stats['total_expenditure'];
-$monthly_net = $income_stats['monthly_income'] - $exp_stats['monthly_expenditure'];
-
-// Get categories for dropdown
-$stmt = $pdo->prepare("SELECT id, name, type FROM fin_categories WHERE school_id = ? AND is_active = 1 ORDER BY name");
+// Get students for manual payment dropdown
+$stmt = $pdo->prepare("SELECT id, full_name, admission_number, class FROM students WHERE school_id = ? AND status = 'active' ORDER BY full_name");
 $stmt->execute([$school_id]);
-$categories = $stmt->fetchAll();
+$students = $stmt->fetchAll();
 
-// Get accounts for dropdown
-$stmt = $pdo->prepare("SELECT id, account_name FROM fin_accounts WHERE school_id = ? AND is_active = 1 ORDER BY account_name");
-$stmt->execute([$school_id]);
-$accounts = $stmt->fetchAll();
-
-// Get sessions for filter
-$sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
+// Get specific bill if passed
+$selected_bill = null;
+if ($filter_bill_id) {
+    $stmt = $pdo->prepare("
+        SELECT b.*, s.full_name as student_name, s.admission_number, s.class
+        FROM fin_bills b
+        JOIN students s ON b.student_id = s.id
+        WHERE b.id = ? AND b.school_id = ?
+    ");
+    $stmt->execute([$filter_bill_id, $school_id]);
+    $selected_bill = $stmt->fetch();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -313,7 +438,7 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?php echo $school_name; ?> - Income & Expenditure</title>
+    <title><?php echo $school_name; ?> - Manage Payments</title>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -479,20 +604,20 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             border-left: 4px solid;
         }
 
-        .stat-card.income {
+        .stat-card.verified {
             border-left-color: var(--success-color);
         }
 
-        .stat-card.expense {
+        .stat-card.pending {
+            border-left-color: var(--warning-color);
+        }
+
+        .stat-card.rejected {
             border-left-color: var(--danger-color);
         }
 
-        .stat-card.net {
+        .stat-card.count {
             border-left-color: var(--info-color);
-        }
-
-        .stat-card.monthly {
-            border-left-color: var(--warning-color);
         }
 
         .stat-value {
@@ -504,42 +629,6 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             font-size: 0.75rem;
             color: #666;
             margin-top: 5px;
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 20px;
-            background: white;
-            padding: 5px;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 500;
-            border-radius: var(--radius-sm);
-            transition: var(--transition);
-        }
-
-        .tab-btn.active {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .tab-pane {
-            display: none;
-        }
-
-        .tab-pane.active {
-            display: block;
         }
 
         /* Form Styles */
@@ -609,8 +698,13 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             color: white;
         }
 
-        .btn-success {
-            background: var(--success-color);
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
             color: white;
         }
 
@@ -621,6 +715,11 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
 
         .btn-warning {
             background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
             color: white;
         }
 
@@ -638,26 +737,42 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            align-items: flex-end;
+            align-items: center;
             box-shadow: var(--shadow-sm);
         }
 
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .filter-group label {
-            font-size: 0.7rem;
+        .filter-btn {
+            padding: 6px 15px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: var(--transition);
+            text-decoration: none;
             color: #666;
-            margin-bottom: 3px;
         }
 
-        .filter-group select,
-        .filter-group input {
+        .filter-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .filter-btn:hover:not(.active) {
+            border-color: var(--secondary-color);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 5px;
+            margin-left: auto;
+        }
+
+        .search-box input {
             padding: 6px 12px;
             border: 1px solid #ddd;
-            border-radius: var(--radius-sm);
+            border-radius: 20px;
             font-size: 0.8rem;
         }
 
@@ -695,18 +810,52 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             background: #f9f9f9;
         }
 
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .status-verified {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: var(--warning-color);
+        }
+
+        .status-rejected {
+            background: #f8d7da;
+            color: var(--danger-color);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .action-icon {
-            padding: 5px 10px;
+            padding: 6px;
             border-radius: var(--radius-sm);
+            cursor: pointer;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 5px;
             font-size: 0.7rem;
-            cursor: pointer;
         }
 
-        .action-icon.delete {
+        .action-icon.verify {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .action-icon.reject {
             background: var(--danger-color);
             color: white;
         }
@@ -714,6 +863,19 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
         .action-icon.view {
             background: var(--info-color);
             color: white;
+        }
+
+        .bill-info-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+        }
+
+        .bill-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
         }
 
         /* Pagination */
@@ -740,6 +902,55 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             border-color: var(--primary-color);
         }
 
+        .page-link:hover:not(.active) {
+            border-color: var(--secondary-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--radius-md);
+            max-width: 500px;
+            width: 90%;
+            padding: 20px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light-color);
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -754,13 +965,26 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
                 grid-template-columns: 1fr;
             }
 
-            .filter-bar {
+            .action-buttons {
                 flex-direction: column;
-                align-items: stretch;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px;
             }
 
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .search-box {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            .search-box input {
+                flex: 1;
             }
         }
     </style>
@@ -776,11 +1000,11 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
         <!-- Top Header -->
         <div class="top-header">
             <div class="header-title">
-                <h1><i class="fas fa-chart-pie" style="margin-right: 10px; color: var(--secondary-color);"></i>Income & Expenditure</h1>
-                <p>Track all income sources and expenses</p>
+                <h1><i class="fas fa-money-bill-wave" style="margin-right: 10px; color: var(--secondary-color);"></i>Manage Payments</h1>
+                <p>Record, verify, and track all payments</p>
             </div>
             <div>
-                <a href="finance_dashboard.php" class="btn btn-warning btn-sm">
+                <a href="finance_dashboard.php" class="btn btn-secondary btn-sm">
                     <i class="fas fa-chart-line"></i> Back to Dashboard
                 </a>
             </div>
@@ -796,434 +1020,321 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
 
         <!-- Stats Cards -->
         <div class="stats-grid">
-            <div class="stat-card income">
-                <div class="stat-value">₦<?php echo number_format($income_stats['total_income'], 2); ?></div>
-                <div class="stat-label">Total Income (All Time)</div>
+            <div class="stat-card verified">
+                <div class="stat-value">₦<?php echo number_format($stats['total_verified'] ?? 0, 2); ?></div>
+                <div class="stat-label">Total Verified Payments</div>
             </div>
-            <div class="stat-card expense">
-                <div class="stat-value">₦<?php echo number_format($exp_stats['total_expenditure'], 2); ?></div>
-                <div class="stat-label">Total Expenditure (All Time)</div>
+            <div class="stat-card pending">
+                <div class="stat-value">₦<?php echo number_format($stats['total_pending'] ?? 0, 2); ?></div>
+                <div class="stat-label">Pending Verification</div>
             </div>
-            <div class="stat-card net">
-                <div class="stat-value" style="color: <?php echo $net_position >= 0 ? 'var(--success-color)' : 'var(--danger-color)'; ?>">
-                    ₦<?php echo number_format(abs($net_position), 2); ?>
-                </div>
-                <div class="stat-label">Net Position (<?php echo $net_position >= 0 ? 'Surplus' : 'Deficit'; ?>)</div>
+            <div class="stat-card rejected">
+                <div class="stat-value">₦<?php echo number_format($stats['total_rejected'] ?? 0, 2); ?></div>
+                <div class="stat-label">Rejected Payments</div>
             </div>
-            <div class="stat-card monthly">
-                <div class="stat-value">₦<?php echo number_format($monthly_net, 2); ?></div>
-                <div class="stat-label">This Month's Net</div>
+            <div class="stat-card count">
+                <div class="stat-value"><?php echo $stats['pending_count'] ?? 0; ?></div>
+                <div class="stat-label">Pending Items to Verify</div>
             </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab-btn <?php echo $active_tab === 'income' ? 'active' : ''; ?>" onclick="switchTab('income')">
-                <i class="fas fa-arrow-up" style="color: var(--success-color);"></i> Income
-            </button>
-            <button class="tab-btn <?php echo $active_tab === 'expenditure' ? 'active' : ''; ?>" onclick="switchTab('expenditure')">
-                <i class="fas fa-arrow-down" style="color: var(--danger-color);"></i> Expenditure
-            </button>
+        <!-- Record Payment Form -->
+        <div class="form-card">
+            <div class="form-title">
+                <i class="fas fa-plus-circle"></i> Record New Payment
+            </div>
+
+            <?php if ($selected_bill): ?>
+                <div class="bill-info-card">
+                    <div class="bill-info-grid">
+                        <div>
+                            <strong>Student:</strong> <?php echo htmlspecialchars($selected_bill['student_name']); ?><br>
+                            <strong>Class:</strong> <?php echo htmlspecialchars($selected_bill['class']); ?><br>
+                            <strong>Admission No:</strong> <?php echo htmlspecialchars($selected_bill['admission_number']); ?>
+                        </div>
+                        <div>
+                            <strong>Bill:</strong> <?php echo htmlspecialchars($selected_bill['description']); ?><br>
+                            <strong>Total Amount:</strong> ₦<?php echo number_format($selected_bill['amount'], 2); ?><br>
+                            <strong>Balance:</strong> ₦<?php echo number_format($selected_bill['amount'] - $selected_bill['amount_paid'], 2); ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="" id="paymentForm">
+                <input type="hidden" name="action" value="record_payment">
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Select Bill (Optional)</label>
+                        <select name="bill_id" id="bill_select" onchange="updateBillInfo(this)">
+                            <option value="">-- Manual Payment (No Bill) --</option>
+                            <?php foreach ($bills as $bill): ?>
+                                <option value="<?php echo $bill['id']; ?>" <?php echo ($filter_bill_id == $bill['id']) ? 'selected' : ''; ?> data-student-id="<?php echo $bill['student_id']; ?>" data-balance="<?php echo $bill['balance']; ?>">
+                                    <?php echo htmlspecialchars($bill['student_name'] . ' - ' . $bill['description'] . ' (Balance: ₦' . number_format($bill['balance'], 2) . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Student *</label>
+                        <select name="student_id" id="student_select" required>
+                            <option value="">-- Select Student --</option>
+                            <?php foreach ($students as $student): ?>
+                                <option value="<?php echo $student['id']; ?>">
+                                    <?php echo htmlspecialchars($student['admission_number'] . ' - ' . $student['full_name'] . ' (' . $student['class'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Amount Paid (₦) *</label>
+                        <input type="number" name="amount_paid" id="amount_paid" step="0.01" required placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Date *</label>
+                        <input type="date" name="payment_date" required value="<?php echo date('Y-m-d'); ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Method *</label>
+                        <select name="payment_method" id="payment_method" required>
+                            <option value="cash">Cash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="pos">POS</option>
+                            <option value="online">Online Payment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Reference Number</label>
+                        <input type="text" name="reference_number" placeholder="Transaction/Cheque/Receipt No.">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea name="notes" rows="3" placeholder="Additional payment notes..."></textarea>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Record Payment
+                    </button>
+                    <?php if ($filter_bill_id): ?>
+                        <a href="finance_payments.php" class="btn btn-warning">
+                            <i class="fas fa-times"></i> Clear Bill Selection
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
         </div>
 
-        <!-- Income Tab -->
-        <div id="incomeTab" class="tab-pane <?php echo $active_tab === 'income' ? 'active' : ''; ?>">
-            <!-- Add Income Form -->
-            <div class="form-card">
-                <div class="form-title">
-                    <i class="fas fa-plus-circle"></i> Record New Income
-                </div>
-                <form method="POST" action="" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="add_income">
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <span style="font-size: 0.8rem; color: #666;"><i class="fas fa-filter"></i> Filters:</span>
+            <a href="?status=all&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="filter-btn <?php echo $filter_status === 'all' ? 'active' : ''; ?>">All</a>
+            <a href="?status=pending_verification&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="filter-btn <?php echo $filter_status === 'pending_verification' ? 'active' : ''; ?>">Pending</a>
+            <a href="?status=verified&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="filter-btn <?php echo $filter_status === 'verified' ? 'active' : ''; ?>">Verified</a>
+            <a href="?status=rejected&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="filter-btn <?php echo $filter_status === 'rejected' ? 'active' : ''; ?>">Rejected</a>
 
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Source *</label>
-                            <input type="text" name="source" required placeholder="e.g., PTA Levy, Government Grant">
-                        </div>
+            <form method="GET" class="search-box" style="display: flex; gap: 5px;">
+                <input type="hidden" name="status" value="<?php echo $filter_status; ?>">
+                <input type="date" name="date_from" placeholder="Date From" value="<?php echo $filter_date_from; ?>" style="padding: 6px 10px; border-radius: 20px; border: 1px solid #ddd;">
+                <input type="date" name="date_to" placeholder="Date To" value="<?php echo $filter_date_to; ?>" style="padding: 6px 10px; border-radius: 20px; border: 1px solid #ddd;">
+                <input type="text" name="search" placeholder="Search student or reference..." value="<?php echo htmlspecialchars($filter_search); ?>" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd;">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i></button>
+                <?php if ($filter_search || $filter_date_from || $filter_date_to): ?>
+                    <a href="finance_payments.php?status=<?php echo $filter_status; ?>" class="btn btn-warning btn-sm">Clear</a>
+                <?php endif; ?>
+            </form>
+        </div>
 
-                        <div class="form-group">
-                            <label>Category</label>
-                            <select name="category_id">
-                                <option value="">-- Select Category --</option>
-                                <?php foreach ($categories as $cat): ?>
-                                    <?php if ($cat['type'] === 'income' || $cat['type'] === 'both'): ?>
-                                        <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Account</label>
-                            <select name="account_id">
-                                <option value="">-- Select Account --</option>
-                                <?php foreach ($accounts as $acc): ?>
-                                    <option value="<?php echo $acc['id']; ?>"><?php echo htmlspecialchars($acc['account_name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Date *</label>
-                            <input type="date" name="income_date" required value="<?php echo date('Y-m-d'); ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Amount (₦) *</label>
-                            <input type="number" name="amount" step="0.01" required placeholder="0.00">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Session</label>
-                            <select name="session">
-                                <?php foreach ($sessions as $sess): ?>
-                                    <option value="<?php echo $sess; ?>" <?php echo $sess === $current_session ? 'selected' : ''; ?>><?php echo $sess; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Term</label>
-                            <select name="term">
-                                <option value="First">First Term</option>
-                                <option value="Second">Second Term</option>
-                                <option value="Third">Third Term</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Reference/Cheque No.</label>
-                            <input type="text" name="reference" placeholder="Optional reference number">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Proof Document (Optional)</label>
-                            <input type="file" name="proof_file" accept=".pdf,.jpg,.png,.jpeg">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea name="description" rows="3" placeholder="Additional details..."></textarea>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 20px;">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-save"></i> Record Income
-                        </button>
-                    </div>
-                </form>
+        <!-- Payments Table -->
+        <div class="table-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--primary-color); font-size: 1rem;">
+                    <i class="fas fa-list"></i> Payment Transactions
+                    <span style="font-size: 0.75rem; color: #666;">(<?php echo $total_records; ?> total)</span>
+                </h3>
             </div>
 
-            <!-- Filter Bar for Income -->
-            <div class="filter-bar">
-                <div class="filter-group">
-                    <label>Category</label>
-                    <select id="income_category_filter">
-                        <option value="0">All Categories</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <?php if ($cat['type'] === 'income' || $cat['type'] === 'both'): ?>
-                                <option value="<?php echo $cat['id']; ?>" <?php echo $filter_category == $cat['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['name']); ?></option>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Session</label>
-                    <select id="income_session_filter">
-                        <option value="all">All Sessions</option>
-                        <?php foreach ($sessions as $sess): ?>
-                            <option value="<?php echo $sess; ?>" <?php echo $filter_session === $sess ? 'selected' : ''; ?>><?php echo $sess; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Term</label>
-                    <select id="income_term_filter">
-                        <option value="all">All Terms</option>
-                        <option value="First" <?php echo $filter_term === 'First' ? 'selected' : ''; ?>>First Term</option>
-                        <option value="Second" <?php echo $filter_term === 'Second' ? 'selected' : ''; ?>>Second Term</option>
-                        <option value="Third" <?php echo $filter_term === 'Third' ? 'selected' : ''; ?>>Third Term</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Date From</label>
-                    <input type="date" id="income_date_from" value="<?php echo $filter_date_from; ?>">
-                </div>
-                <div class="filter-group">
-                    <label>Date To</label>
-                    <input type="date" id="income_date_to" value="<?php echo $filter_date_to; ?>">
-                </div>
-                <div class="filter-group">
-                    <label>&nbsp;</label>
-                    <button onclick="applyIncomeFilters()" class="btn btn-primary btn-sm">Apply Filters</button>
-                </div>
-            </div>
-
-            <!-- Income Records Table -->
-            <div class="table-card">
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Bill Description</th>
+                            <th>Method</th>
+                            <th>Amount</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                            <th>Verified By</th>
+                            <th>Actions</th>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($payments)): ?>
                             <tr>
-                                <th>Date</th>
-                                <th>Source</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th>Amount</th>
-                                <th>Reference</th>
-                                <th>Actions</th>
+                                <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
+                                    <i class="fas fa-money-bill" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
+                                    No payment records found
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($income_records)): ?>
+                        <?php else: ?>
+                            <?php foreach ($payments as $payment): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
-                                        <i class="fas fa-arrow-up" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
-                                        No income records found
+                                    <td><?php echo date('d M Y', strtotime($payment['payment_date'])); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($payment['student_name']); ?></strong><br>
+                                        <small style="color: #999;"><?php echo htmlspecialchars($payment['admission_number']); ?> | <?php echo htmlspecialchars($payment['class']); ?></small>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($payment['bill_description'] ?? 'Manual Payment'); ?></td>
+                                    <td>
+                                        <span class="status-badge status-pending" style="background: #e8e8e8;">
+                                            <?php echo ucfirst(str_replace('_', ' ', $payment['payment_method'])); ?>
+                                        </span>
+                                    </td>
+                                    <td style="font-weight: 600; color: var(--success-color);">₦<?php echo number_format($payment['amount_paid'], 2); ?></td>
+                                    <td><?php echo htmlspecialchars($payment['reference_number'] ?? 'N/A'); ?></td>
+                                    <td>
+                                        <?php
+                                        $status_class = '';
+                                        $status_text = '';
+                                        switch ($payment['status']) {
+                                            case 'verified':
+                                                $status_class = 'status-verified';
+                                                $status_text = 'Verified';
+                                                break;
+                                            case 'pending_verification':
+                                                $status_class = 'status-pending';
+                                                $status_text = 'Pending';
+                                                break;
+                                            case 'rejected':
+                                                $status_class = 'status-rejected';
+                                                $status_text = 'Rejected';
+                                                break;
+                                        }
+                                        ?>
+                                        <span class="status-badge <?php echo $status_class; ?>">
+                                            <?php echo $status_text; ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($payment['verified_by_name']): ?>
+                                            <?php echo htmlspecialchars($payment['verified_by_name']); ?><br>
+                                            <small><?php echo date('d M Y', strtotime($payment['verified_at'])); ?></small>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <?php if ($payment['status'] == 'pending_verification'): ?>
+                                                <a href="#" onclick="showVerifyModal(<?php echo $payment['id']; ?>, '<?php echo htmlspecialchars($payment['student_name']); ?>', <?php echo $payment['amount_paid']; ?>)" class="action-icon verify">
+                                                    <i class="fas fa-check-circle"></i> Verify
+                                                </a>
+                                                <a href="#" onclick="showRejectModal(<?php echo $payment['id']; ?>, '<?php echo htmlspecialchars($payment['student_name']); ?>', <?php echo $payment['amount_paid']; ?>)" class="action-icon reject">
+                                                    <i class="fas fa-times-circle"></i> Reject
+                                                </a>
+                                            <?php endif; ?>
+                                            <?php if ($payment['status'] == 'verified'): ?>
+                                                <a href="finance_receipts.php?payment_id=<?php echo $payment['id']; ?>" class="action-icon view">
+                                                    <i class="fas fa-receipt"></i> View Receipt
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
-                            <?php else: ?>
-                                <?php foreach ($income_records as $income): ?>
-                                    <tr>
-                                        <td><?php echo date('d M Y', strtotime($income['income_date'])); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($income['source']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($income['category_name'] ?? 'Uncategorized'); ?></td>
-                                        <td><?php echo htmlspecialchars(substr($income['description'] ?? '', 0, 40)); ?></td>
-                                        <td style="font-weight: 600; color: var(--success-color);">₦<?php echo number_format($income['amount'], 2); ?></td>
-                                        <td><?php echo htmlspecialchars($income['reference'] ?? 'N/A'); ?></td>
-                                        <td>
-                                            <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this income record?')">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="record_type" value="income">
-                                                <input type="hidden" name="record_id" value="<?php echo $income['id']; ?>">
-                                                <button type="submit" class="action-icon delete"><i class="fas fa-trash"></i> Delete</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-
-                <?php if ($income_pages > 1): ?>
-                    <div class="pagination">
-                        <?php for ($i = 1; $i <= $income_pages; $i++): ?>
-                            <a href="?tab=income&page=<?php echo $i; ?>&category=<?php echo $filter_category; ?>&session=<?php echo $filter_session; ?>&term=<?php echo $filter_term; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>" class="page-link <?php echo $i === $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
-                        <?php endfor; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Expenditure Tab -->
-        <div id="expenditureTab" class="tab-pane <?php echo $active_tab === 'expenditure' ? 'active' : ''; ?>">
-            <!-- Add Expenditure Form -->
-            <div class="form-card">
-                <div class="form-title">
-                    <i class="fas fa-plus-circle"></i> Record New Expenditure
-                </div>
-                <form method="POST" action="" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="add_expenditure">
-
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Payee *</label>
-                            <input type="text" name="payee" required placeholder="e.g., Vendor, Staff, Supplier">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Category</label>
-                            <select name="category_id">
-                                <option value="">-- Select Category --</option>
-                                <?php foreach ($categories as $cat): ?>
-                                    <?php if ($cat['type'] === 'expenditure' || $cat['type'] === 'both'): ?>
-                                        <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Account</label>
-                            <select name="account_id">
-                                <option value="">-- Select Account --</option>
-                                <?php foreach ($accounts as $acc): ?>
-                                    <option value="<?php echo $acc['id']; ?>"><?php echo htmlspecialchars($acc['account_name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Date *</label>
-                            <input type="date" name="expense_date" required value="<?php echo date('Y-m-d'); ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Amount (₦) *</label>
-                            <input type="number" name="amount" step="0.01" required placeholder="0.00">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Payment Method</label>
-                            <select name="payment_method">
-                                <option value="cash">Cash</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="cheque">Cheque</option>
-                                <option value="pos">POS</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Session</label>
-                            <select name="session">
-                                <?php foreach ($sessions as $sess): ?>
-                                    <option value="<?php echo $sess; ?>" <?php echo $sess === $current_session ? 'selected' : ''; ?>><?php echo $sess; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Term</label>
-                            <select name="term">
-                                <option value="First">First Term</option>
-                                <option value="Second">Second Term</option>
-                                <option value="Third">Third Term</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Reference/Receipt No.</label>
-                            <input type="text" name="reference" placeholder="Optional reference number">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Proof Document (Optional)</label>
-                            <input type="file" name="proof_file" accept=".pdf,.jpg,.png,.jpeg">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea name="description" rows="3" placeholder="What was this payment for?"></textarea>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 20px;">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Record Expenditure
-                        </button>
-                    </div>
-                </form>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
 
-            <!-- Filter Bar for Expenditure -->
-            <div class="filter-bar">
-                <div class="filter-group">
-                    <label>Category</label>
-                    <select id="exp_category_filter">
-                        <option value="0">All Categories</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <?php if ($cat['type'] === 'expenditure' || $cat['type'] === 'both'): ?>
-                                <option value="<?php echo $cat['id']; ?>" <?php echo $filter_category == $cat['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['name']); ?></option>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Session</label>
-                    <select id="exp_session_filter">
-                        <option value="all">All Sessions</option>
-                        <?php foreach ($sessions as $sess): ?>
-                            <option value="<?php echo $sess; ?>" <?php echo $filter_session === $sess ? 'selected' : ''; ?>><?php echo $sess; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Term</label>
-                    <select id="exp_term_filter">
-                        <option value="all">All Terms</option>
-                        <option value="First" <?php echo $filter_term === 'First' ? 'selected' : ''; ?>>First Term</option>
-                        <option value="Second" <?php echo $filter_term === 'Second' ? 'selected' : ''; ?>>Second Term</option>
-                        <option value="Third" <?php echo $filter_term === 'Third' ? 'selected' : ''; ?>>Third Term</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Date From</label>
-                    <input type="date" id="exp_date_from" value="<?php echo $filter_date_from; ?>">
-                </div>
-                <div class="filter-group">
-                    <label>Date To</label>
-                    <input type="date" id="exp_date_to" value="<?php echo $filter_date_to; ?>">
-                </div>
-                <div class="filter-group">
-                    <label>&nbsp;</label>
-                    <button onclick="applyExpFilters()" class="btn btn-primary btn-sm">Apply Filters</button>
-                </div>
-            </div>
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+                <div class="pagination">
+                    <?php if ($page > 1): ?>
+                        <a href="?page=<?php echo $page - 1; ?>&status=<?php echo $filter_status; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="page-link">&laquo; Prev</a>
+                    <?php endif; ?>
 
-            <!-- Expenditure Records Table -->
-            <div class="table-card">
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Payee</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th>Amount</th>
-                                <th>Method</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($expenditure_records)): ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
-                                        <i class="fas fa-arrow-down" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
-                                        No expenditure records found
-                                    </td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($expenditure_records as $expense): ?>
-                                    <tr>
-                                        <td><?php echo date('d M Y', strtotime($expense['expense_date'])); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($expense['payee']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($expense['category_name'] ?? 'Uncategorized'); ?></td>
-                                        <td><?php echo htmlspecialchars(substr($expense['description'] ?? '', 0, 40)); ?></td>
-                                        <td style="font-weight: 600; color: var(--danger-color);">₦<?php echo number_format($expense['amount'], 2); ?></td>
-                                        <td><span style="background: #e8e8e8; padding: 3px 8px; border-radius: 12px; font-size: 0.7rem;"><?php echo ucfirst($expense['payment_method']); ?></span></td>
-                                        <td>
-                                            <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this expenditure record?')">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="record_type" value="expenditure">
-                                                <input type="hidden" name="record_id" value="<?php echo $expense['id']; ?>">
-                                                <button type="submit" class="action-icon delete"><i class="fas fa-trash"></i> Delete</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                        <a href="?page=<?php echo $i; ?>&status=<?php echo $filter_status; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="page-link <?php echo $i === $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                    <?php endfor; ?>
 
-                <?php if ($exp_pages > 1): ?>
-                    <div class="pagination">
-                        <?php for ($i = 1; $i <= $exp_pages; $i++): ?>
-                            <a href="?tab=expenditure&page=<?php echo $i; ?>&category=<?php echo $filter_category; ?>&session=<?php echo $filter_session; ?>&term=<?php echo $filter_term; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>" class="page-link <?php echo $i === $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
-                        <?php endfor; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
+                    <?php if ($page < $total_pages): ?>
+                        <a href="?page=<?php echo $page + 1; ?>&status=<?php echo $filter_status; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>&search=<?php echo urlencode($filter_search); ?>" class="page-link">Next &raquo;</a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- Footer -->
         <div class="footer">
             <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - Finance Management System</p>
+        </div>
+    </div>
+
+    <!-- Verify Payment Modal -->
+    <div id="verifyModal" class="modal">
+        <div class="modal-content">
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="verify_payment">
+                <input type="hidden" name="payment_id" id="verify_payment_id">
+
+                <div class="modal-header">
+                    <h3><i class="fas fa-check-circle"></i> Verify Payment</h3>
+                    <button type="button" onclick="closeVerifyModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="verify_payment_info" style="margin-bottom: 15px;"></p>
+                    <p style="color: var(--success-color); font-size: 0.75rem; margin-top: 10px;">
+                        <i class="fas fa-info-circle"></i> Verifying this payment will:
+                    </p>
+                    <ul style="margin-left: 20px; font-size: 0.75rem; color: #666;">
+                        <li>Mark the payment as verified</li>
+                        <li>Update the bill balance</li>
+                        <li>Generate an official receipt</li>
+                        <li>Post to ledger and income accounts</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeVerifyModal()" class="btn btn-warning">Cancel</button>
+                    <button type="submit" class="btn btn-success">Yes, Verify Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reject Payment Modal -->
+    <div id="rejectModal" class="modal">
+        <div class="modal-content">
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="reject_payment">
+                <input type="hidden" name="payment_id" id="reject_payment_id">
+
+                <div class="modal-header">
+                    <h3><i class="fas fa-times-circle"></i> Reject Payment</h3>
+                    <button type="button" onclick="closeRejectModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="reject_payment_info" style="margin-bottom: 15px;"></p>
+                    <div class="form-group">
+                        <label>Rejection Reason *</label>
+                        <textarea name="rejection_reason" rows="3" required placeholder="Why is this payment being rejected?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeRejectModal()" class="btn btn-warning">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Reject Payment</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1255,46 +1366,69 @@ $sessions = ['2023/2024', '2024/2025', '2025/2026', $current_session];
             }, 100);
         });
 
-        function switchTab(tab) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('tab', tab);
-            url.searchParams.delete('page');
-            window.location.href = url.toString();
+        function updateBillInfo(select) {
+            const selectedOption = select.options[select.selectedIndex];
+            const studentId = selectedOption.dataset.studentId;
+            const balance = selectedOption.dataset.balance;
+            const studentSelect = document.getElementById('student_select');
+            const amountInput = document.getElementById('amount_paid');
+
+            if (studentId) {
+                studentSelect.value = studentId;
+                if (balance) {
+                    amountInput.max = balance;
+                    amountInput.placeholder = "Max: ₦" + parseFloat(balance).toLocaleString();
+                }
+            } else {
+                studentSelect.value = '';
+                amountInput.max = '';
+                amountInput.placeholder = "0.00";
+            }
         }
 
-        function applyIncomeFilters() {
-            const category = document.getElementById('income_category_filter').value;
-            const session = document.getElementById('income_session_filter').value;
-            const term = document.getElementById('income_term_filter').value;
-            const dateFrom = document.getElementById('income_date_from').value;
-            const dateTo = document.getElementById('income_date_to').value;
-
-            let url = '?tab=income';
-            if (category && category != '0') url += '&category=' + category;
-            if (session && session != 'all') url += '&session=' + encodeURIComponent(session);
-            if (term && term != 'all') url += '&term=' + encodeURIComponent(term);
-            if (dateFrom) url += '&date_from=' + dateFrom;
-            if (dateTo) url += '&date_to=' + dateTo;
-
-            window.location.href = url;
+        function showVerifyModal(paymentId, studentName, amount) {
+            document.getElementById('verify_payment_id').value = paymentId;
+            document.getElementById('verify_payment_info').innerHTML =
+                '<strong>Student:</strong> ' + studentName + '<br>' +
+                '<strong>Amount:</strong> ₦' + amount.toLocaleString();
+            document.getElementById('verifyModal').classList.add('active');
         }
 
-        function applyExpFilters() {
-            const category = document.getElementById('exp_category_filter').value;
-            const session = document.getElementById('exp_session_filter').value;
-            const term = document.getElementById('exp_term_filter').value;
-            const dateFrom = document.getElementById('exp_date_from').value;
-            const dateTo = document.getElementById('exp_date_to').value;
-
-            let url = '?tab=expenditure';
-            if (category && category != '0') url += '&category=' + category;
-            if (session && session != 'all') url += '&session=' + encodeURIComponent(session);
-            if (term && term != 'all') url += '&term=' + encodeURIComponent(term);
-            if (dateFrom) url += '&date_from=' + dateFrom;
-            if (dateTo) url += '&date_to=' + dateTo;
-
-            window.location.href = url;
+        function closeVerifyModal() {
+            document.getElementById('verifyModal').classList.remove('active');
         }
+
+        function showRejectModal(paymentId, studentName, amount) {
+            document.getElementById('reject_payment_id').value = paymentId;
+            document.getElementById('reject_payment_info').innerHTML =
+                '<strong>Student:</strong> ' + studentName + '<br>' +
+                '<strong>Amount:</strong> ₦' + amount.toLocaleString();
+            document.getElementById('rejectModal').classList.add('active');
+        }
+
+        function closeRejectModal() {
+            document.getElementById('rejectModal').classList.remove('active');
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const verifyModal = document.getElementById('verifyModal');
+            const rejectModal = document.getElementById('rejectModal');
+            if (event.target === verifyModal) {
+                closeVerifyModal();
+            }
+            if (event.target === rejectModal) {
+                closeRejectModal();
+            }
+        }
+
+        // Auto-select student when bill is selected
+        document.addEventListener('DOMContentLoaded', function() {
+            const billSelect = document.getElementById('bill_select');
+            if (billSelect && billSelect.value) {
+                updateBillInfo(billSelect);
+            }
+        });
     </script>
 
     <?php

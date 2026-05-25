@@ -34,6 +34,73 @@ $current_session = date('Y') . '/' . (date('Y') + 1);
 $message = '';
 $message_type = '';
 
+// Helper function to post to ledger and income
+function postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount, $payment_date, $student_name, $admin_id)
+{
+    try {
+        // Get or create income account for school fees
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name LIKE '%School Fees%' AND account_type = 'income' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $income_account = $stmt->fetch();
+
+        if (!$income_account) {
+            // Create default income account
+            $stmt = $pdo->prepare("INSERT INTO fin_accounts (school_id, account_name, account_type, opening_balance, current_balance, is_active) VALUES (?, 'School Fees Income', 'income', 0, 0, 1)");
+            $stmt->execute([$school_id]);
+            $income_account_id = $pdo->lastInsertId();
+        } else {
+            $income_account_id = $income_account['id'];
+        }
+
+        // Get cash account (default asset account)
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_type = 'asset' LIMIT 1");
+        $stmt->execute([$school_id]);
+        $cash_account = $stmt->fetch();
+        $cash_account_id = $cash_account ? $cash_account['id'] : null;
+
+        if ($cash_account_id) {
+            // Get current balances
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$cash_account_id]);
+            $cash_balance = $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("SELECT current_balance FROM fin_accounts WHERE id = ?");
+            $stmt->execute([$income_account_id]);
+            $income_balance = $stmt->fetchColumn();
+
+            // Post debit to cash account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'debit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_cash_balance = $cash_balance + $amount;
+            $stmt->execute([$school_id, $cash_account_id, $payment_date, $amount, $new_cash_balance, "Payment from " . $student_name, $payment_id, $admin_id]);
+
+            // Update cash account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $cash_account_id]);
+
+            // Post credit to income account
+            $stmt = $pdo->prepare("
+                INSERT INTO fin_ledger (school_id, account_id, entry_date, entry_type, amount, balance, description, ref_type, ref_id, posted_by, created_at)
+                VALUES (?, ?, ?, 'credit', ?, ?, ?, 'payment', ?, ?, NOW())
+            ");
+            $new_income_balance = $income_balance - $amount;
+            $stmt->execute([$school_id, $income_account_id, $payment_date, $amount, $new_income_balance, "School fees from " . $student_name, $payment_id, $admin_id]);
+
+            // Update income account balance
+            $stmt = $pdo->prepare("UPDATE fin_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$amount, $income_account_id]);
+
+            return true;
+        }
+        return false;
+    } catch (Exception $e) {
+        error_log("Ledger posting error: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Process POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
@@ -98,18 +165,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_status = ($new_paid >= $bill_amount) ? 'paid' : 'part_paid';
                             $stmt = $pdo->prepare("UPDATE fin_bills SET amount_paid = ?, status = ?, updated_at = NOW() WHERE id = ? AND school_id = ?");
                             $stmt->execute([$new_paid, $new_status, $bill_id, $school_id]);
-
-                            // Create receipt
-                            $receipt_number = generateReceiptNumber($pdo, $school_id);
-                            $stmt = $pdo->prepare("
-                                INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
-                                VALUES (?, ?, ?, ?, ?, NOW(), ?)
-                            ");
-                            $student_name = getStudentName($pdo, $student_id);
-                            $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $amount_paid]);
                         }
 
-                        $message = "Payment recorded and verified successfully! Receipt #$receipt_number";
+                        // Get student name for receipt and ledger
+                        $student_name = getStudentName($pdo, $student_id);
+
+                        // Create receipt
+                        $receipt_number = generateReceiptNumber($pdo, $school_id);
+                        $stmt = $pdo->prepare("
+                            INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
+                            VALUES (?, ?, ?, ?, ?, NOW(), ?)
+                        ");
+                        $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $amount_paid]);
+
+                        // Post to ledger and income accounts
+                        $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $amount_paid, $payment_date, $student_name, $admin_id);
+
+                        if ($ledger_posted) {
+                            $message = "Payment recorded and verified successfully! Receipt #$receipt_number";
+                        } else {
+                            $message = "Payment recorded and verified but ledger posting failed. Receipt #$receipt_number";
+                        }
                         $message_type = "success";
                     } else {
                         $message = "Payment recorded successfully! Waiting for verification.";
@@ -129,9 +205,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Get payment details
                 $stmt = $pdo->prepare("
-                    SELECT p.*, b.amount as bill_amount, b.amount_paid as current_paid, b.student_id
+                    SELECT p.*, b.amount as bill_amount, b.amount_paid as current_paid, b.student_id, s.full_name as student_name
                     FROM fin_payments p
                     LEFT JOIN fin_bills b ON p.bill_id = b.id
+                    LEFT JOIN students s ON p.student_id = s.id
                     WHERE p.id = ? AND p.school_id = ? AND p.status = 'pending_verification'
                 ");
                 $stmt->execute([$payment_id, $school_id]);
@@ -163,14 +240,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Generate receipt
                 $receipt_number = generateReceiptNumber($pdo, $school_id);
-                $student_name = getStudentName($pdo, $payment['student_id']);
+                $student_name = $payment['student_name'] ?? getStudentName($pdo, $payment['student_id']);
                 $stmt = $pdo->prepare("
                     INSERT INTO fin_receipts (school_id, payment_id, receipt_number, issued_to, issued_by, issued_at, amount)
                     VALUES (?, ?, ?, ?, ?, NOW(), ?)
                 ");
                 $stmt->execute([$school_id, $payment_id, $receipt_number, $student_name, $admin_id, $payment['amount_paid']]);
 
-                $message = "Payment verified successfully! Receipt #$receipt_number generated.";
+                // Post to ledger and income accounts
+                $ledger_posted = postToLedgerAndIncome($pdo, $school_id, $payment_id, $payment['amount_paid'], $payment['payment_date'], $student_name, $admin_id);
+
+                if ($ledger_posted) {
+                    $message = "Payment verified successfully! Receipt #$receipt_number generated and ledger updated.";
+                } else {
+                    $message = "Payment verified successfully! Receipt #$receipt_number generated but ledger posting failed.";
+                }
                 $message_type = "success";
             } catch (Exception $e) {
                 $message = "Error verifying payment: " . $e->getMessage();
@@ -1217,6 +1301,7 @@ if ($filter_bill_id) {
                         <li>Mark the payment as verified</li>
                         <li>Update the bill balance</li>
                         <li>Generate an official receipt</li>
+                        <li>Post to ledger and income accounts</li>
                     </ul>
                 </div>
                 <div class="modal-footer">

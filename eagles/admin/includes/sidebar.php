@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/includes/sidebar.php - Reusable sidebar component
+// eagles/admin/includes/sidebar.php - Reusable sidebar component
 
 // Make sure required variables are available
 if (!isset($school_name) || !isset($admin_name) || !isset($admin_role)) {
@@ -70,7 +70,7 @@ $bills_active     = in_array($current_page, $bills_pages);
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/tbis/assets/logos/logo.png',
+                    '/eagles/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -272,7 +272,7 @@ $bills_active     = in_array($current_page, $bills_pages);
         </div>
 
         <!-- Logout -->
-        <a href="/tbis/logout.php" class="nav-item standalone logout">
+        <a href="/eagles/logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>

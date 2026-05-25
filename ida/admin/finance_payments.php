@@ -1070,7 +1070,10 @@ if ($filter_bill_id) {
                         <select name="bill_id" id="bill_select" onchange="updateBillInfo(this)">
                             <option value="">-- Manual Payment (No Bill) --</option>
                             <?php foreach ($bills as $bill): ?>
-                                <option value="<?php echo $bill['id']; ?>" <?php echo ($filter_bill_id == $bill['id']) ? 'selected' : ''; ?> data-student-id="<?php echo $bill['student_id']; ?>" data-balance="<?php echo $bill['balance']; ?>">
+                                <option value="<?php echo $bill['id']; ?>"
+                                    <?php echo ($filter_bill_id == $bill['id']) ? 'selected' : ''; ?>
+                                    data-student-id="<?php echo $bill['student_id']; ?>"
+                                    data-balance="<?php echo $bill['balance']; ?>">
                                     <?php echo htmlspecialchars($bill['student_name'] . ' - ' . $bill['description'] . ' (Balance: ₦' . number_format($bill['balance'], 2) . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1082,7 +1085,8 @@ if ($filter_bill_id) {
                         <select name="student_id" id="student_select" required>
                             <option value="">-- Select Student --</option>
                             <?php foreach ($students as $student): ?>
-                                <option value="<?php echo $student['id']; ?>">
+                                <option value="<?php echo $student['id']; ?>"
+                                    <?php echo ($selected_bill && $selected_bill['student_id'] == $student['id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($student['admission_number'] . ' - ' . $student['full_name'] . ' (' . $student['class'] . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1091,7 +1095,8 @@ if ($filter_bill_id) {
 
                     <div class="form-group">
                         <label>Amount Paid (₦) *</label>
-                        <input type="number" name="amount_paid" id="amount_paid" step="0.01" required placeholder="0.00">
+                        <input type="number" name="amount_paid" id="amount_paid" step="0.01" required placeholder="0.00"
+                            <?php echo ($selected_bill) ? 'max="' . ($selected_bill['amount'] - $selected_bill['amount_paid']) . '"' : ''; ?>>
                     </div>
 
                     <div class="form-group">
@@ -1364,6 +1369,12 @@ if ($filter_bill_id) {
                     });
                 }
             }, 100);
+
+            // Auto-populate amount placeholder when bill is pre-selected
+            const billSelect = document.getElementById('bill_select');
+            if (billSelect && billSelect.value) {
+                updateBillInfo(billSelect);
+            }
         });
 
         function updateBillInfo(select) {
@@ -1374,10 +1385,18 @@ if ($filter_bill_id) {
             const amountInput = document.getElementById('amount_paid');
 
             if (studentId) {
+                // Set the student select value
                 studentSelect.value = studentId;
-                if (balance) {
+
+                // Set max amount and placeholder
+                if (balance && parseFloat(balance) > 0) {
                     amountInput.max = balance;
                     amountInput.placeholder = "Max: ₦" + parseFloat(balance).toLocaleString();
+                    // Optionally set a default amount (uncomment if you want to pre-fill)
+                    // amountInput.value = balance;
+                } else {
+                    amountInput.max = '';
+                    amountInput.placeholder = "0.00";
                 }
             } else {
                 studentSelect.value = '';
@@ -1421,14 +1440,6 @@ if ($filter_bill_id) {
                 closeRejectModal();
             }
         }
-
-        // Auto-select student when bill is selected
-        document.addEventListener('DOMContentLoaded', function() {
-            const billSelect = document.getElementById('bill_select');
-            if (billSelect && billSelect.value) {
-                updateBillInfo(billSelect);
-            }
-        });
     </script>
 
     <?php

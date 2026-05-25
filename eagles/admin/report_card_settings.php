@@ -1,10 +1,10 @@
 <?php
-// tbis/admin/report_card_settings.php - Report Card Settings
+// eagles/admin/report_card_settings.php - Report Card Settings
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -635,7 +635,7 @@ if ($selected_class) {
             <li><a href="enter_comments.php"><i class="fas fa-book"></i> Add Comments</a></li>
             <li><a href="calculate_positions.php"><i class="fas fa-file-alt"></i> Calculate</a></li>
             <li><a href="report_cards.php"><i class="fas fa-file-contract"></i> Generate Report Cards</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="/eagles/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -646,7 +646,7 @@ if ($selected_class) {
                 <h1><i class="fas fa-cogs"></i> Report Card Settings</h1>
                 <p>Configure grading system, score types, and display options</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

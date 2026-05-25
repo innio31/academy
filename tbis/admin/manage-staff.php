@@ -495,7 +495,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
         .mobile-menu-btn {
             position: fixed;
             top: 16px;
-            left: 16px;
+            right: 20px;
             z-index: 1001;
             width: 44px;
             height: 44px;

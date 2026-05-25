@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -1174,7 +1174,7 @@ try {
                 <h1><?php echo $view_topic ? 'View Questions: ' . htmlspecialchars($view_topic['topic_name']) : 'Manage Topics'; ?></h1>
                 <p><?php echo $view_topic ? htmlspecialchars($view_topic['subject_name']) . ' - ' . count($objective_questions) + count($subjective_questions) + count($theory_questions) . ' total questions' : 'Add topics from the NERDC curriculum to your subjects'; ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <div class="breadcrumb">

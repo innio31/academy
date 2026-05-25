@@ -495,7 +495,7 @@ $stats = $stats->fetch();
             <div class="header-title">
                 <h1><i class="fas fa-book"></i> Library Management</h1>
             </div>
-            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button class="btn" onclick="window.location.href='/msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
 
         <?php if (isset($message)): ?>

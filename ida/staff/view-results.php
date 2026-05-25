@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
     header("Location: /ida/login.php");
     exit();
 }
-
+s
 require_once '../includes/config.php';
 
 $school_id = SCHOOL_ID;

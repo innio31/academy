@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 
@@ -957,35 +957,10 @@ if (isset($_GET['get_exam'])) {
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst($admin_role); ?></p>
-        </div>
-        <div class="sidebar-content">
-            <ul class="nav-links">
-                <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-                <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-                <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-                <li><a href="manage-classes.php"><i class="fas fa-building"></i> Manage Classes</a></li>
-                <li><a href="manage-exams.php" class="active"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-                <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-                <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-                <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
-        </div>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -994,7 +969,7 @@ if (isset($_GET['get_exam'])) {
                 <h1>Manage Exams</h1>
                 <p>Create, edit, and manage examination schedules</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../tbis/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

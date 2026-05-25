@@ -1,9 +1,9 @@
 <?php
-// gos/student/download-resource.php - Download Resource
+// msv/student/download-resource.php - Download Resource
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-    header("Location: /gos/login.php");
+    header("Location: /msv/login.php");
     exit();
 }
 

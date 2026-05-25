@@ -1,9 +1,9 @@
 <?php
-// gos/staff/manage-exams.php - Staff Exam Management
+// ida/staff/manage-exams.php - Staff Exam Management
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 

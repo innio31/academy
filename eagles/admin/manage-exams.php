@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -958,9 +958,9 @@ if (isset($_GET['get_exam'])) {
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <?php
-        // Include sidebar at the end (it will be positioned fixed)
-        require_once 'includes/sidebar.php';
-        ?>
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -969,7 +969,7 @@ if (isset($_GET['get_exam'])) {
                 <h1>Manage Exams</h1>
                 <p>Create, edit, and manage examination schedules</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../tbis/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../eagles/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

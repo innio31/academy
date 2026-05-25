@@ -607,28 +607,10 @@ $recent_results = $recent_stmt->fetchAll();
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst($admin_role); ?></p>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Subjects</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Exams</a></li>
-            <li><a href="view-results.php" class="active"><i class="fas fa-chart-bar"></i> Results</a></li>
-            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <div class="main-content">
         <div class="top-header">
@@ -636,7 +618,7 @@ $recent_results = $recent_stmt->fetchAll();
                 <h1>Exam Results</h1>
                 <p>View and analyze student performance</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/msv/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

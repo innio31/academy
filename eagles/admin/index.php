@@ -1,5 +1,5 @@
 <?php
-// tbis/admin/index.php - Admin Dashboard (Aligned with offline version)
+// eagles/admin/index.php - Admin Dashboard (Aligned with offline version)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -7,7 +7,7 @@ require_once '../includes/config.php';
 
 // Check if admin is logged in (support both offline and online session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -730,7 +730,7 @@ try {
                 <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>!</p>
             </div>
             <div class="header-actions">
-                <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>

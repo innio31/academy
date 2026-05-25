@@ -646,7 +646,7 @@ if ($selected_class) {
                 <h1><i class="fas fa-cogs"></i> Report Card Settings</h1>
                 <p>Configure grading system, score types, and display options</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/gos/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

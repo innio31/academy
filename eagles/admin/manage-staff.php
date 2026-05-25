@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -495,7 +495,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
         .mobile-menu-btn {
             position: fixed;
             top: 16px;
-            left: 16px;
+            right: 20px;
             z-index: 1001;
             width: 44px;
             height: 44px;

@@ -6,7 +6,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -842,7 +842,7 @@ if ($selected_subject_id) {
                         <i class="fas fa-plus-circle"></i> Add Questions
                     </a>
                 <?php endif; ?>
-                <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'">
+                <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             </div>

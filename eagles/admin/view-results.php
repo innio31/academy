@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -618,7 +618,7 @@ $recent_results = $recent_stmt->fetchAll();
                 <h1>Exam Results</h1>
                 <p>View and analyze student performance</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

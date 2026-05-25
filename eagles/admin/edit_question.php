@@ -5,7 +5,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -869,7 +869,7 @@ $class_name = $topic_info['class'] ?? $question_data['class'] ?? 'N/A';
                 <h1>Edit <?php echo ucfirst($question_type); ?> Question</h1>
                 <p><?php echo htmlspecialchars($topic_info['topic_name']); ?> - <?php echo htmlspecialchars($topic_info['subject_name']); ?></p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='/tbis/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='/eagles/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

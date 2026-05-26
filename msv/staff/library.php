@@ -82,21 +82,34 @@ if (isset($_GET['delete'])) {
 
 // Get resources (staff's own + shared to their classes)
 $search = $_GET['search'] ?? '';
+
+// Build the base query
 $query = "SELECT lr.*, 
           CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
                ELSE CONCAT(ROUND(lr.file_size/1048576, 1), ' MB')
           END as formatted_size
           FROM library_resources lr
-          WHERE lr.school_id = ? AND (lr.uploaded_by = ? OR lr.class IN (" . str_repeat('?,', count($assigned_classes) - 1) . "?) OR lr.class = 'All')";
-$params = [$school_id, $staff_id];
-$params = array_merge($params, $assigned_classes);
+          WHERE lr.school_id = ? AND (lr.uploaded_by = ?";
 
+$params = [$school_id, $staff_id];
+
+// Add class condition only if there are assigned classes
+if (!empty($assigned_classes)) {
+    $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+    $query .= " OR lr.class IN ($placeholders)";
+    $params = array_merge($params, $assigned_classes);
+}
+
+$query .= " OR lr.class = 'All')";
+
+// Add search condition if provided
 if (!empty($search)) {
     $query .= " AND (lr.title LIKE ? OR lr.subject LIKE ?)";
     $params[] = "%$search%";
     $params[] = "%$search%";
 }
+
 $query .= " ORDER BY lr.uploaded_at DESC";
 
 $stmt = $pdo->prepare($query);

@@ -1,5 +1,5 @@
 <?php
-// ida/staff/includes/staff_sidebar.php - Reusable sidebar component for staff portal
+// msv/staff/includes/staff_sidebar.php - Reusable sidebar component for staff portal
 // Fully dynamic school theme integration – reads constants from config.php
 
 // Make sure required variables are available
@@ -107,7 +107,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/ida/assets/logos/logo.png',
+                    '/msv/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -232,7 +232,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </a>
 
         <!-- Logout -->
-        <a href="../ida/logout.php" class="nav-item standalone logout">
+        <a href="../logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>

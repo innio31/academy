@@ -172,9 +172,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // ── Load data ─────────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class = ? AND status = 'active' ORDER BY full_name ASC");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // First get the class_id from the class name
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class, $school_id]);
+    $class_row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $class_id = $class_row ? $class_row['id'] : 0;
+    
+    if ($class_id > 0) {
+        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class_id = ? AND status = 'active' ORDER BY full_name ASC");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback to class name if class_id not found
+        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class = ? AND status = 'active' ORDER BY full_name ASC");
+        $stmt->execute([$school_id, $class]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
 }
 $total_students = count($students);

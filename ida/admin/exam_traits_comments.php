@@ -74,14 +74,32 @@ $default_class_teacher = $record['default_class_teacher_name'] ?? '';
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender, dob, guardian_name
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // First get the class_id from the class name
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class, $school_id]);
+    $class_row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $class_id = $class_row ? $class_row['id'] : 0;
+    
+    if ($class_id > 0) {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender, dob, guardian_name
+              FROM students
+             WHERE school_id = ? AND class_id = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback to class name if class_id not found
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender, dob, guardian_name
+              FROM students
+             WHERE school_id = ? AND class = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     error_log("traits students: " . $e->getMessage());
 }
@@ -482,7 +500,6 @@ render:
 $progress_pct = $total_students > 0 ? round(($completed_count / $total_students) * 100) : 0;
 ?>
 
-<!-- Rest of the HTML remains the same as your original file -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -521,101 +538,8 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             overflow-x: hidden;
         }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary), var(--dark));
-            color: white;
-            padding: 20px 0;
-            transition: transform .3s;
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.open {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, .1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .logo-text p {
-            font-size: .7rem;
-            opacity: .8;
-        }
-
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, .1);
-            border-radius: 10px;
-            margin: 15px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, .9);
-            text-decoration: none;
-            border-radius: 8px;
-            transition: var(--transition);
-        }
-
-        .nav-links a:hover {
-            background: rgba(255, 255, 255, .15);
-        }
-
-        .nav-links a.active {
-            background: rgba(255, 255, 255, .2);
-            border-left: 3px solid var(--secondary);
-        }
-
-        .nav-links i {
-            width: 20px;
-            text-align: center;
-        }
-
-        .mobile-toggle {
+        /* Mobile Menu Toggle - Consistent with sidebar.php */
+        .mobile-menu-toggle {
             position: fixed;
             top: 15px;
             left: 15px;
@@ -628,19 +552,26 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             border-radius: 10px;
             font-size: 20px;
             cursor: pointer;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .overlay {
+        .sidebar-overlay {
             position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .5);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
             z-index: 999;
             opacity: 0;
             visibility: hidden;
             transition: var(--transition);
         }
 
-        .overlay.show {
+        .sidebar-overlay.active {
             opacity: 1;
             visibility: visible;
         }
@@ -1304,15 +1235,12 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             margin-right: 6px;
         }
 
-        @media(min-width:768px) {
+        /* Desktop Styles */
+        @media (min-width: 768px) {
 
-            .mobile-toggle,
-            .overlay {
+            .mobile-menu-toggle,
+            .sidebar-overlay {
                 display: none;
-            }
-
-            .sidebar {
-                transform: translateX(0);
             }
 
             .main {
@@ -1320,7 +1248,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             }
         }
 
-        @media(max-width:960px) {
+        @media (max-width: 960px) {
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -1336,7 +1264,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             }
         }
 
-        @media(max-width:767px) {
+        @media (max-width: 767px) {
             .main {
                 padding-top: 70px;
             }
@@ -1358,45 +1286,16 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
 <body>
 
-    <button class="mobile-toggle" id="menuBtn"><i class="fas fa-bars"></i></button>
-    <div class="overlay" id="overlay"></div>
+    <!-- Mobile Menu Toggle - Consistent ID with sidebar.php -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO): ?>
-                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
-                    <?php else: ?>
-                        <i class="fas fa-graduation-cap"></i>
-                    <?php endif; ?>
-                </div>
-                <div class="logo-text">
-                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-chalkboard"></i> Manage Classes</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main -->
     <div class="main" id="mainContent">
@@ -1666,21 +1565,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
     </div><!-- /main -->
 
     <script>
-        // Sidebar
-        const sb = document.getElementById('sidebar');
-        const ov = document.getElementById('overlay');
-        const btn = document.getElementById('menuBtn');
-        btn.addEventListener('click', () => {
-            sb.classList.toggle('open');
-            ov.classList.toggle('show');
-            document.body.style.overflow = sb.classList.contains('open') ? 'hidden' : '';
-        });
-        ov.addEventListener('click', () => {
-            sb.classList.remove('open');
-            ov.classList.remove('show');
-            document.body.style.overflow = '';
-        });
-
         // Rating button click
         function selectRating(btn, radioId) {
             const group = btn.closest('.rating-group');
@@ -1739,6 +1623,41 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             }
         });
+
+        // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
+        (function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('mobileMenuToggle');
+
+            if (toggleBtn && sidebar) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sidebar.classList.toggle('active');
+                    if (overlay) overlay.classList.toggle('active');
+                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                });
+            }
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+            }
+
+            // Close sidebar when clicking nav links on mobile
+            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 768 && sidebar) {
+                        sidebar.classList.remove('active');
+                        if (overlay) overlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                });
+            });
+        })();
     </script>
 
 </body>

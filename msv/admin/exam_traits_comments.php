@@ -74,14 +74,32 @@ $default_class_teacher = $record['default_class_teacher_name'] ?? '';
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender, dob, guardian_name
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // First get the class_id from the class name
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class, $school_id]);
+    $class_row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $class_id = $class_row ? $class_row['id'] : 0;
+    
+    if ($class_id > 0) {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender, dob, guardian_name
+              FROM students
+             WHERE school_id = ? AND class_id = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback to class name if class_id not found
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender, dob, guardian_name
+              FROM students
+             WHERE school_id = ? AND class = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     error_log("traits students: " . $e->getMessage());
 }

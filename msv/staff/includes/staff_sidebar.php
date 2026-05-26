@@ -194,7 +194,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
             </a>
         </li>
         <li>
-            <a href="staff_score_entry.php" class="<?php echo $current_page == 'staff_traits_comments.php' ? 'active' : ''; ?>">
+            <a href="staff_score_entry.php" class="<?php echo $current_page == 'staff_score_entry.php' ? 'active' : ''; ?>">
                 <i class="fas fa-comment-dots"></i> Process Results
             </a>
         </li>

@@ -1,10 +1,10 @@
 <?php
-// admin/manage-students.php - Complete Student Management with First/Last Name Fields
+// admin/manage-students.php - Complete Student Management with First/Middle/Last Name Fields
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /ida/login.php");
     exit();
 }
 
@@ -31,7 +31,7 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 
 // ============================================
-// ENSURE FIRST_NAME & LAST_NAME COLUMNS EXIST
+// ENSURE FIRST_NAME, MIDDLE_NAME & LAST_NAME COLUMNS EXIST
 // ============================================
 
 try {
@@ -40,12 +40,24 @@ try {
         $pdo->exec("ALTER TABLE students ADD COLUMN first_name VARCHAR(100) AFTER admission_number");
     }
 
+    $stmt = $pdo->query("SHOW COLUMNS FROM students LIKE 'middle_name'");
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE students ADD COLUMN middle_name VARCHAR(100) AFTER first_name");
+    }
+
     $stmt = $pdo->query("SHOW COLUMNS FROM students LIKE 'last_name'");
     if (!$stmt->fetch()) {
-        $pdo->exec("ALTER TABLE students ADD COLUMN last_name VARCHAR(100) AFTER first_name");
+        $pdo->exec("ALTER TABLE students ADD COLUMN last_name VARCHAR(100) AFTER middle_name");
     }
 } catch (Exception $e) {
     error_log("Table alter error: " . $e->getMessage());
+}
+
+// Helper function to build full name from parts
+function buildFullName($first_name, $middle_name, $last_name)
+{
+    $parts = array_filter([$first_name, $middle_name, $last_name]);
+    return implode(' ', $parts);
 }
 
 // ============================================
@@ -56,8 +68,9 @@ try {
 if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
     $admission_number = trim($_POST['admission_number']);
     $first_name = trim($_POST['first_name']);
+    $middle_name = trim($_POST['middle_name'] ?? '');
     $last_name = trim($_POST['last_name']);
-    $full_name = $first_name . ' ' . $last_name;
+    $full_name = buildFullName($first_name, $middle_name, $last_name);
     $class_id = $_POST['class_id'];
     $status = 'active';
     $parent_phone = trim($_POST['parent_phone'] ?? '');
@@ -78,8 +91,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
     $class_name = $class ? $class['class_name'] : '';
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO students (admission_number, first_name, last_name, password, full_name, class, class_id, status, parent_phone, parent_email, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$admission_number, $first_name, $last_name, $password, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email, $school_id]);
+        $stmt = $pdo->prepare("INSERT INTO students (admission_number, first_name, middle_name, last_name, password, full_name, class, class_id, status, parent_phone, parent_email, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$admission_number, $first_name, $middle_name, $last_name, $password, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email, $school_id]);
 
         $student_id = $pdo->lastInsertId();
 
@@ -113,8 +126,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_student') {
     $student_id = $_POST['student_id'];
     $admission_number = trim($_POST['admission_number']);
     $first_name = trim($_POST['first_name']);
+    $middle_name = trim($_POST['middle_name'] ?? '');
     $last_name = trim($_POST['last_name']);
-    $full_name = $first_name . ' ' . $last_name;
+    $full_name = buildFullName($first_name, $middle_name, $last_name);
     $class_id = $_POST['class_id'];
     $status = $_POST['status'] ?? 'active';
     $parent_phone = trim($_POST['parent_phone'] ?? '');
@@ -137,8 +151,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_student') {
     $class_name = $class ? $class['class_name'] : '';
 
     try {
-        $sql = "UPDATE students SET admission_number = ?, first_name = ?, last_name = ?, full_name = ?, class = ?, class_id = ?, status = ?, parent_phone = ?, parent_email = ?" . $password_sql . " WHERE id = ? AND school_id = ?";
-        $params = array_merge([$admission_number, $first_name, $last_name, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email], $password_params, [$student_id, $school_id]);
+        $sql = "UPDATE students SET admission_number = ?, first_name = ?, middle_name = ?, last_name = ?, full_name = ?, class = ?, class_id = ?, status = ?, parent_phone = ?, parent_email = ?" . $password_sql . " WHERE id = ? AND school_id = ?";
+        $params = array_merge([$admission_number, $first_name, $middle_name, $last_name, $full_name, $class_name, $class_id, $status, $parent_phone, $parent_email], $password_params, [$student_id, $school_id]);
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
@@ -158,6 +172,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_student') {
                 $stmt->execute([$upload_result['path'], $student_id]);
             }
         }
+
+        // Regenerate QR code if name changed
+        $qr_url = generateStudentQRCode($student_id, $admission_number, $full_name);
+        saveStudentQRCode($pdo, $student_id, $qr_url);
 
         header("Location: manage-students.php?class_id=" . $class_id . "&message=Student updated successfully&type=success");
         exit();
@@ -791,7 +809,7 @@ if (isset($_GET['get_student'])) {
             background: white;
             border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 600px;
+            max-width: 650px;
             max-height: 90vh;
             overflow-y: auto;
         }
@@ -894,6 +912,12 @@ if (isset($_GET['get_student'])) {
             gap: 15px;
         }
 
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
         .profile-picture-preview {
             width: 80px;
             height: 80px;
@@ -911,7 +935,7 @@ if (isset($_GET['get_student'])) {
         }
 
         .info-label {
-            width: 120px;
+            width: 130px;
             font-weight: 600;
             color: var(--gray-600);
             font-size: 0.8rem;
@@ -983,7 +1007,8 @@ if (isset($_GET['get_student'])) {
                 margin-bottom: 5px;
             }
 
-            .form-row {
+            .form-row,
+            .form-row-3 {
                 grid-template-columns: 1fr;
                 gap: 10px;
             }
@@ -996,33 +1021,10 @@ if (isset($_GET['get_student'])) {
         <i class="fas fa-bars"></i>
     </button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text">
-                <h3><?php echo $school_name; ?></h3>
-                <p>Admin Panel</p>
-            </div>
-        </div>
-
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php" class="active"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <div class="main-content" id="mainContent">
         <div class="top-header">
@@ -1204,10 +1206,14 @@ if (isset($_GET['get_student'])) {
                         <label>Profile Picture</label>
                         <input type="file" name="profile_picture" class="form-control" accept="image/jpeg,image/png,image/gif" onchange="previewImage(this, 'addImagePreview')">
                     </div>
-                    <div class="form-row">
+                    <div class="form-row-3">
                         <div class="form-group">
                             <label>First Name *</label>
                             <input type="text" name="first_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Middle Name <span class="optional">(optional)</span></label>
+                            <input type="text" name="middle_name" class="form-control" placeholder="Middle Name">
                         </div>
                         <div class="form-group">
                             <label>Last Name *</label>
@@ -1275,10 +1281,14 @@ if (isset($_GET['get_student'])) {
                         <label>Profile Picture</label>
                         <input type="file" name="profile_picture" class="form-control" accept="image/jpeg,image/png,image/gif" onchange="previewImage(this, 'editImagePreview')">
                     </div>
-                    <div class="form-row">
+                    <div class="form-row-3">
                         <div class="form-group">
                             <label>First Name *</label>
                             <input type="text" id="edit_first_name" name="first_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Middle Name <span class="optional">(optional)</span></label>
+                            <input type="text" id="edit_middle_name" name="middle_name" class="form-control" placeholder="Middle Name">
                         </div>
                         <div class="form-group">
                             <label>Last Name *</label>
@@ -1322,6 +1332,9 @@ if (isset($_GET['get_student'])) {
                             <option value="inactive">Inactive</option>
                             <option value="archived">Archived</option>
                         </select>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> QR code will be automatically updated if name or admission number changes.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1518,17 +1531,27 @@ if (isset($_GET['get_student'])) {
                 profilePicHtml = `<div class="student-avatar" style="width:80px;height:80px;margin:0 auto;font-size:1.5rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
             }
 
+            // Build full name with middle name if exists
+            let fullNameDisplay = student.full_name;
+            if (student.first_name) {
+                let nameParts = [student.first_name];
+                if (student.middle_name) nameParts.push(student.middle_name);
+                if (student.last_name) nameParts.push(student.last_name);
+                fullNameDisplay = nameParts.join(' ');
+            }
+
             modalBody.innerHTML = `
                 <div style="text-align:center; margin-bottom:15px;">${profilePicHtml}</div>
                 <div class="info-row"><div class="info-label">First Name:</div><div class="info-value">${escapeHtml(student.first_name || '—')}</div></div>
+                <div class="info-row"><div class="info-label">Middle Name:</div><div class="info-value">${escapeHtml(student.middle_name || '—')}</div></div>
                 <div class="info-row"><div class="info-label">Last Name:</div><div class="info-value">${escapeHtml(student.last_name || '—')}</div></div>
-                <div class="info-row"><div class="info-label">Full Name:</div><div class="info-value">${escapeHtml(student.full_name)}</div></div>
+                <div class="info-row"><div class="info-label">Full Name:</div><div class="info-value">${escapeHtml(fullNameDisplay)}</div></div>
                 <div class="info-row"><div class="info-label">Admission No:</div><div class="info-value"><strong>${student.admission_number}</strong></div></div>
                 <div class="info-row"><div class="info-label">Class:</div><div class="info-value">${student.class_name_formatted || student.class}</div></div>
                 <div class="info-row"><div class="info-label">Parent Phone:</div><div class="info-value">${student.parent_phone || 'Not provided'}</div></div>
                 <div class="info-row"><div class="info-label">Parent Email:</div><div class="info-value">${student.parent_email || 'Not provided'}</div></div>
                 <div class="info-row"><div class="info-label">Status:</div><div class="info-value"><span class="status-badge status-${student.status}">${student.status.toUpperCase()}</span></div></div>
-                <div class="info-row"><div class="info-label">QR Code:</div><div class="info-value"><img src="${qrImageUrl}" class="qr-code-img"><div class="mt-2"><button class="btn btn-info btn-sm" onclick="showQRCode(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')"><i class="fas fa-expand"></i> View Full Size</button> <button class="btn btn-warning btn-sm" onclick="regenerateQR(${student.id})"><i class="fas fa-sync-alt"></i> Regenerate QR</button></div></div></div>
+                <div class="info-row"><div class="info-label">QR Code:</div><div class="info-value"><img src="${qrImageUrl}" class="qr-code-img"><div class="mt-2"><button class="btn btn-info btn-sm" onclick="showQRCode(${student.id}, '${escapeHtml(fullNameDisplay).replace(/'/g, "\\'")}')"><i class="fas fa-expand"></i> View Full Size</button> <button class="btn btn-warning btn-sm" onclick="regenerateQR(${student.id})"><i class="fas fa-sync-alt"></i> Regenerate QR</button></div></div></div>
                 <div class="action-buttons">
                     <button class="btn btn-primary btn-sm" onclick="editStudentFromModal()"><i class="fas fa-edit"></i> Edit</button>
                     <form method="POST" action="manage-students.php?class_id=<?php echo $selected_class_id; ?>" style="display:inline;">
@@ -1537,7 +1560,7 @@ if (isset($_GET['get_student'])) {
                         <input type="hidden" name="class_id" value="<?php echo $selected_class_id; ?>">
                         <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Remove profile picture?')"><i class="fas fa-image"></i> Remove Photo</button>
                     </form>
-                    <button class="btn btn-danger btn-sm" onclick="deleteStudent(${student.id}, '${escapeHtml(student.full_name).replace(/'/g, "\\'")}')"><i class="fas fa-trash"></i> Delete</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteStudent(${student.id}, '${escapeHtml(fullNameDisplay).replace(/'/g, "\\'")}')"><i class="fas fa-trash"></i> Delete</button>
                 </div>
             `;
             document.getElementById('studentModal').style.display = 'flex';
@@ -1569,6 +1592,7 @@ if (isset($_GET['get_student'])) {
             document.getElementById('addStudentModal').style.display = 'none';
             // Reset form fields
             document.querySelector('#addStudentModal input[name="first_name"]').value = '';
+            document.querySelector('#addStudentModal input[name="middle_name"]').value = '';
             document.querySelector('#addStudentModal input[name="last_name"]').value = '';
             document.querySelector('#addStudentModal input[name="admission_number"]').value = '';
             document.querySelector('#addStudentModal input[name="password"]').value = '';
@@ -1580,6 +1604,7 @@ if (isset($_GET['get_student'])) {
         function openEditModal(student) {
             document.getElementById('edit_student_id').value = student.id;
             document.getElementById('edit_first_name').value = student.first_name || '';
+            document.getElementById('edit_middle_name').value = student.middle_name || '';
             document.getElementById('edit_last_name').value = student.last_name || '';
             document.getElementById('edit_admission_number').value = student.admission_number;
             document.getElementById('edit_class_id').value = student.class_id;
@@ -1730,7 +1755,17 @@ if (isset($_GET['get_student'])) {
             const scanResult = document.getElementById('scanResult');
             const scanStudentInfo = document.getElementById('scanStudentInfo');
             let avatarHtml = student.profile_picture ? `<img src="${student.profile_picture}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;">` : `<div style="width:50px;height:50px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
-            scanStudentInfo.innerHTML = `<div style="text-align:center;">${avatarHtml}<h4 style="margin:8px 0 4px;">${escapeHtml(student.full_name)}</h4><p style="font-size:0.75rem;">Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p></div>`;
+
+            // Build full name with middle name if exists
+            let fullNameDisplay = student.full_name;
+            if (student.first_name) {
+                let nameParts = [student.first_name];
+                if (student.middle_name) nameParts.push(student.middle_name);
+                if (student.last_name) nameParts.push(student.last_name);
+                fullNameDisplay = nameParts.join(' ');
+            }
+
+            scanStudentInfo.innerHTML = `<div style="text-align:center;">${avatarHtml}<h4 style="margin:8px 0 4px;">${escapeHtml(fullNameDisplay)}</h4><p style="font-size:0.75rem;">Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}</p></div>`;
             scanResult.style.display = 'block';
         }
 
@@ -1754,7 +1789,17 @@ if (isset($_GET['get_student'])) {
 
         function openAttendanceModal(student) {
             document.getElementById('attendanceStudentId').value = student.id;
-            document.getElementById('attendanceStudentName').innerHTML = escapeHtml(student.full_name);
+
+            // Build full name with middle name if exists
+            let fullNameDisplay = student.full_name;
+            if (student.first_name) {
+                let nameParts = [student.first_name];
+                if (student.middle_name) nameParts.push(student.middle_name);
+                if (student.last_name) nameParts.push(student.last_name);
+                fullNameDisplay = nameParts.join(' ');
+            }
+
+            document.getElementById('attendanceStudentName').innerHTML = escapeHtml(fullNameDisplay);
             document.getElementById('attendanceStudentClass').innerHTML = `Adm: ${student.admission_number} | Class: ${student.class_name_formatted || student.class}`;
             const avatarDiv = document.getElementById('attendanceStudentAvatar');
             if (student.profile_picture) {

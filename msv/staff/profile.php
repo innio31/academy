@@ -14,11 +14,18 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+$staff_role = $_SESSION['staff_role'] ?? 'staff';
+$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Get staff details
 $stmt = $pdo->prepare("SELECT * FROM staff WHERE id = ? AND school_id = ?");
 $stmt->execute([$staff_id, $school_id]);
 $staff = $stmt->fetch();
+
+// Get staff_id string if not already set
+if ($staff && !$staff_id_string) {
+    $staff_id_string = $staff['staff_id'];
+}
 
 // Update profile
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
@@ -30,6 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
 
     $_SESSION['user_name'] = $full_name;
     $message = "Profile updated successfully!";
+    $message_type = "success";
+
+    // Refresh staff data
+    $stmt = $pdo->prepare("SELECT * FROM staff WHERE id = ? AND school_id = ?");
+    $stmt->execute([$staff_id, $school_id]);
+    $staff = $stmt->fetch();
 }
 
 // Change password
@@ -44,13 +57,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $stmt = $pdo->prepare("UPDATE staff SET password = ? WHERE id = ?");
             $stmt->execute([$hashed, $staff_id]);
             $message = "Password changed successfully!";
+            $message_type = "success";
         } else {
             $error = "Passwords do not match or are too short (min 6 characters)";
+            $message_type = "error";
         }
     } else {
         $error = "Current password is incorrect";
+        $message_type = "error";
     }
 }
+
+// Get assigned subjects count
+$assigned_subjects_count = 0;
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM staff_subjects WHERE staff_id = ? AND school_id = ?");
+$stmt->execute([$staff_id_string, $school_id]);
+$assigned_subjects_count = $stmt->fetchColumn();
+
+// Get assigned classes count
+$assigned_classes_count = 0;
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+$stmt->execute([$staff_id_string, $school_id]);
+$assigned_classes_count = $stmt->fetchColumn();
 ?>
 
 <!DOCTYPE html>
@@ -61,11 +89,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($school_name); ?> - My Profile</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --sidebar-width: 260px;
+            --primary-dark: #1a5a8a;
+            --secondary-color: #d4af7a;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-400: #9ca3af;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --sidebar-width: 280px;
         }
 
         * {
@@ -76,151 +123,200 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
-            color: white;
-            padding: 20px 0;
-            z-index: 100;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: #d4af7a;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .staff-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
+            min-height: 100vh;
+            transition: margin-left 0.28s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 20px 25px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
             color: var(--primary-color);
             font-size: 1.6rem;
+            margin-bottom: 5px;
+            font-weight: 700;
         }
 
+        .header-title h1 i {
+            margin-right: 10px;
+        }
+
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .header-title p i {
+            color: var(--primary-color);
+            font-size: 0.7rem;
+            margin: 0 4px;
+        }
+
+        /* Cards */
         .card {
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-lg);
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
         }
 
         .card-header {
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .card-header h3 {
+            color: var(--gray-800);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-header h3 i {
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+
+        /* Profile Overview */
+        .profile-overview {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            flex-wrap: wrap;
             margin-bottom: 20px;
         }
 
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-info h2 {
+            font-size: 1.4rem;
+            margin-bottom: 5px;
+        }
+
+        .profile-info p {
+            color: var(--gray-600);
+            margin-bottom: 10px;
+        }
+
+        .profile-badges {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-primary {
+            background: var(--gray-100);
+            color: var(--primary-color);
+        }
+
+        .badge-success {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .badge-info {
+            background: #eaf6ff;
+            color: var(--info-color);
+        }
+
+        /* Forms */
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 18px;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #555;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
         }
 
         .form-control {
             width: 100%;
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 12px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: all 0.2s;
         }
 
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-control:disabled {
+            background: var(--gray-50);
+            cursor: not-allowed;
+        }
+
+        /* Buttons */
         .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 10px 24px;
+            border-radius: var(--radius-md);
             border: none;
             cursor: pointer;
-            font-weight: 500;
+            font-weight: 600;
+            text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
         .btn-primary {
@@ -228,95 +324,206 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             color: white;
         }
 
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray-200);
+            color: var(--gray-800);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .alert-success {
             background: #d5f4e6;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            color: #155724;
+            color: var(--success-color);
+            border-left: 4px solid var(--success-color);
         }
 
         .alert-error {
             background: #f8d7da;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            color: #721c24;
+            color: var(--danger-color);
+            border-left: 4px solid var(--danger-color);
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 10px;
+        }
 
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 0.8rem;
+        }
+
+        .info-value {
+            font-weight: 500;
+            color: var(--gray-800);
+            font-size: 0.85rem;
+        }
+
+        /* Info Item for top bar */
+        .info-item-badge {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item-badge i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
             .main-content {
                 margin-left: var(--sidebar-width);
             }
-
-            .mobile-menu-btn {
-                display: none;
-            }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
+            .main-content {
+                padding-top: 70px;
+            }
+
             .top-header {
                 flex-direction: column;
-                gap: 15px;
+                text-align: center;
+            }
+
+            .profile-overview {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .card-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Staff Portal</p>
-            </div>
-        </div>
-        <div class="staff-info">
-            <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="profile.php" class="active"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Include Staff Sidebar -->
+    <?php include_once 'includes/staff_sidebar.php'; ?>
 
+    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-user-cog"></i> My Profile</h1>
+                <p><i class="fas fa-chevron-right"></i> Manage your personal information and account settings</p>
             </div>
-            <button class="btn" onclick="window.location.href='../msv/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <div>
+                <span class="info-item-badge"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
+            </div>
         </div>
 
         <?php if (isset($message)): ?>
-            <div class="alert-success"><i class="fas fa-check-circle"></i> <?php echo $message; ?></div>
+            <div class="alert alert-<?php echo $message_type; ?>">
+                <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
+                <?php echo htmlspecialchars($message); ?>
+            </div>
         <?php endif; ?>
+
         <?php if (isset($error)): ?>
-            <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> <?php echo $error; ?></div>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+            </div>
         <?php endif; ?>
+
+        <!-- Profile Overview Card -->
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-id-card"></i> Profile Overview</h3>
+            </div>
+            <div class="profile-overview">
+                <div class="profile-avatar">
+                    <?php echo strtoupper(substr($staff['full_name'], 0, 1)); ?>
+                </div>
+                <div class="profile-info">
+                    <h2><?php echo htmlspecialchars($staff['full_name']); ?></h2>
+                    <p><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($staff['email'] ?? 'No email set'); ?></p>
+                    <div class="profile-badges">
+                        <span class="badge badge-primary"><i class="fas fa-id-badge"></i> ID: <?php echo htmlspecialchars($staff['staff_id']); ?></span>
+                        <span class="badge badge-success"><i class="fas fa-user-tag"></i> <?php echo ucfirst($staff['role']); ?></span>
+                        <span class="badge badge-info"><i class="fas fa-book"></i> <?php echo $assigned_subjects_count; ?> Subjects</span>
+                        <span class="badge badge-info"><i class="fas fa-users"></i> <?php echo $assigned_classes_count; ?> Classes</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Profile Information -->
         <div class="card">
             <div class="card-header">
-                <h3><i class="fas fa-id-card"></i> Profile Information</h3>
+                <h3><i class="fas fa-edit"></i> Profile Information</h3>
+                <span class="badge badge-primary"><i class="fas fa-info-circle"></i> Edit your details</span>
             </div>
             <form method="POST">
-                <div class="form-group"><label>Full Name</label><input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($staff['full_name']); ?>" required></div>
-                <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($staff['email'] ?? ''); ?>"></div>
-                <div class="form-group"><label>Staff ID</label><input type="text" class="form-control" value="<?php echo htmlspecialchars($staff['staff_id']); ?>" disabled></div>
-                <div class="form-group"><label>Role</label><input type="text" class="form-control" value="<?php echo ucfirst($staff['role']); ?>" disabled></div>
-                <button type="submit" name="update_profile" class="btn btn-primary"><i class="fas fa-save"></i> Update Profile</button>
+                <div class="info-grid">
+                    <div class="form-group">
+                        <label><i class="fas fa-user"></i> Full Name</label>
+                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($staff['full_name']); ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-envelope"></i> Email Address</label>
+                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($staff['email'] ?? ''); ?>" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-id-card"></i> Staff ID</label>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($staff['staff_id']); ?>" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-user-tag"></i> Role</label>
+                        <input type="text" class="form-control" value="<?php echo ucfirst($staff['role']); ?>" disabled>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button type="submit" name="update_profile" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Update Profile
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -324,17 +531,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-key"></i> Change Password</h3>
+                <span class="badge badge-primary"><i class="fas fa-shield-alt"></i> Keep your account secure</span>
             </div>
             <form method="POST">
-                <div class="form-group"><label>Current Password</label><input type="password" name="current_password" class="form-control" required></div>
-                <div class="form-group"><label>New Password</label><input type="password" name="new_password" class="form-control" required></div>
-                <div class="form-group"><label>Confirm New Password</label><input type="password" name="confirm_password" class="form-control" required></div>
-                <button type="submit" name="change_password" class="btn btn-primary"><i class="fas fa-key"></i> Change Password</button>
+                <div class="info-grid">
+                    <div class="form-group">
+                        <label><i class="fas fa-lock"></i> Current Password</label>
+                        <input type="password" name="current_password" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-key"></i> New Password</label>
+                        <input type="password" name="new_password" class="form-control" required>
+                        <small style="color: var(--gray-600); font-size: 0.7rem;">Minimum 6 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-check-circle"></i> Confirm New Password</label>
+                        <input type="password" name="confirm_password" class="form-control" required>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button type="submit" name="change_password" class="btn btn-primary">
+                        <i class="fas fa-key"></i> Change Password
+                    </button>
+                </div>
             </form>
         </div>
+
+        <!-- Account Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-info-circle"></i> Account Information</h3>
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Account Created:</span>
+                    <span class="info-value"><?php echo date('F j, Y', strtotime($staff['created_at'])); ?></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Last Login:</span>
+                    <span class="info-value"><?php echo isset($_SESSION['last_login']) ? date('F j, Y g:i A', strtotime($_SESSION['last_login'])) : 'Not recorded'; ?></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Account Status:</span>
+                    <span class="info-value">
+                        <span class="badge" style="background: #d5f4e6; color: var(--success-color);">
+                            <i class="fas fa-circle" style="font-size: 0.5rem;"></i> Active
+                        </span>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">School:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($school_name); ?></span>
+                </div>
+            </div>
+        </div>
     </div>
+
     <script>
-        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
+        // Mobile menu toggle - handled in staff_sidebar.php
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('staffSidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+
+        if (mobileBtn) {
+            mobileBtn.onclick = () => {
+                sidebar.classList.toggle('active');
+                if (overlay) overlay.classList.toggle('active');
+            };
+        }
+
+        if (overlay) {
+            overlay.onclick = () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            };
+        }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
+                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
+                    sidebar.classList.remove('active');
+                    if (overlay) overlay.classList.remove('active');
+                }
+            }
+        });
     </script>
 </body>
 

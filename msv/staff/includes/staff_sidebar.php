@@ -181,24 +181,24 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
             </ul>
         </div>
 
-        <!-- Assignments Group -->
-        <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'assignment_submissions.php']) ? 'open' : ''; ?>" data-group="assignments">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'assignment_submissions.php']) ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-tasks"></i></span>
-                <span class="nav-label">Assignments</span>
+        <!-- Resources Group (Assignments + Library) -->
+        <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
+            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'true' : 'false'; ?>">
+                <span class="nav-icon"><i class="fas fa-folder-open"></i></span>
+                <span class="nav-label">Resources</span>
                 <span class="group-badge">
                     <i class="fas fa-chevron-down chevron"></i>
                 </span>
             </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'assignment_submissions.php']) ? 'expanded' : ''; ?>">
+            <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'expanded' : ''; ?>">
                 <li>
-                    <a href="assignments.php" class="<?php echo $current_page == 'assignments.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-list"></i> All Assignments
+                    <a href="assignments.php" class="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php']) ? 'active' : ''; ?>">
+                        <i class="fas fa-tasks"></i> Assignments
                     </a>
                 </li>
                 <li>
-                    <a href="assignment_submissions.php" class="<?php echo $current_page == 'assignment_submissions.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-upload"></i> Submissions
+                    <a href="library.php" class="<?php echo $current_page == 'library.php' ? 'active' : ''; ?>">
+                        <i class="fas fa-book"></i> Library
                     </a>
                 </li>
             </ul>

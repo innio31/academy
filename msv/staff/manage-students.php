@@ -1,5 +1,5 @@
 <?php
-// msv/staff/manage-students.php - Staff View of Students
+// msv/staff/manage-students.php - Staff View of Students (with global search)
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
@@ -32,6 +32,7 @@ if (!$staff_id_string_db) {
     $stmt = $pdo->prepare("
         SELECT class FROM staff_classes 
         WHERE staff_id = ? AND school_id = ?
+        ORDER BY class
     ");
     $stmt->execute([$staff_id_string, $school_id]);
     $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -47,20 +48,28 @@ if (empty($assigned_classes)) {
     $class_filter = $_GET['class'] ?? '';
     $status_filter = $_GET['status'] ?? 'active';
 
-    // Build query
+    // Build query - START WITH ALL ASSIGNED CLASSES, THEN APPLY FILTERS
     $query = "SELECT * FROM students WHERE school_id = ? AND class IN (" . str_repeat('?,', count($assigned_classes) - 1) . '?)';
     $params = [$school_id];
     $params = array_merge($params, $assigned_classes);
 
+    // Apply search filter (if search term provided)
     if (!empty($search)) {
-        $query .= " AND (full_name LIKE ? OR admission_number LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
+        $query .= " AND (full_name LIKE ? OR admission_number LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
+        $searchParam = "%$search%";
+        $params[] = $searchParam;
+        $params[] = $searchParam;
+        $params[] = $searchParam;
+        $params[] = $searchParam;
     }
+
+    // Apply class filter (if specific class selected)
     if (!empty($class_filter)) {
         $query .= " AND class = ?";
         $params[] = $class_filter;
     }
+
+    // Apply status filter
     if (!empty($status_filter) && $status_filter !== 'all') {
         $query .= " AND status = ?";
         $params[] = $status_filter;
@@ -71,6 +80,9 @@ if (empty($assigned_classes)) {
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     $students = $stmt->fetchAll();
+
+    // Also get all assigned classes for dropdown (always show all assigned classes)
+    $all_assigned_classes = $assigned_classes;
 }
 ?>
 
@@ -82,7 +94,7 @@ if (empty($assigned_classes)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($school_name); ?> - My Students</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
@@ -105,6 +117,7 @@ if (empty($assigned_classes)) {
             --radius-lg: 14px;
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --sidebar-width: 280px;
         }
 
         * {
@@ -330,10 +343,19 @@ if (empty($assigned_classes)) {
             color: var(--primary-color);
         }
 
+        .result-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
         /* Responsive */
         @media (min-width: 768px) {
             .main-content {
-                margin-left: 280px;
+                margin-left: var(--sidebar-width);
             }
         }
 
@@ -387,12 +409,12 @@ if (empty($assigned_classes)) {
 
         <div class="filter-bar">
             <form method="GET">
-                <div class="filter-group">
-                    <label><i class="fas fa-search"></i> Search</label>
-                    <input type="text" name="search" class="form-control" placeholder="Name or Admission Number" value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>">
+                <div class="filter-group" style="flex: 2;">
+                    <label><i class="fas fa-search"></i> Search Students</label>
+                    <input type="text" name="search" class="form-control" placeholder="Search by name, admission number..." value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>">
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-layer-group"></i> Class</label>
+                    <label><i class="fas fa-layer-group"></i> Filter by Class</label>
                     <select name="class" class="form-select">
                         <option value="">All Classes</option>
                         <?php foreach ($assigned_classes as $class): ?>
@@ -406,14 +428,14 @@ if (empty($assigned_classes)) {
                     <label><i class="fas fa-flag"></i> Status</label>
                     <select name="status" class="form-select">
                         <option value="active" <?php echo ($_GET['status'] ?? 'active') == 'active' ? 'selected' : ''; ?>>Active</option>
-                        <option value="all" <?php echo ($_GET['status'] ?? '') == 'all' ? 'selected' : ''; ?>>All</option>
+                        <option value="all" <?php echo ($_GET['status'] ?? '') == 'all' ? 'selected' : ''; ?>>All Students</option>
                         <option value="inactive" <?php echo ($_GET['status'] ?? '') == 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply Filter</button>
-                    <?php if (!empty($_GET['search']) || !empty($_GET['class']) || ($_GET['status'] ?? '') !== 'active'): ?>
-                        <a href="manage-students.php" class="btn" style="background: var(--gray-200); color: var(--gray-800); margin-left: 8px;"><i class="fas fa-times"></i> Clear</a>
+                    <?php if (!empty($_GET['search']) || !empty($_GET['class']) || ($_GET['status'] ?? 'active') !== 'active'): ?>
+                        <a href="manage-students.php" class="btn" style="background: var(--gray-200); color: var(--gray-800); margin-left: 8px;"><i class="fas fa-times"></i> Clear Filters</a>
                     <?php endif; ?>
                 </div>
             </form>
@@ -429,7 +451,13 @@ if (empty($assigned_classes)) {
                 <div class="empty-state">
                     <i class="fas fa-users-slash"></i>
                     <h3>No students found</h3>
-                    <p style="margin-top: 8px;">Try adjusting your search or filter criteria</p>
+                    <p style="margin-top: 8px;">
+                        <?php if (!empty($_GET['search']) || !empty($_GET['class']) || ($_GET['status'] ?? 'active') !== 'active'): ?>
+                            Try adjusting your search or filter criteria
+                        <?php else: ?>
+                            You have no students assigned to your classes yet
+                        <?php endif; ?>
+                    </p>
                 </div>
             <?php else: ?>
                 <table class="data-table">
@@ -463,15 +491,42 @@ if (empty($assigned_classes)) {
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+                <div style="padding: 15px 20px; border-top: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <span class="info-item"><i class="fas fa-users"></i> Total: <?php echo count($students); ?> student(s)</span>
+                    <span class="result-count">Showing results from your assigned classes</span>
+                </div>
             <?php endif; ?>
         </div>
     </div>
 
     <script>
-        // Mobile menu toggle is handled in staff_sidebar.php
-        // Additional page-specific JS if needed
-        document.addEventListener('DOMContentLoaded', function() {
-            // Any page-specific initialization
+        // Mobile menu toggle - handled in staff_sidebar.php
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('staffSidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+
+        if (mobileBtn) {
+            mobileBtn.onclick = () => {
+                sidebar.classList.toggle('active');
+                if (overlay) overlay.classList.toggle('active');
+            };
+        }
+
+        if (overlay) {
+            overlay.onclick = () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            };
+        }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
+                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
+                    sidebar.classList.remove('active');
+                    if (overlay) overlay.classList.remove('active');
+                }
+            }
         });
     </script>
 </body>

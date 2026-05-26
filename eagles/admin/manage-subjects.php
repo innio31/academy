@@ -85,11 +85,10 @@ try {
         $pdo->exec("CREATE TABLE subject_classes (
             id INT PRIMARY KEY AUTO_INCREMENT,
             subject_id INT NOT NULL,
-            class VARCHAR(50) NOT NULL,
+            class VARCHAR(100) NOT NULL,
             school_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uk_subject_class (subject_id, class),
-            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
             INDEX idx_school_id (school_id)
         )");
     }
@@ -172,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
     }
 }
 
-// Update subject (AJAX or regular POST)
+// Update subject
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
     try {
         $subject_id = $_POST['subject_id'];
@@ -201,7 +200,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
         $message = "Subject updated successfully";
         $message_type = "success";
 
-        // If AJAX request, return JSON
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'message' => $message]);
@@ -296,13 +294,26 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $subjects = $stmt->fetchAll();
 
-// Fetch available classes
-$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' UNION SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
-$stmt->execute([$school_id, $school_id]);
-$available_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Fetch available classes from the classes table
+$stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+$stmt->execute([$school_id]);
+$classes_from_db = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$available_classes = array_column($classes_from_db, 'class_name');
+
+// Fallback if no classes exist in the classes table
 if (empty($available_classes)) {
-    $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
+    // Try to get distinct classes from students as fallback
+    $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
+    $stmt->execute([$school_id]);
+    $student_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (!empty($student_classes)) {
+        $available_classes = $student_classes;
+    } else {
+        // Ultimate fallback
+        $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
+    }
 }
 ?>
 
@@ -475,7 +486,7 @@ if (empty($available_classes)) {
         .mobile-menu-btn {
             position: fixed;
             top: 16px;
-            right: 20px;
+            left: 16px;
             z-index: 1001;
             width: 44px;
             height: 44px;
@@ -1187,7 +1198,7 @@ if (empty($available_classes)) {
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Add students first.</p>
+                                <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Please add classes first.</p>
                             <?php endif; ?>
                         </div>
                         <div style="margin-top: 10px;">
@@ -1212,7 +1223,7 @@ if (empty($available_classes)) {
                 <button class="close-modal" onclick="closeModal('editSubjectModal')">&times;</button>
             </div>
             <form method="POST" id="editSubjectForm">
-                <input type="hidden" name="subject_id" id="edit_subject_id">
+                <input type="hidden" name="subject_id" id="edit_subject_id" value="">
                 <div class="modal-body" id="editModalBody">
                     <div style="text-align: center; padding: 40px;">
                         <i class="fas fa-spinner fa-pulse fa-2x"></i>
@@ -1363,18 +1374,15 @@ if (empty($available_classes)) {
         }
 
         function openEditModal(subjectId) {
-            // Open modal with loading state
             const modal = document.getElementById('editSubjectModal');
             const modalBody = document.getElementById('editModalBody');
             modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
             openModal('editSubjectModal');
 
-            // Fetch subject data via AJAX
             fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Build the edit form HTML
                         const assignedClasses = data.subject.assigned_classes ? data.subject.assigned_classes.split(',') : [];
                         let classesHtml = '';
 
@@ -1390,7 +1398,7 @@ if (empty($available_classes)) {
                                 `;
                             });
                         } else {
-                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
+                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Please add classes first.</p>';
                         }
 
                         const formHtml = `
@@ -1428,7 +1436,7 @@ if (empty($available_classes)) {
                 });
         }
 
-        // Handle edit form submission via AJAX
+        // Handle edit form submission
         const editForm = document.getElementById('editSubjectForm');
         if (editForm) {
             editForm.addEventListener('submit', function(e) {
@@ -1454,7 +1462,6 @@ if (empty($available_classes)) {
                         if (data.success) {
                             showAlert(data.message, 'success');
                             closeModal('editSubjectModal');
-                            // Reload the page to reflect changes
                             setTimeout(() => {
                                 window.location.reload();
                             }, 1000);
@@ -1475,7 +1482,6 @@ if (empty($available_classes)) {
 
         // Helper function to show alerts
         function showAlert(message, type) {
-            // Remove existing alerts
             const existingAlerts = document.querySelectorAll('.alert');
             existingAlerts.forEach(alert => alert.remove());
 

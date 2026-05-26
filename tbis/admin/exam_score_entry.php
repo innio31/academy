@@ -119,14 +119,32 @@ if ($active_subject_id === 0 && !empty($subjects)) {
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // First, get the class_id from the classes table
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
+    
+    if ($class_id > 0) {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class_id = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback: use class name
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     error_log("score_entry students: " . $e->getMessage());
 }
@@ -135,14 +153,32 @@ try {
 $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
-        $stmt = $pdo->prepare("
-    SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-      FROM student_scores ss
-      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
-     WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-       AND st.class=?
-");
-        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
+        // Get class_id for the class
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+        
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
+        }
+        
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -158,16 +194,32 @@ if (!empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-        $stmt = $pdo->prepare("
-    SELECT DISTINCT ss.subject_id FROM student_scores ss
-      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
-     WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-       AND st.class=? AND ss.subject_id IN ($ph)
-");
-        $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
+        
+        // Get class_id
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+        
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
+        }
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
-    } catch (Exception $e) { /* non-fatal */
-    }
+    } catch (Exception $e) { /* non-fatal */ }
 }
 
 // ── Load staff ────────────────────────────────────────────────────────────────

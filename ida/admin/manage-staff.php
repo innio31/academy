@@ -340,9 +340,22 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
     }
 }
 
-// Get all subjects and classes
-$all_subjects = $pdo->query("SELECT * FROM subjects ORDER BY subject_name")->fetchAll();
-$all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '' ORDER BY class")->fetchAll();
+// Get all subjects for this school (only school-specific subjects, not central subjects)
+$stmt = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE school_id = ? AND is_central = 0 ORDER BY subject_name");
+$stmt->execute([$school_id]);
+$all_subjects = $stmt->fetchAll();
+
+// Get all classes for this school from the classes table
+$stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+$stmt->execute([$school_id]);
+$all_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// If no classes found in classes table, try to get from students table as fallback
+if (empty($all_classes)) {
+    $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class != '' ORDER BY class");
+    $stmt->execute([$school_id]);
+    $all_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 
 <!DOCTYPE html>
@@ -1140,6 +1153,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
     // Include sidebar at the end (it will be positioned fixed)
     require_once 'includes/sidebar.php';
     ?>
+
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
@@ -1505,12 +1519,18 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                     <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
                     <input type="hidden" name="assign_classes" value="1">
                     <div class="checkbox-group">
-                        <?php foreach ($all_classes as $class): ?>
-                            <label class="checkbox-item">
-                                <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class']); ?>" <?php echo in_array($class['class'], $assigned_class_names) ? 'checked' : ''; ?>>
-                                <span><?php echo htmlspecialchars($class['class']); ?></span>
-                            </label>
-                        <?php endforeach; ?>
+                        <?php if (!empty($all_classes)): ?>
+                            <?php foreach ($all_classes as $class): ?>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class_name']); ?>" <?php echo in_array($class['class_name'], $assigned_class_names) ? 'checked' : ''; ?>>
+                                    <span><?php echo htmlspecialchars($class['class_name']); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div style="padding: 20px; text-align: center; color: var(--gray-600);">
+                                <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div style="margin-top: 20px; display: flex; gap: 12px;">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Classes</button>

@@ -119,14 +119,32 @@ if ($active_subject_id === 0 && !empty($subjects)) {
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // First, get the class_id from the classes table
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
+    
+    if ($class_id > 0) {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class_id = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Fallback: use class name
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     error_log("score_entry students: " . $e->getMessage());
 }
@@ -135,14 +153,32 @@ try {
 $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
-        $stmt = $pdo->prepare("
-    SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-      FROM student_scores ss
-      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
-     WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-       AND st.class=?
-");
-        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
+        // Get class_id for the class
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+        
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
+        }
+        
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -158,16 +194,32 @@ if (!empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-        $stmt = $pdo->prepare("
-    SELECT DISTINCT ss.subject_id FROM student_scores ss
-      JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
-     WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-       AND st.class=? AND ss.subject_id IN ($ph)
-");
-        $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
+        
+        // Get class_id
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+        
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON st.id = ss.student_id AND st.school_id = ss.school_id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
+        }
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
-    } catch (Exception $e) { /* non-fatal */
-    }
+    } catch (Exception $e) { /* non-fatal */ }
 }
 
 // ── Load staff ────────────────────────────────────────────────────────────────
@@ -1173,42 +1225,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     <button class="mobile-menu-toggle" id="mobileMenuToggle"><i class="fas fa-bars"></i></button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <?php if (defined('SCHOOL_LOGO') && SCHOOL_LOGO): ?>
-                        <img src="<?php echo SCHOOL_LOGO; ?>" alt="<?php echo htmlspecialchars($school_name); ?>" style="width: 40px; height: 40px; object-fit: contain; border-radius: 8px;">
-                    <?php else: ?>
-                        <i class="fas fa-graduation-cap"></i>
-                    <?php endif; ?>
-                </div>
-                <div class="logo-text">
-                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-chalkboard"></i> Manage Classes</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            <li><a href="report_card_dashboard.php" class="active"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content" id="mainContent">

@@ -85,11 +85,10 @@ try {
         $pdo->exec("CREATE TABLE subject_classes (
             id INT PRIMARY KEY AUTO_INCREMENT,
             subject_id INT NOT NULL,
-            class VARCHAR(50) NOT NULL,
+            class VARCHAR(100) NOT NULL,
             school_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uk_subject_class (subject_id, class),
-            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
             INDEX idx_school_id (school_id)
         )");
     }
@@ -172,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
     }
 }
 
-// Update subject (AJAX or regular POST)
+// Update subject
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
     try {
         $subject_id = $_POST['subject_id'];
@@ -201,7 +200,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
         $message = "Subject updated successfully";
         $message_type = "success";
 
-        // If AJAX request, return JSON
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'message' => $message]);
@@ -302,14 +300,22 @@ $stmt->execute([$school_id]);
 $classes_from_db = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $available_classes = array_column($classes_from_db, 'class_name');
-$available_classes_with_ids = $classes_from_db;
 
+// Fallback if no classes exist in the classes table
 if (empty($available_classes)) {
-    $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
-    $available_classes_with_ids = array_map(function($class) {
-        return ['id' => 0, 'class_name' => $class];
-    }, $available_classes);
+    // Try to get distinct classes from students as fallback
+    $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
+    $stmt->execute([$school_id]);
+    $student_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (!empty($student_classes)) {
+        $available_classes = $student_classes;
+    } else {
+        // Ultimate fallback
+        $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
+    }
 }
+?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -480,7 +486,7 @@ if (empty($available_classes)) {
         .mobile-menu-btn {
             position: fixed;
             top: 16px;
-            right: 20px;
+            left: 16px;
             z-index: 1001;
             width: 44px;
             height: 44px;
@@ -1047,10 +1053,34 @@ if (empty($available_classes)) {
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="logo-text">
+                    <h3><?php echo htmlspecialchars($school_name); ?></h3>
+                    <p>Admin Panel</p>
+                </div>
+            </div>
+        </div>
+        <div class="admin-info">
+            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
+            <p><?php echo ucfirst($admin_role); ?></p>
+        </div>
+        <ul class="nav-links">
+            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
+            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
+            <li><a href="manage-subjects.php" class="active"><i class="fas fa-book"></i> Manage Subjects</a></li>
+            <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
+            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
+            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
+            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
+            <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </div>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1184,17 +1214,17 @@ if (empty($available_classes)) {
                     <div class="form-group" style="margin-top: 20px;">
                         <label class="form-label">Assign to Classes <span style="font-weight: normal; color: var(--gray-600);">(Select which classes will offer these subjects)</span></label>
                         <div class="checkbox-group" id="modalClassCheckboxGroup">
-    <?php if (!empty($available_classes_with_ids)): ?>
-        <?php foreach ($available_classes_with_ids as $class): ?>
-            <div class="checkbox-item">
-                <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class_name']); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class['class_name']); ?>">
-                <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class['class_name']); ?>"><?php echo htmlspecialchars($class['class_name']); ?></label>
-            </div>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Please add classes first.</p>
-    <?php endif; ?>
-</div>
+                            <?php if (!empty($available_classes)): ?>
+                                <?php foreach ($available_classes as $class): ?>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
+                                        <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Please add classes first.</p>
+                            <?php endif; ?>
+                        </div>
                         <div style="margin-top: 10px;">
                             <button type="button" class="btn btn-sm btn-outline" onclick="selectAllModalClasses()"><i class="fas fa-check-double"></i> Select All Classes</button>
                             <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllModalClasses()"><i class="fas fa-times"></i> Deselect All Classes</button>
@@ -1217,7 +1247,7 @@ if (empty($available_classes)) {
                 <button class="close-modal" onclick="closeModal('editSubjectModal')">&times;</button>
             </div>
             <form method="POST" id="editSubjectForm">
-                <input type="hidden" name="subject_id" id="edit_subject_id">
+                <input type="hidden" name="subject_id" id="edit_subject_id" value="">
                 <div class="modal-body" id="editModalBody">
                     <div style="text-align: center; padding: 40px;">
                         <i class="fas fa-spinner fa-pulse fa-2x"></i>
@@ -1252,8 +1282,7 @@ if (empty($available_classes)) {
 
     <script>
         // Available classes from PHP
-const availableClasses = <?php echo json_encode($available_classes); ?>;
-const availableClassesWithIds = <?php echo json_encode($available_classes_with_ids); ?>;
+        const availableClasses = <?php echo json_encode($available_classes); ?>;
 
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');
@@ -1369,18 +1398,15 @@ const availableClassesWithIds = <?php echo json_encode($available_classes_with_i
         }
 
         function openEditModal(subjectId) {
-            // Open modal with loading state
             const modal = document.getElementById('editSubjectModal');
             const modalBody = document.getElementById('editModalBody');
             modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
             openModal('editSubjectModal');
 
-            // Fetch subject data via AJAX
             fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Build the edit form HTML
                         const assignedClasses = data.subject.assigned_classes ? data.subject.assigned_classes.split(',') : [];
                         let classesHtml = '';
 
@@ -1396,7 +1422,7 @@ const availableClassesWithIds = <?php echo json_encode($available_classes_with_i
                                 `;
                             });
                         } else {
-                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Add students or exams first.</p>';
+                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Please add classes first.</p>';
                         }
 
                         const formHtml = `
@@ -1434,7 +1460,7 @@ const availableClassesWithIds = <?php echo json_encode($available_classes_with_i
                 });
         }
 
-        // Handle edit form submission via AJAX
+        // Handle edit form submission
         const editForm = document.getElementById('editSubjectForm');
         if (editForm) {
             editForm.addEventListener('submit', function(e) {
@@ -1460,7 +1486,6 @@ const availableClassesWithIds = <?php echo json_encode($available_classes_with_i
                         if (data.success) {
                             showAlert(data.message, 'success');
                             closeModal('editSubjectModal');
-                            // Reload the page to reflect changes
                             setTimeout(() => {
                                 window.location.reload();
                             }, 1000);
@@ -1481,7 +1506,6 @@ const availableClassesWithIds = <?php echo json_encode($available_classes_with_i
 
         // Helper function to show alerts
         function showAlert(message, type) {
-            // Remove existing alerts
             const existingAlerts = document.querySelectorAll('.alert');
             existingAlerts.forEach(alert => alert.remove());
 

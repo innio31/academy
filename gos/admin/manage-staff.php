@@ -199,7 +199,7 @@ if (isset($_POST['rate_staff'])) {
 // STAFF CRUD OPERATIONS
 // ============================================
 
-// Add Staff
+// Add Staff (with password confirmation validation)
 if (isset($_POST['add_staff'])) {
     $staff_id_num = trim($_POST['staff_id']);
     $full_name = trim($_POST['full_name']);
@@ -207,6 +207,17 @@ if (isset($_POST['add_staff'])) {
     $role = $_POST['role'];
     $is_active = isset($_POST['is_active']) ? 1 : 0;
     $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+
+    // Validate password match
+    if ($password !== $confirm_password) {
+        $error_message = "Passwords do not match!";
+        // Store error in session to display
+        session_start();
+        $_SESSION['staff_error'] = $error_message;
+        header("Location: manage-staff.php?action=add&error=password_mismatch");
+        exit();
+    }
 
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
@@ -217,7 +228,7 @@ if (isset($_POST['add_staff'])) {
     exit();
 }
 
-// Update Staff
+// Update Staff (with password confirmation validation if changing password)
 if (isset($_POST['edit_staff'])) {
     $staff_id = $_POST['id'];
     $full_name = trim($_POST['full_name']);
@@ -228,8 +239,21 @@ if (isset($_POST['edit_staff'])) {
     $sql = "UPDATE staff SET full_name = ?, email = ?, role = ?, is_active = ? WHERE id = ? AND school_id = ?";
     $params = [$full_name, $email, $role, $is_active, $staff_id, $school_id];
 
+    // Check if password needs to be changed and validate confirmation
     if (isset($_POST['change_password']) && !empty($_POST['password'])) {
-        $hashed_password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+        $password = $_POST['password'];
+        $confirm_password = $_POST['confirm_password'];
+
+        // Validate password match
+        if ($password !== $confirm_password) {
+            $error_message = "Passwords do not match!";
+            session_start();
+            $_SESSION['staff_error'] = $error_message;
+            header("Location: manage-staff.php?action=edit&id=$staff_id&error=password_mismatch");
+            exit();
+        }
+
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $sql = "UPDATE staff SET full_name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE id = ? AND school_id = ?";
         $params = [$full_name, $email, $role, $is_active, $hashed_password, $staff_id, $school_id];
     }
@@ -295,6 +319,8 @@ $action = $_GET['action'] ?? 'list';
 $staff = null;
 $assigned_subjects = [];
 $assigned_classes = [];
+$password_error = isset($_SESSION['staff_error']) ? $_SESSION['staff_error'] : null;
+unset($_SESSION['staff_error']); // Clear error after retrieving
 
 if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'attendance', 'performance', 'class_attendance']) && isset($_GET['id'])) {
     $staff_id_num = $_GET['id'];
@@ -671,6 +697,30 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
             color: var(--gray-800);
         }
 
+        /* Password Input Group */
+        .password-group {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--gray-600);
+            background: white;
+            padding: 0 5px;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-color);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
         /* Filter Form */
         .filter-form {
             display: flex;
@@ -708,6 +758,10 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
         .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
+        }
+
+        .form-control.password-input {
+            padding-right: 40px;
         }
 
         /* Table */
@@ -983,36 +1037,10 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-                <div class="logo-text">
-                    <h3><?php echo $school_name; ?></h3>
-                    <p>Admin Panel</p>
-                </div>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst($admin_role); ?></p>
-        </div>
-
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php" class="active"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
-            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1035,6 +1063,13 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
             <div class="alert alert-<?php echo $_GET['type'] ?? 'success'; ?>">
                 <i class="fas fa-<?php echo $_GET['type'] === 'error' ? 'exclamation-triangle' : 'check-circle'; ?>"></i>
                 <?php echo htmlspecialchars($_GET['message']); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($password_error): ?>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <?php echo htmlspecialchars($password_error); ?>
             </div>
         <?php endif; ?>
 
@@ -1167,7 +1202,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                 <div class="card-header">
                     <h2><i class="fas fa-<?php echo $action === 'add' ? 'user-plus' : 'user-edit'; ?>"></i> <?php echo $action === 'add' ? 'Add New Staff' : 'Edit Staff'; ?></h2>
                 </div>
-                <form method="POST">
+                <form method="POST" onsubmit="return validatePasswords()">
                     <?php if ($action === 'edit'): ?>
                         <input type="hidden" name="id" value="<?php echo $staff['id']; ?>">
                         <input type="hidden" name="edit_staff" value="1">
@@ -1188,12 +1223,31 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                     <div style="margin-top: 20px; background: var(--gray-50); border-radius: var(--radius-md); padding: 20px;">
                         <h3 style="font-size: 0.9rem; margin-bottom: 12px;"><i class="fas fa-lock"></i> Password</h3>
                         <?php if ($action === 'edit'): ?>
-                            <label class="checkbox-item"><input type="checkbox" id="change_password" onchange="togglePassword()"> Change Password</label>
+                            <label class="checkbox-item"><input type="checkbox" id="change_password" onchange="togglePasswordFields()"> Change Password</label>
                         <?php endif; ?>
-                        <div id="password_fields" style="<?php echo $action === 'edit' ? 'display:none;' : ''; ?> margin-top: 15px;">
+                        <div id="password_fields" style="<?php echo $action === 'edit' ? 'display:none;' : 'display:block;'; ?> margin-top: 15px;">
                             <div class="form-grid">
-                                <input type="password" name="password" class="form-control" placeholder="Password" <?php echo $action === 'add' ? 'required' : ''; ?>>
-                                <input type="password" name="confirm_password" class="form-control" placeholder="Confirm Password" <?php echo $action === 'add' ? 'required' : ''; ?>>
+                                <div class="form-group password-group">
+                                    <label class="form-label">Password *</label>
+                                    <div style="position: relative;">
+                                        <input type="password" name="password" id="password" class="form-control password-input" placeholder="Enter password" <?php echo $action === 'add' ? 'required' : ''; ?>>
+                                        <span class="password-toggle" onclick="togglePasswordVisibility('password')">
+                                            <i class="far fa-eye" id="password-icon"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="form-group password-group">
+                                    <label class="form-label">Confirm Password *</label>
+                                    <div style="position: relative;">
+                                        <input type="password" name="confirm_password" id="confirm_password" class="form-control password-input" placeholder="Confirm password" <?php echo $action === 'add' ? 'required' : ''; ?>>
+                                        <span class="password-toggle" onclick="togglePasswordVisibility('confirm_password')">
+                                            <i class="far fa-eye" id="confirm_password-icon"></i>
+                                        </span>
+                                    </div>
+                                    <small id="password-match-error" style="color: var(--danger); display: none; font-size: 0.7rem; margin-top: 4px;">
+                                        <i class="fas fa-exclamation-circle"></i> Passwords do not match
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1204,6 +1258,82 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                     </div>
                 </form>
             </div>
+
+            <script>
+                // Toggle password fields visibility for edit mode
+                function togglePasswordFields() {
+                    const chk = document.getElementById('change_password');
+                    const passwordFields = document.getElementById('password_fields');
+                    if (passwordFields) {
+                        passwordFields.style.display = chk && chk.checked ? 'block' : 'none';
+                        // Clear password fields when hiding
+                        if (!chk.checked) {
+                            document.getElementById('password').value = '';
+                            document.getElementById('confirm_password').value = '';
+                            document.getElementById('password').required = false;
+                            document.getElementById('confirm_password').required = false;
+                        } else {
+                            document.getElementById('password').required = true;
+                            document.getElementById('confirm_password').required = true;
+                        }
+                    }
+                }
+
+                // Toggle password visibility
+                function togglePasswordVisibility(fieldId) {
+                    const field = document.getElementById(fieldId);
+                    const icon = document.getElementById(fieldId + '-icon');
+                    if (field.type === 'password') {
+                        field.type = 'text';
+                        icon.classList.remove('fa-eye');
+                        icon.classList.add('fa-eye-slash');
+                    } else {
+                        field.type = 'password';
+                        icon.classList.remove('fa-eye-slash');
+                        icon.classList.add('fa-eye');
+                    }
+                }
+
+                // Validate passwords match on form submit
+                function validatePasswords() {
+                    // Check if password fields are visible and required
+                    const passwordFields = document.getElementById('password_fields');
+                    if (passwordFields && passwordFields.style.display !== 'none') {
+                        const password = document.getElementById('password').value;
+                        const confirmPassword = document.getElementById('confirm_password').value;
+                        const errorSpan = document.getElementById('password-match-error');
+
+                        if (password !== confirmPassword) {
+                            errorSpan.style.display = 'block';
+                            document.getElementById('confirm_password').focus();
+                            return false;
+                        } else {
+                            errorSpan.style.display = 'none';
+                        }
+                    }
+                    return true;
+                }
+
+                // Real-time password match validation
+                document.addEventListener('DOMContentLoaded', function() {
+                    const password = document.getElementById('password');
+                    const confirmPassword = document.getElementById('confirm_password');
+                    const errorSpan = document.getElementById('password-match-error');
+
+                    if (password && confirmPassword) {
+                        function checkMatch() {
+                            if (password.value !== confirmPassword.value && confirmPassword.value !== '') {
+                                errorSpan.style.display = 'block';
+                            } else {
+                                errorSpan.style.display = 'none';
+                            }
+                        }
+
+                        password.addEventListener('keyup', checkMatch);
+                        confirmPassword.addEventListener('keyup', checkMatch);
+                    }
+                });
+            </script>
 
             <!-- ASSIGN SUBJECTS -->
         <?php elseif ($action === 'assign_subjects' && $staff): ?>
@@ -1489,11 +1619,21 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
             }
         });
 
-        // Password toggle
-        function togglePassword() {
-            const chk = document.getElementById('change_password');
-            const passwordFields = document.getElementById('password_fields');
-            if (passwordFields) passwordFields.style.display = chk && chk.checked ? 'block' : 'none';
+        // Password toggle (global function for any password fields)
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            if (field && icon) {
+                if (field.type === 'password') {
+                    field.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    field.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            }
         }
 
         // Mark late

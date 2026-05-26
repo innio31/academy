@@ -66,9 +66,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
         ];
     }
     
-    $class = $record_data['class'];
+    $class_name = $record_data['class'];
     $session = $record_data['session'];
     $term = $record_data['term'];
+    
+    // Get class_id from class name
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class_name, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
     
     // Get subject name
     $subj_name_val = '';
@@ -90,17 +96,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
         return ['grade' => 'F', 'remark' => 'Fail'];
     }
     
-    // Get students in this class
+    // Get students in this class using class_id
     $students = [];
-    try {
-        $stmt = $pdo->prepare("
-            SELECT id FROM students 
-            WHERE school_id = ? AND class = ? AND status = 'active'
-        ");
-        $stmt->execute([$school_id, $class]);
-        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        $students = [];
+    if ($class_id > 0) {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT id FROM students 
+                WHERE school_id = ? AND class_id = ? AND status = 'active'
+            ");
+            $stmt->execute([$school_id, $class_id]);
+            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $students = [];
+        }
     }
     
     if (empty($students)) {
@@ -456,9 +464,15 @@ if (empty($grading_scale)) {
     ];
 }
 
-$class   = $record['class'];
+$class_name = $record['class'];
 $session = $record['session'];
 $term    = $record['term'];
+
+// Get class_id from class name
+$stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+$stmt->execute([$class_name, $school_id]);
+$class_row = $stmt->fetch();
+$class_id = $class_row ? $class_row['id'] : 0;
 
 // ── Get subjects assigned to this staff for this class ────────────────────────
 $subjects = [];
@@ -471,7 +485,7 @@ try {
          WHERE ss.staff_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
          ORDER BY s.subject_name ASC
     ");
-    $stmt->execute([$school_id, $school_id, $staff_id_string, $class, $school_id]);
+    $stmt->execute([$school_id, $school_id, $staff_id_string, $class_name, $school_id]);
     $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("staff_score_entry subjects: " . $e->getMessage());
@@ -484,19 +498,36 @@ if ($active_subject_id === 0 && !empty($subjects)) {
     $active_subject_id = (int)$subjects[0]['id'];
 }
 
-// ── Load students ─────────────────────────────────────────────────────────────
+// ── Load students USING CLASS_ID ─────────────────────────────────────────────
 $students = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, admission_number, gender
-          FROM students
-         WHERE school_id = ? AND class = ? AND status = 'active'
-         ORDER BY full_name ASC
-    ");
-    $stmt->execute([$school_id, $class]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    error_log("staff_score_entry students: " . $e->getMessage());
+if ($class_id > 0) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class_id = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("staff_score_entry students: " . $e->getMessage());
+        $students = [];
+    }
+} else {
+    // Fallback to class name if class_id not found
+    try {
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, gender
+              FROM students
+             WHERE school_id = ? AND class = ? AND status = 'active'
+             ORDER BY full_name ASC
+        ");
+        $stmt->execute([$school_id, $class_name]);
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("staff_score_entry students fallback: " . $e->getMessage());
+    }
 }
 
 // ── Helper function ──────────────────────────────────────────────────────────
@@ -512,13 +543,26 @@ function getGradeInfoStaffDisplay($total, $scale) {
 $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
-        $stmt = $pdo->prepare("
-            SELECT student_id, score_data, total_score, grade, subject_position
-              FROM student_scores
-             WHERE school_id=? AND subject_id=? AND session=? AND term=?
-               AND class=?
-        ");
-        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class]);
+        // Use class_id if available
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON ss.student_id = st.id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+                  FROM student_scores ss
+                  JOIN students st ON ss.student_id = st.id
+                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=?
+            ");
+            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_name]);
+        }
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -534,12 +578,23 @@ if (!empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT subject_id FROM student_scores
-             WHERE school_id=? AND session=? AND term=? AND class=?
-               AND subject_id IN ($ph)
-        ");
-        $stmt->execute(array_merge([$school_id, $session, $term, $class], $sub_ids));
+        if ($class_id > 0) {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON ss.student_id = st.id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class_id=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT ss.subject_id FROM student_scores ss
+                  JOIN students st ON ss.student_id = st.id
+                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+                   AND st.class=? AND ss.subject_id IN ($ph)
+            ");
+            $stmt->execute(array_merge([$school_id, $session, $term, $class_name], $sub_ids));
+        }
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) { /* non-fatal */ }
 }
@@ -590,18 +645,8 @@ unset($_SESSION['flash_error']);
             --radius-sm: 8px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
-            min-height: 100vh;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: #f5f6fa; color: #333; min-height: 100vh; }
 
         .main-content {
             margin-left: 0;
@@ -629,15 +674,8 @@ unset($_SESSION['flash_error']);
             margin-bottom: 5px;
             font-weight: 700;
         }
-
-        .header-title h1 i {
-            margin-right: 10px;
-        }
-
-        .header-title p {
-            color: #666;
-            font-size: 0.8rem;
-        }
+        .header-title h1 i { margin-right: 10px; }
+        .header-title p { color: #666; font-size: 0.8rem; }
 
         .info-item {
             background: var(--light-color);
@@ -662,7 +700,6 @@ unset($_SESSION['flash_error']);
             box-shadow: var(--shadow-sm);
             border-top: 3px solid var(--primary-color);
         }
-
         .stat-card.green { border-top-color: var(--success-color); }
         .stat-card.amber { border-top-color: var(--warning-color); }
 
@@ -682,21 +719,18 @@ unset($_SESSION['flash_error']);
             margin-bottom: 20px;
             box-shadow: var(--shadow-sm);
         }
-
         .progress-label {
             display: flex;
             justify-content: space-between;
             font-size: 0.8rem;
             margin-bottom: 8px;
         }
-
         .progress-bar {
             height: 6px;
             background: var(--light-color);
             border-radius: 20px;
             overflow: hidden;
         }
-
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
@@ -721,18 +755,15 @@ unset($_SESSION['flash_error']);
             border: 1px solid var(--light-color);
             transition: all 0.2s;
         }
-
         .subject-card:hover {
             border-color: var(--primary-color);
             transform: translateY(-2px);
         }
-
         .subject-card.active {
             background: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
         }
-
         .subject-name { font-weight: 500; font-size: 0.85rem; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; }
         .status-done { background: var(--success-color); }
@@ -744,7 +775,6 @@ unset($_SESSION['flash_error']);
             overflow: hidden;
             box-shadow: var(--shadow-sm);
         }
-
         .score-header {
             background: var(--primary-color);
             color: white;
@@ -890,7 +920,7 @@ unset($_SESSION['flash_error']);
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-pencil-alt"></i> Enter Scores</h1>
-                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class); ?></p>
+                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class_name); ?></p>
             </div>
             <div>
                 <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
@@ -905,22 +935,10 @@ unset($_SESSION['flash_error']);
         <?php endif; ?>
 
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value"><?php echo $total_subjects; ?></div>
-                <div class="stat-label">My Subjects</div>
-            </div>
-            <div class="stat-card green">
-                <div class="stat-value"><?php echo $completed_subjects; ?></div>
-                <div class="stat-label">Completed</div>
-            </div>
-            <div class="stat-card amber">
-                <div class="stat-value"><?php echo $total_subjects - $completed_subjects; ?></div>
-                <div class="stat-label">Pending</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value"><?php echo $total_students; ?></div>
-                <div class="stat-label">Students</div>
-            </div>
+            <div class="stat-card"><div class="stat-value"><?php echo $total_subjects; ?></div><div class="stat-label">My Subjects</div></div>
+            <div class="stat-card green"><div class="stat-value"><?php echo $completed_subjects; ?></div><div class="stat-label">Completed</div></div>
+            <div class="stat-card amber"><div class="stat-value"><?php echo $total_subjects - $completed_subjects; ?></div><div class="stat-label">Pending</div></div>
+            <div class="stat-card"><div class="stat-value"><?php echo $total_students; ?></div><div class="stat-label">Students</div></div>
         </div>
 
         <div class="progress-wrap">
@@ -944,7 +962,8 @@ unset($_SESSION['flash_error']);
             <div class="empty-state">
                 <i class="fas fa-user-graduate"></i>
                 <h3>No students found</h3>
-                <p>No active students found in <?php echo htmlspecialchars($class); ?>.</p>
+                <p>No active students found in <?php echo htmlspecialchars($class_name); ?>.</p>
+                <p style="margin-top: 8px;">Please ensure students have the correct class assigned.</p>
             </div>
         <?php else: ?>
 
@@ -972,7 +991,7 @@ unset($_SESSION['flash_error']);
                         <div class="score-header">
                             <h2><i class="fas fa-chalkboard-teacher"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
                             <div class="meta">
-                                <?php echo htmlspecialchars($class); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
+                                <?php echo htmlspecialchars($class_name); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
                                 · Total: <?php echo (int)$record['max_score']; ?> marks
                                 (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
                             </div>

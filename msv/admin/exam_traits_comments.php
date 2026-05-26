@@ -615,7 +615,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             text-align: center;
         }
 
-        .mobile-toggle {
+        .mobile-menu-toggle {
             position: fixed;
             top: 15px;
             left: 15px;
@@ -1358,8 +1358,8 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
 <body>
 
-    <button class="mobile-toggle" id="menuBtn"><i class="fas fa-bars"></i></button>
-    <div class="overlay" id="overlay"></div>
+    <button class="mobile-menu-toggle" id="mobileMenuToggle"><i class="fas fa-bars"></i></button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <?php
     // Include sidebar at the end (it will be positioned fixed)
@@ -1634,20 +1634,26 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
     </div><!-- /main -->
 
     <script>
-        // Sidebar
-        const sb = document.getElementById('sidebar');
-        const ov = document.getElementById('overlay');
-        const btn = document.getElementById('menuBtn');
-        btn.addEventListener('click', () => {
-            sb.classList.toggle('open');
-            ov.classList.toggle('show');
-            document.body.style.overflow = sb.classList.contains('open') ? 'hidden' : '';
-        });
-        ov.addEventListener('click', () => {
-            sb.classList.remove('open');
-            ov.classList.remove('show');
-            document.body.style.overflow = '';
-        });
+        // Mobile menu functionality
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const menuToggle = document.getElementById('mobileMenuToggle');
+
+if (menuToggle) {
+    menuToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+        sidebarOverlay.classList.toggle('active');
+        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+    });
+}
+
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('active');
+        sidebarOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    });
+}
 
         // Rating button click
         function selectRating(btn, radioId) {

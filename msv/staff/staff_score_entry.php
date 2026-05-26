@@ -120,7 +120,7 @@ if ($active_subject_id === 0 && !empty($subjects)) {
 // ── Load students ─────────────────────────────────────────────────────────────
 $students = [];
 try {
-    // First, get the class_id from the classes table
+    // First, get the class_id from the classes table using the class name from record
     $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
     $stmt->execute([$class, $school_id]);
     $class_row = $stmt->fetch();
@@ -137,14 +137,8 @@ try {
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         // Fallback: use class name
-        $stmt = $pdo->prepare("
-            SELECT id, full_name, admission_number, gender
-              FROM students
-             WHERE school_id = ? AND class = ? AND status = 'active'
-             ORDER BY full_name ASC
-        ");
-        $stmt->execute([$school_id, $class]);
-        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("Class not found in classes table: " . $class);
+        $students = [];
     }
 } catch (Exception $e) {
     error_log("staff_score_entry students: " . $e->getMessage());

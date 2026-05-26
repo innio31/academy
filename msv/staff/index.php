@@ -63,34 +63,58 @@ try {
         $assigned_classes = $stmt->fetchAll();
         $class_names = array_column($assigned_classes, 'class');
 
-        // Total Students in assigned classes
-        if (!empty($class_names)) {
-            $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-            $stmt = $pdo->prepare("
-                SELECT COUNT(*) as total 
-                FROM students 
-                WHERE school_id = ? AND status = 'active' 
-                AND class IN ($placeholders)
-            ");
-            $stmt->execute(array_merge([$school_id], $class_names));
-            $total_students = $stmt->fetch()['total'];
-        }
+        // Total Students in assigned classes - USING CLASS_ID
+if (!empty($assigned_classes)) {
+    // First, get the class IDs for the assigned class names
+    $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+    $stmt = $pdo->prepare("
+        SELECT id FROM classes 
+        WHERE school_id = ? AND class_name IN ($placeholders)
+    ");
+    $stmt->execute(array_merge([$school_id], array_column($assigned_classes, 'class')));
+    $class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (!empty($class_ids)) {
+        $id_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total 
+            FROM students 
+            WHERE school_id = ? AND status = 'active' 
+            AND class_id IN ($id_placeholders)
+        ");
+        $stmt->execute(array_merge([$school_id], $class_ids));
+        $total_students = $stmt->fetch()['total'];
+    }
+}
 
-        // Total Exams
-        if (!empty($assigned_subjects) && !empty($class_names)) {
-            $subject_ids = array_column($assigned_subjects, 'id');
-            $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
-            $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-            $stmt = $pdo->prepare("
-                SELECT COUNT(*) as total 
-                FROM exams 
-                WHERE school_id = ? 
-                AND subject_id IN ($subject_placeholders)
-                AND class IN ($class_placeholders)
-            ");
-            $stmt->execute(array_merge([$school_id], $subject_ids, $class_names));
-            $total_exams = $stmt->fetch()['total'];
-        }
+        // Total Exams - using class_id
+if (!empty($assigned_subjects) && !empty($assigned_classes)) {
+    $subject_ids = array_column($assigned_subjects, 'id');
+    $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
+    
+    // Get class IDs for assigned classes
+    $class_names = array_column($assigned_classes, 'class');
+    $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+    $stmt = $pdo->prepare("
+        SELECT id FROM classes 
+        WHERE school_id = ? AND class_name IN ($class_placeholders)
+    ");
+    $stmt->execute(array_merge([$school_id], $class_names));
+    $class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (!empty($class_ids)) {
+        $id_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total 
+            FROM exams 
+            WHERE school_id = ? 
+            AND subject_id IN ($subject_placeholders)
+            AND class_id IN ($id_placeholders)
+        ");
+        $stmt->execute(array_merge([$school_id], $subject_ids, $class_ids));
+        $total_exams = $stmt->fetch()['total'];
+    }
+}
 
         // Pending grading
         try {

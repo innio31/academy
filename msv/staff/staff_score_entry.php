@@ -28,18 +28,35 @@ if (!$staff_id_string) {
 
 // ── Require a valid record_id ─────────────────────────────────────────────────
 $record_id = isset($_GET['record_id']) ? (int)$_GET['record_id'] : 0;
+
+// If no record_id, show list of available exam records
 if ($record_id === 0) {
-    header("Location: index.php");
-    exit();
-}
-
-$success_message = '';
-$error_message   = '';
-
-// Flash from redirect
-if (!empty($_SESSION['flash_success'])) {
-    $success_message = $_SESSION['flash_success'];
-    unset($_SESSION['flash_success']);
+    // Get all active exam records for classes the staff is assigned to
+    try {
+        // Get staff's assigned classes
+        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($assigned_classes)) {
+            $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT id, record_name, class, session, term, status 
+                FROM report_card_settings 
+                WHERE school_id = ? AND class IN ($placeholders) AND status != 'archived'
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute(array_merge([$school_id], $assigned_classes));
+            $available_records = $stmt->fetchAll();
+        } else {
+            $available_records = [];
+        }
+    } catch (Exception $e) {
+        $available_records = [];
+    }
+    
+    // Display list page instead of redirecting
+    // (Continue with HTML to show the list)
 }
 
 // ── Load the exam record ──────────────────────────────────────────────────────

@@ -212,7 +212,6 @@ if (isset($_POST['add_staff'])) {
     // Validate password match
     if ($password !== $confirm_password) {
         $error_message = "Passwords do not match!";
-        // Store error in session to display
         session_start();
         $_SESSION['staff_error'] = $error_message;
         header("Location: manage-staff.php?action=add&error=password_mismatch");
@@ -228,7 +227,7 @@ if (isset($_POST['add_staff'])) {
     exit();
 }
 
-// Update Staff (with password confirmation validation if changing password)
+// Update Staff (with proper password update handling)
 if (isset($_POST['edit_staff'])) {
     $staff_id = $_POST['id'];
     $full_name = trim($_POST['full_name']);
@@ -236,11 +235,10 @@ if (isset($_POST['edit_staff'])) {
     $role = $_POST['role'];
     $is_active = isset($_POST['is_active']) ? 1 : 0;
 
-    $sql = "UPDATE staff SET full_name = ?, email = ?, role = ?, is_active = ? WHERE id = ? AND school_id = ?";
-    $params = [$full_name, $email, $role, $is_active, $staff_id, $school_id];
+    // Check if we need to update password
+    $update_password = isset($_POST['change_password']) && !empty($_POST['password']);
 
-    // Check if password needs to be changed and validate confirmation
-    if (isset($_POST['change_password']) && !empty($_POST['password'])) {
+    if ($update_password) {
         $password = $_POST['password'];
         $confirm_password = $_POST['confirm_password'];
 
@@ -256,6 +254,9 @@ if (isset($_POST['edit_staff'])) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $sql = "UPDATE staff SET full_name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE id = ? AND school_id = ?";
         $params = [$full_name, $email, $role, $is_active, $hashed_password, $staff_id, $school_id];
+    } else {
+        $sql = "UPDATE staff SET full_name = ?, email = ?, role = ?, is_active = ? WHERE id = ? AND school_id = ?";
+        $params = [$full_name, $email, $role, $is_active, $staff_id, $school_id];
     }
 
     $stmt = $pdo->prepare($sql);
@@ -1037,10 +1038,35 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="logo-text">
+                    <h3><?php echo $school_name; ?></h3>
+                    <p>Admin Panel</p>
+                </div>
+            </div>
+        </div>
+        <div class="admin-info">
+            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
+            <p><?php echo ucfirst($admin_role); ?></p>
+        </div>
+        <ul class="nav-links">
+            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
+            <li><a href="manage-staff.php" class="active"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
+            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
+            <li><a href="manage-classes.php"><i class="fas fa-layer-group"></i> Manage Classes</a></li>
+            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
+            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
+            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance Reports</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
+            <li><a href="sync.php"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</a></li>
+            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </div>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1223,12 +1249,15 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                     <div style="margin-top: 20px; background: var(--gray-50); border-radius: var(--radius-md); padding: 20px;">
                         <h3 style="font-size: 0.9rem; margin-bottom: 12px;"><i class="fas fa-lock"></i> Password</h3>
                         <?php if ($action === 'edit'): ?>
-                            <label class="checkbox-item"><input type="checkbox" id="change_password" onchange="togglePasswordFields()"> Change Password</label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="change_password" id="change_password" value="1" onchange="togglePasswordFields()">
+                                <span>Change Password</span>
+                            </label>
                         <?php endif; ?>
                         <div id="password_fields" style="<?php echo $action === 'edit' ? 'display:none;' : 'display:block;'; ?> margin-top: 15px;">
                             <div class="form-grid">
                                 <div class="form-group password-group">
-                                    <label class="form-label">Password *</label>
+                                    <label class="form-label">Password <?php echo $action === 'add' ? '*' : ''; ?></label>
                                     <div style="position: relative;">
                                         <input type="password" name="password" id="password" class="form-control password-input" placeholder="Enter password" <?php echo $action === 'add' ? 'required' : ''; ?>>
                                         <span class="password-toggle" onclick="togglePasswordVisibility('password')">
@@ -1237,7 +1266,7 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                                     </div>
                                 </div>
                                 <div class="form-group password-group">
-                                    <label class="form-label">Confirm Password *</label>
+                                    <label class="form-label">Confirm Password <?php echo $action === 'add' ? '*' : ''; ?></label>
                                     <div style="position: relative;">
                                         <input type="password" name="confirm_password" id="confirm_password" class="form-control password-input" placeholder="Confirm password" <?php echo $action === 'add' ? 'required' : ''; ?>>
                                         <span class="password-toggle" onclick="togglePasswordVisibility('confirm_password')">
@@ -1250,6 +1279,11 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                                 </div>
                             </div>
                         </div>
+                        <?php if ($action === 'edit'): ?>
+                            <small style="color: var(--gray-600); font-size: 0.7rem; display: block; margin-top: 8px;">
+                                <i class="fas fa-info-circle"></i> Leave password fields empty to keep current password.
+                            </small>
+                        <?php endif; ?>
                     </div>
 
                     <div style="margin-top: 24px; display: flex; gap: 12px;">
@@ -1264,17 +1298,29 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                 function togglePasswordFields() {
                     const chk = document.getElementById('change_password');
                     const passwordFields = document.getElementById('password_fields');
+                    const passwordInput = document.getElementById('password');
+                    const confirmInput = document.getElementById('confirm_password');
+
                     if (passwordFields) {
-                        passwordFields.style.display = chk && chk.checked ? 'block' : 'none';
-                        // Clear password fields when hiding
-                        if (!chk.checked) {
-                            document.getElementById('password').value = '';
-                            document.getElementById('confirm_password').value = '';
-                            document.getElementById('password').required = false;
-                            document.getElementById('confirm_password').required = false;
+                        if (chk && chk.checked) {
+                            passwordFields.style.display = 'block';
+                            // Make fields required when checkbox is checked
+                            if (passwordInput) passwordInput.required = true;
+                            if (confirmInput) confirmInput.required = true;
                         } else {
-                            document.getElementById('password').required = true;
-                            document.getElementById('confirm_password').required = true;
+                            passwordFields.style.display = 'none';
+                            // Remove required when checkbox is unchecked
+                            if (passwordInput) {
+                                passwordInput.required = false;
+                                passwordInput.value = '';
+                            }
+                            if (confirmInput) {
+                                confirmInput.required = false;
+                                confirmInput.value = '';
+                            }
+                            // Hide error message
+                            const errorSpan = document.getElementById('password-match-error');
+                            if (errorSpan) errorSpan.style.display = 'none';
                         }
                     }
                 }
@@ -1283,20 +1329,31 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                 function togglePasswordVisibility(fieldId) {
                     const field = document.getElementById(fieldId);
                     const icon = document.getElementById(fieldId + '-icon');
-                    if (field.type === 'password') {
-                        field.type = 'text';
-                        icon.classList.remove('fa-eye');
-                        icon.classList.add('fa-eye-slash');
-                    } else {
-                        field.type = 'password';
-                        icon.classList.remove('fa-eye-slash');
-                        icon.classList.add('fa-eye');
+                    if (field && icon) {
+                        if (field.type === 'password') {
+                            field.type = 'text';
+                            icon.classList.remove('fa-eye');
+                            icon.classList.add('fa-eye-slash');
+                        } else {
+                            field.type = 'password';
+                            icon.classList.remove('fa-eye-slash');
+                            icon.classList.add('fa-eye');
+                        }
                     }
                 }
 
                 // Validate passwords match on form submit
                 function validatePasswords() {
-                    // Check if password fields are visible and required
+                    // For edit mode, check if change password checkbox is checked
+                    const changePwdCheckbox = document.getElementById('change_password');
+                    const isEditMode = <?php echo $action === 'edit' ? 'true' : 'false'; ?>;
+
+                    // If in edit mode and checkbox is not checked, skip validation
+                    if (isEditMode && changePwdCheckbox && !changePwdCheckbox.checked) {
+                        return true;
+                    }
+
+                    // Check if password fields are visible
                     const passwordFields = document.getElementById('password_fields');
                     if (passwordFields && passwordFields.style.display !== 'none') {
                         const password = document.getElementById('password').value;
@@ -1309,6 +1366,13 @@ $all_classes = $pdo->query("SELECT DISTINCT class FROM students WHERE class != '
                             return false;
                         } else {
                             errorSpan.style.display = 'none';
+                        }
+
+                        // Check if password is empty in edit mode when checkbox is checked
+                        if (isEditMode && changePwdCheckbox && changePwdCheckbox.checked && password === '') {
+                            alert('Please enter a new password or uncheck "Change Password"');
+                            document.getElementById('password').focus();
+                            return false;
                         }
                     }
                     return true;

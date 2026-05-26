@@ -3,6 +3,21 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 
+// ============================================
+// CHECK FOR PASSWORD CHANGED MESSAGE
+// ============================================
+if (isset($_GET['message']) && $_GET['message'] === 'password_changed') {
+    $_SESSION['login_message'] = "Your password has been changed successfully. Please login with your new password.";
+    $_SESSION['login_message_type'] = "success";
+}
+
+// Check for message in session
+$login_message = isset($_SESSION['login_message']) ? $_SESSION['login_message'] : '';
+$login_message_type = isset($_SESSION['login_message_type']) ? $_SESSION['login_message_type'] : '';
+// Clear session messages after retrieving
+unset($_SESSION['login_message']);
+unset($_SESSION['login_message_type']);
+
 // Include config - this creates $pdo as global
 require_once __DIR__ . '/includes/config.php';
 
@@ -519,6 +534,10 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             </div>
             <h2><?php echo htmlspecialchars($school_name); ?></h2>
             <p class="subtitle">Parent, Student & Staff Portal</p>
+
+            <?php if ($login_message): ?>
+                <div class="success"><?php echo htmlspecialchars($login_message); ?></div>
+            <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="error"><?php echo $error; ?></div>

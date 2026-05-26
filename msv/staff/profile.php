@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $staff = $stmt->fetch();
 }
 
-// Change password
+// Change password - LOGOUT AFTER SUCCESSFUL CHANGE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     $current_password = $_POST['current_password'];
     $new_password = $_POST['new_password'];
@@ -56,8 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $hashed = password_hash($new_password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("UPDATE staff SET password = ? WHERE id = ?");
             $stmt->execute([$hashed, $staff_id]);
-            $message = "Password changed successfully!";
-            $message_type = "success";
+
+            // Store a message to show on login page
+            $_SESSION['password_changed_message'] = "Your password has been changed successfully. Please login again.";
+
+            // Destroy session and redirect to login
+            session_destroy();
+            header("Location: /msv/login.php?message=password_changed");
+            exit();
         } else {
             $error = "Passwords do not match or are too short (min 6 characters)";
             $message_type = "error";
@@ -329,6 +335,16 @@ $assigned_classes_count = $stmt->fetchColumn();
             transform: translateY(-2px);
         }
 
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
         .btn-outline {
             background: transparent;
             border: 2px solid var(--gray-200);
@@ -360,6 +376,12 @@ $assigned_classes_count = $stmt->fetchColumn();
             background: #f8d7da;
             color: var(--danger-color);
             border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid var(--warning-color);
         }
 
         /* Info Grid */
@@ -402,6 +424,23 @@ $assigned_classes_count = $stmt->fetchColumn();
         .info-item-badge i {
             margin-right: 6px;
             color: var(--primary-color);
+        }
+
+        /* Password Change Notice */
+        .password-notice {
+            background: #fff3cd;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+            color: #856404;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .password-notice i {
+            font-size: 1rem;
         }
 
         /* Responsive */
@@ -472,6 +511,12 @@ $assigned_classes_count = $stmt->fetchColumn();
             </div>
         <?php endif; ?>
 
+        <!-- Password Change Notice -->
+        <div class="password-notice">
+            <i class="fas fa-info-circle"></i>
+            <strong>Note:</strong> After changing your password, you will be logged out and required to login again with your new password.
+        </div>
+
         <!-- Profile Overview Card -->
         <div class="card">
             <div class="card-header">
@@ -533,24 +578,42 @@ $assigned_classes_count = $stmt->fetchColumn();
                 <h3><i class="fas fa-key"></i> Change Password</h3>
                 <span class="badge badge-primary"><i class="fas fa-shield-alt"></i> Keep your account secure</span>
             </div>
-            <form method="POST">
+            <form method="POST" onsubmit="return confirmPasswordChange()">
                 <div class="info-grid">
                     <div class="form-group">
                         <label><i class="fas fa-lock"></i> Current Password</label>
-                        <input type="password" name="current_password" class="form-control" required>
+                        <div style="position: relative;">
+                            <input type="password" name="current_password" id="current_password" class="form-control" required>
+                            <span class="password-toggle" onclick="togglePassword('current_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                                <i class="far fa-eye" id="current_password_icon"></i>
+                            </span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-key"></i> New Password</label>
-                        <input type="password" name="new_password" class="form-control" required>
+                        <div style="position: relative;">
+                            <input type="password" name="new_password" id="new_password" class="form-control" required>
+                            <span class="password-toggle" onclick="togglePassword('new_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                                <i class="far fa-eye" id="new_password_icon"></i>
+                            </span>
+                        </div>
                         <small style="color: var(--gray-600); font-size: 0.7rem;">Minimum 6 characters</small>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-check-circle"></i> Confirm New Password</label>
-                        <input type="password" name="confirm_password" class="form-control" required>
+                        <div style="position: relative;">
+                            <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
+                            <span class="password-toggle" onclick="togglePassword('confirm_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                                <i class="far fa-eye" id="confirm_password_icon"></i>
+                            </span>
+                        </div>
+                        <small id="password_match_error" style="color: var(--danger-color); font-size: 0.7rem; display: none;">
+                            <i class="fas fa-exclamation-circle"></i> Passwords do not match
+                        </small>
                     </div>
                 </div>
                 <div style="margin-top: 10px;">
-                    <button type="submit" name="change_password" class="btn btn-primary">
+                    <button type="submit" name="change_password" class="btn btn-danger">
                         <i class="fas fa-key"></i> Change Password
                     </button>
                 </div>
@@ -605,6 +668,56 @@ $assigned_classes_count = $stmt->fetchColumn();
                 sidebar.classList.remove('active');
                 overlay.classList.remove('active');
             };
+        }
+
+        // Toggle password visibility
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '_icon');
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // Real-time password match validation
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        const matchError = document.getElementById('password_match_error');
+
+        if (newPassword && confirmPassword) {
+            function checkPasswordMatch() {
+                if (newPassword.value !== confirmPassword.value && confirmPassword.value !== '') {
+                    matchError.style.display = 'block';
+                } else {
+                    matchError.style.display = 'none';
+                }
+            }
+            newPassword.addEventListener('keyup', checkPasswordMatch);
+            confirmPassword.addEventListener('keyup', checkPasswordMatch);
+        }
+
+        // Confirm password change with warning about logout
+        function confirmPasswordChange() {
+            const newPwd = document.getElementById('new_password').value;
+            const confirmPwd = document.getElementById('confirm_password').value;
+
+            if (newPwd !== confirmPwd) {
+                alert('Passwords do not match!');
+                return false;
+            }
+
+            if (newPwd.length < 6) {
+                alert('Password must be at least 6 characters long!');
+                return false;
+            }
+
+            return confirm('WARNING: After changing your password, you will be logged out and will need to login again with your new password. Continue?');
         }
 
         // Close sidebar when clicking outside on mobile

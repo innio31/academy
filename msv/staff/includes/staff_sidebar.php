@@ -1,5 +1,5 @@
 <?php
-// msv/staff/includes/staff_sidebar.php - Reusable sidebar component for staff portal
+// ida/staff/includes/staff_sidebar.php - Reusable sidebar component for staff portal
 // Fully dynamic school theme integration – reads constants from config.php
 
 // Make sure required variables are available
@@ -9,11 +9,26 @@ if (!isset($school_name) || !isset($staff_name) || !isset($staff_role)) {
     $staff_role = $_SESSION['staff_role'] ?? 'staff';
 }
 
+// Get the actual staff_id from the staff table (not the auto-increment id)
+global $pdo;
+$staff_id_string = '';
+if (isset($_SESSION['user_id']) && isset($pdo)) {
+    try {
+        $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
+        $stmt->execute([$_SESSION['user_id'], SCHOOL_ID]);
+        $staff_id_string = $stmt->fetchColumn();
+        if (!$staff_id_string) {
+            $staff_id_string = $_SESSION['staff_id'] ?? $_SESSION['user_id'];
+        }
+    } catch (Exception $e) {
+        $staff_id_string = $_SESSION['staff_id'] ?? $_SESSION['user_id'];
+    }
+} else {
+    $staff_id_string = $_SESSION['staff_id'] ?? ($_SESSION['user_id'] ?? '');
+}
+
 // Get current page for active state
 $current_page = basename($_SERVER['PHP_SELF']);
-
-// Get staff ID string for display
-$staff_id_string = $_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? '';
 
 // ── School Theme Resolution ──────────────────────────────────────────────────
 $sb_primary   = defined('SCHOOL_PRIMARY')   ? SCHOOL_PRIMARY   : '#1e293b';
@@ -92,7 +107,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/msv/assets/logos/logo.png',
+                    '/ida/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -120,7 +135,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </div>
     </div>
 
-    <!-- Staff Info -->
+    <!-- Staff Info - CORRECTED: Now shows actual staff_id from staff table -->
     <div class="staff-info">
         <div class="staff-avatar">
             <?php echo strtoupper(substr($staff_name, 0, 1)); ?>
@@ -141,15 +156,15 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </a>
 
         <!-- Students Group -->
-        <div class="nav-group <?php echo in_array($current_page, ['manage-students.php']) ? 'open' : ''; ?>" data-group="students">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-students.php']) ? 'true' : 'false'; ?>">
+        <div class="nav-group <?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'open' : ''; ?>" data-group="students">
+            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'true' : 'false'; ?>">
                 <span class="nav-icon"><i class="fas fa-users"></i></span>
                 <span class="nav-label">Students</span>
                 <span class="group-badge">
                     <i class="fas fa-chevron-down chevron"></i>
                 </span>
             </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-students.php']) ? 'expanded' : ''; ?>">
+            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'expanded' : ''; ?>">
                 <li>
                     <a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
                         <i class="fas fa-user-graduate"></i> My Students
@@ -159,15 +174,15 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </div>
 
         <!-- Exams & Results Group -->
-        <div class="nav-group <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php']) ? 'open' : ''; ?>" data-group="exams">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-exams.php', 'view-results.php']) ? 'true' : 'false'; ?>">
+        <div class="nav-group <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'edit-exam.php']) ? 'open' : ''; ?>" data-group="exams">
+            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'edit-exam.php']) ? 'true' : 'false'; ?>">
                 <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
                 <span class="nav-label">Exams & Results</span>
                 <span class="group-badge">
                     <i class="fas fa-chevron-down chevron"></i>
                 </span>
             </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php']) ? 'expanded' : ''; ?>">
+            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'edit-exam.php']) ? 'expanded' : ''; ?>">
                 <li>
                     <a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
                         <i class="fas fa-pen-alt"></i> Manage Exams
@@ -182,17 +197,17 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </div>
 
         <!-- Resources Group (Assignments + Library) -->
-        <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'true' : 'false'; ?>">
+        <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
+            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'true' : 'false'; ?>">
                 <span class="nav-icon"><i class="fas fa-folder-open"></i></span>
                 <span class="nav-label">Resources</span>
                 <span class="group-badge">
                     <i class="fas fa-chevron-down chevron"></i>
                 </span>
             </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'library.php']) ? 'expanded' : ''; ?>">
+            <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'expanded' : ''; ?>">
                 <li>
-                    <a href="assignments.php" class="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php']) ? 'active' : ''; ?>">
+                    <a href="assignments.php" class="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php']) ? 'active' : ''; ?>">
                         <i class="fas fa-tasks"></i> Assignments
                     </a>
                 </li>
@@ -210,12 +225,6 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
             <span class="nav-label">Attendance</span>
         </a>
 
-        <!-- Reports -->
-        <a href="reports.php" class="nav-item standalone <?php echo $current_page == 'reports.php' ? 'active' : ''; ?>">
-            <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
-            <span class="nav-label">Reports</span>
-        </a>
-
         <!-- Profile -->
         <a href="profile.php" class="nav-item standalone <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">
             <span class="nav-icon"><i class="fas fa-user-cog"></i></span>
@@ -223,7 +232,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </a>
 
         <!-- Logout -->
-        <a href="../msv/logout.php" class="nav-item standalone logout">
+        <a href="../ida/logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>

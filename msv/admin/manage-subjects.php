@@ -296,15 +296,20 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $subjects = $stmt->fetchAll();
 
-// Fetch available classes
-$stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' UNION SELECT DISTINCT class FROM exams WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
-$stmt->execute([$school_id, $school_id]);
-$available_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Fetch available classes from the classes table
+$stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+$stmt->execute([$school_id]);
+$classes_from_db = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$available_classes = array_column($classes_from_db, 'class_name');
+$available_classes_with_ids = $classes_from_db;
 
 if (empty($available_classes)) {
     $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
+    $available_classes_with_ids = array_map(function($class) {
+        return ['id' => 0, 'class_name' => $class];
+    }, $available_classes);
 }
-?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -1179,17 +1184,17 @@ if (empty($available_classes)) {
                     <div class="form-group" style="margin-top: 20px;">
                         <label class="form-label">Assign to Classes <span style="font-weight: normal; color: var(--gray-600);">(Select which classes will offer these subjects)</span></label>
                         <div class="checkbox-group" id="modalClassCheckboxGroup">
-                            <?php if (!empty($available_classes)): ?>
-                                <?php foreach ($available_classes as $class): ?>
-                                    <div class="checkbox-item">
-                                        <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                        <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Add students first.</p>
-                            <?php endif; ?>
-                        </div>
+    <?php if (!empty($available_classes_with_ids)): ?>
+        <?php foreach ($available_classes_with_ids as $class): ?>
+            <div class="checkbox-item">
+                <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class_name']); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class['class_name']); ?>">
+                <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class['class_name']); ?>"><?php echo htmlspecialchars($class['class_name']); ?></label>
+            </div>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <p style="color: var(--gray-600); grid-column: span 2;">No classes found. Please add classes first.</p>
+    <?php endif; ?>
+</div>
                         <div style="margin-top: 10px;">
                             <button type="button" class="btn btn-sm btn-outline" onclick="selectAllModalClasses()"><i class="fas fa-check-double"></i> Select All Classes</button>
                             <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllModalClasses()"><i class="fas fa-times"></i> Deselect All Classes</button>
@@ -1247,7 +1252,8 @@ if (empty($available_classes)) {
 
     <script>
         // Available classes from PHP
-        const availableClasses = <?php echo json_encode($available_classes); ?>;
+const availableClasses = <?php echo json_encode($available_classes); ?>;
+const availableClassesWithIds = <?php echo json_encode($available_classes_with_ids); ?>;
 
         // Mobile menu
         const mobileBtn = document.getElementById('mobileMenuBtn');

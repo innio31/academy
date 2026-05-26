@@ -1,5 +1,5 @@
 <?php
-// eagles/admin/exam_record_setup.php - Create / Edit Exam Record Setup
+// tbis/admin/exam_record_setup.php - Create / Edit Exam Record Setup
 
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth check ────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /eagles/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 
@@ -1569,11 +1569,11 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
         if (!empty($all_records)):
         ?>
             <!-- Exam records list with enhanced actions -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-list"></i></div>
-                    <h2>Exam records for this school</h2>
-                </div>
+<div class="form-card">
+    <div class="form-card-header">
+        <div class="card-icon"><i class="fas fa-list"></i></div>
+        <h2>Exam records for <?php echo htmlspecialchars($school_name); ?></h2>
+    </div>
                 <div style="overflow-x:auto">
                     <table class="grading-table">
                         <thead>
@@ -1604,27 +1604,30 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                                     </td>
                                     <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
                                     <td>
-                                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                                            <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm" title="Enter Scores">
-                                                <i class="fas fa-pencil-alt"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-info btn-sm" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone" style="background:#17a2b8;color:white;">
-                                                <i class="fas fa-copy"></i>
-                                            </button>
-                                            <?php if ($can_delete): ?>
-                                                <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')" title="Delete">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            <?php else: ?>
-                                                <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot delete published/archived records" style="opacity:0.5;">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm" title="Edit">
+            <i class="fas fa-edit"></i>
+        </a>
+        <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm" title="Enter Scores">
+            <i class="fas fa-pencil-alt"></i>
+        </a>
+        <a href="exam_generate_cards.php?record_id=<?php echo $r['id']; ?>" class="btn btn-success btn-sm" title="Generate Report Cards" style="background:#27ae60;color:white;">
+            <i class="fas fa-id-card"></i> Results
+        </a>
+        <button type="button" class="btn btn-info btn-sm" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone" style="background:#17a2b8;color:white;">
+            <i class="fas fa-copy"></i>
+        </button>
+        <?php if ($can_delete): ?>
+            <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')" title="Delete">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        <?php else: ?>
+            <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot delete published/archived records" style="opacity:0.5;">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        <?php endif; ?>
+    </div>
+</td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

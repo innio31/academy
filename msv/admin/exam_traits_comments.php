@@ -482,7 +482,6 @@ render:
 $progress_pct = $total_students > 0 ? round(($completed_count / $total_students) * 100) : 0;
 ?>
 
-<!-- Rest of the HTML remains the same as your original file -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -521,100 +520,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             overflow-x: hidden;
         }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary), var(--dark));
-            color: white;
-            padding: 20px 0;
-            transition: transform .3s;
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.open {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, .1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .logo-text p {
-            font-size: .7rem;
-            opacity: .8;
-        }
-
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, .1);
-            border-radius: 10px;
-            margin: 15px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, .9);
-            text-decoration: none;
-            border-radius: 8px;
-            transition: var(--transition);
-        }
-
-        .nav-links a:hover {
-            background: rgba(255, 255, 255, .15);
-        }
-
-        .nav-links a.active {
-            background: rgba(255, 255, 255, .2);
-            border-left: 3px solid var(--secondary);
-        }
-
-        .nav-links i {
-            width: 20px;
-            text-align: center;
-        }
-
+        /* Mobile Menu Toggle - Consistent with sidebar.php */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -628,19 +534,26 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             border-radius: 10px;
             font-size: 20px;
             cursor: pointer;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .overlay {
+        .sidebar-overlay {
             position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .5);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
             z-index: 999;
             opacity: 0;
             visibility: hidden;
             transition: var(--transition);
         }
 
-        .overlay.show {
+        .sidebar-overlay.active {
             opacity: 1;
             visibility: visible;
         }
@@ -1304,15 +1217,12 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             margin-right: 6px;
         }
 
-        @media(min-width:768px) {
+        /* Desktop Styles */
+        @media (min-width: 768px) {
 
-            .mobile-toggle,
-            .overlay {
+            .mobile-menu-toggle,
+            .sidebar-overlay {
                 display: none;
-            }
-
-            .sidebar {
-                transform: translateX(0);
             }
 
             .main {
@@ -1320,7 +1230,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             }
         }
 
-        @media(max-width:960px) {
+        @media (max-width: 960px) {
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -1336,7 +1246,7 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             }
         }
 
-        @media(max-width:767px) {
+        @media (max-width: 767px) {
             .main {
                 padding-top: 70px;
             }
@@ -1358,11 +1268,14 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
 
 <body>
 
-    <button class="mobile-menu-toggle" id="mobileMenuToggle"><i class="fas fa-bars"></i></button>
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <!-- Mobile Menu Toggle - Consistent ID with sidebar.php -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <?php
-    // Include sidebar at the end (it will be positioned fixed)
+    // Include sidebar (it will be positioned fixed)
     require_once 'includes/sidebar.php';
     ?>
 
@@ -1634,27 +1547,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
     </div><!-- /main -->
 
     <script>
-        // Mobile menu functionality
-const sidebar = document.getElementById('sidebar');
-const sidebarOverlay = document.getElementById('sidebarOverlay');
-const menuToggle = document.getElementById('mobileMenuToggle');
-
-if (menuToggle) {
-    menuToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('active');
-        sidebarOverlay.classList.toggle('active');
-        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-    });
-}
-
-if (sidebarOverlay) {
-    sidebarOverlay.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-        sidebarOverlay.classList.remove('active');
-        document.body.style.overflow = '';
-    });
-}
-
         // Rating button click
         function selectRating(btn, radioId) {
             const group = btn.closest('.rating-group');
@@ -1713,6 +1605,41 @@ if (sidebarOverlay) {
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             }
         });
+
+        // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
+        (function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('mobileMenuToggle');
+
+            if (toggleBtn && sidebar) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sidebar.classList.toggle('active');
+                    if (overlay) overlay.classList.toggle('active');
+                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                });
+            }
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+            }
+
+            // Close sidebar when clicking nav links on mobile
+            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 768 && sidebar) {
+                        sidebar.classList.remove('active');
+                        if (overlay) overlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                });
+            });
+        })();
     </script>
 
 </body>

@@ -40,7 +40,7 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
     FROM exams e
-    JOIN subjects s ON e.subject_id = s.id
+    LEFT JOIN subjects s ON e.subject_id = s.id
     WHERE e.school_id = ? 
     AND e.class = ? 
     AND e.is_active = 1
@@ -59,7 +59,7 @@ $stmt = $pdo->prepare("
            GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), es.end_time)) as time_remaining
     FROM exam_sessions es 
     JOIN exams e ON es.exam_id = e.id 
-    JOIN subjects s ON e.subject_id = s.id
+    LEFT JOIN subjects s ON e.subject_id = s.id
     WHERE es.student_id = ? 
     AND es.status = 'in_progress' 
     AND es.end_time > NOW()
@@ -74,7 +74,7 @@ $stmt = $pdo->prepare("
            es.percentage, es.grade, es.score as total_score
     FROM exam_sessions es 
     JOIN exams e ON es.exam_id = e.id 
-    JOIN subjects s ON e.subject_id = s.id
+    LEFT JOIN subjects s ON e.subject_id = s.id
     WHERE es.student_id = ? 
     AND es.status = 'completed'
     ORDER BY es.end_time DESC

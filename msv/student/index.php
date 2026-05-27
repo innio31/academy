@@ -469,40 +469,28 @@ $stats = $stmt->fetch();
             font-size: 0.7rem;
             opacity: 0.8;
         }
+        .main-content {
+    margin-left: 0;
+    padding: 20px;
+    min-height: 100vh;
+    transition: margin-left 0.3s ease;
+}
+
+@media (min-width: 768px) {
+    .main-content {
+        margin-left: var(--sidebar-width);
+    }
+}
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-user-graduate"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Student Portal</p>
-            </div>
-        </div>
-        <div class="student-info">
-            <!-- Student Profile Picture in Sidebar -->
-            <img src="<?php echo htmlspecialchars($profile_picture); ?>"
-                alt="Profile Picture"
-                class="student-avatar"
-                onerror="this.src='/assets/uploads/default-avatar.png'">
-            <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
-            <div class="student-details"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($student['admission_number']); ?></div>
-            <div class="student-details"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?></div>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="take-exam.php"><i class="fas fa-file-alt"></i> Take Exam</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> My Results</a></li>
-            <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="library.php"><i class="fas fa-book"></i> E-Library</a></li>
-            <li><a href="profile.php"><i class="fas fa-user-cog"></i> My Profile</a></li>
-            <li><a href="../msv/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Mobile Menu Button -->
+<button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+
+<!-- Include Student Sidebar -->
+<?php require_once 'includes/student_sidebar.php'; ?>
 
     <div class="main-content">
         <div class="top-header">

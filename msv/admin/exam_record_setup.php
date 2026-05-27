@@ -1122,7 +1122,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                         : "Set up a new exam record — template, scoring, grading, and options"; ?>
                 </p>
             </div>
-            <a href="report_card_dashboard.php" class="back-btn">
+            <a href="index.php" class="back-btn">
                 <i class="fas fa-arrow-left"></i> Back to dashboard
             </a>
         </div>
@@ -1582,6 +1582,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                 .btn-info:hover {
                     background: #138496 !important;
                 }
+
                 .btn-danger:hover {
                     background: #c82333 !important;
                 }
@@ -1757,38 +1758,261 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
 
         // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
         (function() {
-            const sidebar = document.getElementById('sidebar');
+            // Try multiple possible selectors for sidebar elements
+            const sidebar = document.getElementById('sidebar') ||
+                document.querySelector('.sidebar') ||
+                document.querySelector('#main-sidebar') ||
+                document.querySelector('[data-sidebar]');
+
             const overlay = document.getElementById('sidebarOverlay');
             const toggleBtn = document.getElementById('mobileMenuToggle');
 
-            if (toggleBtn && sidebar) {
-                toggleBtn.addEventListener('click', function(e) {
+            // If toggle button doesn't exist, create it with proper styling
+            let mobileToggle = toggleBtn;
+            if (!mobileToggle && window.innerWidth <= 768) {
+                mobileToggle = document.createElement('button');
+                mobileToggle.className = 'mobile-menu-toggle';
+                mobileToggle.id = 'mobileMenuToggle';
+                mobileToggle.innerHTML = '<i class="fas fa-bars"></i>';
+                document.body.insertBefore(mobileToggle, document.body.firstChild);
+            }
+
+            // Find the actual sidebar if not found yet
+            let actualSidebar = sidebar;
+            if (!actualSidebar) {
+                // Look for any element that might be the sidebar
+                actualSidebar = document.querySelector('[class*="sidebar"]') ||
+                    document.querySelector('.nav-sidebar') ||
+                    document.querySelector('.admin-sidebar');
+            }
+
+            if (mobileToggle && actualSidebar) {
+                // Ensure sidebar has necessary classes for mobile
+                actualSidebar.style.transition = 'transform 0.3s ease';
+
+                // Create overlay if it doesn't exist
+                let actualOverlay = overlay;
+                if (!actualOverlay) {
+                    actualOverlay = document.createElement('div');
+                    actualOverlay.id = 'sidebarOverlay';
+                    actualOverlay.className = 'sidebar-overlay';
+                    document.body.appendChild(actualOverlay);
+                }
+
+                // Set initial state for mobile
+                function setMobileState(show) {
+                    if (window.innerWidth <= 768) {
+                        if (show) {
+                            actualSidebar.style.transform = 'translateX(0)';
+                            actualOverlay.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        } else {
+                            actualSidebar.style.transform = 'translateX(-100%)';
+                            actualOverlay.classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                    }
+                }
+
+                // Initialize sidebar position for mobile
+                if (window.innerWidth <= 768) {
+                    actualSidebar.style.position = 'fixed';
+                    actualSidebar.style.top = '0';
+                    actualSidebar.style.left = '0';
+                    actualSidebar.style.bottom = '0';
+                    actualSidebar.style.zIndex = '1000';
+                    actualSidebar.style.transform = 'translateX(-100%)';
+                }
+
+                // Toggle button click handler
+                mobileToggle.addEventListener('click', function(e) {
                     e.preventDefault();
-                    sidebar.classList.toggle('active');
-                    if (overlay) overlay.classList.toggle('active');
-                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                    e.stopPropagation();
+                    const isVisible = actualSidebar.style.transform === 'translateX(0)';
+                    setMobileState(!isVisible);
                 });
-            }
 
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    sidebar.classList.remove('active');
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
+                // Overlay click handler
+                actualOverlay.addEventListener('click', function() {
+                    setMobileState(false);
                 });
-            }
 
-            // Close sidebar when clicking nav links on mobile
-            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(link => {
-                link.addEventListener('click', function() {
-                    if (window.innerWidth <= 768 && sidebar) {
-                        sidebar.classList.remove('active');
-                        if (overlay) overlay.classList.remove('active');
+                // Handle window resize
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth > 768) {
+                        actualSidebar.style.transform = '';
+                        actualSidebar.style.position = '';
+                        actualOverlay.classList.remove('active');
                         document.body.style.overflow = '';
+                    } else {
+                        actualSidebar.style.position = 'fixed';
+                        actualSidebar.style.transform = 'translateX(-100%)';
                     }
                 });
+
+                // Close sidebar when clicking nav links on mobile
+                document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a, .sidebar-nav a').forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth <= 768) {
+                            setMobileState(false);
+                        }
+                    });
+                });
+            }
+
+            // Also handle any pre-existing toggle buttons that might be dynamic
+            document.addEventListener('click', function(e) {
+                const toggle = e.target.closest('.mobile-menu-toggle, [data-toggle="sidebar"]');
+                if (toggle && window.innerWidth <= 768) {
+                    e.preventDefault();
+                    const sideBar = document.getElementById('sidebar') ||
+                        document.querySelector('.sidebar');
+                    if (sideBar) {
+                        const overlayDiv = document.getElementById('sidebarOverlay');
+                        sideBar.classList.toggle('active');
+                        if (overlayDiv) overlayDiv.classList.toggle('active');
+                        document.body.style.overflow = sideBar.classList.contains('active') ? 'hidden' : '';
+                    }
+                }
             });
         })();
+
+        // Debug function to check if sidebar is loaded
+        function checkSidebarStatus() {
+            console.log('Sidebar element:', document.getElementById('sidebar'));
+            console.log('Sidebar class elements:', document.querySelectorAll('.sidebar'));
+            console.log('Toggle button:', document.getElementById('mobileMenuToggle'));
+            console.log('Overlay:', document.getElementById('sidebarOverlay'));
+        }
+        checkSidebarStatus(); // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
+        (function() {
+            // Try multiple possible selectors for sidebar elements
+            const sidebar = document.getElementById('sidebar') ||
+                document.querySelector('.sidebar') ||
+                document.querySelector('#main-sidebar') ||
+                document.querySelector('[data-sidebar]');
+
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('mobileMenuToggle');
+
+            // If toggle button doesn't exist, create it with proper styling
+            let mobileToggle = toggleBtn;
+            if (!mobileToggle && window.innerWidth <= 768) {
+                mobileToggle = document.createElement('button');
+                mobileToggle.className = 'mobile-menu-toggle';
+                mobileToggle.id = 'mobileMenuToggle';
+                mobileToggle.innerHTML = '<i class="fas fa-bars"></i>';
+                document.body.insertBefore(mobileToggle, document.body.firstChild);
+            }
+
+            // Find the actual sidebar if not found yet
+            let actualSidebar = sidebar;
+            if (!actualSidebar) {
+                // Look for any element that might be the sidebar
+                actualSidebar = document.querySelector('[class*="sidebar"]') ||
+                    document.querySelector('.nav-sidebar') ||
+                    document.querySelector('.admin-sidebar');
+            }
+
+            if (mobileToggle && actualSidebar) {
+                // Ensure sidebar has necessary classes for mobile
+                actualSidebar.style.transition = 'transform 0.3s ease';
+
+                // Create overlay if it doesn't exist
+                let actualOverlay = overlay;
+                if (!actualOverlay) {
+                    actualOverlay = document.createElement('div');
+                    actualOverlay.id = 'sidebarOverlay';
+                    actualOverlay.className = 'sidebar-overlay';
+                    document.body.appendChild(actualOverlay);
+                }
+
+                // Set initial state for mobile
+                function setMobileState(show) {
+                    if (window.innerWidth <= 768) {
+                        if (show) {
+                            actualSidebar.style.transform = 'translateX(0)';
+                            actualOverlay.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        } else {
+                            actualSidebar.style.transform = 'translateX(-100%)';
+                            actualOverlay.classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                    }
+                }
+
+                // Initialize sidebar position for mobile
+                if (window.innerWidth <= 768) {
+                    actualSidebar.style.position = 'fixed';
+                    actualSidebar.style.top = '0';
+                    actualSidebar.style.left = '0';
+                    actualSidebar.style.bottom = '0';
+                    actualSidebar.style.zIndex = '1000';
+                    actualSidebar.style.transform = 'translateX(-100%)';
+                }
+
+                // Toggle button click handler
+                mobileToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isVisible = actualSidebar.style.transform === 'translateX(0)';
+                    setMobileState(!isVisible);
+                });
+
+                // Overlay click handler
+                actualOverlay.addEventListener('click', function() {
+                    setMobileState(false);
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth > 768) {
+                        actualSidebar.style.transform = '';
+                        actualSidebar.style.position = '';
+                        actualOverlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    } else {
+                        actualSidebar.style.position = 'fixed';
+                        actualSidebar.style.transform = 'translateX(-100%)';
+                    }
+                });
+
+                // Close sidebar when clicking nav links on mobile
+                document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a, .sidebar-nav a').forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth <= 768) {
+                            setMobileState(false);
+                        }
+                    });
+                });
+            }
+
+            // Also handle any pre-existing toggle buttons that might be dynamic
+            document.addEventListener('click', function(e) {
+                const toggle = e.target.closest('.mobile-menu-toggle, [data-toggle="sidebar"]');
+                if (toggle && window.innerWidth <= 768) {
+                    e.preventDefault();
+                    const sideBar = document.getElementById('sidebar') ||
+                        document.querySelector('.sidebar');
+                    if (sideBar) {
+                        const overlayDiv = document.getElementById('sidebarOverlay');
+                        sideBar.classList.toggle('active');
+                        if (overlayDiv) overlayDiv.classList.toggle('active');
+                        document.body.style.overflow = sideBar.classList.contains('active') ? 'hidden' : '';
+                    }
+                }
+            });
+        })();
+
+        // Debug function to check if sidebar is loaded
+        function checkSidebarStatus() {
+            console.log('Sidebar element:', document.getElementById('sidebar'));
+            console.log('Sidebar class elements:', document.querySelectorAll('.sidebar'));
+            console.log('Toggle button:', document.getElementById('mobileMenuToggle'));
+            console.log('Overlay:', document.getElementById('sidebarOverlay'));
+        }
+        checkSidebarStatus();
     </script>
 
 </body>

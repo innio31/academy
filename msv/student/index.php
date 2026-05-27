@@ -20,19 +20,13 @@ $accent_color = SCHOOL_ACCENT;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
 
-// Get student details with class_id
-$stmt = $pdo->prepare("
-    SELECT s.*, c.id as class_id, c.class_name 
-    FROM students s
-    LEFT JOIN classes c ON c.class_name = s.class AND c.school_id = s.school_id
-    WHERE s.id = ? AND s.school_id = ?
-");
+// Get student details
+$stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
 $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
 // Set class from database
 $student_class = $student['class'] ?? '';
-$student_class_id = $student['class_id'] ?? 0;
 $admission_number = $student['admission_number'] ?? '';
 
 // Get profile picture path
@@ -41,13 +35,14 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
     $profile_picture = '/uploads/' . $student['profile_picture'];
 }
 
-// Get available exams for this student's class (using class_id)
+// Get available exams for this student's class
+// Note: exams table uses 'class' column (varchar), not class_id
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
     FROM exams e
     JOIN subjects s ON e.subject_id = s.id
     WHERE e.school_id = ? 
-    AND e.class_id = ? 
+    AND e.class = ? 
     AND e.is_active = 1
     AND e.id NOT IN (
         SELECT exam_id FROM exam_sessions 
@@ -55,7 +50,7 @@ $stmt = $pdo->prepare("
     )
     ORDER BY e.created_at DESC
 ");
-$stmt->execute([$school_id, $student_class_id, $student_id]);
+$stmt->execute([$school_id, $student_class, $student_id]);
 $available_exams = $stmt->fetchAll();
 
 // Get in-progress exams
@@ -88,13 +83,14 @@ $stmt = $pdo->prepare("
 $stmt->execute([$student_id]);
 $completed_exams = $stmt->fetchAll();
 
-// Get pending assignments (using class_id)
+// Get pending assignments
+// Note: assignments table uses 'class' column (varchar), not class_id
 $stmt = $pdo->prepare("
     SELECT a.*, s.subject_name 
     FROM assignments a
     JOIN subjects s ON a.subject_id = s.id
     WHERE a.school_id = ? 
-    AND a.class_id = ? 
+    AND a.class = ? 
     AND a.deadline >= CURDATE()
     AND a.id NOT IN (
         SELECT assignment_id FROM assignment_submissions 
@@ -103,7 +99,7 @@ $stmt = $pdo->prepare("
     ORDER BY a.deadline ASC
     LIMIT 5
 ");
-$stmt->execute([$school_id, $student_class_id, $student_id]);
+$stmt->execute([$school_id, $student_class, $student_id]);
 $pending_assignments = $stmt->fetchAll();
 
 // Get statistics

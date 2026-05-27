@@ -380,12 +380,11 @@ $exam_types = [
     'comprehensive' => 'Comprehensive (All Types)'
 ];
 
-// Get single exam for editing - FIXED AJAX ENDPOINT
+// Get single exam for editing
 if (isset($_GET['get_exam'])) {
     header('Content-Type: application/json');
     try {
         $exam_id = intval($_GET['get_exam']);
-        error_log("Fetching exam ID: $exam_id for school: $school_id");
         
         $stmt = $pdo->prepare("SELECT * FROM exams WHERE id = ? AND school_id = ?");
         $stmt->execute([$exam_id, $school_id]);
@@ -399,22 +398,19 @@ if (isset($_GET['get_exam'])) {
             }
             $exam['topics'] = $topics;
             
-            // Also ensure numeric values are integers
+            // Ensure all numeric values are integers
             $exam['objective_count'] = (int)$exam['objective_count'];
             $exam['subjective_count'] = (int)$exam['subjective_count'];
             $exam['theory_count'] = (int)$exam['theory_count'];
             $exam['duration_minutes'] = (int)$exam['duration_minutes'];
             $exam['is_active'] = (int)$exam['is_active'];
             
-            error_log("Exam found with topics: " . json_encode($topics));
             echo json_encode(['success' => true, 'exam' => $exam]);
         } else {
-            error_log("Exam not found: ID $exam_id for school $school_id");
             echo json_encode(['success' => false, 'error' => 'Exam not found']);
         }
         exit();
     } catch (Exception $e) {
-        error_log("Error fetching exam: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit();
     }
@@ -1387,7 +1383,39 @@ if (isset($_GET['get_exam'])) {
             });
         }
 
-        // FIXED: editExam function with better error handling
+        // Function to safely set checkboxes based on topics array
+        function setTopicsCheckboxes(topicsArray) {
+            const checkboxes = document.querySelectorAll('input[name="topics[]"]');
+            
+            if (checkboxes.length === 0) {
+                console.warn('No checkboxes found. Topics container might be empty.');
+                return false;
+            }
+            
+            console.log('Setting checkboxes for topics:', topicsArray);
+            console.log('Found checkboxes count:', checkboxes.length);
+            
+            // First uncheck all
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            
+            // Then check the ones that match
+            if (topicsArray && topicsArray.length > 0) {
+                topicsArray.forEach(topicId => {
+                    checkboxes.forEach(cb => {
+                        if (parseInt(cb.value) === parseInt(topicId)) {
+                            cb.checked = true;
+                            console.log('Checked topic:', topicId);
+                        }
+                    });
+                });
+            }
+            
+            return true;
+        }
+
+        // FIXED: editExam function with safer checkbox handling
         async function editExam(examId) {
             try {
                 const btn = event.currentTarget;
@@ -1428,7 +1456,6 @@ if (isset($_GET['get_exam'])) {
                             }
                         }
                         if (!classFound && e.class_id) {
-                            // Try to find by class_id
                             for (let i = 0; i < classSelect.options.length; i++) {
                                 const optId = classSelect.options[i].getAttribute('data-id');
                                 if (optId && parseInt(optId) === parseInt(e.class_id)) {
@@ -1437,14 +1464,12 @@ if (isset($_GET['get_exam'])) {
                                 }
                             }
                         }
-                        // Update class_id hidden field
                         updateClassId();
                     }
                     
                     // Set subject
                     if (e.subject_id) {
                         document.getElementById('subject_id').value = e.subject_id;
-                        // Trigger change event to filter topics
                         if (subjectSelect) {
                             subjectSelect.dispatchEvent(new Event('change'));
                         }
@@ -1461,32 +1486,20 @@ if (isset($_GET['get_exam'])) {
                     document.getElementById('instructions').value = e.instructions || '';
                     document.getElementById('is_active').checked = e.is_active == 1;
 
-                    // Handle topics - with safety check
+                    // Parse topics
                     let topicsArray = [];
                     if (e.topics) {
                         try {
                             topicsArray = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
+                            if (!Array.isArray(topicsArray)) {
+                                topicsArray = [];
+                            }
                         } catch (parseErr) {
                             console.error('Error parsing topics:', parseErr);
                             topicsArray = [];
                         }
                     }
                     
-                    // Wait a moment for the subject filter to take effect
-                    setTimeout(() => {
-                        // Reset all checkboxes first
-                        const allCheckboxes = document.querySelectorAll('input[name="topics[]"]');
-                        console.log('Found checkboxes:', allCheckboxes.length);
-                        console.log('Topics to check:', topicsArray);
-                        
-                        allCheckboxes.forEach(cb => {
-                            const cbValue = parseInt(cb.value);
-                            const shouldCheck = topicsArray.includes(cbValue);
-                            cb.checked = shouldCheck;
-                            console.log(`Checkbox ${cbValue}: ${shouldCheck ? 'checked' : 'unchecked'}`);
-                        });
-                    }, 100);
-
                     // Update modal title and button
                     document.getElementById('modalTitle').textContent = 'Edit Exam';
                     const submitBtn = document.getElementById('submitBtn');
@@ -1496,7 +1509,21 @@ if (isset($_GET['get_exam'])) {
                     // Update question counts based on exam type
                     updateQuestionCounts();
                     
+                    // Open the modal first
                     openModal();
+                    
+                    // Wait for modal to be fully visible and topics to be rendered
+                    // Use multiple attempts to set checkboxes
+                    setTimeout(() => {
+                        const success = setTopicsCheckboxes(topicsArray);
+                        if (!success) {
+                            // If failed, try again after a longer delay
+                            setTimeout(() => {
+                                setTopicsCheckboxes(topicsArray);
+                            }, 500);
+                        }
+                    }, 200);
+                    
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error occurred'));
                 }
@@ -1504,7 +1531,6 @@ if (isset($_GET['get_exam'])) {
                 console.error('Error loading exam:', error);
                 alert('Error loading exam details. Please refresh and try again.\n\nError: ' + error.message);
                 
-                // Re-enable the button
                 if (event && event.currentTarget) {
                     const btn = event.currentTarget;
                     btn.innerHTML = '<i class="fas fa-edit"></i>';
@@ -1533,7 +1559,6 @@ if (isset($_GET['get_exam'])) {
                     return false;
                 }
                 
-                // Ensure class_id is set
                 updateClassId();
             });
         }
@@ -1549,6 +1574,10 @@ if (isset($_GET['get_exam'])) {
         document.addEventListener('DOMContentLoaded', function() {
             updateQuestionCounts();
             console.log('Page loaded - modal functionality ready');
+            
+            // Debug: Check if topics container has checkboxes
+            const checkboxes = document.querySelectorAll('input[name="topics[]"]');
+            console.log('Total topics checkboxes found:', checkboxes.length);
         });
     </script>
 </body>

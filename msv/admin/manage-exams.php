@@ -392,14 +392,21 @@ if (isset($_GET['get_exam'])) {
         $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($exam) {
-            // Parse topics JSON
-            $exam['topics'] = json_decode($exam['topics'], true);
-            if (!is_array($exam['topics'])) {
-                $exam['topics'] = [];
+            // Parse topics JSON - ensure it's always an array
+            $topics = json_decode($exam['topics'], true);
+            if (!is_array($topics)) {
+                $topics = [];
             }
+            $exam['topics'] = $topics;
             
-            // Also get the class_id if available in the exam
-            error_log("Exam found: " . json_encode($exam));
+            // Also ensure numeric values are integers
+            $exam['objective_count'] = (int)$exam['objective_count'];
+            $exam['subjective_count'] = (int)$exam['subjective_count'];
+            $exam['theory_count'] = (int)$exam['theory_count'];
+            $exam['duration_minutes'] = (int)$exam['duration_minutes'];
+            $exam['is_active'] = (int)$exam['is_active'];
+            
+            error_log("Exam found with topics: " . json_encode($topics));
             echo json_encode(['success' => true, 'exam' => $exam]);
         } else {
             error_log("Exam not found: ID $exam_id for school $school_id");
@@ -1279,9 +1286,11 @@ if (isset($_GET['get_exam'])) {
         // Update class_id hidden field when class is selected
         function updateClassId() {
             const classSelect = document.getElementById('class_name');
-            const selectedOption = classSelect.options[classSelect.selectedIndex];
-            const classId = selectedOption ? selectedOption.getAttribute('data-id') : '';
-            document.getElementById('class_id').value = classId;
+            if (classSelect && classSelect.selectedIndex >= 0) {
+                const selectedOption = classSelect.options[classSelect.selectedIndex];
+                const classId = selectedOption ? selectedOption.getAttribute('data-id') : '';
+                document.getElementById('class_id').value = classId;
+            }
         }
 
         // Modal functions
@@ -1378,6 +1387,7 @@ if (isset($_GET['get_exam'])) {
             });
         }
 
+        // FIXED: editExam function with better error handling
         async function editExam(examId) {
             try {
                 const btn = event.currentTarget;
@@ -1402,22 +1412,47 @@ if (isset($_GET['get_exam'])) {
                 if (data.success && data.exam) {
                     const e = data.exam;
                     
+                    // Set basic fields
                     document.getElementById('exam_id').value = e.id;
                     document.getElementById('exam_name').value = e.exam_name || '';
                     
-                    // Set class and class_id
+                    // Set class dropdown
                     if (e.class) {
                         const classSelect = document.getElementById('class_name');
+                        let classFound = false;
                         for (let i = 0; i < classSelect.options.length; i++) {
                             if (classSelect.options[i].value === e.class) {
                                 classSelect.selectedIndex = i;
+                                classFound = true;
                                 break;
                             }
                         }
-                        document.getElementById('class_id').value = e.class_id || '';
+                        if (!classFound && e.class_id) {
+                            // Try to find by class_id
+                            for (let i = 0; i < classSelect.options.length; i++) {
+                                const optId = classSelect.options[i].getAttribute('data-id');
+                                if (optId && parseInt(optId) === parseInt(e.class_id)) {
+                                    classSelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        // Update class_id hidden field
+                        updateClassId();
                     }
                     
-                    document.getElementById('subject_id').value = e.subject_id || '';
+                    // Set subject
+                    if (e.subject_id) {
+                        document.getElementById('subject_id').value = e.subject_id;
+                        // Trigger change event to filter topics
+                        if (subjectSelect) {
+                            subjectSelect.dispatchEvent(new Event('change'));
+                        }
+                    } else {
+                        document.getElementById('subject_id').value = '';
+                    }
+                    
+                    // Set exam type and other fields
                     document.getElementById('exam_type').value = e.exam_type || 'objective';
                     document.getElementById('duration_minutes').value = e.duration_minutes || 60;
                     document.getElementById('objective_count').value = e.objective_count || 0;
@@ -1426,31 +1461,40 @@ if (isset($_GET['get_exam'])) {
                     document.getElementById('instructions').value = e.instructions || '';
                     document.getElementById('is_active').checked = e.is_active == 1;
 
-                    // Handle topics
+                    // Handle topics - with safety check
                     let topicsArray = [];
                     if (e.topics) {
-                        topicsArray = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
+                        try {
+                            topicsArray = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
+                        } catch (parseErr) {
+                            console.error('Error parsing topics:', parseErr);
+                            topicsArray = [];
+                        }
                     }
                     
-                    document.querySelectorAll('input[name="topics[]"]').forEach(cb => {
-                        cb.checked = topicsArray.includes(parseInt(cb.value));
-                    });
+                    // Wait a moment for the subject filter to take effect
+                    setTimeout(() => {
+                        // Reset all checkboxes first
+                        const allCheckboxes = document.querySelectorAll('input[name="topics[]"]');
+                        console.log('Found checkboxes:', allCheckboxes.length);
+                        console.log('Topics to check:', topicsArray);
+                        
+                        allCheckboxes.forEach(cb => {
+                            const cbValue = parseInt(cb.value);
+                            const shouldCheck = topicsArray.includes(cbValue);
+                            cb.checked = shouldCheck;
+                            console.log(`Checkbox ${cbValue}: ${shouldCheck ? 'checked' : 'unchecked'}`);
+                        });
+                    }, 100);
 
+                    // Update modal title and button
                     document.getElementById('modalTitle').textContent = 'Edit Exam';
                     const submitBtn = document.getElementById('submitBtn');
                     submitBtn.name = 'update_exam';
                     submitBtn.innerHTML = '<i class="fas fa-edit"></i> Update Exam';
                     
+                    // Update question counts based on exam type
                     updateQuestionCounts();
-                    
-                    // Trigger subject filter to show correct topics
-                    if (subjectSelect && e.subject_id) {
-                        subjectSelect.value = e.subject_id;
-                        subjectSelect.dispatchEvent(new Event('change'));
-                    }
-                    
-                    // Trigger class change to update class_id
-                    updateClassId();
                     
                     openModal();
                 } else {
@@ -1461,9 +1505,11 @@ if (isset($_GET['get_exam'])) {
                 alert('Error loading exam details. Please refresh and try again.\n\nError: ' + error.message);
                 
                 // Re-enable the button
-                const btn = event.currentTarget;
-                btn.innerHTML = '<i class="fas fa-edit"></i>';
-                btn.disabled = false;
+                if (event && event.currentTarget) {
+                    const btn = event.currentTarget;
+                    btn.innerHTML = '<i class="fas fa-edit"></i>';
+                    btn.disabled = false;
+                }
             }
         }
 

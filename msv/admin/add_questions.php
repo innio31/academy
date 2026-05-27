@@ -1043,7 +1043,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
             <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($selected_topic['topic_name']); ?></h2>
             <div class="topic-meta">
                 <span class="meta-item"><i class="fas fa-arrow-left"></i> <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">Back to Questions</a></span>
-                <span class="meta-item"><i class="fas fa-database"></i> <a href="#" onclick="openCentralImportModal()">Import from Central Bank</a> <i class="fas fa-check-circle central-icon" title="Verified by Developer Team"></i></span>
+                <span class="meta-item"><i class="fas fa-database"></i> <a href="javascript:void(0)" onclick="openCentralImportModal()">Import from Central Bank</a> <i class="fas fa-check-circle central-icon" title="Verified by Developer Team"></i></span>
             </div>
         </div>
 
@@ -1218,34 +1218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
                     <div class="spinner"></div>
                     <p>Loading central question bank...</p>
                 </div>
-                <div id="centralImportContent" style="display: none;">
-                    <div class="form-group">
-                        <label>Select Subject</label>
-                        <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
-                            <option value="">-- Select Subject --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Select Topic</label>
-                        <select id="centralTopicSelect" class="form-control" onchange="loadCentralQuestions()">
-                            <option value="">-- Select Topic --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Question Type</label>
-                        <select id="centralQuestionType" class="form-control" onchange="loadCentralQuestions()">
-                            <option value="objective">Objective Questions</option>
-                            <option value="subjective">Subjective Questions</option>
-                            <option value="theory">Theory Questions</option>
-                        </select>
-                    </div>
-                    <div id="centralQuestionsContainer">
-                        <div class="loading" style="padding: 20px;">
-                            <div class="spinner" style="width: 30px; height: 30px;"></div>
-                            <p>Select a subject and topic to view questions...</p>
-                        </div>
-                    </div>
-                </div>
+                <div id="centralImportContent" style="display: none;"></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeCentralImportModal()">Cancel</button>
@@ -1256,26 +1229,353 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
 
     <script>
         // ============================================
+        // CENTRAL BANK API FUNCTIONS (SIMPLIFIED)
+        // ============================================
+
+        const CENTRAL_API_URL = 'https://acad.com.ng/central_bank/api/';
+        const CENTRAL_API_KEY = '33118913968799983134133712965617';
+
+        let centralQuestions = [];
+        let selectedCentralQuestionIds = new Set();
+
+        window.openCentralImportModal = async function() {
+            const modal = document.getElementById('centralImportModal');
+            if (modal) {
+                modal.classList.add('active');
+                await loadCentralSubjects();
+            }
+        }
+
+        window.closeCentralImportModal = function() {
+            const modal = document.getElementById('centralImportModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+            selectedCentralQuestionIds.clear();
+        }
+
+        async function loadCentralSubjects() {
+            const container = document.getElementById('centralImportContent');
+            const loadingDiv = document.getElementById('centralImportLoading');
+
+            if (!container) return;
+
+            if (loadingDiv) {
+                loadingDiv.style.display = 'block';
+                container.style.display = 'none';
+            }
+
+            try {
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_subjects`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    },
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+
+                if (data.success && data.subjects) {
+                    buildCentralImportUI(data.subjects);
+                    if (loadingDiv) {
+                        loadingDiv.style.display = 'none';
+                        container.style.display = 'block';
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to load subjects');
+                }
+            } catch (error) {
+                console.error('Error loading subjects:', error);
+                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure the central bank API is accessible.</div>`;
+                if (loadingDiv) {
+                    loadingDiv.innerHTML = errorMsg;
+                } else {
+                    container.innerHTML = errorMsg;
+                }
+            }
+        }
+
+        function buildCentralImportUI(subjects) {
+            const container = document.getElementById('centralImportContent');
+            if (!container) return;
+
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Select Subject</label>
+                    <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
+                        <option value="">-- Select Subject --</option>
+                        ${subjects.map(s => `<option value="${s.id}">${escapeHtml(s.subject_name)}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Select Topic</label>
+                    <select id="centralTopicSelect" class="form-control" onchange="loadCentralQuestions()">
+                        <option value="">-- Select Topic --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Question Type</label>
+                    <select id="centralQuestionType" class="form-control" onchange="loadCentralQuestions()">
+                        <option value="objective">Objective Questions</option>
+                        <option value="subjective">Subjective Questions</option>
+                        <option value="theory">Theory Questions</option>
+                    </select>
+                </div>
+                <div id="centralQuestionsContainer"></div>
+            `;
+        }
+
+        window.loadCentralTopics = async function() {
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicSelect = document.getElementById('centralTopicSelect');
+
+            if (!subjectId || !topicSelect) {
+                if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
+                return;
+            }
+
+            topicSelect.innerHTML = '<option value="">Loading topics...</option>';
+
+            try {
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_topics&subject_id=${subjectId}`, {
+                    headers: { 'X-API-Key': CENTRAL_API_KEY }
+                });
+                const data = await response.json();
+
+                if (data.success && data.topics) {
+                    topicSelect.innerHTML = '<option value="0">-- All Topics --</option>';
+                    data.topics.forEach(topic => {
+                        topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
+                    });
+                } else {
+                    topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+                }
+            } catch (error) {
+                console.error('Error loading topics:', error);
+                topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+            }
+        }
+
+        window.loadCentralQuestions = async function() {
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const questionType = document.getElementById('centralQuestionType')?.value;
+            const container = document.getElementById('centralQuestionsContainer');
+
+            if (!subjectId || !container) {
+                if (container) container.innerHTML = '<div class="loading"><p>Select a subject to view questions...</p></div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading questions from central bank...</p></div>';
+
+            try {
+                let url = `${CENTRAL_API_URL}index.php?action=get_questions&subject_id=${subjectId}&type=${questionType}&school_id=0`;
+                if (topicId && topicId !== '0') url += `&topic_id=${topicId}`;
+
+                const response = await fetch(url, {
+                    headers: { 'X-API-Key': CENTRAL_API_KEY }
+                });
+                const data = await response.json();
+
+                if (data.success && data.questions) {
+                    centralQuestions = data.questions;
+                    selectedCentralQuestionIds.clear();
+                    renderCentralQuestionsList();
+                } else {
+                    throw new Error(data.error || 'No questions found');
+                }
+            } catch (error) {
+                console.error('Error loading questions:', error);
+                container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderCentralQuestionsList() {
+            const container = document.getElementById('centralQuestionsContainer');
+            const questions = centralQuestions;
+
+            if (!container) return;
+
+            if (questions.length === 0) {
+                container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No central questions found for this selection.</p><p class="badge-info" style="margin-top: 10px;">Central questions are added by the developer team.</p></div>';
+                return;
+            }
+
+            let html = `
+                <div class="select-all-bar">
+                    <input type="checkbox" id="selectAllCentralCheckbox" onchange="toggleSelectAllCentral(this)">
+                    <label for="selectAllCentralCheckbox">Select All Questions</label>
+                    <span style="margin-left: auto;"><span id="centralSelectedCount">0</span> selected</span>
+                </div>
+                <div class="question-list">
+            `;
+
+            questions.forEach((q, index) => {
+                const isChecked = selectedCentralQuestionIds.has(q.id);
+                const preview = q.question_text ? q.question_text.substring(0, 150) : '';
+
+                html += `
+                    <div class="question-item">
+                        <div class="question-checkbox">
+                            <input type="checkbox" class="central-question-check" value="${q.id}" ${isChecked ? 'checked' : ''} data-question-id="${q.id}">
+                        </div>
+                        <div class="question-text">
+                            <strong>Q${index + 1}:</strong> ${escapeHtml(preview)}${q.question_text.length > 150 ? '...' : ''}
+                            <span class="badge badge-central"><i class="fas fa-database"></i> Central Verified</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+
+            attachCheckboxListeners();
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        function attachCheckboxListeners() {
+            document.querySelectorAll('.central-question-check').forEach(cb => {
+                cb.removeEventListener('change', handleCheckboxChange);
+                cb.addEventListener('change', handleCheckboxChange);
+            });
+        }
+
+        function handleCheckboxChange(e) {
+            const value = parseInt(e.target.value);
+            if (e.target.checked) {
+                selectedCentralQuestionIds.add(value);
+            } else {
+                selectedCentralQuestionIds.delete(value);
+            }
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        window.toggleSelectAllCentral = function(source) {
+            const checkboxes = document.querySelectorAll('.central-question-check');
+            checkboxes.forEach(cb => {
+                cb.checked = source.checked;
+                const value = parseInt(cb.value);
+                if (source.checked) {
+                    selectedCentralQuestionIds.add(value);
+                } else {
+                    selectedCentralQuestionIds.delete(value);
+                }
+            });
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        function updateCentralSelectedCount() {
+            const count = selectedCentralQuestionIds.size;
+            const countSpan = document.getElementById('centralSelectedCount');
+            if (countSpan) countSpan.textContent = count;
+        }
+
+        function updateSelectAllCentralCheckbox() {
+            const selectAll = document.getElementById('selectAllCentralCheckbox');
+            if (selectAll) {
+                const total = document.querySelectorAll('.central-question-check').length;
+                const selected = selectedCentralQuestionIds.size;
+                if (selected === 0) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                } else if (selected === total && total > 0) {
+                    selectAll.checked = true;
+                    selectAll.indeterminate = false;
+                } else {
+                    selectAll.indeterminate = true;
+                }
+            }
+        }
+
+        window.importSelectedCentralQuestions = async function() {
+            if (selectedCentralQuestionIds.size === 0) {
+                alert('Please select at least one question to import.');
+                return;
+            }
+
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
+            const topicId = document.getElementById('centralTopicSelect')?.value;
+            const questionType = document.getElementById('centralQuestionType')?.value;
+
+            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified by the developer team and will be added to your local question bank.`)) {
+                return;
+            }
+
+            // Create a form and submit via POST
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+
+            const importField = document.createElement('input');
+            importField.type = 'hidden';
+            importField.name = 'import_from_central';
+            importField.value = '1';
+            form.appendChild(importField);
+
+            const sourceTopicField = document.createElement('input');
+            sourceTopicField.type = 'hidden';
+            sourceTopicField.name = 'source_topic_id';
+            sourceTopicField.value = topicId || '0';
+            form.appendChild(sourceTopicField);
+
+            const importTypeField = document.createElement('input');
+            importTypeField.type = 'hidden';
+            importTypeField.name = 'import_question_type';
+            importTypeField.value = questionType || '';
+            form.appendChild(importTypeField);
+
+            selectedCentralQuestionIds.forEach(id => {
+                const field = document.createElement('input');
+                field.type = 'hidden';
+                field.name = 'selected_central_questions[]';
+                field.value = id;
+                form.appendChild(field);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
         // MOBILE MENU & UI UTILITIES
         // ============================================
 
         // Mobile menu toggle
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('sidebar');
-        if (mobileBtn) {
-            mobileBtn.onclick = () => sidebar.classList.toggle('active');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebarElement = document.getElementById('sidebar');
+        if (mobileMenuBtn) {
+            mobileMenuBtn.onclick = () => {
+                if (sidebarElement) sidebarElement.classList.toggle('active');
+            };
         }
 
         document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
+            if (window.innerWidth <= 768 && sidebarElement && mobileMenuBtn) {
+                if (!sidebarElement.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+                    sidebarElement.classList.remove('active');
                 }
             }
         });
 
         // Tab switching
-        function switchTab(tabName) {
+        window.switchTab = function(tabName) {
             const url = new URL(window.location);
             url.searchParams.set('type', tabName);
             window.history.pushState({}, '', url);
@@ -1300,381 +1600,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
         const urlParams = new URLSearchParams(window.location.search);
         const typeParam = urlParams.get('type');
         if (typeParam && ['objective', 'subjective', 'theory'].includes(typeParam)) {
-            switchTab(typeParam);
+            window.switchTab(typeParam);
         }
-
-        // ============================================
-// CENTRAL BANK API FUNCTIONS (SIMPLIFIED)
-// ============================================
-
-const CENTRAL_API_URL = 'https://acad.com.ng/central_bank/api/';
-const CENTRAL_API_KEY = '33118913968799983134133712965617';
-
-let centralQuestions = [];
-let selectedCentralQuestionIds = new Set();
-
-async function openCentralImportModal() {
-    const modal = document.getElementById('centralImportModal');
-    if (modal) {
-        modal.classList.add('active');
-        await loadCentralSubjects();
-    }
-}
-
-function closeCentralImportModal() {
-    const modal = document.getElementById('centralImportModal');
-    if (modal) {
-        modal.classList.remove('active');
-    }
-    selectedCentralQuestionIds.clear();
-}
-
-async function loadCentralSubjects() {
-    const container = document.getElementById('centralImportContent');
-    const loadingDiv = document.getElementById('centralImportLoading');
-
-    if (!container) return;
-
-    if (loadingDiv) {
-        loadingDiv.style.display = 'block';
-        container.style.display = 'none';
-    }
-
-    try {
-        const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_subjects`, {
-            method: 'GET',
-            headers: {
-                'X-API-Key': CENTRAL_API_KEY
-            },
-            mode: 'cors'
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-
-        if (data.success && data.subjects) {
-            buildCentralImportUI(data.subjects);
-            if (loadingDiv) {
-                loadingDiv.style.display = 'none';
-                container.style.display = 'block';
-            }
-        } else {
-            throw new Error(data.error || 'Failed to load subjects');
-        }
-    } catch (error) {
-        console.error('Error loading subjects:', error);
-        const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure the central bank API is accessible.</div>`;
-        if (loadingDiv) {
-            loadingDiv.innerHTML = errorMsg;
-        } else {
-            container.innerHTML = errorMsg;
-        }
-    }
-}
-
-function buildCentralImportUI(subjects) {
-    const container = document.getElementById('centralImportContent');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="form-group">
-            <label>Select Subject</label>
-            <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
-                <option value="">-- Select Subject --</option>
-                ${subjects.map(s => `<option value="${s.id}">${escapeHtml(s.subject_name)}</option>`).join('')}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Select Topic</label>
-            <select id="centralTopicSelect" class="form-control" onchange="loadCentralQuestions()">
-                <option value="">-- Select Topic --</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Question Type</label>
-            <select id="centralQuestionType" class="form-control" onchange="loadCentralQuestions()">
-                <option value="objective">Objective Questions</option>
-                <option value="subjective">Subjective Questions</option>
-                <option value="theory">Theory Questions</option>
-            </select>
-        </div>
-        <div id="centralQuestionsContainer"></div>
-    `;
-}
-
-async function loadCentralTopics() {
-    const subjectId = document.getElementById('centralSubjectSelect')?.value;
-    const topicSelect = document.getElementById('centralTopicSelect');
-
-    if (!subjectId || !topicSelect) {
-        if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
-        return;
-    }
-
-    topicSelect.innerHTML = '<option value="">Loading topics...</option>';
-
-    try {
-        const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_topics&subject_id=${subjectId}`, {
-            headers: { 'X-API-Key': CENTRAL_API_KEY }
-        });
-        const data = await response.json();
-
-        if (data.success && data.topics) {
-            topicSelect.innerHTML = '<option value="0">-- All Topics --</option>';
-            data.topics.forEach(topic => {
-                topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
-            });
-        } else {
-            topicSelect.innerHTML = '<option value="">Error loading topics</option>';
-        }
-    } catch (error) {
-        console.error('Error loading topics:', error);
-        topicSelect.innerHTML = '<option value="">Error loading topics</option>';
-    }
-}
-
-async function loadCentralQuestions() {
-    const subjectId = document.getElementById('centralSubjectSelect')?.value;
-    const topicId = document.getElementById('centralTopicSelect')?.value;
-    const questionType = document.getElementById('centralQuestionType')?.value;
-    const container = document.getElementById('centralQuestionsContainer');
-
-    if (!subjectId || !container) {
-        if (container) container.innerHTML = '<div class="loading"><p>Select a subject to view questions...</p></div>';
-        return;
-    }
-
-    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading questions from central bank...</p></div>';
-
-    try {
-        let url = `${CENTRAL_API_URL}index.php?action=get_questions&subject_id=${subjectId}&type=${questionType}&school_id=0`;
-        if (topicId && topicId !== '0') url += `&topic_id=${topicId}`;
-
-        const response = await fetch(url, {
-            headers: { 'X-API-Key': CENTRAL_API_KEY }
-        });
-        const data = await response.json();
-
-        if (data.success && data.questions) {
-            centralQuestions = data.questions;
-            selectedCentralQuestionIds.clear();
-            renderCentralQuestionsList();
-        } else {
-            throw new Error(data.error || 'No questions found');
-        }
-    } catch (error) {
-        console.error('Error loading questions:', error);
-        container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
-    }
-}
-
-function renderCentralQuestionsList() {
-    const container = document.getElementById('centralQuestionsContainer');
-    const questions = centralQuestions;
-
-    if (!container) return;
-
-    if (questions.length === 0) {
-        container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No central questions found for this selection.</p><p class="badge-info" style="margin-top: 10px;">Central questions are added by the developer team.</p></div>';
-        return;
-    }
-
-    let html = `
-        <div class="select-all-bar">
-            <input type="checkbox" id="selectAllCentralCheckbox" onchange="toggleSelectAllCentral(this)">
-            <label for="selectAllCentralCheckbox">Select All Questions</label>
-            <span style="margin-left: auto;"><span id="centralSelectedCount">0</span> selected</span>
-        </div>
-        <div class="question-list">
-    `;
-
-    questions.forEach((q, index) => {
-        const isChecked = selectedCentralQuestionIds.has(q.id);
-        const preview = q.question_text ? q.question_text.substring(0, 150) : '';
-
-        html += `
-            <div class="question-item">
-                <div class="question-checkbox">
-                    <input type="checkbox" class="central-question-check" value="${q.id}" ${isChecked ? 'checked' : ''} data-question-id="${q.id}">
-                </div>
-                <div class="question-text">
-                    <strong>Q${index + 1}:</strong> ${escapeHtml(preview)}${q.question_text.length > 150 ? '...' : ''}
-                    <span class="badge badge-central"><i class="fas fa-database"></i> Central Verified</span>
-                </div>
-            </div>
-        `;
-    });
-
-    html += `</div>`;
-    container.innerHTML = html;
-
-    attachCheckboxListeners();
-    updateCentralSelectedCount();
-    updateSelectAllCentralCheckbox();
-}
-
-function attachCheckboxListeners() {
-    document.querySelectorAll('.central-question-check').forEach(cb => {
-        cb.removeEventListener('change', handleCheckboxChange);
-        cb.addEventListener('change', handleCheckboxChange);
-    });
-}
-
-function handleCheckboxChange(e) {
-    const value = parseInt(e.target.value);
-    if (e.target.checked) {
-        selectedCentralQuestionIds.add(value);
-    } else {
-        selectedCentralQuestionIds.delete(value);
-    }
-    updateCentralSelectedCount();
-    updateSelectAllCentralCheckbox();
-}
-
-function toggleSelectAllCentral(source) {
-    const checkboxes = document.querySelectorAll('.central-question-check');
-    checkboxes.forEach(cb => {
-        cb.checked = source.checked;
-        const value = parseInt(cb.value);
-        if (source.checked) {
-            selectedCentralQuestionIds.add(value);
-        } else {
-            selectedCentralQuestionIds.delete(value);
-        }
-    });
-    updateCentralSelectedCount();
-    updateSelectAllCentralCheckbox();
-}
-
-function updateCentralSelectedCount() {
-    const count = selectedCentralQuestionIds.size;
-    const countSpan = document.getElementById('centralSelectedCount');
-    if (countSpan) countSpan.textContent = count;
-}
-
-function updateSelectAllCentralCheckbox() {
-    const selectAll = document.getElementById('selectAllCentralCheckbox');
-    if (selectAll) {
-        const total = document.querySelectorAll('.central-question-check').length;
-        const selected = selectedCentralQuestionIds.size;
-        if (selected === 0) {
-            selectAll.checked = false;
-            selectAll.indeterminate = false;
-        } else if (selected === total && total > 0) {
-            selectAll.checked = true;
-            selectAll.indeterminate = false;
-        } else {
-            selectAll.indeterminate = true;
-        }
-    }
-}
-
-async function importSelectedCentralQuestions() {
-    if (selectedCentralQuestionIds.size === 0) {
-        alert('Please select at least one question to import.');
-        return;
-    }
-
-    const subjectId = document.getElementById('centralSubjectSelect')?.value;
-    const topicId = document.getElementById('centralTopicSelect')?.value;
-    const questionType = document.getElementById('centralQuestionType')?.value;
-
-    if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified by the developer team and will be added to your local question bank.`)) {
-        return;
-    }
-
-    // Create a form and submit via POST
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '';
-
-    const importField = document.createElement('input');
-    importField.type = 'hidden';
-    importField.name = 'import_from_central';
-    importField.value = '1';
-    form.appendChild(importField);
-
-    const sourceTopicField = document.createElement('input');
-    sourceTopicField.type = 'hidden';
-    sourceTopicField.name = 'source_topic_id';
-    sourceTopicField.value = topicId || '0';
-    form.appendChild(sourceTopicField);
-
-    const importTypeField = document.createElement('input');
-    importTypeField.type = 'hidden';
-    importTypeField.name = 'import_question_type';
-    importTypeField.value = questionType || '';
-    form.appendChild(importTypeField);
-
-    selectedCentralQuestionIds.forEach(id => {
-        const field = document.createElement('input');
-        field.type = 'hidden';
-        field.name = 'selected_central_questions[]';
-        field.value = id;
-        form.appendChild(field);
-    });
-
-    document.body.appendChild(form);
-    form.submit();
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// ============================================
-// MOBILE MENU & UI UTILITIES
-// ============================================
-
-// Mobile menu toggle
-const mobileBtn = document.getElementById('mobileMenuBtn');
-const sidebar = document.getElementById('sidebar');
-if (mobileBtn) {
-    mobileBtn.onclick = () => sidebar.classList.toggle('active');
-}
-
-document.addEventListener('click', (e) => {
-    if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-        if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-            sidebar.classList.remove('active');
-        }
-    }
-});
-
-// Tab switching
-function switchTab(tabName) {
-    const url = new URL(window.location);
-    url.searchParams.set('type', tabName);
-    window.history.pushState({}, '', url);
-
-    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-    document.querySelector(`.tab-button[onclick="switchTab('${tabName}')"]`).classList.add('active');
-    document.getElementById(tabName + 'Tab').classList.add('active');
-}
-
-// Auto-hide alert after 5 seconds
-setTimeout(() => {
-    document.querySelectorAll('.alert').forEach(alert => {
-        alert.style.opacity = '0';
-        alert.style.transition = 'opacity 0.5s';
-        setTimeout(() => alert.remove(), 500);
-    });
-}, 5000);
-
-// Preserve tab from URL
-const urlParams = new URLSearchParams(window.location.search);
-const typeParam = urlParams.get('type');
-if (typeParam && ['objective', 'subjective', 'theory'].includes(typeParam)) {
-    switchTab(typeParam);
-}
     </script>
 </body>
 

@@ -1,6 +1,6 @@
 <?php
-// admin/add_questions.php - Add Questions with Import from Central Bank & CSV Bulk Import
-// Central Bank questions are stored locally with is_central = 1 AND school_id IS NULL
+// admin/add_questions.php - Add Questions with Import from Central Bank (Multi-School)
+// Central Bank questions have is_central = 1 AND school_id IS NULL
 
 session_start();
 
@@ -42,20 +42,29 @@ $selected_topic = null;
 if ($topic_id) {
     try {
         $stmt = $pdo->prepare("
-            SELECT t.*, s.subject_name, s.id as subject_id,
-                   COALESCE(t.class_level, t.class, '') as class
+            SELECT t.*, s.subject_name, s.id as subject_id 
             FROM topics t 
             JOIN subjects s ON t.subject_id = s.id 
             WHERE t.id = ? AND t.school_id = ?
         ");
         $stmt->execute([$topic_id, $school_id]);
         $selected_topic = $stmt->fetch();
+
+        if ($selected_topic) {
+            $class_stmt = $pdo->prepare("
+                SELECT class FROM subject_classes 
+                WHERE subject_id = ? AND school_id = ? LIMIT 1
+            ");
+            $class_stmt->execute([$selected_topic['subject_id'], $school_id]);
+            $class_row = $class_stmt->fetch();
+            $selected_topic['class'] = $class_row['class'] ?? 'N/A';
+        }
     } catch (Exception $e) {
         error_log("Error loading topic: " . $e->getMessage());
     }
 }
 
-if (!$selected_topic && !isset($_GET['ajax'])) {
+if (!$selected_topic) {
     header("Location: manage-questions.php?error=invalid_topic");
     exit();
 }
@@ -69,31 +78,37 @@ $message_type = '';
 
 try {
     // Add is_central column if not exists
-    $tables = ['objective_questions', 'subjective_questions', 'theory_questions'];
-    foreach ($tables as $table) {
-        $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'is_central'");
-        if ($check->rowCount() == 0) {
-            $pdo->exec("ALTER TABLE $table ADD COLUMN is_central TINYINT(1) DEFAULT 0");
-            $pdo->exec("ALTER TABLE $table ADD INDEX idx_central (is_central)");
-        }
+    $check = $pdo->query("SHOW COLUMNS FROM objective_questions LIKE 'is_central'");
+    if ($check->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE objective_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
+        $pdo->exec("ALTER TABLE objective_questions ADD INDEX idx_central (is_central)");
+    }
 
-        $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'central_source_id'");
-        if ($check->rowCount() == 0) {
-            $pdo->exec("ALTER TABLE $table ADD COLUMN central_source_id INT DEFAULT NULL");
-        }
+    $check = $pdo->query("SHOW COLUMNS FROM subjective_questions LIKE 'is_central'");
+    if ($check->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE subjective_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
+        $pdo->exec("ALTER TABLE subjective_questions ADD INDEX idx_central (is_central)");
+    }
 
-        // Add class column if not exists (for storing the class at import time)
-        $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'class'");
-        if ($check->rowCount() == 0) {
-            $pdo->exec("ALTER TABLE $table ADD COLUMN class VARCHAR(50) DEFAULT NULL");
-        }
+    $check = $pdo->query("SHOW COLUMNS FROM theory_questions LIKE 'is_central'");
+    if ($check->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE theory_questions ADD COLUMN is_central TINYINT(1) DEFAULT 0");
+        $pdo->exec("ALTER TABLE theory_questions ADD INDEX idx_central (is_central)");
+    }
+
+    // Add central_source_id to track imported questions
+    $check = $pdo->query("SHOW COLUMNS FROM objective_questions LIKE 'central_source_id'");
+    if ($check->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE objective_questions ADD COLUMN central_source_id INT DEFAULT NULL");
+        $pdo->exec("ALTER TABLE subjective_questions ADD COLUMN central_source_id INT DEFAULT NULL");
+        $pdo->exec("ALTER TABLE theory_questions ADD COLUMN central_source_id INT DEFAULT NULL");
     }
 } catch (Exception $e) {
     error_log("Error adding columns: " . $e->getMessage());
 }
 
 // ============================================
-// AJAX HANDLERS FOR CENTRAL BANK IMPORT (LOCAL DB)
+// AJAX HANDLERS FOR CENTRAL BANK IMPORT
 // ============================================
 
 // Get central subjects (subjects that have central questions)
@@ -101,19 +116,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_subjects') {
     header('Content-Type: application/json');
     try {
         $question_type = $_GET['question_type'] ?? 'objective';
-        $allowed_types = ['objective', 'subjective', 'theory'];
-        if (!in_array($question_type, $allowed_types)) {
-            throw new Exception("Invalid question type");
-        }
         $table = $question_type . '_questions';
 
         $stmt = $pdo->prepare("
             SELECT DISTINCT s.id, s.subject_name 
             FROM subjects s
             JOIN $table q ON q.subject_id = s.id
-            WHERE q.is_central = 1 
-              AND q.school_id IS NULL
-              AND s.school_id IS NULL
+            WHERE q.is_central = 1 AND q.school_id IS NULL
             ORDER BY s.subject_name
         ");
         $stmt->execute();
@@ -132,20 +141,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_topics') {
     try {
         $subject_id = (int)$_GET['subject_id'];
         $question_type = $_GET['question_type'] ?? 'objective';
-        $allowed_types = ['objective', 'subjective', 'theory'];
-        if (!in_array($question_type, $allowed_types)) {
-            throw new Exception("Invalid question type");
-        }
         $table = $question_type . '_questions';
 
         $stmt = $pdo->prepare("
             SELECT DISTINCT t.id, t.topic_name 
             FROM topics t
             JOIN $table q ON q.topic_id = t.id
-            WHERE t.subject_id = ? 
-              AND q.is_central = 1 
-              AND q.school_id IS NULL
-              AND t.school_id IS NULL
+            WHERE t.subject_id = ? AND q.is_central = 1 AND q.school_id IS NULL
             ORDER BY t.topic_name
         ");
         $stmt->execute([$subject_id]);
@@ -164,10 +166,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
     try {
         $source_topic_id = (int)$_GET['topic_id'];
         $question_type = $_GET['question_type'] ?? 'objective';
-        $allowed_types = ['objective', 'subjective', 'theory'];
-        if (!in_array($question_type, $allowed_types)) {
-            throw new Exception("Invalid question type");
-        }
         $current_topic_id = (int)$_GET['current_topic_id'];
         $current_school_id = $school_id;
         $table = $question_type . '_questions';
@@ -202,7 +200,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_central_questions') {
 }
 
 // ============================================
-// HANDLE IMPORT FROM CENTRAL BANK (LOCAL)
+// HANDLE IMPORT FROM CENTRAL BANK
 // ============================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central'])) {
@@ -210,11 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
         $selected_questions = isset($_POST['selected_questions']) ? $_POST['selected_questions'] : [];
         $source_topic_id = (int)$_POST['source_topic_id'];
         $import_type = $_POST['import_question_type'];
-
-        $allowed_import_types = ['objective', 'subjective', 'theory'];
-        if (!in_array($import_type, $allowed_import_types)) {
-            throw new Exception("Invalid question type");
-        }
 
         if (empty($selected_questions)) {
             throw new Exception("Please select at least one question to import");
@@ -375,164 +368,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central']
         ]);
     } catch (Exception $e) {
         $message = "Import error: " . $e->getMessage();
-        $message_type = "error";
-    }
-}
-
-// ============================================
-// HANDLE CSV BULK IMPORT
-// ============================================
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['csv_import'])) {
-    try {
-        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception("Please upload a valid CSV file");
-        }
-
-        $csv_file = $_FILES['csv_file']['tmp_name'];
-        $import_type = $_POST['csv_import_type'];
-
-        // Open and read CSV
-        $handle = fopen($csv_file, 'r');
-        if (!$handle) {
-            throw new Exception("Could not read CSV file");
-        }
-
-        // Get header row
-        $headers = fgetcsv($handle);
-
-        // Expected headers based on type
-        if ($import_type == 'objective') {
-            $expected = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'difficulty_level', 'marks'];
-        } elseif ($import_type == 'subjective') {
-            $expected = ['question_text', 'correct_answer', 'difficulty_level', 'marks'];
-        } else {
-            $expected = ['question_text', 'marks'];
-        }
-
-        // Map headers to indices
-        $header_map = [];
-        foreach ($expected as $field) {
-            $index = array_search($field, $headers);
-            if ($index === false) {
-                throw new Exception("CSV missing required column: $field");
-            }
-            $header_map[$field] = $index;
-        }
-
-        $imported_count = 0;
-        $error_count = 0;
-        $errors = [];
-        $row_num = 1;
-
-        while (($row = fgetcsv($handle)) !== false) {
-            $row_num++;
-
-            try {
-                if ($import_type == 'objective') {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $option_a = trim($row[$header_map['option_a']] ?? '');
-                    $option_b = trim($row[$header_map['option_b']] ?? '');
-                    $option_c = trim($row[$header_map['option_c']] ?? '');
-                    $option_d = trim($row[$header_map['option_d']] ?? '');
-                    $correct_answer = strtoupper(trim($row[$header_map['correct_answer']] ?? ''));
-                    $difficulty_level = trim($row[$header_map['difficulty_level']] ?? 'medium');
-                    $marks = (int)($row[$header_map['marks']] ?? 1);
-
-                    if (empty($question_text) || empty($option_a) || empty($option_b) || empty($correct_answer)) {
-                        throw new Exception("Missing required fields");
-                    }
-
-                    if (!in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
-                        throw new Exception("Correct answer must be A, B, C, or D");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO objective_questions 
-                        (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-                         difficulty_level, marks, subject_id, topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $option_a,
-                        $option_b,
-                        $option_c,
-                        $option_d,
-                        $correct_answer,
-                        $difficulty_level,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                } elseif ($import_type == 'subjective') {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $correct_answer = trim($row[$header_map['correct_answer']] ?? '');
-                    $difficulty_level = trim($row[$header_map['difficulty_level']] ?? 'medium');
-                    $marks = (int)($row[$header_map['marks']] ?? 1);
-
-                    if (empty($question_text)) {
-                        throw new Exception("Question text is required");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO subjective_questions 
-                        (question_text, correct_answer, difficulty_level, marks, subject_id, 
-                         topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $correct_answer,
-                        $difficulty_level,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                } else {
-                    $question_text = trim($row[$header_map['question_text']] ?? '');
-                    $marks = (int)($row[$header_map['marks']] ?? 5);
-
-                    if (empty($question_text)) {
-                        throw new Exception("Question text is required");
-                    }
-
-                    $stmt = $pdo->prepare("
-                        INSERT INTO theory_questions 
-                        (question_text, marks, subject_id, topic_id, class, school_id, is_central, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
-                    ");
-                    $stmt->execute([
-                        $question_text,
-                        $marks,
-                        $selected_topic['subject_id'],
-                        $topic_id,
-                        $selected_topic['class'],
-                        $school_id
-                    ]);
-                    $imported_count++;
-                }
-            } catch (Exception $e) {
-                $error_count++;
-                $errors[] = "Row $row_num: " . $e->getMessage();
-            }
-        }
-
-        fclose($handle);
-
-        $message = "Successfully imported $imported_count $import_type question(s) via CSV.";
-        if ($error_count > 0) {
-            $message .= " $error_count row(s) had errors.";
-        }
-        $message_type = "success";
-    } catch (Exception $e) {
-        $message = "CSV Import error: " . $e->getMessage();
         $message_type = "error";
     }
 }
@@ -704,31 +539,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_theory_question']
         $message = $e->getMessage();
         $message_type = "error";
     }
-}
-
-// Download CSV Template
-if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
-    $type = $_GET['type'] ?? 'objective';
-
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $type . '_questions_template.csv"');
-
-    $output = fopen('php://output', 'w');
-
-    if ($type == 'objective') {
-        fputcsv($output, ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'difficulty_level', 'marks']);
-        fputcsv($output, ['What is 2 + 2?', '3', '4', '5', '6', 'B', 'easy', '1']);
-        fputcsv($output, ['Who wrote "Things Fall Apart"?', 'Chinua Achebe', 'Wole Soyinka', 'Chimamanda Adichie', 'Ben Okri', 'A', 'medium', '1']);
-    } elseif ($type == 'subjective') {
-        fputcsv($output, ['question_text', 'correct_answer', 'difficulty_level', 'marks']);
-        fputcsv($output, ['Explain the concept of photosynthesis', 'Photosynthesis is the process by which plants make their own food using sunlight, water, and carbon dioxide.', 'medium', '5']);
-    } else {
-        fputcsv($output, ['question_text', 'marks']);
-        fputcsv($output, ['Discuss the causes of World War I', '10']);
-    }
-
-    fclose($output);
-    exit();
 }
 ?>
 
@@ -1053,11 +863,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             color: white;
         }
 
-        .btn-warning {
-            background: var(--warning-color);
-            color: white;
-        }
-
         .alert {
             padding: 15px;
             border-radius: 10px;
@@ -1272,42 +1077,10 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             color: #1565c0;
         }
 
-        .badge-warning {
-            background: #fff3e0;
-            color: #ef6c00;
-        }
-
         .central-icon {
             color: var(--success-color);
             margin-left: 8px;
             font-size: 0.8rem;
-        }
-
-        /* CSV Import Section */
-        .csv-section {
-            margin-bottom: 30px;
-            border: 2px dashed #ddd;
-            background: #fafafa;
-        }
-
-        .csv-section .form-header {
-            background: #f0f0f0;
-            padding: 15px 20px;
-            border-radius: 12px 12px 0 0;
-        }
-
-        .template-link {
-            margin-top: 10px;
-            font-size: 0.85rem;
-        }
-
-        .template-link a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        .template-link a:hover {
-            text-decoration: underline;
         }
 
         @media (min-width: 769px) {
@@ -1348,33 +1121,10 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
-            </div>
-        </div>
-        <div class="admin-info">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst($admin_role); ?></p>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> Manage Students</a></li>
-            <li><a href="manage-staff.php"><i class="fas fa-chalkboard-teacher"></i> Manage Staff</a></li>
-            <li><a href="manage-subjects.php"><i class="fas fa-book"></i> Manage Subjects</a></li>
-            <li><a href="manage-topics.php"><i class="fas fa-list"></i> Manage Topics</a></li>
-            <li><a href="manage-questions.php"><i class="fas fa-question-circle"></i> Manage Questions</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="attendance.php"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="sync.php"><i class="fas fa-sync-alt"></i> Sync</a></li>
-            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <?php
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -1382,7 +1132,8 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             <div class="header-title">
                 <h1>Add Questions</h1>
                 <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong> |
-                    Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?></p>
+                    Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?> |
+                    Class: <?php echo htmlspecialchars($selected_topic['class']); ?></p>
             </div>
             <button class="logout-btn" onclick="window.location.href='../gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
@@ -1399,7 +1150,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             <div class="topic-meta">
                 <span class="meta-item"><i class="fas fa-arrow-left"></i> <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">Back to Questions</a></span>
                 <span class="meta-item"><i class="fas fa-database"></i> <a href="#" onclick="openCentralImportModal()">Import from Central Bank</a> <i class="fas fa-check-circle central-icon" title="Verified by Developer Team"></i></span>
-                <span class="meta-item"><i class="fas fa-file-csv"></i> <a href="#" onclick="document.getElementById('csvModal').classList.add('active')">Bulk Import from CSV/Excel</a></span>
             </div>
         </div>
 
@@ -1566,7 +1316,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
     <div class="modal" id="centralImportModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-database"></i> Import from Central Bank <span class="badge badge-central">Verified Questions</span></h3>
+                <h3><i class="fas fa-database"></i> Import from Central Bank <span class="badge badge-central">Verified by Developer Team</span></h3>
                 <button class="close-modal" onclick="closeCentralImportModal()">&times;</button>
             </div>
             <div class="modal-body" id="centralImportModalBody">
@@ -1606,48 +1356,6 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeCentralImportModal()">Cancel</button>
                 <button class="btn btn-success" id="importSelectedBtn" onclick="importSelectedCentralQuestions()">Import Selected</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CSV Bulk Import Modal -->
-    <div class="modal" id="csvModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-file-csv"></i> Bulk Import Questions from CSV/Excel</h3>
-                <button class="close-modal" onclick="closeCSVModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="info-note" style="background: #e8f4fd; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
-                    <i class="fas fa-info-circle"></i>
-                    <span>Upload a CSV file with your questions. Download the template below for the correct format.</span>
-                </div>
-
-                <form method="POST" action="" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label>Question Type</label>
-                        <select name="csv_import_type" id="csv_import_type" class="form-control" required>
-                            <option value="objective">Objective Questions</option>
-                            <option value="subjective">Subjective Questions</option>
-                            <option value="theory">Theory Questions</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>CSV File</label>
-                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
-                    </div>
-
-                    <div class="template-link">
-                        <i class="fas fa-download"></i>
-                        <a href="#" onclick="downloadTemplate()">Download CSV Template</a> for the selected question type
-                    </div>
-
-                    <div class="form-actions" style="margin-top: 20px;">
-                        <button type="button" class="btn btn-secondary" onclick="closeCSVModal()">Cancel</button>
-                        <button type="submit" name="csv_import" class="btn btn-success"><i class="fas fa-upload"></i> Import Questions</button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
@@ -1702,16 +1410,27 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         }
 
         // ============================================
-        // CENTRAL BANK IMPORT FUNCTIONS (LOCAL DB)
+        // CENTRAL BANK API CONFIGURATION
         // ============================================
 
-        const currentTopicId = <?php echo $topic_id; ?>;
+        const CENTRAL_API_URL = 'https://acad.com.ng/central_bank/api/';
+        const CENTRAL_API_KEY = '33118913968799983134133712965617';
+
+        let centralSubjects = [];
+        let centralTopics = [];
+        let centralQuestions = [];
+        let selectedCentralQuestionIds = new Set();
+        let currentCentralQuestions = []; // For backward compatibility
+
+        // ============================================
+        // CENTRAL BANK IMPORT FUNCTIONS (UNIFIED)
+        // ============================================
 
         async function openCentralImportModal() {
             const modal = document.getElementById('centralImportModal');
             if (modal) {
                 modal.classList.add('active');
-                await loadCentralSubjectsFromLocal();
+                await loadCentralSubjects();
             }
         }
 
@@ -1723,41 +1442,45 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             selectedCentralQuestionIds.clear();
         }
 
-        function closeCSVModal() {
-            document.getElementById('csvModal').classList.remove('active');
-        }
-
-        function downloadTemplate() {
-            const type = document.getElementById('csv_import_type').value;
-            window.location.href = `add_questions.php?topic_id=<?php echo $topic_id; ?>&download_template=1&type=${type}`;
-        }
-
-        let selectedCentralQuestionIds = new Set();
-
-        async function loadCentralSubjectsFromLocal() {
+        async function loadCentralSubjects() {
             const container = document.getElementById('centralImportContent');
             const loadingDiv = document.getElementById('centralImportLoading');
 
             if (!container) return;
 
+            // Show loading state
             if (loadingDiv) {
                 loadingDiv.style.display = 'block';
                 container.style.display = 'none';
+            } else {
+                container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading subjects from central bank...</p></div>';
             }
 
-            const questionType = document.getElementById('centralQuestionType')?.value || 'objective';
-
             try {
-                const response = await fetch(`add_questions.php?ajax=get_central_subjects&question_type=${questionType}`);
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_subjects`, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
                 const data = await response.json();
 
                 if (data.success) {
+                    centralSubjects = data.subjects;
+
+                    // Build the UI
                     const subjectSelect = document.getElementById('centralSubjectSelect');
                     if (subjectSelect) {
                         subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
-                        data.subjects.forEach(subject => {
+                        centralSubjects.forEach(subject => {
                             subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
                         });
+                    }
+
+                    // Build full UI if needed
+                    const questionType = document.getElementById('centralQuestionType');
+                    if (questionType && !questionType.hasAttribute('data-initialized')) {
+                        buildCentralImportUI();
+                        questionType.setAttribute('data-initialized', 'true');
                     }
 
                     if (loadingDiv) {
@@ -1768,7 +1491,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                     throw new Error(data.error || 'Failed to load subjects');
                 }
             } catch (error) {
-                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added to the database with is_central = 1.</div>`;
+                const errorMsg = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> Error: ${error.message}<br><br>Make sure central questions have been added by the developer team.</div>`;
                 if (loadingDiv) {
                     loadingDiv.innerHTML = errorMsg;
                 } else {
@@ -1777,10 +1500,47 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             }
         }
 
+        function buildCentralImportUI() {
+            const container = document.getElementById('centralImportContent');
+            if (!container) return;
+
+            container.innerHTML = `
+            <div class="form-group">
+                <label>Select Subject</label>
+                <select id="centralSubjectSelect" class="form-control" onchange="loadCentralTopics()">
+                    <option value="">-- Select Subject --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Select Topic</label>
+                <select id="centralTopicSelect" class="form-control" onchange="loadCentralQuestions()">
+                    <option value="">-- Select Topic --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Question Type</label>
+                <select id="centralQuestionType" class="form-control" onchange="loadCentralQuestions()">
+                    <option value="objective">Objective Questions</option>
+                    <option value="subjective">Subjective Questions</option>
+                    <option value="theory">Theory Questions</option>
+                </select>
+            </div>
+            <div id="centralQuestionsContainer"></div>
+        `;
+
+            // Re-populate subject select
+            const subjectSelect = document.getElementById('centralSubjectSelect');
+            if (subjectSelect && centralSubjects.length > 0) {
+                subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+                centralSubjects.forEach(subject => {
+                    subjectSelect.innerHTML += `<option value="${subject.id}">${escapeHtml(subject.subject_name)}</option>`;
+                });
+            }
+        }
+
         async function loadCentralTopics() {
             const subjectId = document.getElementById('centralSubjectSelect')?.value;
             const topicSelect = document.getElementById('centralTopicSelect');
-            const questionType = document.getElementById('centralQuestionType')?.value || 'objective';
 
             if (!subjectId || !topicSelect) {
                 if (topicSelect) topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
@@ -1790,16 +1550,22 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             topicSelect.innerHTML = '<option value="">Loading topics...</option>';
 
             try {
-                const response = await fetch(`add_questions.php?ajax=get_central_topics&subject_id=${subjectId}&question_type=${questionType}`);
+                const response = await fetch(`${CENTRAL_API_URL}index.php?action=get_topics&subject_id=${subjectId}`, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
                 const data = await response.json();
 
                 if (data.success) {
-                    topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
-                    data.topics.forEach(topic => {
+                    centralTopics = data.topics;
+                    topicSelect.innerHTML = '<option value="0">-- All Topics --</option>';
+                    centralTopics.forEach(topic => {
                         topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
                     });
                 } else {
                     topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+                    throw new Error(data.error || 'Failed to load topics');
                 }
             } catch (error) {
                 topicSelect.innerHTML = `<option value="">Error: ${error.message}</option>`;
@@ -1807,37 +1573,50 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
         }
 
         async function loadCentralQuestions() {
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
             const topicId = document.getElementById('centralTopicSelect')?.value;
-            const questionType = document.getElementById('centralQuestionType')?.value || 'objective';
+            const questionType = document.getElementById('centralQuestionType')?.value;
             const container = document.getElementById('centralQuestionsContainer');
 
-            if (!topicId || !container) {
-                if (container) container.innerHTML = '<div class="loading" style="padding: 20px;"><p>Select a topic to view questions...</p></div>';
+            if (!subjectId || !container) {
+                if (container) container.innerHTML = '<div class="loading" style="padding: 20px;"><p>Select a subject to view questions...</p></div>';
                 return;
             }
 
-            container.innerHTML = '<div class="loading" style="padding: 20px;"><div class="spinner" style="width: 30px; height: 30px;"></div><p>Loading questions...</p></div>';
+            container.innerHTML = '<div class="loading" style="padding: 20px;"><div class="spinner" style="width: 30px; height: 30px;"></div><p>Loading questions from central bank...</p></div>';
 
             try {
-                const response = await fetch(`add_questions.php?ajax=get_central_questions&topic_id=${topicId}&question_type=${questionType}&current_topic_id=${currentTopicId}`);
+                let url = `${CENTRAL_API_URL}index.php?action=get_questions&subject_id=${subjectId}&type=${questionType}`;
+                if (topicId && topicId !== '0') url += `&topic_id=${topicId}`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'X-API-Key': CENTRAL_API_KEY
+                    }
+                });
                 const data = await response.json();
 
                 if (data.success && data.questions) {
+                    centralQuestions = data.questions;
+                    currentCentralQuestions = data.questions; // For compatibility
                     selectedCentralQuestionIds.clear();
-                    renderCentralQuestionsList(data.questions);
+                    renderCentralQuestionsList();
                 } else {
-                    container.innerHTML = `<div class="loading" style="padding: 20px;"><p>No questions found for this topic.</p></div>`;
+                    throw new Error(data.error || 'No questions found');
                 }
             } catch (error) {
                 container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
         }
 
-        function renderCentralQuestionsList(questions) {
+        function renderCentralQuestionsList() {
             const container = document.getElementById('centralQuestionsContainer');
+            const questions = centralQuestions.length > 0 ? centralQuestions : currentCentralQuestions;
+
+            if (!container) return;
 
             if (questions.length === 0) {
-                container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No questions available for this topic.</p></div>';
+                container.innerHTML = '<div class="loading" style="padding: 20px;"><p>No central questions found for this selection.</p><p class="badge-info" style="margin-top: 10px;">Central questions are added by the developer team.</p></div>';
                 return;
             }
 
@@ -1863,7 +1642,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
                         <input type="checkbox" class="central-question-check" value="${q.id}" ${isChecked ? 'checked' : ''} ${disabledAttr} data-question-id="${q.id}">
                     </div>
                     <div class="question-text ${disabledClass}">
-                        <strong>Q${index + 1}:</strong> ${escapeHtml(preview)}${q.question_text && q.question_text.length > 150 ? '...' : ''}
+                        <strong>Q${index + 1}:</strong> ${escapeHtml(preview)}${q.question_text.length > 150 ? '...' : ''}
                         ${isImported ? '<span class="badge badge-info"><i class="fas fa-check"></i> Already imported</span>' : '<span class="badge badge-central"><i class="fas fa-database"></i> Central Verified</span>'}
                     </div>
                 </div>
@@ -1873,20 +1652,27 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             html += `</div>`;
             container.innerHTML = html;
 
-            // Attach event listeners
-            document.querySelectorAll('.central-question-check:not(:disabled)').forEach(cb => {
-                cb.addEventListener('change', function(e) {
-                    const value = parseInt(this.value);
-                    if (this.checked) {
-                        selectedCentralQuestionIds.add(value);
-                    } else {
-                        selectedCentralQuestionIds.delete(value);
-                    }
-                    updateCentralSelectedCount();
-                    updateSelectAllCentralCheckbox();
-                });
-            });
+            // Attach event listeners to checkboxes
+            attachCheckboxListeners();
 
+            updateCentralSelectedCount();
+            updateSelectAllCentralCheckbox();
+        }
+
+        function attachCheckboxListeners() {
+            document.querySelectorAll('.central-question-check:not(:disabled)').forEach(cb => {
+                cb.removeEventListener('change', handleCheckboxChange);
+                cb.addEventListener('change', handleCheckboxChange);
+            });
+        }
+
+        function handleCheckboxChange(e) {
+            const value = parseInt(e.target.value);
+            if (e.target.checked) {
+                selectedCentralQuestionIds.add(value);
+            } else {
+                selectedCentralQuestionIds.delete(value);
+            }
             updateCentralSelectedCount();
             updateSelectAllCentralCheckbox();
         }
@@ -1929,16 +1715,17 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             }
         }
 
-        function importSelectedCentralQuestions() {
+        async function importSelectedCentralQuestions() {
             if (selectedCentralQuestionIds.size === 0) {
                 alert('Please select at least one question to import.');
                 return;
             }
 
+            const subjectId = document.getElementById('centralSubjectSelect')?.value;
             const topicId = document.getElementById('centralTopicSelect')?.value;
             const questionType = document.getElementById('centralQuestionType')?.value;
 
-            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified and will be added to your local question bank.`)) {
+            if (!confirm(`Import ${selectedCentralQuestionIds.size} ${questionType} question(s) from the Central Bank?\n\nThese questions are verified by the developer team and will be added to your local question bank.`)) {
                 return;
             }
 
@@ -1953,9 +1740,15 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             importField.value = '1';
             form.appendChild(importField);
 
+            const sourceSubjectField = document.createElement('input');
+            sourceSubjectField.type = 'hidden';
+            sourceSubjectField.name = 'central_subject_id';
+            sourceSubjectField.value = subjectId || '';
+            form.appendChild(sourceSubjectField);
+
             const sourceTopicField = document.createElement('input');
             sourceTopicField.type = 'hidden';
-            sourceTopicField.name = 'source_topic_id';
+            sourceTopicField.name = 'central_topic_id';
             sourceTopicField.value = topicId || '0';
             form.appendChild(sourceTopicField);
 
@@ -1968,7 +1761,7 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             selectedCentralQuestionIds.forEach(id => {
                 const field = document.createElement('input');
                 field.type = 'hidden';
-                field.name = 'selected_questions[]';
+                field.name = 'selected_central_questions[]';
                 field.value = id;
                 form.appendChild(field);
             });
@@ -1983,6 +1776,15 @@ if (isset($_GET['download_template']) && $_GET['download_template'] == 1) {
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // ============================================
+        // LEGACY SUPPORT FUNCTIONS (for backward compatibility)
+        // ============================================
+
+        // These functions are aliases for the unified functions above
+        window.loadCentralSubjects = loadCentralSubjects;
+        window.loadCentralTopics = loadCentralTopics;
+        window.loadCentralQuestions = loadCentralQuestions;
     </script>
 </body>
 

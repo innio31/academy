@@ -36,7 +36,7 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
 }
 
 // Get available exams for this student's class
-// Note: exams table uses 'class' column (varchar), not class_id
+
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
     FROM exams e
@@ -52,6 +52,7 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$school_id, $student_class, $student_id]);
 $available_exams = $stmt->fetchAll();
+
 
 // Get in-progress exams
 $stmt = $pdo->prepare("

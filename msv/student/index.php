@@ -616,8 +616,50 @@ $stats = $stmt->fetch();
     (function() {
         'use strict';
 
-        // Mobile sidebar toggle only
-        function initMobileOnly() {
+        // Handle accordion groups
+        function initAccordion() {
+            document.querySelectorAll('.nav-group').forEach(function(group) {
+                var toggle = group.querySelector('.nav-group-toggle');
+                var items = group.querySelector('.nav-group-items');
+
+                if (!toggle || !items) return;
+
+                // Remove existing listeners
+                var newToggle = toggle.cloneNode(true);
+                toggle.parentNode.replaceChild(newToggle, toggle);
+                
+                newToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var isOpen = group.classList.contains('open');
+
+                    // Close all other groups
+                    document.querySelectorAll('.nav-group.open').forEach(function(g) {
+                        if (g !== group) {
+                            g.classList.remove('open');
+                            var gToggle = g.querySelector('.nav-group-toggle');
+                            var gItems = g.querySelector('.nav-group-items');
+                            if (gToggle) gToggle.setAttribute('aria-expanded', 'false');
+                            if (gItems) gItems.classList.remove('expanded');
+                        }
+                    });
+
+                    if (isOpen) {
+                        group.classList.remove('open');
+                        newToggle.setAttribute('aria-expanded', 'false');
+                        items.classList.remove('expanded');
+                    } else {
+                        group.classList.add('open');
+                        newToggle.setAttribute('aria-expanded', 'true');
+                        items.classList.add('expanded');
+                    }
+                });
+            });
+        }
+
+        // Handle mobile sidebar toggle
+        function initMobileToggle() {
             var toggle = document.getElementById('mobileMenuBtn');
             var sidebar = document.getElementById('studentSidebar');
             var overlay = document.getElementById('sidebarOverlay');
@@ -647,7 +689,6 @@ $stats = $stmt->fetch();
             }
 
             if (toggle) {
-                // Remove existing listeners
                 var newToggle = toggle.cloneNode(true);
                 toggle.parentNode.replaceChild(newToggle, toggle);
                 
@@ -663,21 +704,24 @@ $stats = $stmt->fetch();
             }
 
             if (actualOverlay) {
-                actualOverlay.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeSidebar();
-                });
+                actualOverlay.addEventListener('click', closeSidebar);
             }
 
-            // Close on Escape key
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && sidebar.classList.contains('active')) {
                     closeSidebar();
                 }
             });
 
-            // Handle resize
+            // Close sidebar when clicking nav links on mobile
+            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 767) {
+                        setTimeout(closeSidebar, 150);
+                    }
+                });
+            });
+
             var resizeTimer;
             window.addEventListener('resize', function() {
                 clearTimeout(resizeTimer);
@@ -689,10 +733,16 @@ $stats = $stmt->fetch();
             });
         }
 
+        // Initialize everything when DOM is ready
+        function init() {
+            initAccordion();
+            initMobileToggle();
+        }
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initMobileOnly);
+            document.addEventListener('DOMContentLoaded', init);
         } else {
-            initMobileOnly();
+            init();
         }
     })();
 </script>

@@ -1,5 +1,5 @@
 <?php
-// msv/student/index.php - Student Dashboard (All-in-One with Sidebar)
+// msv/student/index.php - Student Dashboard
 session_start();
 
 // Include your working config file
@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     exit();
 }
 
-// Now use the existing $pdo connection from config.php
+// Use the existing $pdo connection from config.php
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
@@ -20,13 +20,19 @@ $accent_color = SCHOOL_ACCENT;
 $student_id = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'] ?? 'Student';
 
-// Get student details (including class from database)
-$stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
+// Get student details with class_id
+$stmt = $pdo->prepare("
+    SELECT s.*, c.id as class_id, c.class_name 
+    FROM students s
+    LEFT JOIN classes c ON c.class_name = s.class AND c.school_id = s.school_id
+    WHERE s.id = ? AND s.school_id = ?
+");
 $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
 // Set class from database
 $student_class = $student['class'] ?? '';
+$student_class_id = $student['class_id'] ?? 0;
 $admission_number = $student['admission_number'] ?? '';
 
 // Get profile picture path
@@ -35,29 +41,33 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
     $profile_picture = '/uploads/' . $student['profile_picture'];
 }
 
-// Get available exams for this student's class
+// Get available exams for this student's class (using class_id)
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
     FROM exams e
     JOIN subjects s ON e.subject_id = s.id
-    WHERE e.school_id = ? AND e.class = ? AND e.is_active = 1
+    WHERE e.school_id = ? 
+    AND e.class_id = ? 
+    AND e.is_active = 1
     AND e.id NOT IN (
         SELECT exam_id FROM exam_sessions 
         WHERE student_id = ? AND status = 'completed'
     )
     ORDER BY e.created_at DESC
 ");
-$stmt->execute([$school_id, $student_class, $student_id]);
+$stmt->execute([$school_id, $student_class_id, $student_id]);
 $available_exams = $stmt->fetchAll();
 
 // Get in-progress exams
 $stmt = $pdo->prepare("
     SELECT es.*, e.exam_name, s.subject_name, e.duration_minutes,
-           TIMESTAMPDIFF(SECOND, NOW(), es.end_time) as time_remaining
+           GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), es.end_time)) as time_remaining
     FROM exam_sessions es 
     JOIN exams e ON es.exam_id = e.id 
     JOIN subjects s ON e.subject_id = s.id
-    WHERE es.student_id = ? AND es.status = 'in_progress' AND es.end_time > NOW()
+    WHERE es.student_id = ? 
+    AND es.status = 'in_progress' 
+    AND es.end_time > NOW()
     ORDER BY es.start_time DESC
 ");
 $stmt->execute([$student_id]);
@@ -70,19 +80,22 @@ $stmt = $pdo->prepare("
     FROM exam_sessions es 
     JOIN exams e ON es.exam_id = e.id 
     JOIN subjects s ON e.subject_id = s.id
-    WHERE es.student_id = ? AND es.status = 'completed'
+    WHERE es.student_id = ? 
+    AND es.status = 'completed'
     ORDER BY es.end_time DESC
     LIMIT 5
 ");
 $stmt->execute([$student_id]);
 $completed_exams = $stmt->fetchAll();
 
-// Get pending assignments
+// Get pending assignments (using class_id)
 $stmt = $pdo->prepare("
     SELECT a.*, s.subject_name 
     FROM assignments a
     JOIN subjects s ON a.subject_id = s.id
-    WHERE a.school_id = ? AND a.class = ? AND a.deadline >= CURDATE()
+    WHERE a.school_id = ? 
+    AND a.class_id = ? 
+    AND a.deadline >= CURDATE()
     AND a.id NOT IN (
         SELECT assignment_id FROM assignment_submissions 
         WHERE student_id = ?
@@ -90,17 +103,18 @@ $stmt = $pdo->prepare("
     ORDER BY a.deadline ASC
     LIMIT 5
 ");
-$stmt->execute([$school_id, $student_class, $student_id]);
+$stmt->execute([$school_id, $student_class_id, $student_id]);
 $pending_assignments = $stmt->fetchAll();
 
 // Get statistics
 $stmt = $pdo->prepare("
     SELECT 
         COUNT(DISTINCT es.exam_id) as total_exams_taken,
-        AVG(es.percentage) as average_score,
+        COALESCE(AVG(es.percentage), 0) as average_score,
         (SELECT COUNT(*) FROM assignment_submissions WHERE student_id = ?) as assignments_submitted
     FROM exam_sessions es 
-    WHERE es.student_id = ? AND es.status = 'completed'
+    WHERE es.student_id = ? 
+    AND es.status = 'completed'
 ");
 $stmt->execute([$student_id, $student_id]);
 $stats = $stmt->fetch();

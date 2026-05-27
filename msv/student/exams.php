@@ -46,13 +46,13 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
     $profile_picture = '/uploads/' . $student['profile_picture'];
 }
 
-// Active (available) exams
+// Active (available) exams - USING THE SAME SUBQUERY AS INDEX.PHP
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name
     FROM exams e
     LEFT JOIN subjects s ON e.subject_id = s.id
     WHERE e.school_id = ?
-      AND e.class_id = ?
+      AND e.class_id = (SELECT class_id FROM students WHERE id = ? AND school_id = ?)
       AND e.is_active = 1
       AND e.id NOT IN (
           SELECT exam_id FROM exam_sessions
@@ -60,7 +60,7 @@ $stmt = $pdo->prepare("
       )
     ORDER BY e.created_at DESC
 ");
-$stmt->execute([$school_id, $student_class_id, $student_id]);
+$stmt->execute([$school_id, $student_id, $school_id, $student_id]);
 $available_exams = $stmt->fetchAll();
 
 // In-progress exams

@@ -1,5 +1,26 @@
 <?php
-// /central_bank/api/index.php - API Router (UPDATED)
+// /central_bank/api/index.php - API Router (FULL CORS FIX)
+
+// ============================================
+// CORS HEADERS - MUST BE THE VERY FIRST THING
+// ============================================
+// Allow from any origin
+header('Access-Control-Allow-Origin: https://www.acad.com.ng');
+header('Access-Control-Allow-Origin: https://acad.com.ng');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: X-API-Key, Content-Type, Authorization, Accept');
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Max-Age: 86400');
+
+// Handle preflight OPTIONS request immediately - NO REDIRECTS!
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit(0);
+}
+
+// ============================================
+// NOW PROCESS THE REQUEST
+// ============================================
 
 require_once '../includes/config.php';
 
@@ -7,21 +28,7 @@ require_once '../includes/config.php';
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
-// ============================================
-// CORS HEADERS
-// ============================================
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: X-API-Key, Content-Type, Authorization');
-header('Access-Control-Max-Age: 86400');
-
-// Handle preflight OPTIONS request immediately
-if ($method === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
-// Verify API key
+// Verify API key for all requests (except maybe public endpoints)
 if (!verify_api_key()) {
     json_error('Invalid or missing API key', 401);
 }

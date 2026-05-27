@@ -29,6 +29,17 @@ $student = $stmt->fetch();
 
 $student_class    = $student['class']    ?? '';
 $student_class_id = $student['class_id'] ?? 0;
+
+// Fallback: resolve class_id directly if the JOIN returned null
+if (!$student_class_id && $student_class) {
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$student_class, $school_id]);
+    $row = $stmt->fetch();
+    $student_class_id = $row['id'] ?? 0;
+}
+
+// Debug (remove after confirming): 
+// error_log("student_class=$student_class, class_id=$student_class_id");
 $admission_number = $student['admission_number'] ?? '';
 $profile_picture  = !empty($student['profile_picture']) ? $student['profile_picture'] : '/assets/uploads/default-avatar.png';
 if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '/') !== 0) {

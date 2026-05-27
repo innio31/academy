@@ -543,7 +543,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <?php echo htmlspecialchars($exam['subject_name']); ?> | 
                             Duration: <?php echo $exam['duration_minutes']; ?> mins
                         </div>
-                        <a href="take-exam.php?exam_id=<?php echo $exam['id']; ?>" class="btn btn-primary" style="margin-top: 8px;">
+                        <a href="exams.php?exam_id=<?php echo $exam['id']; ?>" class="btn btn-primary" style="margin-top: 8px;">
                             <i class="fas fa-play"></i> Start Exam
                         </a>
                     </div>

@@ -445,7 +445,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <a href="index.php" class="nav-item <?php echo ($current_page == 'index.php') ? 'active' : ''; ?>">
             <i class="fas fa-tachometer-alt"></i> Dashboard
         </a>
-        <a href="take-exam.php" class="nav-item">
+        <a href="exams.php" class="nav-item">
             <i class="fas fa-file-alt"></i> Take Exam
         </a>
         <a href="assignments.php" class="nav-item">

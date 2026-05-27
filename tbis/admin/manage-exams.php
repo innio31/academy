@@ -38,13 +38,14 @@ $primary_color = SCHOOL_PRIMARY;
 $message = '';
 $message_type = '';
 
-// Add new exam - USING NAMED PLACEHOLDERS
+// Add new exam - WITH class_id
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
     try {
         $exam_name = trim($_POST['exam_name']);
-        $class = trim($_POST['class']);
+        $class_name = trim($_POST['class_name']);
+        $class_id = !empty($_POST['class_id']) ? intval($_POST['class_id']) : null;
         $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
-        $topics = isset($_POST['topics']) ? json_encode($_POST['topics']) : '[]';
+        $topics = isset($_POST['topics']) ? json_encode(array_map('intval', $_POST['topics'])) : '[]';
         $duration_minutes = intval($_POST['duration_minutes']);
         $objective_count = isset($_POST['objective_count']) ? intval($_POST['objective_count']) : 0;
         $subjective_count = isset($_POST['subjective_count']) ? intval($_POST['subjective_count']) : 0;
@@ -55,15 +56,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
 
         // Validate required fields
         if (empty($exam_name)) throw new Exception("Exam name is required");
-        if (empty($class)) throw new Exception("Class is required");
+        if (empty($class_name)) throw new Exception("Class is required");
         if (empty($duration_minutes)) throw new Exception("Duration is required");
 
+        // If class_id is not provided, try to get it from class_name
+        if (!$class_id && !empty($class_name)) {
+            $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ? LIMIT 1");
+            $stmt->execute([$class_name, $school_id]);
+            $class_row = $stmt->fetch();
+            if ($class_row) {
+                $class_id = $class_row['id'];
+            }
+        }
+
         $sql = "INSERT INTO exams (
-                    exam_name, class, subject_id, topics, duration_minutes,
+                    exam_name, class, class_id, subject_id, topics, duration_minutes,
                     objective_count, subjective_count, theory_count, exam_type,
                     instructions, is_active, school_id, created_at
                 ) VALUES (
-                    :exam_name, :class, :subject_id, :topics, :duration_minutes,
+                    :exam_name, :class, :class_id, :subject_id, :topics, :duration_minutes,
                     :objective_count, :subjective_count, :theory_count, :exam_type,
                     :instructions, :is_active, :school_id, NOW()
                 )";
@@ -71,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':exam_name' => $exam_name,
-            ':class' => $class,
+            ':class' => $class_name,
+            ':class_id' => $class_id,
             ':subject_id' => $subject_id,
             ':topics' => $topics,
             ':duration_minutes' => $duration_minutes,
@@ -93,14 +105,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_exam'])) {
     }
 }
 
-// Update exam - USING NAMED PLACEHOLDERS
+// Update exam - WITH class_id
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
     try {
         $exam_id = intval($_POST['exam_id']);
         $exam_name = trim($_POST['exam_name']);
-        $class = trim($_POST['class']);
+        $class_name = trim($_POST['class_name']);
+        $class_id = !empty($_POST['class_id']) ? intval($_POST['class_id']) : null;
         $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
-        $topics = isset($_POST['topics']) ? json_encode($_POST['topics']) : '[]';
+        $topics = isset($_POST['topics']) ? json_encode(array_map('intval', $_POST['topics'])) : '[]';
         $duration_minutes = intval($_POST['duration_minutes']);
         $objective_count = isset($_POST['objective_count']) ? intval($_POST['objective_count']) : 0;
         $subjective_count = isset($_POST['subjective_count']) ? intval($_POST['subjective_count']) : 0;
@@ -116,9 +129,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
             throw new Exception("Exam not found or access denied");
         }
 
+        // If class_id is not provided, try to get it from class_name
+        if (!$class_id && !empty($class_name)) {
+            $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ? LIMIT 1");
+            $stmt->execute([$class_name, $school_id]);
+            $class_row = $stmt->fetch();
+            if ($class_row) {
+                $class_id = $class_row['id'];
+            }
+        }
+
         $sql = "UPDATE exams SET 
                     exam_name = :exam_name,
                     class = :class,
+                    class_id = :class_id,
                     subject_id = :subject_id,
                     topics = :topics,
                     duration_minutes = :duration_minutes,
@@ -134,7 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_exam'])) {
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':exam_name' => $exam_name,
-            ':class' => $class,
+            ':class' => $class_name,
+            ':class_id' => $class_id,
             ':subject_id' => $subject_id,
             ':topics' => $topics,
             ':duration_minutes' => $duration_minutes,
@@ -222,16 +247,17 @@ if (isset($_GET['clone_exam'])) {
             // Insert cloned exam
             $stmt = $pdo->prepare("
                 INSERT INTO exams (
-                    exam_name, class, subject_id, topics, duration_minutes,
+                    exam_name, class, class_id, subject_id, topics, duration_minutes,
                     objective_count, subjective_count, theory_count, exam_type,
                     instructions, is_active, school_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $new_name = $original['exam_name'] . " (Copy)";
             $stmt->execute([
                 $new_name,
                 $original['class'],
+                $original['class_id'],
                 $original['subject_id'],
                 $original['topics'],
                 $original['duration_minutes'],
@@ -240,6 +266,7 @@ if (isset($_GET['clone_exam'])) {
                 $original['theory_count'],
                 $original['exam_type'],
                 $original['instructions'],
+                $original['is_active'],
                 $school_id
             ]);
 
@@ -320,16 +347,12 @@ $subjects = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE school_id
 $subjects->execute([$school_id]);
 $subjects = $subjects->fetchAll();
 
-// ============================================
-// FETCH CLASSES FROM CLASSES TABLE (FIXED)
-// ============================================
+// Fetch classes from CLASSES TABLE (with id and class_name)
 $classes_list = [];
 try {
     $stmt = $pdo->prepare("SELECT id, class_name, class_code, class_category, sort_order FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
     $stmt->execute([$school_id]);
     $classes_list = $stmt->fetchAll();
-
-    // Debug: Log the number of classes found
     error_log("Classes found for school $school_id: " . count($classes_list));
 } catch (Exception $e) {
     error_log("Error fetching classes: " . $e->getMessage());
@@ -357,17 +380,157 @@ $exam_types = [
     'comprehensive' => 'Comprehensive (All Types)'
 ];
 
-// Get single exam for editing via AJAX
+// ── AJAX: Get exam details (sessions) ──────────────────────────────────────
+if (isset($_GET['get_exam_details'])) {
+    header('Content-Type: application/json');
+    try {
+        $exam_id = intval($_GET['get_exam_details']);
+
+        // Verify exam belongs to school
+        $chk = $pdo->prepare("SELECT id, exam_name, class, exam_type FROM exams WHERE id = ? AND school_id = ?");
+        $chk->execute([$exam_id, $school_id]);
+        $exam_info = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$exam_info) throw new Exception("Exam not found");
+
+        // Fetch sessions with student info
+        $stmt = $pdo->prepare("
+            SELECT
+                es.id,
+                es.student_id,
+                es.exam_type,
+                es.status,
+                es.start_time,
+                es.end_time,
+                es.submitted_at,
+                es.score,
+                es.correct_answers,
+                es.total_questions,
+                es.percentage,
+                es.grade,
+                es.sync_status,
+                CONCAT(st.first_name, ' ', st.last_name) AS student_name,
+                st.admission_number,
+                st.class AS student_class,
+                COUNT(esq.id) AS questions_answered
+            FROM exam_sessions es
+            LEFT JOIN students st ON es.student_id = st.id AND st.school_id = ?
+            LEFT JOIN exam_session_questions esq ON esq.session_id = es.id AND esq.school_id = ?
+            WHERE es.exam_id = ? AND es.school_id = ?
+            GROUP BY es.id
+            ORDER BY es.start_time DESC
+        ");
+        $stmt->execute([$school_id, $school_id, $exam_id, $school_id]);
+        $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Summary counts
+        $total      = count($sessions);
+        $completed  = count(array_filter($sessions, fn($s) => $s['status'] === 'completed'));
+        $in_progress = $total - $completed;
+
+        echo json_encode([
+            'success'     => true,
+            'exam'        => $exam_info,
+            'sessions'    => $sessions,
+            'summary'     => [
+                'total'       => $total,
+                'completed'   => $completed,
+                'in_progress' => $in_progress,
+            ]
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+// ── AJAX: Reset a single session ────────────────────────────────────────────
+if (isset($_GET['reset_session']) && isset($_GET['exam_id'])) {
+    header('Content-Type: application/json');
+    try {
+        $session_id = intval($_GET['reset_session']);
+        $exam_id    = intval($_GET['exam_id']);
+
+        // Verify the session belongs to this school's exam
+        $chk = $pdo->prepare("
+            SELECT es.id FROM exam_sessions es
+            JOIN exams e ON es.exam_id = e.id
+            WHERE es.id = ? AND es.exam_id = ? AND e.school_id = ?
+        ");
+        $chk->execute([$session_id, $exam_id, $school_id]);
+        if (!$chk->fetch()) throw new Exception("Session not found or access denied");
+
+        // Delete session questions first (FK child)
+        $pdo->prepare("DELETE FROM exam_session_questions WHERE session_id = ? AND school_id = ?")
+            ->execute([$session_id, $school_id]);
+
+        // Delete the session itself
+        $pdo->prepare("DELETE FROM exam_sessions WHERE id = ? AND school_id = ?")
+            ->execute([$session_id, $school_id]);
+
+        echo json_encode(['success' => true, 'message' => 'Session reset successfully']);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+// ── AJAX: Reset ALL sessions for an exam ────────────────────────────────────
+if (isset($_GET['reset_all_sessions']) && isset($_GET['exam_id'])) {
+    header('Content-Type: application/json');
+    try {
+        $exam_id = intval($_GET['exam_id']);
+
+        // Verify exam belongs to school
+        $chk = $pdo->prepare("SELECT id FROM exams WHERE id = ? AND school_id = ?");
+        $chk->execute([$exam_id, $school_id]);
+        if (!$chk->fetch()) throw new Exception("Exam not found or access denied");
+
+        // Get all session IDs for this exam
+        $ids_stmt = $pdo->prepare("SELECT id FROM exam_sessions WHERE exam_id = ? AND school_id = ?");
+        $ids_stmt->execute([$exam_id, $school_id]);
+        $session_ids = array_column($ids_stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
+
+        if (!empty($session_ids)) {
+            $placeholders = implode(',', array_fill(0, count($session_ids), '?'));
+            $pdo->prepare("DELETE FROM exam_session_questions WHERE session_id IN ($placeholders) AND school_id = ?")
+                ->execute([...$session_ids, $school_id]);
+        }
+
+        $pdo->prepare("DELETE FROM exam_sessions WHERE exam_id = ? AND school_id = ?")
+            ->execute([$exam_id, $school_id]);
+
+        echo json_encode(['success' => true, 'message' => 'All sessions reset successfully']);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+// Get single exam for editing
 if (isset($_GET['get_exam'])) {
+    header('Content-Type: application/json');
     try {
         $exam_id = intval($_GET['get_exam']);
+        
         $stmt = $pdo->prepare("SELECT * FROM exams WHERE id = ? AND school_id = ?");
         $stmt->execute([$exam_id, $school_id]);
         $exam = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($exam) {
-            $exam['topics'] = json_decode($exam['topics'], true);
-            header('Content-Type: application/json');
+            // Parse topics JSON - ensure it's always an array
+            $topics = json_decode($exam['topics'], true);
+            if (!is_array($topics)) {
+                $topics = [];
+            }
+            $exam['topics'] = $topics;
+            
+            // Ensure all numeric values are integers
+            $exam['objective_count'] = (int)$exam['objective_count'];
+            $exam['subjective_count'] = (int)$exam['subjective_count'];
+            $exam['theory_count'] = (int)$exam['theory_count'];
+            $exam['duration_minutes'] = (int)$exam['duration_minutes'];
+            $exam['is_active'] = (int)$exam['is_active'];
+            
             echo json_encode(['success' => true, 'exam' => $exam]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Exam not found']);
@@ -759,6 +922,10 @@ if (isset($_GET['get_exam'])) {
             background: var(--purple-color);
         }
 
+        .action-icon.details {
+            background: #16a085;
+        }
+
         .action-icon:hover {
             transform: translateY(-2px);
             opacity: 0.9;
@@ -958,9 +1125,9 @@ if (isset($_GET['get_exam'])) {
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <?php
-        // Include sidebar at the end (it will be positioned fixed)
-        require_once 'includes/sidebar.php';
-        ?>
+    // Include sidebar at the end (it will be positioned fixed)
+    require_once 'includes/sidebar.php';
+    ?>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -1107,6 +1274,7 @@ if (isset($_GET['get_exam'])) {
                                 <td>
                                     <div class="action-icons">
                                         <button onclick="editExam(<?php echo $exam['id']; ?>)" class="action-icon edit" title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button onclick="viewExamDetails(<?php echo $exam['id']; ?>, <?php echo htmlspecialchars(json_encode($exam['exam_name'])); ?>)" class="action-icon details" title="Exam Details"><i class="fas fa-users"></i></button>
                                         <a href="?toggle_status=<?php echo $exam['id']; ?>" class="action-icon toggle" title="<?php echo $exam['is_active'] ? 'Deactivate' : 'Activate'; ?>" onclick="return confirm('Toggle exam status?')"><i class="fas fa-toggle-<?php echo $exam['is_active'] ? 'on' : 'off'; ?>"></i></a>
                                         <a href="?clone_exam=<?php echo $exam['id']; ?>" class="action-icon clone" title="Clone Exam" onclick="return confirm('Clone this exam?')"><i class="fas fa-copy"></i></a>
                                         <a href="exam-results.php?exam_id=<?php echo $exam['id']; ?>" class="action-icon view" title="View Results"><i class="fas fa-chart-bar"></i></a>
@@ -1130,6 +1298,7 @@ if (isset($_GET['get_exam'])) {
             </div>
             <form method="POST" id="examForm">
                 <input type="hidden" name="exam_id" id="exam_id">
+                <input type="hidden" name="class_id" id="class_id">
                 <div class="modal-body">
                     <div class="form-grid">
                         <div class="form-group">
@@ -1138,11 +1307,11 @@ if (isset($_GET['get_exam'])) {
                         </div>
                         <div class="form-group">
                             <label>Class *</label>
-                            <select name="class" id="class_name" class="form-select" required>
+                            <select name="class_name" id="class_name" class="form-select" required onchange="updateClassId()">
                                 <option value="">Select Class</option>
                                 <?php if (!empty($classes_list)): ?>
                                     <?php foreach ($classes_list as $class): ?>
-                                        <option value="<?php echo htmlspecialchars($class['class_name']); ?>">
+                                        <option value="<?php echo htmlspecialchars($class['class_name']); ?>" data-id="<?php echo $class['id']; ?>">
                                             <?php echo htmlspecialchars($class['class_name']); ?>
                                             <?php if (!empty($class['class_code'])): ?>
                                                 (<?php echo htmlspecialchars($class['class_code']); ?>)
@@ -1215,7 +1384,7 @@ if (isset($_GET['get_exam'])) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" name="add_exam" id="submitBtn"><i class="fas fa-save"></i> Save Exam</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn"><i class="fas fa-save"></i> Save Exam</button>
                 </div>
             </form>
         </div>
@@ -1241,6 +1410,16 @@ if (isset($_GET['get_exam'])) {
             }
         });
 
+        // Update class_id hidden field when class is selected
+        function updateClassId() {
+            const classSelect = document.getElementById('class_name');
+            if (classSelect && classSelect.selectedIndex >= 0) {
+                const selectedOption = classSelect.options[classSelect.selectedIndex];
+                const classId = selectedOption ? selectedOption.getAttribute('data-id') : '';
+                document.getElementById('class_id').value = classId;
+            }
+        }
+
         // Modal functions
         function openModal() {
             const modal = document.getElementById('examModal');
@@ -1258,6 +1437,8 @@ if (isset($_GET['get_exam'])) {
             if (form) form.reset();
             const examId = document.getElementById('exam_id');
             if (examId) examId.value = '';
+            const classId = document.getElementById('class_id');
+            if (classId) classId.value = '';
             const modalTitle = document.getElementById('modalTitle');
             if (modalTitle) modalTitle.textContent = 'Add New Exam';
             const submitBtn = document.getElementById('submitBtn');
@@ -1296,7 +1477,6 @@ if (isset($_GET['get_exam'])) {
                 obj.disabled = false;
                 sub.disabled = true;
                 thy.disabled = true;
-                if (obj.value == 0) obj.value = 0;
                 sub.value = 0;
                 thy.value = 0;
             } else if (type === 'subjective') {
@@ -1304,7 +1484,6 @@ if (isset($_GET['get_exam'])) {
                 sub.disabled = false;
                 thy.disabled = true;
                 obj.value = 0;
-                if (sub.value == 0) sub.value = 0;
                 thy.value = 0;
             } else if (type === 'theory') {
                 obj.disabled = true;
@@ -1312,7 +1491,6 @@ if (isset($_GET['get_exam'])) {
                 thy.disabled = false;
                 obj.value = 0;
                 sub.value = 0;
-                if (thy.value == 0) thy.value = 0;
             } else {
                 obj.disabled = false;
                 sub.disabled = false;
@@ -1336,25 +1514,101 @@ if (isset($_GET['get_exam'])) {
             });
         }
 
+        // Function to safely set checkboxes based on topics array
+        function setTopicsCheckboxes(topicsArray) {
+            const checkboxes = document.querySelectorAll('input[name="topics[]"]');
+            
+            if (checkboxes.length === 0) {
+                console.warn('No checkboxes found. Topics container might be empty.');
+                return false;
+            }
+            
+            console.log('Setting checkboxes for topics:', topicsArray);
+            console.log('Found checkboxes count:', checkboxes.length);
+            
+            // First uncheck all
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            
+            // Then check the ones that match
+            if (topicsArray && topicsArray.length > 0) {
+                topicsArray.forEach(topicId => {
+                    checkboxes.forEach(cb => {
+                        if (parseInt(cb.value) === parseInt(topicId)) {
+                            cb.checked = true;
+                            console.log('Checked topic:', topicId);
+                        }
+                    });
+                });
+            }
+            
+            return true;
+        }
+
+        // FIXED: editExam function with safer checkbox handling
         async function editExam(examId) {
             try {
                 const btn = event.currentTarget;
-                const original = btn.innerHTML;
+                const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<div class="loading"></div>';
                 btn.disabled = true;
 
+                console.log('Fetching exam ID:', examId);
+                
                 const response = await fetch(`?get_exam=${examId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Response data:', data);
 
-                btn.innerHTML = original;
+                btn.innerHTML = originalHTML;
                 btn.disabled = false;
 
-                if (data.success) {
+                if (data.success && data.exam) {
                     const e = data.exam;
+                    
+                    // Set basic fields
                     document.getElementById('exam_id').value = e.id;
                     document.getElementById('exam_name').value = e.exam_name || '';
-                    document.getElementById('class_name').value = e.class || '';
-                    document.getElementById('subject_id').value = e.subject_id || '';
+                    
+                    // Set class dropdown
+                    if (e.class) {
+                        const classSelect = document.getElementById('class_name');
+                        let classFound = false;
+                        for (let i = 0; i < classSelect.options.length; i++) {
+                            if (classSelect.options[i].value === e.class) {
+                                classSelect.selectedIndex = i;
+                                classFound = true;
+                                break;
+                            }
+                        }
+                        if (!classFound && e.class_id) {
+                            for (let i = 0; i < classSelect.options.length; i++) {
+                                const optId = classSelect.options[i].getAttribute('data-id');
+                                if (optId && parseInt(optId) === parseInt(e.class_id)) {
+                                    classSelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        updateClassId();
+                    }
+                    
+                    // Set subject
+                    if (e.subject_id) {
+                        document.getElementById('subject_id').value = e.subject_id;
+                        if (subjectSelect) {
+                            subjectSelect.dispatchEvent(new Event('change'));
+                        }
+                    } else {
+                        document.getElementById('subject_id').value = '';
+                    }
+                    
+                    // Set exam type and other fields
                     document.getElementById('exam_type').value = e.exam_type || 'objective';
                     document.getElementById('duration_minutes').value = e.duration_minutes || 60;
                     document.getElementById('objective_count').value = e.objective_count || 0;
@@ -1363,28 +1617,56 @@ if (isset($_GET['get_exam'])) {
                     document.getElementById('instructions').value = e.instructions || '';
                     document.getElementById('is_active').checked = e.is_active == 1;
 
+                    // Parse topics
+                    let topicsArray = [];
                     if (e.topics) {
-                        const topics = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
-                        document.querySelectorAll('input[name="topics[]"]').forEach(cb => {
-                            cb.checked = topics.includes(parseInt(cb.value));
-                        });
+                        try {
+                            topicsArray = typeof e.topics === 'string' ? JSON.parse(e.topics) : e.topics;
+                            if (!Array.isArray(topicsArray)) {
+                                topicsArray = [];
+                            }
+                        } catch (parseErr) {
+                            console.error('Error parsing topics:', parseErr);
+                            topicsArray = [];
+                        }
                     }
-
+                    
+                    // Update modal title and button
                     document.getElementById('modalTitle').textContent = 'Edit Exam';
-                    document.getElementById('submitBtn').name = 'update_exam';
-                    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-edit"></i> Update Exam';
+                    const submitBtn = document.getElementById('submitBtn');
+                    submitBtn.name = 'update_exam';
+                    submitBtn.innerHTML = '<i class="fas fa-edit"></i> Update Exam';
+                    
+                    // Update question counts based on exam type
                     updateQuestionCounts();
-
-                    // Trigger subject filter
-                    if (subjectSelect) subjectSelect.dispatchEvent(new Event('change'));
-
+                    
+                    // Open the modal first
                     openModal();
+                    
+                    // Wait for modal to be fully visible and topics to be rendered
+                    // Use multiple attempts to set checkboxes
+                    setTimeout(() => {
+                        const success = setTopicsCheckboxes(topicsArray);
+                        if (!success) {
+                            // If failed, try again after a longer delay
+                            setTimeout(() => {
+                                setTopicsCheckboxes(topicsArray);
+                            }, 500);
+                        }
+                    }, 200);
+                    
                 } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
+                    alert('Error: ' + (data.error || 'Unknown error occurred'));
                 }
-            } catch (e) {
-                console.error('Error loading exam:', e);
-                alert('Error loading exam details');
+            } catch (error) {
+                console.error('Error loading exam:', error);
+                alert('Error loading exam details. Please refresh and try again.\n\nError: ' + error.message);
+                
+                if (event && event.currentTarget) {
+                    const btn = event.currentTarget;
+                    btn.innerHTML = '<i class="fas fa-edit"></i>';
+                    btn.disabled = false;
+                }
             }
         }
 
@@ -1407,6 +1689,8 @@ if (isset($_GET['get_exam'])) {
                     classSelect.focus();
                     return false;
                 }
+                
+                updateClassId();
             });
         }
 
@@ -1421,8 +1705,272 @@ if (isset($_GET['get_exam'])) {
         document.addEventListener('DOMContentLoaded', function() {
             updateQuestionCounts();
             console.log('Page loaded - modal functionality ready');
+            
+            // Debug: Check if topics container has checkboxes
+            const checkboxes = document.querySelectorAll('input[name="topics[]"]');
+            console.log('Total topics checkboxes found:', checkboxes.length);
         });
     </script>
+    <!-- ═══════════════════════════════════════════════
+         EXAM DETAILS MODAL
+    ═══════════════════════════════════════════════ -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-content" style="max-width:900px;">
+            <div class="modal-header">
+                <div>
+                    <h3 id="detailsModalTitle" style="color:var(--primary-color);">Exam Details</h3>
+                    <p id="detailsModalSubtitle" style="font-size:.82rem;color:#666;margin-top:3px;"></p>
+                </div>
+                <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="detailsModalBody">
+                <!-- filled by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDetailsModal()">Close</button>
+                <button class="btn btn-danger" id="resetAllBtn" onclick="resetAllSessions()" style="display:none;">
+                    <i class="fas fa-trash-alt"></i> Reset All Sessions
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Details modal extras */
+        .summary-cards { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+        .summary-card  { flex:1; min-width:110px; background:#f8f9fa; border-radius:10px;
+            padding:14px 18px; text-align:center; border-top:3px solid #ccc; }
+        .summary-card.total     { border-color:var(--info-color); }
+        .summary-card.completed { border-color:var(--success-color); }
+        .summary-card.progress  { border-color:var(--warning-color); }
+        .summary-card .sc-num   { font-size:1.8rem; font-weight:700; line-height:1; }
+        .summary-card .sc-label { font-size:.75rem; color:#666; margin-top:4px; }
+        .summary-card.total     .sc-num { color:var(--info-color); }
+        .summary-card.completed .sc-num { color:var(--success-color); }
+        .summary-card.progress  .sc-num { color:var(--warning-color); }
+
+        .details-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+        .details-table th { background:var(--primary-color); color:white; padding:10px 12px;
+            text-align:left; font-weight:600; white-space:nowrap; }
+        .details-table td { padding:10px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+        .details-table tr:hover td { background:#f9f9f9; }
+        .details-table .status-pill { padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:600; }
+        .status-pill.completed  { background:#d5f4e6; color:#155724; }
+        .status-pill.in_progress { background:#fff3cd; color:#856404; }
+        .grade-pill { display:inline-block; padding:2px 9px; border-radius:12px; font-size:.75rem;
+            font-weight:700; background:#e3f2fd; color:#1565c0; }
+        .reset-btn { background:var(--danger-color); color:white; border:none; padding:5px 10px;
+            border-radius:6px; cursor:pointer; font-size:.78rem; display:inline-flex; align-items:center; gap:5px; }
+        .reset-btn:hover { opacity:.85; }
+        .no-sessions { text-align:center; padding:40px; color:#aaa; }
+        .no-sessions i { font-size:36px; margin-bottom:10px; }
+
+        .details-filters { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+        .details-filters select { padding:7px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:.85rem; font-family:'Poppins',sans-serif; }
+        .details-filters input  { padding:7px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:.85rem; font-family:'Poppins',sans-serif; flex:1; min-width:160px; }
+    </style>
+
+    <script>
+        // ── Exam Details ────────────────────────────────────────────────────
+        let currentExamId   = null;
+        let allSessions     = [];
+
+        async function viewExamDetails(examId, examName) {
+            currentExamId = examId;
+            document.getElementById('detailsModalTitle').textContent   = examName;
+            document.getElementById('detailsModalSubtitle').textContent = 'Loading sessions…';
+            document.getElementById('detailsModalBody').innerHTML =
+                '<div style="text-align:center;padding:40px;"><div class="loading" style="width:32px;height:32px;border-width:3px;border-color:rgba(0,0,0,.1);border-top-color:var(--primary-color);display:inline-block;"></div><p style="margin-top:12px;color:#666;">Fetching session data…</p></div>';
+            document.getElementById('resetAllBtn').style.display = 'none';
+            document.getElementById('detailsModal').classList.add('active');
+
+            try {
+                const res  = await fetch(`?get_exam_details=${examId}`);
+                const data = await res.json();
+
+                if (!data.success) throw new Error(data.error || 'Failed to load details');
+
+                allSessions = data.sessions;
+                renderDetailsModal(data);
+            } catch (err) {
+                document.getElementById('detailsModalBody').innerHTML =
+                    `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> ${escHtml(err.message)}</div>`;
+            }
+        }
+
+        function renderDetailsModal(data) {
+            const { exam, sessions, summary } = data;
+            const body = document.getElementById('detailsModalBody');
+
+            document.getElementById('detailsModalSubtitle').textContent =
+                `Class: ${exam.class || '—'}  ·  Type: ${exam.exam_type}`;
+            if (summary.total > 0)
+                document.getElementById('resetAllBtn').style.display = 'inline-flex';
+
+            body.innerHTML = `
+                <!-- Summary cards -->
+                <div class="summary-cards">
+                    <div class="summary-card total">
+                        <div class="sc-num">${summary.total}</div>
+                        <div class="sc-label">Total</div>
+                    </div>
+                    <div class="summary-card completed">
+                        <div class="sc-num">${summary.completed}</div>
+                        <div class="sc-label">Completed</div>
+                    </div>
+                    <div class="summary-card progress">
+                        <div class="sc-num">${summary.in_progress}</div>
+                        <div class="sc-label">In Progress</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="details-filters">
+                    <input type="text" id="detailsSearch" placeholder="Search student name / admission no…" oninput="filterSessions()">
+                    <select id="detailsStatusFilter" onchange="filterSessions()">
+                        <option value="">All Statuses</option>
+                        <option value="completed">Completed</option>
+                        <option value="in_progress">In Progress</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div style="overflow-x:auto;">
+                    <table class="details-table" id="sessionsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Student</th>
+                                <th>Admission No.</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                                <th>Submitted</th>
+                                <th>Score</th>
+                                <th>%</th>
+                                <th>Grade</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessionsTableBody">
+                            ${buildSessionRows(sessions)}
+                        </tbody>
+                    </table>
+                </div>
+                ${sessions.length === 0 ? `
+                    <div class="no-sessions">
+                        <i class="fas fa-users-slash"></i>
+                        <p>No sessions found for this exam yet.</p>
+                    </div>` : ''}
+            `;
+        }
+
+        function buildSessionRows(sessions) {
+            if (!sessions.length) return '';
+            return sessions.map((s, i) => {
+                const started   = s.start_time   ? fmtDate(s.start_time)   : '—';
+                const submitted = s.submitted_at  ? fmtDate(s.submitted_at) : (s.end_time ? fmtDate(s.end_time) : '—');
+                const score     = s.score != null ? `${s.correct_answers ?? 0}/${s.total_questions ?? 0}` : '—';
+                const pct       = s.percentage   != null ? parseFloat(s.percentage).toFixed(1) + '%' : '—';
+                const grade     = s.grade         ? `<span class="grade-pill">${escHtml(s.grade)}</span>` : '—';
+                const pillCls   = s.status === 'completed' ? 'completed' : 'in_progress';
+                const pillTxt   = s.status === 'completed' ? 'Completed' : 'In Progress';
+                return `
+                    <tr data-name="${escAttr((s.student_name||'').toLowerCase())}"
+                        data-adm="${escAttr((s.admission_number||'').toLowerCase())}"
+                        data-status="${escAttr(s.status)}">
+                        <td>${i + 1}</td>
+                        <td><strong>${escHtml(s.student_name || 'Unknown')}</strong></td>
+                        <td>${escHtml(s.admission_number || '—')}</td>
+                        <td><span class="status-pill ${pillCls}">${pillTxt}</span></td>
+                        <td>${started}</td>
+                        <td>${submitted}</td>
+                        <td>${score}</td>
+                        <td>${pct}</td>
+                        <td>${grade}</td>
+                        <td>
+                            <button class="reset-btn" onclick="resetSession(${s.id}, '${escAttr(s.student_name || 'this student')}')">
+                                <i class="fas fa-undo"></i> Reset
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function filterSessions() {
+            const search = (document.getElementById('detailsSearch')?.value || '').toLowerCase();
+            const status = document.getElementById('detailsStatusFilter')?.value || '';
+            const rows   = document.querySelectorAll('#sessionsTableBody tr');
+            rows.forEach(row => {
+                const nameMatch   = !search || row.dataset.name?.includes(search) || row.dataset.adm?.includes(search);
+                const statusMatch = !status || row.dataset.status === status;
+                row.style.display = nameMatch && statusMatch ? '' : 'none';
+            });
+        }
+
+        async function resetSession(sessionId, studentName) {
+            if (!confirm(`Reset ${studentName}'s session? This will permanently delete their answers and allow them to retake the exam.`)) return;
+
+            try {
+                const res  = await fetch(`?reset_session=${sessionId}&exam_id=${currentExamId}`);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                // Refresh the modal
+                const refreshRes  = await fetch(`?get_exam_details=${currentExamId}`);
+                const refreshData = await refreshRes.json();
+                if (refreshData.success) {
+                    allSessions = refreshData.sessions;
+                    renderDetailsModal(refreshData);
+                }
+            } catch (err) {
+                alert('Reset failed: ' + err.message);
+            }
+        }
+
+        async function resetAllSessions() {
+            const count = allSessions.length;
+            if (!confirm(`Reset ALL ${count} session(s) for this exam? Every student's answers will be permanently deleted and they can retake it. This cannot be undone.`)) return;
+
+            try {
+                const res  = await fetch(`?reset_all_sessions=1&exam_id=${currentExamId}`);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                // Refresh the modal
+                const refreshRes  = await fetch(`?get_exam_details=${currentExamId}`);
+                const refreshData = await refreshRes.json();
+                if (refreshData.success) {
+                    allSessions = refreshData.sessions;
+                    renderDetailsModal(refreshData);
+                }
+            } catch (err) {
+                alert('Reset failed: ' + err.message);
+            }
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.remove('active');
+            currentExamId = null;
+            allSessions   = [];
+        }
+
+        // ── Utilities ───────────────────────────────────────────────────────
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = String(str || '');
+            return d.innerHTML;
+        }
+        function escAttr(str) {
+            return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function fmtDate(dt) {
+            if (!dt) return '—';
+            const d = new Date(dt);
+            if (isNaN(d)) return dt;
+            return d.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        }
+    </script>
+
 </body>
 
 </html>

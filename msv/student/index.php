@@ -37,12 +37,13 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
 
 // Get available exams for this student's class
 
+// AFTER
 $stmt = $pdo->prepare("
     SELECT e.*, s.subject_name 
     FROM exams e
     LEFT JOIN subjects s ON e.subject_id = s.id
     WHERE e.school_id = ? 
-    AND e.class = ? 
+    AND e.class_id = (SELECT class_id FROM students WHERE id = ? AND school_id = ?)
     AND e.is_active = 1
     AND e.id NOT IN (
         SELECT exam_id FROM exam_sessions 
@@ -50,7 +51,7 @@ $stmt = $pdo->prepare("
     )
     ORDER BY e.created_at DESC
 ");
-$stmt->execute([$school_id, $student_class, $student_id]);
+$stmt->execute([$school_id, $student_id, $school_id, $student_id]);
 $available_exams = $stmt->fetchAll();
 
 

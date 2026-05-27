@@ -1247,7 +1247,7 @@ if (isset($_GET['get_exam'])) {
                             <textarea name="instructions" id="instructions" class="form-control" rows="3" placeholder="Enter exam instructions..."></textarea>
                         </div>
                         <div class="form-row">
-                            <label><input type="checkbox" name="is_active" value="1" checked> Active (Students can take this exam)</label>
+                            <label><input type="checkbox" name="is_active" id="is_active" value="1" checked> Active (Students can take this exam)</label>
                         </div>
                     </div>
                 </div>

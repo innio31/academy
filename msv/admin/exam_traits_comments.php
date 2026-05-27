@@ -27,11 +27,6 @@ $school_name     = SCHOOL_NAME;
 $primary_color   = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
 
-// ── Add these for sidebar theme compatibility ────────────────────────────────
-$sb_primary   = SCHOOL_PRIMARY;
-$sb_secondary = SCHOOL_SECONDARY;
-$sb_accent    = defined('SCHOOL_ACCENT') ? SCHOOL_ACCENT : '#ffffff';
-
 // ── Require record_id ─────────────────────────────────────────────────────────
 $record_id = isset($_GET['record_id']) ? (int)$_GET['record_id'] : 0;
 if (!$record_id) {
@@ -528,7 +523,6 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             --radius: 10px;
             --transition: all 0.25s ease;
         }
-
 
         * {
             margin: 0;
@@ -1592,19 +1586,15 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             document.querySelectorAll(`.rating-group[data-field^="${section}"] .rating-btn`).forEach(b => b.className = 'rating-btn');
         }
 
-        // Attendance: compute absent (FIXED)
+        // Attendance: compute absent
         const daysOpened = <?php echo (int)($record['days_school_opened'] ?? 0); ?>;
 
         function calcAbsent(inp) {
-            let present = parseInt(inp.value) || 0;
-            if (present > daysOpened) {
-                present = daysOpened;
-                inp.value = daysOpened;
-            }
+            const present = parseInt(inp.value) || 0;
             const absent = daysOpened - present;
             const hint = document.getElementById('attendHint');
-            hint.innerHTML = `Days absent: <strong>${absent}</strong>`;
-            hint.className = 'attend-hint ok';
+            hint.innerHTML = `Days absent: <strong>${absent < 0 ? '⚠ Exceeds school days!' : absent}</strong>`;
+            hint.className = `attend-hint${absent < 0 ? '' : ' ok'}`;
         }
 
         // Auto-fill principal's suggested comment
@@ -1620,142 +1610,19 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
         }
 
         // Form submit guard
-        const traitsForm = document.getElementById('traitsForm');
-        if (traitsForm) {
-            traitsForm.addEventListener('submit', function(e) {
-                const dp = parseInt(document.getElementById('daysPresent')?.value) || 0;
-                if (dp > daysOpened) {
-                    e.preventDefault();
-                    alert(`Days present (${dp}) cannot exceed days school opened (${daysOpened}).`);
-                    return;
-                }
-                const submitBtn = document.getElementById('saveNextBtn');
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-                }
-            });
-        }
-
-        // ── Mobile Menu Toggle (FIXED) ──────────────────────────────────────────
-        (function() {
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initMobileMenu);
-            } else {
-                initMobileMenu();
+        document.getElementById('traitsForm')?.addEventListener('submit', function(e) {
+            const dp = parseInt(document.getElementById('daysPresent')?.value) || 0;
+            if (dp > daysOpened) {
+                e.preventDefault();
+                alert(`Days present (${dp}) cannot exceed days school opened (${daysOpened}).`);
+                return;
             }
-
-            function initMobileMenu() {
-                const toggleBtn = document.getElementById('mobileMenuToggle');
-                const overlay = document.getElementById('sidebarOverlay');
-
-                let sidebar = document.getElementById('sidebar');
-                if (!sidebar) sidebar = document.querySelector('.sidebar');
-                if (!sidebar) sidebar = document.querySelector('[class*="sidebar"]');
-
-                if (!sidebar) {
-                    console.warn('Sidebar not found');
-                    return;
-                }
-
-                if (window.innerWidth <= 768) {
-                    if (!sidebar.style.position || sidebar.style.position !== 'fixed') {
-                        sidebar.style.position = 'fixed';
-                        sidebar.style.top = '0';
-                        sidebar.style.left = '0';
-                        sidebar.style.width = '260px';
-                        sidebar.style.height = '100%';
-                        sidebar.style.zIndex = '1000';
-                        sidebar.style.transform = 'translateX(-100%)';
-                        sidebar.style.transition = 'transform 0.3s ease';
-                        sidebar.style.overflowY = 'auto';
-                        sidebar.style.backgroundColor = 'white';
-                    }
-                }
-
-                let actualOverlay = overlay;
-                if (!actualOverlay) {
-                    actualOverlay = document.createElement('div');
-                    actualOverlay.id = 'sidebarOverlay';
-                    actualOverlay.className = 'sidebar-overlay';
-                    document.body.appendChild(actualOverlay);
-                }
-
-                function setSidebarVisible(show) {
-                    if (window.innerWidth <= 768) {
-                        if (show) {
-                            sidebar.style.transform = 'translateX(0)';
-                            actualOverlay.classList.add('active');
-                            document.body.style.overflow = 'hidden';
-                        } else {
-                            sidebar.style.transform = 'translateX(-100%)';
-                            actualOverlay.classList.remove('active');
-                            document.body.style.overflow = '';
-                        }
-                    }
-                }
-
-                function toggleSidebar() {
-                    const isVisible = sidebar.style.transform === 'translateX(0)';
-                    setSidebarVisible(!isVisible);
-                }
-
-                if (toggleBtn) {
-                    const newToggleBtn = toggleBtn.cloneNode(true);
-                    toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
-                    newToggleBtn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleSidebar();
-                    });
-                } else {
-                    const newToggleBtn = document.createElement('button');
-                    newToggleBtn.className = 'mobile-menu-toggle';
-                    newToggleBtn.id = 'mobileMenuToggle';
-                    newToggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-                    document.body.insertBefore(newToggleBtn, document.body.firstChild);
-                    newToggleBtn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleSidebar();
-                    });
-                }
-
-                actualOverlay.addEventListener('click', function() {
-                    setSidebarVisible(false);
-                });
-
-                window.addEventListener('resize', function() {
-                    if (window.innerWidth > 768) {
-                        sidebar.style.transform = '';
-                        sidebar.style.position = '';
-                        actualOverlay.classList.remove('active');
-                        document.body.style.overflow = '';
-                    } else if (sidebar.style.transform !== 'translateX(0)') {
-                        sidebar.style.position = 'fixed';
-                        sidebar.style.transform = 'translateX(-100%)';
-                        actualOverlay.classList.remove('active');
-                    }
-                });
-
-                const navLinks = sidebar.querySelectorAll('a, button, .nav-item, .nav-link, .nav-group-toggle');
-                navLinks.forEach(link => {
-                    link.addEventListener('click', function() {
-                        if (window.innerWidth <= 768) {
-                            setTimeout(() => setSidebarVisible(false), 150);
-                        }
-                    });
-                });
-
-                document.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape' && window.innerWidth <= 768) {
-                        setSidebarVisible(false);
-                    }
-                });
-
-                console.log('Mobile menu initialized');
+            const submitBtn = document.getElementById('saveNextBtn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             }
-        })();
+        });
     </script>
 
 </body>

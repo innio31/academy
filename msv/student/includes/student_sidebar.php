@@ -314,5 +314,126 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
         }
     }
 </style>
+<script>
+    (function() {
+        'use strict';
 
+        // Check if sidebar is already initialized
+        if (window.__studentSidebarInitialized) {
+            return;
+        }
+        window.__studentSidebarInitialized = true;
+
+        /* ── Accordion groups ── */
+        function initGroups() {
+            document.querySelectorAll('.nav-group').forEach(function(group) {
+                var toggle = group.querySelector('.nav-group-toggle');
+                var items = group.querySelector('.nav-group-items');
+
+                if (!toggle || !items) return;
+
+                // Store toggle state
+                var isOpen = group.classList.contains('open');
+                if (isOpen) {
+                    items.classList.add('expanded');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var currentlyOpen = group.classList.contains('open');
+
+                    // Close all sibling groups (accordion behaviour)
+                    document.querySelectorAll('.nav-group.open').forEach(function(g) {
+                        if (g !== group) {
+                            g.classList.remove('open');
+                            var gToggle = g.querySelector('.nav-group-toggle');
+                            var gItems = g.querySelector('.nav-group-items');
+                            if (gToggle) gToggle.setAttribute('aria-expanded', 'false');
+                            if (gItems) gItems.classList.remove('expanded');
+                        }
+                    });
+
+                    if (currentlyOpen) {
+                        group.classList.remove('open');
+                        toggle.setAttribute('aria-expanded', 'false');
+                        items.classList.remove('expanded');
+                    } else {
+                        group.classList.add('open');
+                        toggle.setAttribute('aria-expanded', 'true');
+                        items.classList.add('expanded');
+                    }
+                });
+            });
+        }
+
+        /* ── Mobile sidebar logic ── */
+        function initMobileSidebar() {
+            var toggle = document.getElementById('mobileMenuBtn');
+            var sidebar = document.getElementById('studentSidebar');
+            var overlay = document.getElementById('sidebarOverlay');
+            var body = document.body;
+
+            if (!sidebar) return;
+
+            function open() {
+                sidebar.classList.add('active');
+                if (overlay) overlay.classList.add('active');
+                body.style.overflow = 'hidden';
+            }
+
+            function close() {
+                sidebar.classList.remove('active');
+                if (overlay) overlay.classList.remove('active');
+                body.style.overflow = '';
+            }
+
+            if (toggle) {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sidebar.classList.contains('active') ? close() : open();
+                });
+            }
+
+            if (overlay) {
+                overlay.addEventListener('click', close);
+            }
+
+            // Close sidebar when clicking nav links on mobile
+            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 767) setTimeout(close, 150);
+                });
+            });
+
+            // Close on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') close();
+            });
+
+            // Handle resize
+            var resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (window.innerWidth >= 768) close();
+                }, 250);
+            });
+        }
+
+        function init() {
+            initGroups();
+            initMobileSidebar();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+</script>
 <!-- NO JAVASCRIPT HERE - REMOVED COMPLETELY -->

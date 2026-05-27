@@ -613,136 +613,25 @@ $stats = $stmt->fetch();
     </div>
 
  <script>
+    // Page-specific scripts only - sidebar is handled by student_sidebar.php
     (function() {
         'use strict';
-
-        // Handle accordion groups
-        function initAccordion() {
-            document.querySelectorAll('.nav-group').forEach(function(group) {
-                var toggle = group.querySelector('.nav-group-toggle');
-                var items = group.querySelector('.nav-group-items');
-
-                if (!toggle || !items) return;
-
-                // Remove existing listeners
-                var newToggle = toggle.cloneNode(true);
-                toggle.parentNode.replaceChild(newToggle, toggle);
-                
-                newToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    var isOpen = group.classList.contains('open');
-
-                    // Close all other groups
-                    document.querySelectorAll('.nav-group.open').forEach(function(g) {
-                        if (g !== group) {
-                            g.classList.remove('open');
-                            var gToggle = g.querySelector('.nav-group-toggle');
-                            var gItems = g.querySelector('.nav-group-items');
-                            if (gToggle) gToggle.setAttribute('aria-expanded', 'false');
-                            if (gItems) gItems.classList.remove('expanded');
-                        }
-                    });
-
-                    if (isOpen) {
-                        group.classList.remove('open');
-                        newToggle.setAttribute('aria-expanded', 'false');
-                        items.classList.remove('expanded');
-                    } else {
-                        group.classList.add('open');
-                        newToggle.setAttribute('aria-expanded', 'true');
-                        items.classList.add('expanded');
-                    }
-                });
+        
+        // Any index.php specific functionality goes here
+        // For example, if you need any page-specific JavaScript
+        
+        console.log('Student dashboard loaded');
+        
+        // Example: Auto-refresh for in-progress exams timer
+        function updateTimers() {
+            document.querySelectorAll('.exam-meta').forEach(function(el) {
+                // Add any timer update logic if needed
             });
         }
-
-        // Handle mobile sidebar toggle
-        function initMobileToggle() {
-            var toggle = document.getElementById('mobileMenuBtn');
-            var sidebar = document.getElementById('studentSidebar');
-            var overlay = document.getElementById('sidebarOverlay');
-            var body = document.body;
-
-            if (!sidebar) return;
-
-            // Create overlay if it doesn't exist
-            var actualOverlay = overlay;
-            if (!actualOverlay) {
-                actualOverlay = document.createElement('div');
-                actualOverlay.id = 'sidebarOverlay';
-                actualOverlay.className = 'sidebar-overlay';
-                document.body.appendChild(actualOverlay);
-            }
-
-            function openSidebar() {
-                sidebar.classList.add('active');
-                actualOverlay.classList.add('active');
-                body.style.overflow = 'hidden';
-            }
-
-            function closeSidebar() {
-                sidebar.classList.remove('active');
-                actualOverlay.classList.remove('active');
-                body.style.overflow = '';
-            }
-
-            if (toggle) {
-                var newToggle = toggle.cloneNode(true);
-                toggle.parentNode.replaceChild(newToggle, toggle);
-                
-                newToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (sidebar.classList.contains('active')) {
-                        closeSidebar();
-                    } else {
-                        openSidebar();
-                    }
-                });
-            }
-
-            if (actualOverlay) {
-                actualOverlay.addEventListener('click', closeSidebar);
-            }
-
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
-                    closeSidebar();
-                }
-            });
-
-            // Close sidebar when clicking nav links on mobile
-            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(function(link) {
-                link.addEventListener('click', function() {
-                    if (window.innerWidth <= 767) {
-                        setTimeout(closeSidebar, 150);
-                    }
-                });
-            });
-
-            var resizeTimer;
-            window.addEventListener('resize', function() {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(function() {
-                    if (window.innerWidth >= 768) {
-                        closeSidebar();
-                    }
-                }, 250);
-            });
-        }
-
-        // Initialize everything when DOM is ready
-        function init() {
-            initAccordion();
-            initMobileToggle();
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            init();
+        
+        // Update timers every second if there are active exams
+        if (document.querySelectorAll('.exam-item').length > 0) {
+            setInterval(updateTimers, 1000);
         }
     })();
 </script>

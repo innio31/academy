@@ -613,13 +613,142 @@ $stats = $stmt->fetch();
     </div>
 
     <script>
-        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && !document.getElementById('sidebar').contains(e.target) && !document.getElementById('mobileMenuBtn').contains(e.target)) {
-                document.getElementById('sidebar').classList.remove('active');
+    (function() {
+        'use strict';
+
+        /* ── Accordion groups ── */
+        function initGroups() {
+            document.querySelectorAll('.nav-group').forEach(function(group) {
+                var toggle = group.querySelector('.nav-group-toggle');
+                var items = group.querySelector('.nav-group-items');
+
+                if (!toggle || !items) return;
+
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var isOpen = group.classList.contains('open');
+
+                    // Close all sibling groups (accordion behaviour)
+                    document.querySelectorAll('.nav-group.open').forEach(function(g) {
+                        if (g !== group) {
+                            g.classList.remove('open');
+                            var gToggle = g.querySelector('.nav-group-toggle');
+                            var gItems = g.querySelector('.nav-group-items');
+                            if (gToggle) gToggle.setAttribute('aria-expanded', 'false');
+                            if (gItems) gItems.classList.remove('expanded');
+                        }
+                    });
+
+                    if (isOpen) {
+                        group.classList.remove('open');
+                        toggle.setAttribute('aria-expanded', 'false');
+                        items.classList.remove('expanded');
+                    } else {
+                        group.classList.add('open');
+                        toggle.setAttribute('aria-expanded', 'true');
+                        items.classList.add('expanded');
+                    }
+                });
+            });
+        }
+
+        /* ── Mobile sidebar ── */
+        function initMobileSidebar() {
+            var toggle = document.getElementById('mobileMenuBtn');
+            var sidebar = document.getElementById('studentSidebar');
+            var overlay = document.getElementById('sidebarOverlay');
+            var body = document.body;
+
+            if (!sidebar) return;
+
+            // Create overlay if it doesn't exist
+            var actualOverlay = overlay;
+            if (!actualOverlay) {
+                actualOverlay = document.createElement('div');
+                actualOverlay.id = 'sidebarOverlay';
+                actualOverlay.className = 'sidebar-overlay';
+                document.body.appendChild(actualOverlay);
             }
-        });
-    </script>
+
+            function openSidebar() {
+                sidebar.classList.add('active');
+                actualOverlay.classList.add('active');
+                body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('active');
+                actualOverlay.classList.remove('active');
+                body.style.overflow = '';
+            }
+
+            if (toggle) {
+                // Remove any existing listeners to prevent duplicates
+                var newToggle = toggle.cloneNode(true);
+                toggle.parentNode.replaceChild(newToggle, toggle);
+                
+                newToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (sidebar.classList.contains('active')) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
+                });
+            }
+
+            actualOverlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeSidebar();
+            });
+
+            // Close sidebar only when clicking on actual nav LINKS (not dropdown toggles)
+            // and only on mobile, but with a delay to allow navigation to happen
+            document.querySelectorAll('.nav-item.standalone, .nav-group-items a').forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    // Don't close if it's just a dropdown toggle or if we're on desktop
+                    if (window.innerWidth <= 767) {
+                        // Small delay to allow the link to navigate
+                        setTimeout(closeSidebar, 200);
+                    }
+                });
+            });
+
+            // Close on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                    closeSidebar();
+                }
+            });
+
+            // Handle resize
+            var resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (window.innerWidth >= 768) {
+                        closeSidebar();
+                    }
+                }, 250);
+            });
+        }
+
+        function init() {
+            initGroups();
+            initMobileSidebar();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+</script>
 </body>
 
 </html>

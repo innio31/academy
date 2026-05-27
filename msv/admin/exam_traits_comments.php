@@ -79,7 +79,7 @@ try {
     $stmt->execute([$class, $school_id]);
     $class_row = $stmt->fetch(PDO::FETCH_ASSOC);
     $class_id = $class_row ? $class_row['id'] : 0;
-    
+
     if ($class_id > 0) {
         $stmt = $pdo->prepare("
             SELECT id, full_name, admission_number, gender, dob, guardian_name
@@ -1586,15 +1586,19 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
             document.querySelectorAll(`.rating-group[data-field^="${section}"] .rating-btn`).forEach(b => b.className = 'rating-btn');
         }
 
-        // Attendance: compute absent
+        // Attendance: compute absent (FIXED)
         const daysOpened = <?php echo (int)($record['days_school_opened'] ?? 0); ?>;
 
         function calcAbsent(inp) {
-            const present = parseInt(inp.value) || 0;
+            let present = parseInt(inp.value) || 0;
+            if (present > daysOpened) {
+                present = daysOpened;
+                inp.value = daysOpened;
+            }
             const absent = daysOpened - present;
             const hint = document.getElementById('attendHint');
-            hint.innerHTML = `Days absent: <strong>${absent < 0 ? '⚠ Exceeds school days!' : absent}</strong>`;
-            hint.className = `attend-hint${absent < 0 ? '' : ' ok'}`;
+            hint.innerHTML = `Days absent: <strong>${absent}</strong>`;
+            hint.className = 'attend-hint ok';
         }
 
         // Auto-fill principal's suggested comment
@@ -1610,53 +1614,141 @@ $progress_pct = $total_students > 0 ? round(($completed_count / $total_students)
         }
 
         // Form submit guard
-        document.getElementById('traitsForm')?.addEventListener('submit', function(e) {
-            const dp = parseInt(document.getElementById('daysPresent')?.value) || 0;
-            if (dp > daysOpened) {
-                e.preventDefault();
-                alert(`Days present (${dp}) cannot exceed days school opened (${daysOpened}).`);
-                return;
-            }
-            const submitBtn = document.getElementById('saveNextBtn');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-            }
-        });
-
-        // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
-        (function() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            const toggleBtn = document.getElementById('mobileMenuToggle');
-
-            if (toggleBtn && sidebar) {
-                toggleBtn.addEventListener('click', function(e) {
+        const traitsForm = document.getElementById('traitsForm');
+        if (traitsForm) {
+            traitsForm.addEventListener('submit', function(e) {
+                const dp = parseInt(document.getElementById('daysPresent')?.value) || 0;
+                if (dp > daysOpened) {
                     e.preventDefault();
-                    sidebar.classList.toggle('active');
-                    if (overlay) overlay.classList.toggle('active');
-                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-                });
+                    alert(`Days present (${dp}) cannot exceed days school opened (${daysOpened}).`);
+                    return;
+                }
+                const submitBtn = document.getElementById('saveNextBtn');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                }
+            });
+        }
+
+        // ── Mobile Menu Toggle (FIXED) ──────────────────────────────────────────
+        (function() {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initMobileMenu);
+            } else {
+                initMobileMenu();
             }
 
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    sidebar.classList.remove('active');
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                });
-            }
+            function initMobileMenu() {
+                const toggleBtn = document.getElementById('mobileMenuToggle');
+                const overlay = document.getElementById('sidebarOverlay');
 
-            // Close sidebar when clicking nav links on mobile
-            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(link => {
-                link.addEventListener('click', function() {
-                    if (window.innerWidth <= 768 && sidebar) {
-                        sidebar.classList.remove('active');
-                        if (overlay) overlay.classList.remove('active');
+                let sidebar = document.getElementById('sidebar');
+                if (!sidebar) sidebar = document.querySelector('.sidebar');
+                if (!sidebar) sidebar = document.querySelector('[class*="sidebar"]');
+
+                if (!sidebar) {
+                    console.warn('Sidebar not found');
+                    return;
+                }
+
+                if (window.innerWidth <= 768) {
+                    if (!sidebar.style.position || sidebar.style.position !== 'fixed') {
+                        sidebar.style.position = 'fixed';
+                        sidebar.style.top = '0';
+                        sidebar.style.left = '0';
+                        sidebar.style.width = '260px';
+                        sidebar.style.height = '100%';
+                        sidebar.style.zIndex = '1000';
+                        sidebar.style.transform = 'translateX(-100%)';
+                        sidebar.style.transition = 'transform 0.3s ease';
+                        sidebar.style.overflowY = 'auto';
+                        sidebar.style.backgroundColor = 'white';
+                    }
+                }
+
+                let actualOverlay = overlay;
+                if (!actualOverlay) {
+                    actualOverlay = document.createElement('div');
+                    actualOverlay.id = 'sidebarOverlay';
+                    actualOverlay.className = 'sidebar-overlay';
+                    document.body.appendChild(actualOverlay);
+                }
+
+                function setSidebarVisible(show) {
+                    if (window.innerWidth <= 768) {
+                        if (show) {
+                            sidebar.style.transform = 'translateX(0)';
+                            actualOverlay.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        } else {
+                            sidebar.style.transform = 'translateX(-100%)';
+                            actualOverlay.classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                    }
+                }
+
+                function toggleSidebar() {
+                    const isVisible = sidebar.style.transform === 'translateX(0)';
+                    setSidebarVisible(!isVisible);
+                }
+
+                if (toggleBtn) {
+                    const newToggleBtn = toggleBtn.cloneNode(true);
+                    toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+                    newToggleBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSidebar();
+                    });
+                } else {
+                    const newToggleBtn = document.createElement('button');
+                    newToggleBtn.className = 'mobile-menu-toggle';
+                    newToggleBtn.id = 'mobileMenuToggle';
+                    newToggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                    document.body.insertBefore(newToggleBtn, document.body.firstChild);
+                    newToggleBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSidebar();
+                    });
+                }
+
+                actualOverlay.addEventListener('click', function() {
+                    setSidebarVisible(false);
+                });
+
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth > 768) {
+                        sidebar.style.transform = '';
+                        sidebar.style.position = '';
+                        actualOverlay.classList.remove('active');
                         document.body.style.overflow = '';
+                    } else if (sidebar.style.transform !== 'translateX(0)') {
+                        sidebar.style.position = 'fixed';
+                        sidebar.style.transform = 'translateX(-100%)';
+                        actualOverlay.classList.remove('active');
                     }
                 });
-            });
+
+                const navLinks = sidebar.querySelectorAll('a, button, .nav-item, .nav-link, .nav-group-toggle');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth <= 768) {
+                            setTimeout(() => setSidebarVisible(false), 150);
+                        }
+                    });
+                });
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && window.innerWidth <= 768) {
+                        setSidebarVisible(false);
+                    }
+                });
+
+                console.log('Mobile menu initialized');
+            }
         })();
     </script>
 

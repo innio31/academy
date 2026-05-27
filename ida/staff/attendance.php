@@ -14,6 +14,7 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+$staff_role = $_SESSION['staff_role'] ?? 'staff';
 
 // Get staff permissions and assigned classes from admin settings
 $staff_permission = null;
@@ -108,7 +109,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $active_sessions = $stmt->fetchAll();
 
-// Process API requests (AJAX)
+// Process API requests (AJAX) - API endpoint
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
     header('Content-Type: application/json');
 
@@ -155,9 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit();
             }
 
-            // Check if already checked in/out for this session/time window
+            // Check if already checked in/out for today
             $today = date('Y-m-d');
-            $check_window = $scan_type === 'check_in' ? '08:00:00' : '14:00:00';
 
             $stmt = $pdo->prepare("
                 SELECT * FROM attendance_logs 
@@ -260,7 +260,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         case 'get_recent_scans':
             $today = date('Y-m-d');
 
-            // Build query with class filter if needed
             $query = "
                 SELECT al.*, s.full_name, s.admission_number, c.class_name
                 FROM attendance_logs al
@@ -283,7 +282,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $date = $input['date'] ?? $_GET['date'] ?? date('Y-m-d');
             $class_id = $input['class_id'] ?? $_GET['class_id'] ?? null;
 
-            // Get attendance for the date
             $query = "
                 SELECT s.id, s.full_name, s.admission_number, c.class_name,
                        al.scan_type, al.status, al.scan_time, al.latitude, al.longitude
@@ -367,6 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
         :root {
             --primary-color: <?php echo $primary_color; ?>;
+            --primary-dark: #1a5a8a;
             --secondary-color: #d4af7a;
             --success-color: #10b981;
             --danger-color: #ef4444;
@@ -386,6 +385,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
         }
 
         body {
@@ -395,104 +397,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             min-height: 100vh;
         }
 
-        /* Sidebar Styles */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(135deg, var(--primary-color), var(--gray-800));
-            color: white;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: transform 0.3s ease;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.open {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            padding: 24px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .sidebar-header h3 {
-            font-size: 18px;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-header p {
-            font-size: 12px;
-            opacity: 0.7;
-        }
-
-        .staff-info {
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            margin: 16px;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .staff-info h4 {
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-
-        .staff-info p {
-            font-size: 11px;
-            opacity: 0.7;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 12px;
-        }
-
-        .nav-links li {
-            margin-bottom: 4px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-            border-radius: 10px;
-            transition: all 0.2s ease;
-            font-size: 14px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.15);
-            color: white;
-        }
-
-        .nav-links a i {
-            width: 20px;
-            text-align: center;
-        }
-
         /* Main Content */
         .main-content {
             margin-left: 0;
+            padding: 0;
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.28s ease;
         }
 
         /* Top Bar */
         .top-bar {
             background: white;
-            padding: 12px 20px;
+            padding: 16px 24px;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 20px;
             box-shadow: var(--shadow-sm);
             position: sticky;
             top: 0;
@@ -502,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         .menu-toggle {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 22px;
             cursor: pointer;
             color: var(--gray-700);
             width: 40px;
@@ -522,14 +441,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         .page-title h1 {
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--gray-800);
             margin-bottom: 2px;
         }
 
+        .page-title h1 i {
+            color: var(--primary-color);
+            margin-right: 10px;
+        }
+
         .page-title p {
-            font-size: 12px;
+            font-size: 0.75rem;
             color: var(--gray-500);
+        }
+
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
         }
 
         /* Container */
@@ -542,7 +481,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         /* Cards */
         .card {
             background: white;
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: var(--shadow-sm);
@@ -550,7 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         .card-title {
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: 600;
             margin-bottom: 16px;
             display: flex;
@@ -558,6 +497,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             align-items: center;
             flex-wrap: wrap;
             gap: 12px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .card-title i {
+            color: var(--primary-color);
+            margin-right: 8px;
         }
 
         /* Stats Grid */
@@ -570,7 +516,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
         .stat-card {
             background: white;
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 20px;
             text-align: center;
             box-shadow: var(--shadow-sm);
@@ -580,27 +526,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         .stat-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-3px);
             box-shadow: var(--shadow-md);
         }
 
         .stat-number {
-            font-size: 32px;
+            font-size: 2rem;
             font-weight: 800;
             color: var(--primary-color);
             line-height: 1;
         }
 
         .stat-label {
-            font-size: 13px;
+            font-size: 0.75rem;
             color: var(--gray-500);
             margin-top: 8px;
+            font-weight: 500;
         }
 
         /* Scanner */
         .scanner-container {
             background: var(--gray-900);
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             overflow: hidden;
             position: relative;
             min-height: 400px;
@@ -640,14 +587,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         /* Buttons */
         .btn {
             padding: 10px 20px;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             border: none;
             font-weight: 500;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            font-size: 14px;
+            font-size: 0.8rem;
             font-family: inherit;
             transition: all 0.2s ease;
         }
@@ -658,8 +605,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         .btn-primary:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
+            background: var(--primary-dark);
+            transform: translateY(-2px);
         }
 
         .btn-success {
@@ -677,8 +624,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             color: var(--gray-700);
         }
 
-        .btn-block {
-            width: 100%;
+        .btn-secondary:hover {
+            background: var(--gray-300);
         }
 
         .camera-btn {
@@ -686,9 +633,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             color: white;
             padding: 14px 28px;
             border: none;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             font-weight: 600;
-            font-size: 16px;
+            font-size: 1rem;
             cursor: pointer;
             font-family: inherit;
         }
@@ -698,9 +645,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             color: white;
             padding: 10px 20px;
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             font-weight: 600;
-            font-size: 14px;
+            font-size: 0.8rem;
             cursor: pointer;
             margin-top: 12px;
             font-family: inherit;
@@ -718,7 +665,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             padding: 12px;
             border: 2px solid var(--gray-200);
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -731,6 +678,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             color: white;
         }
 
+        .scan-type-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         /* Tables */
         .table-container {
             overflow-x: auto;
@@ -739,7 +691,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 0.8rem;
         }
 
         .data-table th,
@@ -753,6 +705,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             font-weight: 600;
             color: var(--gray-600);
             background: var(--gray-50);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tr:hover td {
+            background: var(--gray-50);
+        }
+
+        .data-table td strong {
+            font-size: 0.85rem;
+            font-weight: 600;
         }
 
         /* Status Badges */
@@ -760,7 +724,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             display: inline-block;
             padding: 4px 12px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 0.7rem;
             font-weight: 600;
         }
 
@@ -790,7 +754,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             background: var(--gray-900);
             color: white;
             padding: 16px;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             text-align: center;
             animation: slideUp 0.3s ease;
             z-index: 1100;
@@ -829,7 +793,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
         .modal-content {
             background: white;
-            border-radius: 20px;
+            border-radius: var(--radius-lg);
             width: 90%;
             max-width: 500px;
             max-height: 85vh;
@@ -837,7 +801,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         .modal-header {
-            padding: 20px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
@@ -845,6 +809,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             position: sticky;
             top: 0;
             background: white;
+        }
+
+        .modal-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
         }
 
         .modal-body {
@@ -884,16 +853,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 0.8rem;
         }
 
         .form-control {
             width: 100%;
             padding: 12px;
             border: 2px solid var(--gray-200);
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             font-family: inherit;
-            font-size: 14px;
+            font-size: 0.85rem;
             transition: all 0.2s ease;
         }
 
@@ -905,8 +874,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         /* Alert */
         .alert {
             padding: 12px 16px;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .alert-success {
@@ -938,6 +910,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             margin-bottom: 20px;
         }
 
+        .permission-denied h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
         .live-indicator {
             display: inline-block;
             width: 8px;
@@ -961,17 +938,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         /* Responsive */
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-
+        @media (min-width: 768px) {
             .main-content {
                 margin-left: var(--sidebar-width);
-            }
-
-            .menu-toggle {
-                display: none;
             }
 
             .scan-feedback {
@@ -980,12 +949,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
         }
 
-        @media (max-width: 768px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
-
+        @media (max-width: 767px) {
             .container {
                 padding: 16px;
             }
@@ -993,44 +957,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             .card {
                 padding: 16px;
             }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+
+            .top-bar {
+                padding: 12px 16px;
+            }
+
+            .page-title h1 {
+                font-size: 1.1rem;
+            }
         }
     </style>
 </head>
 
 <body>
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h3><?php echo htmlspecialchars($school_name); ?></h3>
-            <p>Staff Portal</p>
-        </div>
+    <!-- Mobile Menu Button -->
+    <button class="menu-toggle" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-        <div class="staff-info">
-            <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-            <p>Staff ID: <?php echo htmlspecialchars($staff_id_string ?? $staff_id); ?></p>
-        </div>
-
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="attendance.php" class="active"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Include Staff Sidebar -->
+    <?php include_once 'includes/staff_sidebar.php'; ?>
 
     <!-- Main Content -->
     <div class="main-content">
         <!-- Top Bar -->
         <div class="top-bar">
-            <button class="menu-toggle" id="menuToggle">
-                <i class="fas fa-bars"></i>
-            </button>
             <div class="page-title">
-                <h1>Attendance Management</h1>
-                <p>Scan QR codes to mark student attendance</p>
+                <h1><i class="fas fa-calendar-check"></i> Attendance Management</h1>
+                <p><i class="fas fa-chevron-right"></i> Scan QR codes to mark student attendance</p>
+            </div>
+            <div>
+                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
             </div>
         </div>
 
@@ -1080,7 +1042,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                             </button>
                         </div>
                     </div>
-                    <div id="scanStatus" style="margin-top: 12px; text-align: center; font-size: 13px; color: var(--gray-500);">
+                    <div id="scanStatus" style="margin-top: 12px; text-align: center; font-size: 12px; color: var(--gray-500);">
                         <span class="live-indicator"></span> Click "Start Camera" to begin scanning
                     </div>
                 </div>
@@ -1089,7 +1051,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 <div class="card">
                     <div class="card-title">
                         <span><i class="fas fa-chart-line"></i> Today's Summary</span>
-                        <span id="currentDate" style="font-size: 13px; color: var(--gray-500);"></span>
                     </div>
                     <div class="stats-grid">
                         <div class="stat-card" onclick="showAttendanceList('present')">
@@ -1115,7 +1076,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 <div class="card">
                     <div class="card-title">
                         <span><i class="fas fa-clock"></i> Recent Scans</span>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="loadRecentScans()">
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem;" onclick="loadRecentScans()">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -1157,7 +1118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 <div class="card">
                     <div class="card-title">
                         <span><i class="fas fa-calendar-day"></i> Today's Attendance</span>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="loadDailyStats()">
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem;" onclick="loadDailyStats()">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -1202,29 +1163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         let isScannerActive = false;
         let canTakeAttendance = <?php echo $can_take_attendance ? 'true' : 'false'; ?>;
 
-        // Initialize
-        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-
-        // Sidebar toggle
-        document.getElementById('menuToggle').onclick = function() {
-            document.getElementById('sidebar').classList.toggle('open');
+        // Sidebar toggle - handled in staff_sidebar.php
+        document.getElementById('mobileMenuBtn').onclick = () => {
+            document.getElementById('staffSidebar').classList.toggle('active');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
         };
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const menuToggle = document.getElementById('menuToggle');
-            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
-                if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
-                    sidebar.classList.remove('open');
-                }
-            }
-        });
 
         function setScanType(type) {
             if (!canTakeAttendance) {
@@ -1338,11 +1281,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 scan_type: currentScanType
             };
 
-            fetch('attendance_api.php', {
+            fetch('attendance.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: JSON.stringify(requestData)
                 })
@@ -1383,7 +1327,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         function loadTodayStats() {
-            fetch('attendance_api.php?action=get_today_stats')
+            fetch('attendance.php?action=get_today_stats', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1399,7 +1347,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         function loadRecentScans() {
-            fetch('attendance_api.php?action=get_recent_scans')
+            fetch('attendance.php?action=get_recent_scans', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.scans) {
@@ -1432,7 +1384,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             const classId = document.getElementById('classFilter').value;
             const today = new Date().toISOString().split('T')[0];
 
-            fetch(`attendance_api.php?action=get_daily_stats&date=${today}&class_id=${classId}`)
+            fetch(`attendance.php?action=get_daily_stats&date=${today}&class_id=${classId}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1470,7 +1426,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             const classId = document.getElementById('classFilter').value;
             const today = new Date().toISOString().split('T')[0];
 
-            fetch(`attendance_api.php?action=get_daily_stats&date=${today}&class_id=${classId}`)
+            fetch(`attendance.php?action=get_daily_stats&date=${today}&class_id=${classId}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1548,6 +1508,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 closeAttendanceListModal();
             }
         };
+
+        // Close sidebar overlay
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay) {
+            overlay.onclick = () => {
+                document.getElementById('staffSidebar').classList.remove('active');
+                overlay.classList.remove('active');
+            };
+        }
 
         // Initial load
         loadTodayStats();

@@ -1,5 +1,5 @@
 <?php
-// tbis/staff/attendance_api.php - Attendance API for AJAX requests
+// eagles/staff/attendance_api.php - Attendance API for AJAX requests
 session_start();
 
 require_once '../includes/config.php';

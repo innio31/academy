@@ -1,9 +1,9 @@
 <?php
-// tbis/staff/view-results.php - Staff View Results
+// eagles/staff/view-results.php - Staff View Results
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -14,6 +14,8 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+$staff_role = $_SESSION['staff_role'] ?? 'staff';
+$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
 $classes = [];
@@ -21,18 +23,21 @@ $exams = [];
 $results = [];
 $selected_class = '';
 $selected_exam = '';
+$error = null;
 
 try {
     // Get the staff_id string from the staff table
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
-    $staff_id_string = $stmt->fetchColumn();
+    $staff_id_string_db = $stmt->fetchColumn();
 
-    if (!$staff_id_string) {
+    if (!$staff_id_string_db) {
         $error = "Staff record not found. Please contact administrator.";
     } else {
+        $staff_id_string = $staff_id_string_db;
+
         // Get assigned classes using the string staff_id
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? ORDER BY class");
         $stmt->execute([$staff_id_string, $school_id]);
         $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
@@ -50,7 +55,9 @@ if (!empty($classes)) {
     try {
         $placeholders = str_repeat('?,', count($classes) - 1) . '?';
         $stmt = $pdo->prepare("
-            SELECT id, exam_name, class FROM exams 
+            SELECT id, exam_name, class, exam_type, subject_id,
+                   (SELECT subject_name FROM subjects WHERE id = exams.subject_id) as subject_name
+            FROM exams 
             WHERE school_id = ? AND class IN ($placeholders)
             ORDER BY created_at DESC
         ");
@@ -66,7 +73,7 @@ if (!empty($classes)) {
 if ($selected_class && !empty($selected_exam)) {
     try {
         $stmt = $pdo->prepare("
-            SELECT r.*, s.full_name, s.admission_number
+            SELECT r.*, s.full_name, s.admission_number, s.id as student_id
             FROM results r
             JOIN students s ON r.student_id = s.id
             WHERE r.school_id = ? AND r.exam_id = ? AND s.class = ?
@@ -77,6 +84,38 @@ if ($selected_class && !empty($selected_exam)) {
     } catch (Exception $e) {
         error_log("Results fetch error: " . $e->getMessage());
         $results = [];
+    }
+}
+
+// Calculate statistics
+$stats = [];
+if (!empty($results)) {
+    $scores = array_column($results, 'percentage');
+    $stats['total_students'] = count($results);
+    $stats['average'] = round(array_sum($scores) / count($scores), 1);
+    $stats['highest'] = round(max($scores), 1);
+    $stats['lowest'] = round(min($scores), 1);
+
+    // Grade distribution
+    $stats['grades'] = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'F' => 0];
+    foreach ($results as $result) {
+        $grade = $result['grade'] ?? 'F';
+        if (isset($stats['grades'][$grade])) {
+            $stats['grades'][$grade]++;
+        } else {
+            $stats['grades']['F']++;
+        }
+    }
+}
+
+// Get exam details for display
+$exam_details = null;
+if ($selected_exam) {
+    foreach ($exams as $exam) {
+        if ($exam['id'] == $selected_exam) {
+            $exam_details = $exam;
+            break;
+        }
     }
 }
 ?>
@@ -93,7 +132,25 @@ if ($selected_class && !empty($selected_exam)) {
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --sidebar-width: 260px;
+            --primary-dark: #1a5a8a;
+            --secondary-color: #d4af7a;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-400: #9ca3af;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         * {
@@ -104,125 +161,94 @@ if ($selected_class && !empty($selected_exam)) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
-            color: white;
-            padding: 20px 0;
-            z-index: 100;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: #d4af7a;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .staff-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
+            min-height: 100vh;
+            transition: margin-left 0.28s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 20px 25px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
             color: var(--primary-color);
             font-size: 1.6rem;
+            margin-bottom: 5px;
+            font-weight: 700;
         }
 
+        .header-title h1 i {
+            margin-right: 10px;
+        }
+
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .header-title p i {
+            color: var(--primary-color);
+            font-size: 0.7rem;
+            margin: 0 4px;
+        }
+
+        /* Cards */
         .card {
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-lg);
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
         }
 
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .card-header h3 {
+            color: var(--gray-800);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-header h3 i {
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+
+        /* Filter Bar */
         .filter-bar {
             background: white;
             padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-bar form {
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
@@ -235,108 +261,233 @@ if ($selected_class && !empty($selected_exam)) {
         }
 
         .form-group label {
-            font-size: 12px;
-            margin-bottom: 5px;
-            font-weight: 500;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            margin-bottom: 6px;
         }
 
         .form-control,
         .form-select {
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            font-family: inherit;
+            min-width: 220px;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: var(--gray-50);
+            padding: 15px;
+            border-radius: var(--radius-md);
+            text-align: center;
+            border: 1px solid var(--gray-200);
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+            margin-top: 5px;
+        }
+
+        /* Grade Distribution */
+        .grade-distribution {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .grade-item {
+            text-align: center;
+            min-width: 60px;
             padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            width: 200px;
+            border-radius: var(--radius-md);
         }
 
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+        .grade-letter {
+            font-size: 1.3rem;
+            font-weight: 700;
         }
 
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
+        .grade-count {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+        }
+
+        .grade-A {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .grade-B {
+            background: #d1f2eb;
+            color: #2ecc71;
+        }
+
+        .grade-C {
+            background: #fef5e7;
+            color: #f39c12;
+        }
+
+        .grade-D {
+            background: #fdebd0;
+            color: #e67e22;
+        }
+
+        .grade-F {
+            background: #f8d7da;
+            color: #e74c3c;
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
+            min-width: 600px;
         }
 
         .data-table th {
-            background: #f5f5f5;
+            text-align: left;
+            padding: 14px 16px;
+            background: var(--gray-50);
             font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table tr:hover td {
+            background: var(--gray-50);
+        }
+
+        /* Make student name bigger */
+        .data-table td strong {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        /* Grade styling in table */
+        .grade-cell {
+            font-weight: 700;
         }
 
         .grade-A {
             color: #27ae60;
-            font-weight: bold;
         }
 
         .grade-B {
             color: #2ecc71;
-            font-weight: bold;
         }
 
         .grade-C {
             color: #f39c12;
-            font-weight: bold;
         }
 
         .grade-D {
             color: #e67e22;
-            font-weight: bold;
         }
 
         .grade-F {
             color: #e74c3c;
-            font-weight: bold;
         }
 
+        /* Error Message */
         .error-message {
             background: #f8d7da;
             color: #721c24;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--danger-color);
         }
 
+        /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 30px;
-            color: #999;
+            padding: 50px 20px;
+            color: var(--gray-600);
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: var(--gray-400);
+        }
 
+        .empty-state p {
+            margin-top: 8px;
+        }
+
+        /* Info Item */
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
             .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
+                margin-left: 280px;
             }
         }
 
-        @media (max-width: 768px) {
-            .filter-bar {
+        @media (max-width: 767px) {
+            .main-content {
+                padding-top: 70px;
+            }
+
+            .filter-bar form {
                 flex-direction: column;
+                width: 100%;
             }
 
             .form-control,
@@ -344,48 +495,41 @@ if ($selected_class && !empty($selected_exam)) {
                 width: 100%;
             }
 
-            .data-table {
-                font-size: 12px;
+            .form-group {
+                width: 100%;
             }
 
             .top-header {
                 flex-direction: column;
                 text-align: center;
             }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Staff Portal</p>
-            </div>
-        </div>
-        <div class="staff-info">
-            <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php" class="active"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Include Staff Sidebar -->
+    <?php include_once 'includes/staff_sidebar.php'; ?>
 
+    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-chart-bar"></i> View Results</h1>
+                <p><i class="fas fa-chevron-right"></i> Review and analyze student examination performance</p>
             </div>
-            <button class="btn" onclick="window.location.href='/tbis/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <div>
+                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
+            </div>
         </div>
 
         <?php if (isset($error)): ?>
@@ -403,12 +547,13 @@ if ($selected_class && !empty($selected_exam)) {
                 </div>
             </div>
         <?php else: ?>
+            <!-- Filter Bar -->
             <div class="filter-bar">
-                <form method="GET" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                <form method="GET">
                     <div class="form-group">
-                        <label>Class</label>
+                        <label><i class="fas fa-layer-group"></i> Select Class</label>
                         <select name="class" class="form-select" onchange="this.form.submit()">
-                            <option value="">Select Class</option>
+                            <option value="">-- Select Class --</option>
                             <?php foreach ($classes as $class): ?>
                                 <option value="<?php echo htmlspecialchars($class); ?>" <?php echo $selected_class == $class ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($class); ?>
@@ -417,13 +562,14 @@ if ($selected_class && !empty($selected_exam)) {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Exam</label>
+                        <label><i class="fas fa-file-alt"></i> Select Exam</label>
                         <select name="exam" class="form-select" onchange="this.form.submit()">
-                            <option value="">Select Exam</option>
+                            <option value="">-- Select Exam --</option>
                             <?php foreach ($exams as $exam): ?>
                                 <?php if ($exam['class'] == $selected_class): ?>
                                     <option value="<?php echo $exam['id']; ?>" <?php echo $selected_exam == $exam['id'] ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($exam['exam_name']); ?>
+                                        (<?php echo htmlspecialchars($exam['subject_name'] ?? 'General'); ?>)
                                     </option>
                                 <?php endif; ?>
                             <?php endforeach; ?>
@@ -432,16 +578,63 @@ if ($selected_class && !empty($selected_exam)) {
                 </form>
             </div>
 
+            <!-- Results Display -->
             <?php if ($selected_class && $selected_exam && !empty($results)): ?>
+                <!-- Statistics Overview -->
                 <div class="card">
                     <div class="card-header">
-                        <h3><i class="fas fa-chart-line"></i> Results Summary</h3>
+                        <h3><i class="fas fa-chart-line"></i> Performance Overview</h3>
+                        <?php if ($exam_details): ?>
+                            <span class="info-item">
+                                <i class="fas fa-book"></i> <?php echo htmlspecialchars($exam_details['subject_name'] ?? 'N/A'); ?>
+                            </span>
+                        <?php endif; ?>
                     </div>
-                    <div style="overflow-x: auto;">
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-value"><?php echo $stats['total_students']; ?></div>
+                            <div class="stat-label">Total Students</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value"><?php echo $stats['average']; ?>%</div>
+                            <div class="stat-label">Average Score</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value"><?php echo $stats['highest']; ?>%</div>
+                            <div class="stat-label">Highest Score</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value"><?php echo $stats['lowest']; ?>%</div>
+                            <div class="stat-label">Lowest Score</div>
+                        </div>
+                    </div>
+
+                    <!-- Grade Distribution -->
+                    <div style="margin-top: 15px;">
+                        <div class="grade-distribution">
+                            <?php foreach ($stats['grades'] as $grade => $count): ?>
+                                <div class="grade-item grade-<?php echo $grade; ?>">
+                                    <div class="grade-letter"><?php echo $grade; ?></div>
+                                    <div class="grade-count"><?php echo $count; ?> students</div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list"></i> Student Results</h3>
+                        <button onclick="window.print()" class="btn" style="background: var(--gray-200); color: var(--gray-800);">
+                            <i class="fas fa-print"></i> Print Results
+                        </button>
+                    </div>
+                    <div class="table-container">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>S/N</th>
+                                    <th>#</th>
                                     <th>Admission No</th>
                                     <th>Student Name</th>
                                     <th>Score</th>
@@ -452,15 +645,17 @@ if ($selected_class && !empty($selected_exam)) {
                             <tbody>
                                 <?php $sn = 1;
                                 foreach ($results as $result):
-                                    $grade_class = 'grade-' . ($result['grade'] ?? 'F');
+                                    $percentage = $result['percentage'] ?? 0;
+                                    $grade = $result['grade'] ?? 'F';
+                                    $grade_class = 'grade-' . $grade;
                                 ?>
                                     <tr>
                                         <td><?php echo $sn++; ?></td>
-                                        <td><?php echo htmlspecialchars($result['admission_number']); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($result['student_name']); ?></strong></td>
+                                        <td><code><?php echo htmlspecialchars($result['admission_number']); ?></code></td>
+                                        <td><strong><?php echo htmlspecialchars($result['full_name']); ?></strong></td>
                                         <td><?php echo $result['total_score']; ?> / <?php echo $result['total_questions']; ?></td>
-                                        <td><?php echo number_format($result['percentage'] ?? 0, 1); ?>%</td>
-                                        <td class="<?php echo $grade_class; ?>"><?php echo $result['grade'] ?? 'N/A'; ?></td>
+                                        <td><?php echo number_format($percentage, 1); ?>%</td>
+                                        <td class="grade-cell <?php echo $grade_class; ?>"><?php echo $grade; ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -472,20 +667,21 @@ if ($selected_class && !empty($selected_exam)) {
                     <div class="empty-state">
                         <i class="fas fa-folder-open"></i>
                         <p>No results found for this exam.</p>
+                        <p>Results may not have been published yet.</p>
                     </div>
                 </div>
             <?php elseif ($selected_class): ?>
                 <div class="card">
                     <div class="empty-state">
                         <i class="fas fa-info-circle"></i>
-                        <p>Select an exam to view results.</p>
+                        <p>Select an exam from the dropdown above to view results.</p>
                     </div>
                 </div>
             <?php else: ?>
                 <div class="card">
                     <div class="empty-state">
                         <i class="fas fa-info-circle"></i>
-                        <p>Select a class to view results.</p>
+                        <p>Select a class from the dropdown above to view results.</p>
                     </div>
                 </div>
             <?php endif; ?>
@@ -493,17 +689,9 @@ if ($selected_class && !empty($selected_exam)) {
     </div>
 
     <script>
-        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                const menuBtn = document.getElementById('mobileMenuBtn');
-                if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
-                }
-            }
+        // Mobile menu toggle is handled in staff_sidebar.php
+        document.addEventListener('DOMContentLoaded', function() {
+            // Any page-specific initialization
         });
     </script>
 </body>

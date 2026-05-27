@@ -14,6 +14,8 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];  // This is the numeric ID from staff table
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+$staff_role = $_SESSION['staff_role'] ?? 'staff';
+$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
 $subjects = [];
@@ -32,12 +34,14 @@ try {
     // Get the staff_id string for querying staff_subjects and staff_classes
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
-    $staff_id_string = $stmt->fetchColumn();
+    $staff_id_string_db = $stmt->fetchColumn();
 
-    if (!$staff_id_string) {
+    if (!$staff_id_string_db) {
         $message = "Staff record not found. Please contact administrator.";
         $message_type = "error";
     } else {
+        $staff_id_string = $staff_id_string_db;
+
         // Get staff assigned subjects using the string staff_id
         $stmt = $pdo->prepare("
             SELECT s.id as subject_id, s.subject_name 
@@ -188,7 +192,25 @@ if (isset($_GET['message'])) {
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --sidebar-width: 260px;
+            --primary-dark: #1a5a8a;
+            --secondary-color: #d4af7a;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-400: #9ca3af;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         * {
@@ -199,129 +221,85 @@ if (isset($_GET['message'])) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
-            color: white;
-            padding: 20px 0;
-            z-index: 100;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: #d4af7a;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .staff-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
+            min-height: 100vh;
+            transition: margin-left 0.28s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 20px 25px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
             color: var(--primary-color);
             font-size: 1.6rem;
+            margin-bottom: 5px;
+            font-weight: 700;
         }
 
+        .header-title h1 i {
+            margin-right: 10px;
+        }
+
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .header-title p i {
+            color: var(--primary-color);
+            font-size: 0.7rem;
+            margin: 0 4px;
+        }
+
+        /* Cards */
         .card {
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-lg);
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
         }
 
+        .card-header h3 {
+            color: var(--gray-800);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-header h3 i {
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+
+        /* Forms */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -335,18 +313,29 @@ if (isset($_GET['message'])) {
         }
 
         .form-group label {
-            font-size: 12px;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #555;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            margin-bottom: 6px;
         }
 
         .form-control,
         .form-select {
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            font-family: inherit;
             width: 100%;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
         }
 
         textarea.form-control {
@@ -354,9 +343,59 @@ if (isset($_GET['message'])) {
             min-height: 80px;
         }
 
+        /* Radio Group */
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            padding: 12px;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .radio-option input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .radio-option i {
+            font-size: 1rem;
+        }
+
+        .radio-option small {
+            color: var(--gray-600);
+        }
+
+        /* Info Box */
+        .info-box {
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: var(--radius-md);
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .info-box i {
+            color: var(--warning-color);
+            margin-right: 8px;
+        }
+
+        .info-box p {
+            margin-top: 5px;
+            font-size: 0.8rem;
+        }
+
+        /* Buttons */
         .btn {
             padding: 10px 20px;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             border: none;
             cursor: pointer;
             font-weight: 500;
@@ -364,6 +403,8 @@ if (isset($_GET['message'])) {
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
         .btn-primary {
@@ -371,67 +412,77 @@ if (isset($_GET['message'])) {
             color: white;
         }
 
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
         .btn-danger {
-            background: #e74c3c;
+            background: var(--danger-color);
             color: white;
         }
 
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
         .btn-sm {
-            padding: 5px 12px;
-            font-size: 12px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
+            min-width: 800px;
         }
 
         .data-table th {
-            background: #f5f5f5;
+            text-align: left;
+            padding: 14px 16px;
+            background: var(--gray-50);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table tr:hover td {
+            background: var(--gray-50);
+        }
+
+        /* Make assignment title bigger */
+        .data-table td strong {
+            font-size: 0.9rem;
             font-weight: 600;
         }
 
-        .alert-success {
-            background: #d5f4e6;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            color: #27ae60;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            color: #e74c3c;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 30px;
-            color: #999;
-        }
-
+        /* File Attachment */
         .file-attachment {
             display: inline-flex;
             align-items: center;
             gap: 5px;
-            background: #f0f0f0;
-            padding: 4px 8px;
-            border-radius: 5px;
-            font-size: 11px;
+            background: var(--gray-100);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
         }
 
         .file-attachment i {
-            font-size: 12px;
+            font-size: 0.7rem;
         }
 
         .file-attachment a {
@@ -439,32 +490,120 @@ if (isset($_GET['message'])) {
             text-decoration: none;
         }
 
+        .file-attachment a:hover {
+            text-decoration: underline;
+        }
+
+        /* Deadline Styling */
         .deadline-past {
-            color: #e74c3c;
-            font-weight: bold;
+            color: var(--danger-color);
+            font-weight: 600;
         }
 
         .deadline-upcoming {
-            color: #27ae60;
+            color: var(--success-color);
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+        /* Alerts */
+        .alert-success {
+            background: #d5f4e6;
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            color: var(--success-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--success-color);
+        }
 
+        .alert-error {
+            background: #f8d7da;
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            color: var(--danger-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--gray-600);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: var(--gray-400);
+        }
+
+        .empty-state p {
+            margin-top: 8px;
+        }
+
+        /* Info Item */
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
+        /* Submission Type Badge */
+        .submission-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .submission-online {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .submission-written {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .submission-both {
+            background: #d5f4e6;
+            color: #155724;
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
             .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
+                margin-left: 280px;
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
+            .main-content {
+                padding-top: 70px;
+            }
+
             .form-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .radio-group {
+                flex-direction: column;
+                gap: 10px;
             }
 
             .top-header {
@@ -472,59 +611,43 @@ if (isset($_GET['message'])) {
                 text-align: center;
             }
 
-            .data-table {
-                font-size: 12px;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 8px;
+            .card-header {
+                flex-direction: column;
+                gap: 10px;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Staff Portal</p>
-            </div>
-        </div>
-        <div class="staff-info">
-            <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
-            <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="assignments.php" class="active"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Include Staff Sidebar -->
+    <?php include_once 'includes/staff_sidebar.php'; ?>
 
+    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-tasks"></i> Assignments</h1>
-                <p>Create and manage assignments with file attachments</p>
+                <p><i class="fas fa-chevron-right"></i> Create and manage assignments with file attachments</p>
             </div>
-            <button class="btn" onclick="window.location.href='/gos/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <div>
+                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
+            </div>
         </div>
 
-        <?php if (isset($message)): ?>
+        <?php if ($message): ?>
             <div class="alert-<?php echo $message_type; ?>">
                 <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <!-- Create Assignment Form - Updated with Submission Type Options -->
+        <!-- Create Assignment Form -->
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-plus-circle"></i> Create New Assignment</h3>
@@ -533,17 +656,17 @@ if (isset($_GET['message'])) {
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>You need to be assigned to classes and subjects before creating assignments.</p>
-                    <p style="margin-top: 10px;">Please contact the administrator to assign you to classes and subjects.</p>
+                    <p>Please contact the administrator to assign you to classes and subjects.</p>
                 </div>
             <?php else: ?>
                 <form method="POST" enctype="multipart/form-data">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label>Assignment Title *</label>
+                            <label><i class="fas fa-tag"></i> Assignment Title *</label>
                             <input type="text" name="title" class="form-control" placeholder="e.g., Mathematics Assignment 1" required>
                         </div>
                         <div class="form-group">
-                            <label>Subject *</label>
+                            <label><i class="fas fa-book"></i> Subject *</label>
                             <select name="subject_id" class="form-select" required>
                                 <option value="">Select Subject</option>
                                 <?php foreach ($subjects as $subject): ?>
@@ -552,7 +675,7 @@ if (isset($_GET['message'])) {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Class *</label>
+                            <label><i class="fas fa-layer-group"></i> Class *</label>
                             <select name="class" class="form-select" required>
                                 <option value="">Select Class</option>
                                 <?php foreach ($classes as $class): ?>
@@ -561,71 +684,70 @@ if (isset($_GET['message'])) {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Deadline *</label>
+                            <label><i class="fas fa-calendar"></i> Deadline *</label>
                             <input type="datetime-local" name="deadline" class="form-control" required>
                         </div>
                         <div class="form-group">
-                            <label>Maximum Marks</label>
+                            <label><i class="fas fa-star"></i> Maximum Marks</label>
                             <input type="number" name="max_marks" class="form-control" value="100" min="0" step="1">
                         </div>
                     </div>
 
                     <!-- Submission Type Section -->
-                    <div class="form-group" style="margin-top: 15px;">
+                    <div class="form-group">
                         <label><i class="fas fa-laptop"></i> Submission Type *</label>
-                        <div style="display: flex; gap: 20px; flex-wrap: wrap; padding: 10px; background: #f8f9fa; border-radius: 10px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <div class="radio-group">
+                            <label class="radio-option">
                                 <input type="radio" name="submission_type" value="online" checked onchange="toggleSubmissionOptions()">
                                 <i class="fas fa-globe" style="color: #3498db;"></i>
                                 <strong>Online Submission</strong>
-                                <small style="color: #666;">(Students submit via portal)</small>
+                                <small>(Submit via portal)</small>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <label class="radio-option">
                                 <input type="radio" name="submission_type" value="written" onchange="toggleSubmissionOptions()">
                                 <i class="fas fa-pen-fancy" style="color: #e74c3c;"></i>
                                 <strong>Written Submission</strong>
-                                <small style="color: #666;">(Students submit physically in class)</small>
+                                <small>(Physical submission in class)</small>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <label class="radio-option">
                                 <input type="radio" name="submission_type" value="both" onchange="toggleSubmissionOptions()">
                                 <i class="fas fa-exchange-alt" style="color: #27ae60;"></i>
                                 <strong>Both Options</strong>
-                                <small style="color: #666;">(Students can choose either method)</small>
+                                <small>(Students can choose)</small>
                             </label>
                         </div>
                     </div>
 
                     <!-- Online Submission Options (shown by default) -->
-                    <div id="onlineOptions" class="form-group" style="margin-top: 15px;">
+                    <div id="onlineOptions" class="form-group">
                         <label><i class="fas fa-paperclip"></i> Allow File Attachments?</label>
-                        <div style="display: flex; gap: 20px;">
-                            <label style="display: flex; align-items: center; gap: 8px;">
+                        <div class="radio-group">
+                            <label class="radio-option">
                                 <input type="radio" name="allow_attachment" value="1" checked> Yes, allow attachments
                             </label>
-                            <label style="display: flex; align-items: center; gap: 8px;">
+                            <label class="radio-option">
                                 <input type="radio" name="allow_attachment" value="0"> No, text only
                             </label>
                         </div>
-                        <small style="color: #666; display: block; margin-top: 5px;">If enabled, students can upload PDF, DOC, or image files.</small>
+                        <small style="color: var(--gray-600); display: block; margin-top: 5px;">If enabled, students can upload PDF, DOC, or image files (max 10MB).</small>
                     </div>
 
                     <!-- Written Submission Info (hidden initially) -->
-                    <div id="writtenInfo" class="form-group" style="margin-top: 15px; display: none; padding: 15px; background: #fff3cd; border-radius: 10px;">
-                        <i class="fas fa-info-circle" style="color: #f39c12;"></i>
+                    <div id="writtenInfo" class="info-box" style="display: none;">
+                        <i class="fas fa-info-circle"></i>
                         <strong>Written Submission Instructions:</strong>
-                        <p style="margin-top: 5px; font-size: 13px;">Students will submit this assignment physically in class. No online submission will be accepted through the portal.</p>
-                        <p style="margin-top: 5px; font-size: 13px;">Make sure to collect the physical copies during class.</p>
+                        <p>Students will submit this assignment physically in class. No online submission will be accepted through the portal. Make sure to collect the physical copies during class.</p>
                     </div>
 
                     <div class="form-group">
-                        <label>Instructions</label>
+                        <label><i class="fas fa-align-left"></i> Instructions</label>
                         <textarea name="instructions" class="form-control" rows="4" placeholder="Enter assignment instructions, guidelines, or additional information..."></textarea>
                     </div>
 
                     <div class="form-group">
-                        <label>Attachment (Optional)</label>
+                        <label><i class="fas fa-paperclip"></i> Attachment (Optional)</label>
                         <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png">
-                        <small style="color: #666; margin-top: 5px;">Max size: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, RAR, Images</small>
+                        <small style="color: var(--gray-600); margin-top: 5px;">Max size: 10MB. Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, RAR, Images</small>
                     </div>
 
                     <button type="submit" name="create_assignment" class="btn btn-primary">
@@ -658,22 +780,25 @@ if (isset($_GET['message'])) {
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-list"></i> My Assignments</h3>
+                <?php if (!empty($assignments)): ?>
+                    <span class="info-item"><i class="fas fa-chart-line"></i> Total: <?php echo count($assignments); ?> assignments</span>
+                <?php endif; ?>
             </div>
             <?php if (empty($assignments)): ?>
                 <div class="empty-state">
                     <i class="fas fa-folder-open"></i>
                     <p>No assignments created yet.</p>
-                    <p style="margin-top: 10px;">Use the form above to create your first assignment.</p>
+                    <p>Use the form above to create your first assignment.</p>
                 </div>
             <?php else: ?>
-                <div style="overflow-x: auto;">
+                <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Title</th>
-                                <th>Subject</th>
-                                <th>Class</th>
+                                <th>Subject / Class</th>
                                 <th>Deadline</th>
+                                <th>Type</th>
                                 <th>Attachment</th>
                                 <th>Submissions</th>
                                 <th>Actions</th>
@@ -682,20 +807,30 @@ if (isset($_GET['message'])) {
                         <tbody>
                             <?php foreach ($assignments as $assignment):
                                 $is_deadline_past = strtotime($assignment['deadline']) < time();
+                                $submission_type = $assignment['submission_type'] ?? 'online';
+                                $type_badge_class = $submission_type == 'online' ? 'submission-online' : ($submission_type == 'written' ? 'submission-written' : 'submission-both');
+                                $type_icon = $submission_type == 'online' ? '🌐' : ($submission_type == 'written' ? '📝' : '🔄');
                             ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($assignment['title']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($assignment['subject_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($assignment['class']); ?></td>
-                                    <td><?php
-                                        echo date('M d, Y H:i', strtotime($assignment['deadline']));
-                                        if ($is_deadline_past) {
-                                            echo '<br><small class="deadline-past">Past Deadline</small>';
-                                        } else {
-                                            $days_left = ceil((strtotime($assignment['deadline']) - time()) / (60 * 60 * 24));
-                                            echo '<br><small class="deadline-upcoming">' . $days_left . ' days left</small>';
-                                        }
-                                        ?></td>
+                                    <td>
+                                        <?php echo htmlspecialchars($assignment['subject_name']); ?><br>
+                                        <small class="info-item" style="background: none; padding: 0;">📚 <?php echo htmlspecialchars($assignment['class']); ?></small>
+                                    </td>
+                                    <td>
+                                        <?php echo date('M d, Y H:i', strtotime($assignment['deadline'])); ?>
+                                        <?php if ($is_deadline_past): ?>
+                                            <br><span class="deadline-past"><i class="fas fa-clock"></i> Past Deadline</span>
+                                        <?php else: ?>
+                                            <?php $days_left = ceil((strtotime($assignment['deadline']) - time()) / (60 * 60 * 24)); ?>
+                                            <br><span class="deadline-upcoming"><i class="fas fa-hourglass-half"></i> <?php echo $days_left; ?> days left</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <span class="submission-badge <?php echo $type_badge_class; ?>">
+                                            <?php echo $type_icon; ?> <?php echo ucfirst($submission_type); ?>
+                                        </span>
+                                    </td>
                                     <td>
                                         <?php if ($assignment['file_path']): ?>
                                             <div class="file-attachment">
@@ -708,15 +843,17 @@ if (isset($_GET['message'])) {
                                                 </a>
                                             </div>
                                         <?php else: ?>
-                                            <span style="color: #999;">No attachment</span>
+                                            <span style="color: var(--gray-400);"><i class="fas fa-ban"></i> No attachment</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php echo $assignment['submissions_count']; ?>
-                                        <?php echo $assignment['submissions_count'] == 1 ? 'submission' : 'submissions'; ?>
+                                        <span class="info-item" style="background: var(--gray-100); padding: 4px 10px;">
+                                            <i class="fas fa-users"></i> <?php echo $assignment['submissions_count']; ?>
+                                            <?php echo $assignment['submissions_count'] == 1 ? 'submission' : 'submissions'; ?>
+                                        </span>
                                     </td>
                                     <td>
-                                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                             <a href="view-submissions.php?id=<?php echo $assignment['id']; ?>" class="btn btn-primary btn-sm">
                                                 <i class="fas fa-eye"></i> View
                                             </a>
@@ -738,19 +875,6 @@ if (isset($_GET['message'])) {
     </div>
 
     <script>
-        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                const menuBtn = document.getElementById('mobileMenuBtn');
-                if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
-                }
-            }
-        });
-
         // Set minimum date for deadline to today
         const deadlineInput = document.querySelector('input[name="deadline"]');
         if (deadlineInput) {

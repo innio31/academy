@@ -14,6 +14,8 @@ $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+$staff_role = $_SESSION['staff_role'] ?? 'staff';
+$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
 $subject_ids = [];
@@ -27,12 +29,14 @@ try {
     // Get the staff_id string from the staff table
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
-    $staff_id_string = $stmt->fetchColumn();
+    $staff_id_string_db = $stmt->fetchColumn();
 
-    if (!$staff_id_string) {
+    if (!$staff_id_string_db) {
         $message = "Staff record not found. Please contact administrator.";
         $message_type = "error";
     } else {
+        $staff_id_string = $staff_id_string_db;
+
         // Get staff assigned subjects using the string staff_id
         $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ? AND school_id = ?");
         $stmt->execute([$staff_id_string, $school_id]);
@@ -85,11 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_exam'])) {
 
         $message = "Exam created successfully!";
         $message_type = "success";
+
+        // Redirect to refresh the page and show the new exam
+        header("Location: manage-exams.php?message=" . urlencode($message) . "&type=success");
+        exit();
     } catch (Exception $e) {
         error_log("Exam creation error: " . $e->getMessage());
         $message = "Failed to create exam: " . $e->getMessage();
         $message_type = "error";
     }
+}
+
+// Check for message from redirect
+if (isset($_GET['message'])) {
+    $message = $_GET['message'];
+    $message_type = $_GET['type'] ?? 'success';
 }
 
 // Get subjects for dropdown (only after we have subject_ids)
@@ -140,7 +154,25 @@ if (!empty($subject_ids) && !empty($class_names)) {
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --sidebar-width: 260px;
+            --primary-dark: #1a5a8a;
+            --secondary-color: #d4af7a;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-400: #9ca3af;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         * {
@@ -151,129 +183,85 @@ if (!empty($subject_ids) && !empty($class_names)) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
-            color: white;
-            padding: 20px 0;
-            z-index: 100;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: #d4af7a;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .staff-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        /* Main Content */
         .main-content {
             margin-left: 0;
             padding: 20px;
+            min-height: 100vh;
+            transition: margin-left 0.28s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 20px 25px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
             color: var(--primary-color);
             font-size: 1.6rem;
+            margin-bottom: 5px;
+            font-weight: 700;
         }
 
+        .header-title h1 i {
+            margin-right: 10px;
+        }
+
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .header-title p i {
+            color: var(--primary-color);
+            font-size: 0.7rem;
+            margin: 0 4px;
+        }
+
+        /* Cards */
         .card {
             background: white;
-            border-radius: 10px;
+            border-radius: var(--radius-lg);
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-200);
         }
 
+        .card-header h3 {
+            color: var(--gray-800);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-header h3 i {
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+
+        /* Forms */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -287,23 +275,40 @@ if (!empty($subject_ids) && !empty($class_names)) {
         }
 
         .form-group label {
-            font-size: 12px;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #555;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            margin-bottom: 6px;
         }
 
         .form-control,
         .form-select {
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            font-family: inherit;
             width: 100%;
+            transition: all 0.2s;
         }
 
+        .form-control:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Buttons */
         .btn {
             padding: 10px 20px;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             border: none;
             cursor: pointer;
             font-weight: 500;
@@ -311,6 +316,8 @@ if (!empty($subject_ids) && !empty($class_names)) {
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
         .btn-primary {
@@ -318,86 +325,157 @@ if (!empty($subject_ids) && !empty($class_names)) {
             color: white;
         }
 
-        .btn-success {
-            background: #27ae60;
-            color: white;
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
         }
 
         .btn-sm {
-            padding: 5px 12px;
-            font-size: 12px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
+            min-width: 700px;
         }
 
         .data-table th {
-            background: #f5f5f5;
+            text-align: left;
+            padding: 14px 16px;
+            background: var(--gray-50);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-600);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table tr:hover td {
+            background: var(--gray-50);
+        }
+
+        /* Make exam name bigger */
+        .data-table td strong {
+            font-size: 0.9rem;
             font-weight: 600;
         }
 
+        /* Status Badges */
         .status-badge {
-            padding: 4px 10px;
+            display: inline-block;
+            padding: 4px 12px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 0.7rem;
+            font-weight: 600;
         }
 
         .status-active {
             background: #d5f4e6;
-            color: #27ae60;
+            color: var(--success-color);
         }
 
         .status-inactive {
             background: #f8d7da;
-            color: #e74c3c;
+            color: var(--danger-color);
         }
 
+        /* Alerts */
         .alert-success {
             background: #d5f4e6;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
-            color: #27ae60;
+            color: var(--success-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--success-color);
         }
 
         .alert-error {
             background: #f8d7da;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 15px 20px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
-            color: #e74c3c;
+            color: var(--danger-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--danger-color);
         }
 
+        /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 30px;
-            color: #999;
+            padding: 50px 20px;
+            color: var(--gray-600);
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: var(--gray-400);
+        }
 
+        .empty-state p {
+            margin-top: 8px;
+        }
+
+        /* Checkbox styling */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* Info Item */
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
             .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
+                margin-left: 280px;
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
+            .main-content {
+                padding-top: 70px;
+            }
+
             .form-grid {
                 grid-template-columns: 1fr;
             }
@@ -407,51 +485,36 @@ if (!empty($subject_ids) && !empty($class_names)) {
                 text-align: center;
             }
 
-            .data-table {
-                font-size: 12px;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 8px;
+            .card-header {
+                flex-direction: column;
+                gap: 10px;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-    <div class="sidebar" id="sidebar">
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="logo-text">
-                <h3><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Staff Portal</p>
-            </div>
-        </div>
-        <div class="staff-info">
-            <h4><?php echo htmlspecialchars($staff_name); ?></h4>
-        </div>
-        <ul class="nav-links">
-            <li><a href="index.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="manage-students.php"><i class="fas fa-users"></i> My Students</a></li>
-            <li><a href="manage-exams.php" class="active"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
-            <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
-            <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="../ida/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
+    <!-- Include Staff Sidebar -->
+    <?php include_once 'includes/staff_sidebar.php'; ?>
 
+    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-file-alt"></i> Manage Exams</h1>
+                <p><i class="fas fa-chevron-right"></i> Create and manage examinations for your classes</p>
             </div>
-            <button class="btn" onclick="window.location.href='../ida/logout.php'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <div>
+                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
+            </div>
         </div>
 
-        <?php if (isset($message)): ?>
+        <?php if ($message): ?>
             <div class="alert-<?php echo $message_type; ?>">
                 <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
@@ -467,17 +530,17 @@ if (!empty($subject_ids) && !empty($class_names)) {
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>You need to be assigned to classes and subjects before creating exams.</p>
-                    <p style="margin-top: 10px;">Please contact the administrator to assign you to classes and subjects.</p>
+                    <p>Please contact the administrator to assign you to classes and subjects.</p>
                 </div>
             <?php else: ?>
                 <form method="POST">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label>Exam Name *</label>
-                            <input type="text" name="exam_name" class="form-control" required>
+                            <label><i class="fas fa-tag"></i> Exam Name *</label>
+                            <input type="text" name="exam_name" class="form-control" placeholder="e.g., First Term Examination" required>
                         </div>
                         <div class="form-group">
-                            <label>Class *</label>
+                            <label><i class="fas fa-layer-group"></i> Class *</label>
                             <select name="class" class="form-select" required>
                                 <option value="">Select Class</option>
                                 <?php foreach ($class_names as $class): ?>
@@ -486,7 +549,7 @@ if (!empty($subject_ids) && !empty($class_names)) {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Subject *</label>
+                            <label><i class="fas fa-book"></i> Subject *</label>
                             <select name="subject_id" class="form-select" required>
                                 <option value="">Select Subject</option>
                                 <?php foreach ($subjects as $subject): ?>
@@ -495,38 +558,38 @@ if (!empty($subject_ids) && !empty($class_names)) {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Exam Type</label>
+                            <label><i class="fas fa-list-alt"></i> Exam Type</label>
                             <select name="exam_type" class="form-select">
-                                <option value="objective">Objective</option>
-                                <option value="subjective">Subjective</option>
-                                <option value="theory">Theory</option>
+                                <option value="objective">📝 Objective (Multiple Choice)</option>
+                                <option value="subjective">✍️ Subjective (Short Answer)</option>
+                                <option value="theory">📖 Theory (Essay)</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Duration (minutes)</label>
+                            <label><i class="fas fa-hourglass-half"></i> Duration (minutes)</label>
                             <input type="number" name="duration_minutes" class="form-control" value="60" required>
                         </div>
                         <div class="form-group">
-                            <label>Objective Questions</label>
-                            <input type="number" name="objective_count" class="form-control" value="0">
+                            <label><i class="fas fa-check-circle"></i> Objective Questions</label>
+                            <input type="number" name="objective_count" class="form-control" value="0" min="0">
                         </div>
                         <div class="form-group">
-                            <label>Subjective Questions</label>
-                            <input type="number" name="subjective_count" class="form-control" value="0">
+                            <label><i class="fas fa-paragraph"></i> Subjective Questions</label>
+                            <input type="number" name="subjective_count" class="form-control" value="0" min="0">
                         </div>
                         <div class="form-group">
-                            <label>Theory Questions</label>
-                            <input type="number" name="theory_count" class="form-control" value="0">
+                            <label><i class="fas fa-pen-fancy"></i> Theory Questions</label>
+                            <input type="number" name="theory_count" class="form-control" value="0" min="0">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Instructions</label>
-                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter exam instructions..."></textarea>
+                        <label><i class="fas fa-info-circle"></i> Instructions</label>
+                        <textarea name="instructions" class="form-control" rows="3" placeholder="Enter exam instructions for students..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label>
+                        <label class="checkbox-label">
                             <input type="checkbox" name="is_active" value="1" checked>
-                            Active (Students can take this exam)
+                            <span><i class="fas fa-toggle-on"></i> Active (Students can take this exam)</span>
                         </label>
                     </div>
                     <button type="submit" name="create_exam" class="btn btn-primary">
@@ -540,15 +603,18 @@ if (!empty($subject_ids) && !empty($class_names)) {
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-list"></i> My Exams</h3>
+                <?php if (!empty($exams)): ?>
+                    <span class="info-item"><i class="fas fa-chart-line"></i> Total: <?php echo count($exams); ?> exams</span>
+                <?php endif; ?>
             </div>
             <?php if (empty($exams)): ?>
                 <div class="empty-state">
                     <i class="fas fa-folder-open"></i>
                     <p>No exams created yet.</p>
-                    <p style="margin-top: 10px;">Use the form above to create your first exam.</p>
+                    <p>Use the form above to create your first exam.</p>
                 </div>
             <?php else: ?>
-                <div style="overflow-x: auto;">
+                <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -567,9 +633,18 @@ if (!empty($subject_ids) && !empty($class_names)) {
                                     <td><strong><?php echo htmlspecialchars($exam['exam_name']); ?></strong></td>
                                     <td><?php echo htmlspecialchars($exam['class']); ?></td>
                                     <td><?php echo htmlspecialchars($exam['subject_name']); ?></td>
-                                    <td><?php echo ucfirst($exam['exam_type']); ?></td>
+                                    <td>
+                                        <?php
+                                        $type_icon = $exam['exam_type'] == 'objective' ? '📝' : ($exam['exam_type'] == 'subjective' ? '✍️' : '📖');
+                                        echo $type_icon . ' ' . ucfirst($exam['exam_type']);
+                                        ?>
+                                    </td>
                                     <td><?php echo $exam['duration_minutes']; ?> min</td>
-                                    <td><span class="status-badge status-<?php echo $exam['is_active'] ? 'active' : 'inactive'; ?>"><?php echo $exam['is_active'] ? 'Active' : 'Inactive'; ?></span></td>
+                                    <td>
+                                        <span class="status-badge status-<?php echo $exam['is_active'] ? 'active' : 'inactive'; ?>">
+                                            <?php echo $exam['is_active'] ? 'Active' : 'Inactive'; ?>
+                                        </span>
+                                    </td>
                                     <td>
                                         <a href="edit-exam.php?id=<?php echo $exam['id']; ?>" class="btn btn-primary btn-sm">
                                             <i class="fas fa-edit"></i> Edit
@@ -585,17 +660,9 @@ if (!empty($subject_ids) && !empty($class_names)) {
     </div>
 
     <script>
-        document.getElementById('mobileMenuBtn').onclick = () => document.getElementById('sidebar').classList.toggle('active');
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                const menuBtn = document.getElementById('mobileMenuBtn');
-                if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
-                }
-            }
+        // Mobile menu toggle is handled in staff_sidebar.php
+        document.addEventListener('DOMContentLoaded', function() {
+            // Any page-specific initialization
         });
     </script>
 </body>

@@ -1,9 +1,9 @@
 <?php
-// tbis/staff/view-student.php - Staff View Student Details (Limited to Assigned Subjects)
+// eagles/staff/view-student.php - Staff View Student Details (Limited to Assigned Subjects)
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
-    header("Location: /tbis/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -512,7 +512,7 @@ function getGradeColor($grade)
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="../tbis/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../eagles/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

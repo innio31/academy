@@ -512,7 +512,7 @@ function getGradeColor($grade)
             <li><a href="manage-exams.php"><i class="fas fa-file-alt"></i> Manage Exams</a></li>
             <li><a href="view-results.php"><i class="fas fa-chart-bar"></i> View Results</a></li>
             <li><a href="assignments.php"><i class="fas fa-tasks"></i> Assignments</a></li>
-            <li><a href="/gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <li><a href="../gos/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>
 

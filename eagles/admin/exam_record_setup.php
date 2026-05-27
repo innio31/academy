@@ -1,5 +1,5 @@
 <?php
-// msv/admin/exam_record_setup.php - Create / Edit Exam Record Setup
+// eagles/admin/exam_record_setup.php - Create / Edit Exam Record Setup
 
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth check ────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -472,7 +472,101 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             overflow-x: hidden;
         }
 
-        /* Mobile Menu Toggle - Consistent with sidebar.php */
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
+            color: white;
+            padding: 20px 0;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            transform: translateX(-100%);
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--secondary-color);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .logo-text p {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        .admin-info {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 15px;
+        }
+
+        .nav-links {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .nav-links li {
+            margin-bottom: 5px;
+        }
+
+        .nav-links a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-left: 3px solid var(--secondary-color);
+        }
+
+        .nav-links i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Layout */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -486,18 +580,11 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             border-radius: var(--radius-md);
             font-size: 20px;
             cursor: pointer;
-            box-shadow: var(--shadow-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
         .sidebar-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background: rgba(0, 0, 0, 0.5);
             z-index: 999;
             opacity: 0;
@@ -510,7 +597,6 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             visibility: visible;
         }
 
-        /* Layout */
         .main-content {
             min-height: 100vh;
             padding: 20px;
@@ -1052,19 +1138,16 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
             color: #888;
         }
 
-        /* Status Badge */
-        .status-badge {
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-        }
-
-        /* Desktop Styles */
+        /* Responsive */
         @media (min-width: 768px) {
 
             .mobile-menu-toggle,
             .sidebar-overlay {
                 display: none;
+            }
+
+            .sidebar {
+                transform: translateX(0);
             }
 
             .main-content {
@@ -1100,14 +1183,13 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
 
 <body>
 
-    <!-- Mobile Menu Toggle - Consistent ID with sidebar.php -->
     <button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
     </button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <?php
-    // Include sidebar (it will be positioned fixed)
+    // Include sidebar at the end (it will be positioned fixed)
     require_once 'includes/sidebar.php';
     ?>
 
@@ -1487,11 +1569,11 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
         if (!empty($all_records)):
         ?>
             <!-- Exam records list with enhanced actions -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="card-icon"><i class="fas fa-list"></i></div>
-                    <h2>Exam records for <?php echo htmlspecialchars($school_name); ?></h2>
-                </div>
+<div class="form-card">
+    <div class="form-card-header">
+        <div class="card-icon"><i class="fas fa-list"></i></div>
+        <h2>Exam records for <?php echo htmlspecialchars($school_name); ?></h2>
+    </div>
                 <div style="overflow-x:auto">
                     <table class="grading-table">
                         <thead>
@@ -1516,36 +1598,36 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                                     <td><?php echo htmlspecialchars($r['term']); ?> Term</td>
                                     <td><?php echo htmlspecialchars($r['class']); ?></td>
                                     <td>
-                                        <span class="status-badge" style="background:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#d4edda' : '#ecf0f1'; ?>;color:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#155724' : '#666'; ?>;">
+                                        <span class="status-badge" style="padding:3px 10px;border-radius:20px;font-size:0.72rem;background:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#d4edda' : '#ecf0f1'; ?>;color:<?php echo ($r['status'] ?? 'draft') === 'active' ? '#155724' : '#666'; ?>;">
                                             <?php echo ucfirst($r['status'] ?? 'draft'); ?>
                                         </span>
                                     </td>
                                     <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
                                     <td>
-                                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                                            <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm" title="Enter Scores">
-                                                <i class="fas fa-pencil-alt"></i>
-                                            </a>
-                                            <a href="exam_generate_cards.php?record_id=<?php echo $r['id']; ?>" class="btn btn-success btn-sm" title="Generate Report Cards" style="background:#27ae60;color:white;">
-                                                <i class="fas fa-id-card"></i> Results
-                                            </a>
-                                            <button type="button" class="btn btn-info btn-sm" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone" style="background:#17a2b8;color:white;">
-                                                <i class="fas fa-copy"></i>
-                                            </button>
-                                            <?php if ($can_delete): ?>
-                                                <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')" title="Delete">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            <?php else: ?>
-                                                <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot delete published/archived records" style="opacity:0.5;">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a href="exam_record_setup.php?edit=<?php echo $r['id']; ?>" class="btn btn-secondary btn-sm" title="Edit">
+            <i class="fas fa-edit"></i>
+        </a>
+        <a href="exam_score_entry.php?record_id=<?php echo $r['id']; ?>" class="btn btn-primary btn-sm" title="Enter Scores">
+            <i class="fas fa-pencil-alt"></i>
+        </a>
+        <a href="exam_generate_cards.php?record_id=<?php echo $r['id']; ?>" class="btn btn-success btn-sm" title="Generate Report Cards" style="background:#27ae60;color:white;">
+            <i class="fas fa-id-card"></i> Results
+        </a>
+        <button type="button" class="btn btn-info btn-sm" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone" style="background:#17a2b8;color:white;">
+            <i class="fas fa-copy"></i>
+        </button>
+        <?php if ($can_delete): ?>
+            <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')" title="Delete">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        <?php else: ?>
+            <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot delete published/archived records" style="opacity:0.5;">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        <?php endif; ?>
+    </div>
+</td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -1582,10 +1664,38 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
                 .btn-info:hover {
                     background: #138496 !important;
                 }
+
                 .btn-danger:hover {
                     background: #c82333 !important;
                 }
             </style>
+
+            <script>
+                function showDeleteModal(id, name) {
+                    document.getElementById('deleteRecordId').value = id;
+                    document.getElementById('deleteRecordName').textContent = name;
+                    document.getElementById('deleteModal').style.display = 'flex';
+                }
+
+                function closeDeleteModal() {
+                    document.getElementById('deleteModal').style.display = 'none';
+                    document.getElementById('deleteRecordId').value = '';
+                    document.getElementById('deleteRecordName').textContent = '';
+                }
+
+                function cloneRecord(id) {
+                    if (confirm('Clone this exam record? All settings will be copied, and you can edit the cloned version.')) {
+                        window.location.href = 'exam_record_clone.php?id=' + id;
+                    }
+                }
+
+                // Close modal when clicking outside
+                document.getElementById('deleteModal')?.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeDeleteModal();
+                    }
+                });
+            </script>
         <?php endif; ?>
 
         <div style="text-align:center;padding:20px;color:#999;font-size:0.8rem;border-top:1px solid var(--light-color);margin-top:10px">
@@ -1596,6 +1706,22 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
 
     <script>
         const GRADING_PRESETS = <?php echo json_encode($grading_presets); ?>;
+
+        // Sidebar
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const menuToggle = document.getElementById('mobileMenuToggle');
+
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            sidebarOverlay.classList.toggle('active');
+            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+        });
+        sidebarOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        });
 
         // Score total calculator
         function recalcTotal() {
@@ -1728,67 +1854,7 @@ $page_title = $edit_id > 0 ? "Edit Exam Record" : "Create Exam Record";
         document.getElementById('term')?.addEventListener('change', autoFillName);
         document.getElementById('class')?.addEventListener('change', autoFillName);
 
-        function showDeleteModal(id, name) {
-            document.getElementById('deleteRecordId').value = id;
-            document.getElementById('deleteRecordName').textContent = name;
-            document.getElementById('deleteModal').style.display = 'flex';
-        }
-
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
-            document.getElementById('deleteRecordId').value = '';
-            document.getElementById('deleteRecordName').textContent = '';
-        }
-
-        function cloneRecord(id) {
-            if (confirm('Clone this exam record? All settings will be copied, and you can edit the cloned version.')) {
-                window.location.href = 'exam_record_clone.php?id=' + id;
-            }
-        }
-
-        // Close modal when clicking outside
-        document.getElementById('deleteModal')?.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeDeleteModal();
-            }
-        });
-
         recalcTotal();
-
-        // ── Mobile Menu Toggle (Fixed) ──────────────────────────────────────────
-        (function() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            const toggleBtn = document.getElementById('mobileMenuToggle');
-
-            if (toggleBtn && sidebar) {
-                toggleBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    sidebar.classList.toggle('active');
-                    if (overlay) overlay.classList.toggle('active');
-                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-                });
-            }
-
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    sidebar.classList.remove('active');
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                });
-            }
-
-            // Close sidebar when clicking nav links on mobile
-            document.querySelectorAll('.nav-item, .nav-group-toggle, .nav-group-items a').forEach(link => {
-                link.addEventListener('click', function() {
-                    if (window.innerWidth <= 768 && sidebar) {
-                        sidebar.classList.remove('active');
-                        if (overlay) overlay.classList.remove('active');
-                        document.body.style.overflow = '';
-                    }
-                });
-            });
-        })();
     </script>
 
 </body>

@@ -79,11 +79,18 @@ if (!$selected_topic) {
         if (!empty($rows)) {
             $ids = array_column($rows, 'id');
             $placeholders = implode(',', $ids); // safe, all ints
-            $chk = $pdo->query("
-                SELECT central_source_id FROM `$table`
-                WHERE central_source_id IN ($placeholders)
-                  AND topic_id = $topic_id AND school_id = '$school_id'
-            ");
+            $imported = [];
+if (!empty($rows)) {
+    $ids = array_column($rows, 'id');
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $chk = $pdo->prepare("
+        SELECT central_source_id FROM `$table`
+        WHERE central_source_id IN ($placeholders)
+          AND topic_id = ? AND school_id = ?
+    ");
+    $chk->execute([...$ids, $topic_id, $school_id]);
+    $imported = array_column($chk->fetchAll(PDO::FETCH_ASSOC), 'central_source_id');
+}
             $imported = array_column($chk->fetchAll(PDO::FETCH_ASSOC), 'central_source_id');
         }
 
@@ -313,117 +320,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_from_central'])) {
     try {
+        $import_type = $_POST['import_question_type'] ?? 'objective';
+        $source_topic_id = (int)($_POST['source_topic_id'] ?? 0);
         $selected_ids = $_POST['selected_central_questions'] ?? [];
-        $import_type  = in_array($_POST['import_question_type']??'',['objective','subjective','theory'])
-                        ? $_POST['import_question_type'] : 'objective';
-        $table        = $import_type . '_questions';
-
-        if (empty($selected_ids)) throw new Exception("Please select at least one question.");
-
-        $imported = $skipped = $failed = 0;
-
+        
+        if (empty($selected_ids)) {
+            throw new Exception("No questions selected for import.");
+        }
+        
+        $table = $import_type . '_questions';
+        
+        // Verify the table exists
+        $check_table = $pdo->query("SHOW TABLES LIKE '$table'");
+        if ($check_table->rowCount() == 0) {
+            throw new Exception("Invalid question type: $import_type");
+        }
+        
+        $imported_count = 0;
+        
         foreach ($selected_ids as $cid) {
             $cid = (int)$cid;
-
-            // Fetch from central bank (same DB, is_central=1, school_id IS NULL)
+            if ($cid <= 0) continue;
+            
+            // Check if already imported
+            $check = $pdo->prepare("SELECT id FROM `$table` WHERE central_source_id = ? AND topic_id = ? AND school_id = ? LIMIT 1");
+            $check->execute([$cid, $topic_id, $school_id]);
+            if ($check->fetch()) {
+                continue; // Already imported
+            }
+            
+            // Get the central question
             $src = $pdo->prepare("SELECT * FROM `$table` WHERE id = ? AND is_central = 1 AND school_id IS NULL LIMIT 1");
             $src->execute([$cid]);
-            $q = $src->fetch();
-            if (!$q) { $failed++; continue; }
-
-            // Duplicate check
-            $chk = $pdo->prepare("SELECT id FROM `$table` WHERE central_source_id=? AND topic_id=? AND school_id=? LIMIT 1");
-            $chk->execute([$cid, $topic_id, $school_id]);
-            if ($chk->fetch()) { $skipped++; continue; }
-
-            // Insert into school's question bank using LOCAL subject_id and topic_id
-            if ($import_type === 'objective') {
-                $pdo->prepare("INSERT INTO objective_questions
-                    (question_text,option_a,option_b,option_c,option_d,correct_answer,
-                     difficulty_level,marks,subject_id,topic_id,class,school_id,
-                     question_image,central_source_id,is_central,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,NOW())")
-                    ->execute([
-                        $q['question_text'],$q['option_a'],$q['option_b'],
-                        $q['option_c']??'',$q['option_d']??'',$q['correct_answer'],
-                        $q['difficulty_level']??'medium',$q['marks']??1,
-                        $selected_topic['subject_id'], $topic_id, $selected_topic['class'],
-                        $school_id, $q['question_image']??null, $cid
-                    ]);
-            } elseif ($import_type === 'subjective') {
-                $pdo->prepare("INSERT INTO subjective_questions
-                    (question_text,correct_answer,difficulty_level,marks,subject_id,
-                     topic_id,class,school_id,central_source_id,is_central,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,0,NOW())")
-                    ->execute([
-                        $q['question_text'],$q['correct_answer']??'',
-                        $q['difficulty_level']??'medium',$q['marks']??1,
-                        $selected_topic['subject_id'],$topic_id,$selected_topic['class'],
-                        $school_id,$cid
-                    ]);
-            } elseif ($import_type === 'theory') {
-                $pdo->prepare("INSERT INTO theory_questions
-                    (question_text,question_file,marks,subject_id,topic_id,class,
-                     school_id,central_source_id,is_central,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,0,NOW())")
-                    ->execute([
-                        $q['question_text'],$q['question_file']??null,$q['marks']??5,
-                        $selected_topic['subject_id'],$topic_id,$selected_topic['class'],
-                        $school_id,$cid
-                    ]);
+            $q = $src->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$q) {
+                continue;
             }
-            $imported++;
+            
+            // Remove the original ID and central flags
+            unset($q['id']);
+            $q['school_id'] = $school_id;
+            $q['topic_id'] = $topic_id;
+            $q['is_central'] = 0;
+            $q['central_source_id'] = $cid;
+            $q['created_at'] = date('Y-m-d H:i:s');
+            
+            // Build INSERT query dynamically
+            $columns = array_keys($q);
+            $placeholders = ':' . implode(', :', $columns);
+            $insert_sql = "INSERT INTO `$table` (" . implode(', ', $columns) . ") VALUES (" . str_replace(':', '', $placeholders) . ")";
+            
+            $stmt = $pdo->prepare($insert_sql);
+            foreach ($q as $key => $value) {
+                $stmt->bindValue(':' . $key, $value);
+            }
+            $stmt->execute();
+            $imported_count++;
         }
-
-        $message = "Central Bank: $imported question(s) imported.";
-        if ($skipped) $message .= " $skipped already existed.";
-        if ($failed)  $message .= " $failed not found.";
+        
+        $message = "Successfully imported $imported_count question(s) from central bank.";
         $message_type = 'success';
-
+        
+        // Log activity
         $pdo->prepare("INSERT INTO activity_logs (user_id,user_type,activity,ip_address,user_agent,school_id) VALUES (?,?,?,?,?,?)")
-            ->execute([$admin_id,'admin',"Imported $imported central $import_type questions → topic: {$selected_topic['topic_name']}",$_SERVER['REMOTE_ADDR'],$_SERVER['HTTP_USER_AGENT']??null,$school_id]);
-
-    } catch (Exception $e) { $message = "Import error: ".$e->getMessage(); $message_type = 'error'; }
-}
-
-// ============================================================
-// POST: Add single Objective
-// ============================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_question'])) {
-    try {
-        $qt  = trim($_POST['question_text']  ?? '');
-        $oa  = trim($_POST['option_a']       ?? '');
-        $ob  = trim($_POST['option_b']       ?? '');
-        $oc  = trim($_POST['option_c']       ?? '');
-        $od  = trim($_POST['option_d']       ?? '');
-        $ans = strtoupper(trim($_POST['correct_answer'] ?? ''));
-        $dif = $_POST['difficulty_level']    ?? 'medium';
-        $mk  = (int)($_POST['marks']         ?? 1);
-
-        if (empty($qt)||empty($oa)||empty($ob)||empty($ans)) throw new Exception("Fill in all required fields.");
-        if (!in_array($ans,['A','B','C','D'])) throw new Exception("Correct answer must be A, B, C, or D.");
-
-        $qi = null;
-        if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['question_image']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext,['jpg','jpeg','png','gif','webp'])) {
-                $dir = '../uploads/questions/';
-                if (!file_exists($dir)) mkdir($dir,0777,true);
-                $fn = 'q_'.time().'_'.rand(1000,9999).'.'.$ext;
-                if (move_uploaded_file($_FILES['question_image']['tmp_name'],$dir.$fn)) $qi='uploads/questions/'.$fn;
-            }
-        }
-
-        $pdo->prepare("INSERT INTO objective_questions
-            (question_text,option_a,option_b,option_c,option_d,correct_answer,
-             difficulty_level,marks,subject_id,topic_id,class,school_id,question_image,is_central,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,NOW())")
-            ->execute([$qt,$oa,$ob,$oc,$od,$ans,$dif,$mk,
-                $selected_topic['subject_id'],$topic_id,$selected_topic['class'],$school_id,$qi]);
-
-        $message = "Objective question added!"; $message_type = 'success';
-        if (!isset($_POST['stay_here'])) { header("Location: add_questions.php?topic_id=$topic_id&type=objective&success=1"); exit(); }
-    } catch (Exception $e) { $message = $e->getMessage(); $message_type = 'error'; }
+            ->execute([$admin_id,'admin',"Imported $imported_count $import_type questions from central bank into topic: {$selected_topic['topic_name']}",$_SERVER['REMOTE_ADDR'],$_SERVER['HTTP_USER_AGENT']??null,$school_id]);
+            
+    } catch (Exception $e) {
+        $message = "Import error: " . $e->getMessage();
+        $message_type = 'error';
+        error_log("Central import error: " . $e->getMessage());
+    }
 }
 
 // ============================================================

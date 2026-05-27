@@ -612,12 +612,11 @@ $stats = $stmt->fetch();
         </div>
     </div>
 
-    <!-- Replace the entire <script> section in index.php (around line 460) with this: -->
-<script>
+ <script>
     (function() {
         'use strict';
 
-        // Mobile sidebar toggle only (don't reinitialize groups here)
+        // Mobile sidebar toggle only
         function initMobileOnly() {
             var toggle = document.getElementById('mobileMenuBtn');
             var sidebar = document.getElementById('studentSidebar');
@@ -690,7 +689,6 @@ $stats = $stmt->fetch();
             });
         }
 
-        // Only run mobile toggle, let sidebar handle its own accordion
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initMobileOnly);
         } else {

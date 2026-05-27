@@ -118,7 +118,7 @@ $stats = $stmt->fetch();
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --sidebar-width: 260px;
+            --sidebar-width: 280px;
         }
 
         * {
@@ -133,23 +133,12 @@ $stats = $stmt->fetch();
             min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), #1a2a3a);
-            color: white;
-            padding: 20px 0;
-            z-index: 100;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
+        /* REPLACE with: */
+@media (min-width: 768px) {
+    .student-sidebar {
+        transform: translateX(0) !important;
+    }
+}
 
         .logo {
             display: flex;
@@ -431,9 +420,9 @@ $stats = $stmt->fetch();
         }
 
         @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+    .student-sidebar {
+        transform: translateX(0);
+    }
 
             .main-content {
                 margin-left: var(--sidebar-width);

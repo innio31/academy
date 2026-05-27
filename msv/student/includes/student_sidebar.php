@@ -299,8 +299,102 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
         font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
     }
     
-    /* ... include all the rest of your CSS styles from the original file ... */
-    /* (I'm omitting them for brevity, but you need to copy them all) */
+    /* Overlay */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+.sidebar-overlay.active { display: block; }
+
+/* Header */
+.sidebar-header {
+    padding: 20px 16px 14px;
+    border-bottom: 1px solid var(--sb-border);
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: var(--sb-logo-grad);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.logo-icon img { width: 34px; height: 34px; object-fit: contain; border-radius: 6px; }
+.logo-icon i { color: var(--sb-accent-clr); font-size: 1.2rem; }
+.logo-text .school-name {
+    font-size: 0.85rem; font-weight: 700;
+    color: var(--sb-text-bright); line-height: 1.2;
+}
+.logo-text p { font-size: 0.7rem; color: var(--sb-text); }
+
+/* Student info */
+.student-info {
+    text-align: center; padding: 16px 12px;
+    border-bottom: 1px solid var(--sb-border);
+}
+.student-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    object-fit: cover; border: 3px solid var(--sb-accent-clr);
+    margin: 0 auto 10px; display: block; background: #f0f0f0;
+}
+.student-name { font-size: 0.9rem; font-weight: 600; color: var(--sb-text-bright); margin-bottom: 4px; }
+.student-details { font-size: 0.72rem; color: var(--sb-text); margin: 2px 0; }
+.student-details i { width: 16px; font-size: 0.65rem; }
+
+/* Nav */
+.sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+
+.nav-item.standalone {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--sb-radius);
+    color: var(--sb-text); text-decoration: none;
+    font-size: 0.85rem; font-weight: 500;
+    transition: background var(--sb-transition), color var(--sb-transition);
+}
+.nav-item.standalone:hover { background: var(--sb-hover); color: var(--sb-text-bright); }
+.nav-item.standalone.active { background: var(--sb-active-bg); color: var(--sb-accent-clr); font-weight: 600; }
+.nav-item.standalone.logout:hover { background: rgba(239,68,68,0.12); color: #f87171; }
+
+.nav-icon { width: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+.nav-label { flex: 1; }
+
+/* Groups */
+.nav-group-toggle {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--sb-radius);
+    background: none; border: none; cursor: pointer;
+    color: var(--sb-text); font-size: 0.85rem; font-weight: 500;
+    transition: background var(--sb-transition), color var(--sb-transition);
+    font-family: inherit;
+}
+.nav-group-toggle:hover { background: var(--sb-hover); color: var(--sb-text-bright); }
+.nav-group.open .nav-group-toggle { color: var(--sb-accent-clr); }
+
+.group-badge { margin-left: auto; }
+.chevron { transition: transform 0.22s ease; font-size: 0.7rem; }
+.nav-group.open .chevron { transform: rotate(180deg); }
+
+.nav-group-items {
+    display: none; list-style: none;
+    padding: 4px 0 4px 32px;
+}
+.nav-group-items.expanded { display: block; }
+.nav-group-items li a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 8px;
+    color: var(--sb-text); text-decoration: none;
+    font-size: 0.82rem;
+    transition: background var(--sb-transition), color var(--sb-transition);
+}
+.nav-group-items li a:hover { background: var(--sb-hover); color: var(--sb-text-bright); }
+.nav-group-items li a.active { color: var(--sb-accent-clr); font-weight: 600; }
+.nav-group-items li a i { width: 16px; font-size: 0.8rem; }
+
+/* Scrollbar */
+.student-sidebar::-webkit-scrollbar { width: 4px; }
+.student-sidebar::-webkit-scrollbar-thumb { background: var(--sb-surface); border-radius: 4px; }
     
     @media (max-width: 767px) {
         .student-sidebar {
@@ -436,4 +530,3 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
         }
     })();
 </script>
-<!-- NO JAVASCRIPT HERE - REMOVED COMPLETELY -->

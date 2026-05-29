@@ -392,82 +392,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
 <body>
 
 <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- ============================================ -->
-<!-- SIDEBAR (Integrated - Using your EXACT working logo logic) -->
-<!-- ============================================ -->
-<div class="student-sidebar" id="studentSidebar">
-    <div class="sidebar-header">
-        <div class="logo">
-            <div class="logo-icon">
-                <?php
-                $logo_path = null;
-                $logo_locations = [
-                    '/msv/assets/logos/logo.png',
-                    '/assets/logos/logo.png',
-                    '../assets/logos/logo.png',
-                    'assets/logos/logo.png'
-                ];
-                if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
-                    $logo_path = SCHOOL_LOGO;
-                } else {
-                    foreach ($logo_locations as $location) {
-                        if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
-                            $logo_path = $location;
-                            break;
-                        }
-                    }
-                }
-                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)): ?>
-                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
-                <?php else: ?>
-                    <i class="fas fa-graduation-cap"></i>
-                <?php endif; ?>
-            </div>
-            <div class="logo-text">
-                <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Student Portal</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="student-info">
-        <img src="<?php echo htmlspecialchars($profile_picture); ?>" 
-             class="student-avatar" 
-             onerror="this.src='https://ui-avatars.com/api/?background=<?php echo ltrim($primary_color, '#'); ?>&color=fff&name=<?php echo urlencode($student_name); ?>'">
-        <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
-        <div class="student-details"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number ?: 'N/A'); ?></div>
-        <div class="student-details"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class ?: 'Not Assigned'); ?></div>
-    </div>
-    
-    <nav class="sidebar-nav">
-        <a href="index.php" class="nav-item <?php echo ($current_page == 'index.php') ? 'active' : ''; ?>">
-            <i class="fas fa-tachometer-alt"></i> Dashboard
-        </a>
-        <a href="exams.php" class="nav-item">
-            <i class="fas fa-file-alt"></i> Take Exam
-        </a>
-        <a href="assignments.php" class="nav-item">
-            <i class="fas fa-tasks"></i> Assignments
-        </a>
-        <a href="view-results.php" class="nav-item">
-            <i class="fas fa-chart-bar"></i> Results
-        </a>
-        <a href="report-card.php" class="nav-item">
-            <i class="fas fa-id-card"></i> Report Card
-        </a>
-        <a href="library.php" class="nav-item">
-            <i class="fas fa-book"></i> E-Library
-        </a>
-        <a href="profile.php" class="nav-item">
-            <i class="fas fa-user-circle"></i> My Profile
-        </a>
-        <a href="/msv/logout.php" class="nav-item logout">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </a>
-    </nav>
-</div>
+<?php require_once 'includes/student_sidebar.php'; ?>
 
 <!-- ============================================ -->
 <!-- MAIN CONTENT -->
@@ -648,40 +574,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 </div>
 
-<script>
-    // Mobile sidebar toggle
-    (function() {
-        const menuBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('studentSidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-        
-        if (menuBtn && sidebar) {
-            menuBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                sidebar.classList.toggle('active');
-                if (overlay) overlay.classList.toggle('active');
-                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-            });
-        }
-        
-        if (overlay) {
-            overlay.addEventListener('click', function() {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            });
-        }
-        
-        // Close sidebar on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                sidebar.classList.remove('active');
-                if (overlay) overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
-    })();
-</script>
 
 </body>
 </html>

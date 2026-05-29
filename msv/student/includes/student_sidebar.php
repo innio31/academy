@@ -13,7 +13,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 // Define page groups for active states
 $dashboard_pages = ['index.php'];
-$exam_pages = ['take-exam.php'];
+$exam_pages = ['take-exam.php', 'exams.php'];
 $assignment_pages = ['assignments.php'];
 $result_pages = ['view-results.php'];
 $report_card_pages = ['report-card.php', 'view-report-card.php'];
@@ -169,7 +169,7 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
             </button>
             <ul class="nav-group-items <?php echo ($exam_active || $assignment_active || $result_active) ? 'expanded' : ''; ?>">
                 <li>
-                    <a href="take-exam.php" class="<?php echo $exam_active ? 'active' : ''; ?>">
+                    <a href="exams.php" class="<?php echo $exam_active ? 'active' : ''; ?>">
                         <i class="fas fa-pen-alt"></i> Take Exam
                     </a>
                 </li>

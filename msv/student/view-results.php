@@ -881,37 +881,6 @@ function getGradeColor($grade) {
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileBtn = document.getElementById('mobileMenuBtn');
-            const sidebar   = document.getElementById('studentSidebar');
-            const overlay   = document.getElementById('sidebarOverlay');
-
-            if (mobileBtn && sidebar) {
-                mobileBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    sidebar.classList.toggle('active');
-                    if (overlay) overlay.classList.toggle('active');
-                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-                });
-            }
-
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    sidebar.classList.remove('active');
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                });
-            }
-
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && sidebar) {
-                    sidebar.classList.remove('active');
-                    if (overlay) overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                }
-            });
-        });
 
         // Animate progress bars on load
         document.addEventListener('DOMContentLoaded', function() {

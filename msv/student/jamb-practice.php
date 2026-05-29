@@ -372,7 +372,7 @@ ob_start();
 
 <div class="layout">
   <!-- Sidebar -->
-  <?php include '../includes/student_sidebar.php'; ?>
+  <?php include 'includes/student_sidebar.php'; ?>
 
   <!-- Main Content -->
   <main class="main">

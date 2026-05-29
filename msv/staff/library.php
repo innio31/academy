@@ -1,5 +1,5 @@
 <?php
-// msv/staff/library.php - Staff Library Management
+// msv/staff/library.php - Staff Library Management with Multi-Class Support
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
@@ -57,11 +57,11 @@ try {
     $error = "An error occurred while loading the library.";
 }
 
-// Handle upload
+// Handle upload (with multiple classes support)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
     $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
-    $class_name = trim($_POST['class']);
+    $selected_classes = $_POST['classes'] ?? []; // Array of selected classes
     $description = trim($_POST['description']);
 
     // Get subject name from ID
@@ -73,12 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $subject_name = $subject['subject_name'] ?? '';
     }
 
-    // Validate that the selected class is in staff's assigned classes
-    $class_valid = false;
-    foreach ($assigned_classes as $ac) {
-        if ($ac['class'] === $class_name) {
-            $class_valid = true;
-            break;
+    // Validate that selected classes are in staff's assigned classes
+    $valid_classes = [];
+    $assigned_class_names = array_column($assigned_classes, 'class');
+    foreach ($selected_classes as $class) {
+        if (in_array($class, $assigned_class_names)) {
+            $valid_classes[] = $class;
         }
     }
 
@@ -97,8 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     } elseif (!$subject_valid) {
         $error = "Invalid subject selected. You can only upload for your assigned subjects.";
         $message_type = "error";
-    } elseif (!$class_valid) {
-        $error = "Invalid class selected. You can only upload for your assigned classes.";
+    } elseif (empty($valid_classes)) {
+        $error = "Please select at least one valid class from your assigned classes.";
         $message_type = "error";
     } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = '../uploads/library/';
@@ -112,13 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $file_size = $_FILES['resource_file']['size'];
 
         if (move_uploaded_file($_FILES['resource_file']['tmp_name'], '../' . $file_path)) {
+            // Store classes as comma-separated string
+            $classes_string = implode(',', $valid_classes);
+            
             $stmt = $pdo->prepare("
                 INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
-            $stmt->execute([$school_id, $title, $subject_name, $class_name, $file_type, $file_path, $file_size, $staff_id]);
+            $stmt->execute([$school_id, $title, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
 
-            $message = "Resource uploaded successfully!";
+            $message = "Resource uploaded successfully! Shared with " . count($valid_classes) . " class(es).";
             $message_type = "success";
         } else {
             $error = "Failed to upload file";
@@ -149,10 +152,10 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Get resources (staff's own + shared to their classes) - SAME logic as index.php for class filtering
+// Get resources (staff's own + shared to their classes) - with multi-class support
 $search = $_GET['search'] ?? '';
 
-// Build the base query
+// Build the base query - need to handle comma-separated classes
 $query = "SELECT lr.*, 
           CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
@@ -163,11 +166,14 @@ $query = "SELECT lr.*,
 
 $params = [$school_id, $staff_id];
 
-// Add class condition only if there are assigned classes - SAME as index.php
+// Add class condition for multi-class resources - check if staff's class is in the comma-separated list
 if (!empty($class_names)) {
-    $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-    $query .= " OR lr.class IN ($placeholders)";
-    $params = array_merge($params, $class_names);
+    $class_conditions = [];
+    foreach ($class_names as $class) {
+        $class_conditions[] = "FIND_IN_SET(?, lr.class)";
+        $params[] = $class;
+    }
+    $query .= " OR (" . implode(" OR ", $class_conditions) . ")";
 }
 
 $query .= " OR lr.class = 'All')";
@@ -206,6 +212,19 @@ function getFileIcon($file_type) {
         'zip' => '📦'
     ];
     return $icons[$ext] ?? '📁';
+}
+
+// Helper to format class display (convert comma-separated to badges)
+function formatClasses($class_string) {
+    if ($class_string === 'All') {
+        return '<span class="info-item" style="background: var(--primary-color); color: white;"><i class="fas fa-globe"></i> All Classes</span>';
+    }
+    $classes = explode(',', $class_string);
+    $badges = [];
+    foreach ($classes as $class) {
+        $badges[] = '<span class="info-item"><i class="fas fa-users"></i> ' . htmlspecialchars(trim($class)) . '</span>';
+    }
+    return implode(' ', $badges);
 }
 ?>
 
@@ -409,6 +428,50 @@ function getFileIcon($file_type) {
         textarea.form-control {
             resize: vertical;
             min-height: 80px;
+        }
+
+        /* Multi-select for classes */
+        .multi-select {
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .multi-select label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            margin: 0;
+            font-size: 0.85rem;
+            font-weight: normal;
+            text-transform: none;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+
+        .multi-select label:hover {
+            background: var(--gray-100);
+        }
+
+        .multi-select input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .selected-classes-badge {
+            display: inline-block;
+            background: var(--info-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            margin-left: 8px;
         }
 
         /* Search Bar */
@@ -625,6 +688,21 @@ function getFileIcon($file_type) {
             margin-top: 8px;
         }
 
+        /* Selection Info */
+        .selection-info {
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            padding: 12px 15px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+
+        .selection-info i {
+            color: var(--info-color);
+            margin-right: 6px;
+        }
+
         /* Desktop */
         @media (min-width: 768px) {
             .mobile-menu-btn,
@@ -730,7 +808,7 @@ function getFileIcon($file_type) {
                 <h3><i class="fas fa-upload"></i> Upload Resource</h3>
                 <span class="info-item"><i class="fas fa-info-circle"></i> Max file size: 10MB</span>
             </div>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="form-grid">
                     <div class="form-group">
                         <label><i class="fas fa-heading"></i> Title *</label>
@@ -746,13 +824,19 @@ function getFileIcon($file_type) {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-layer-group"></i> Class *</label>
-                        <select name="class" class="form-select" required>
-                            <option value="">Select Class</option>
+                        <label><i class="fas fa-layer-group"></i> Classes * (Select one or more)</label>
+                        <div class="multi-select" id="classesMultiSelect">
                             <?php foreach ($assigned_classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class['class']); ?>"><?php echo htmlspecialchars($class['class']); ?></option>
+                                <label>
+                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class']); ?>">
+                                    <span><?php echo htmlspecialchars($class['class']); ?></span>
+                                </label>
                             <?php endforeach; ?>
-                        </select>
+                        </div>
+                        <div class="selection-info" id="selectionInfo">
+                            <i class="fas fa-info-circle"></i>
+                            <span id="selectedCount">0</span> class(es) selected
+                        </div>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-align-left"></i> Description (Optional)</label>
@@ -820,7 +904,7 @@ function getFileIcon($file_type) {
                                 <th>File</th>
                                 <th>Title</th>
                                 <th>Subject</th>
-                                <th>Class</th>
+                                <th>Classes</th>
                                 <th>Type</th>
                                 <th>Size</th>
                                 <th>Actions</th>
@@ -846,7 +930,11 @@ function getFileIcon($file_type) {
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($resource['subject']); ?></td>
-                                    <td><span class="info-item" style="background: none; padding: 0;"><?php echo htmlspecialchars($resource['class']); ?></span></td>
+                                    <td>
+                                        <div class="info-items" style="margin: 0;">
+                                            <?php echo formatClasses($resource['class']); ?>
+                                        </div>
+                                    </td>
                                     <td><span class="file-badge <?php echo $badge_class; ?>"><?php echo strtoupper($file_type); ?></span></td>
                                     <td><?php echo $resource['formatted_size']; ?></td>
                                     <td>
@@ -908,6 +996,24 @@ function getFileIcon($file_type) {
             }
         });
 
+        // Update selected classes count
+        const checkboxes = document.querySelectorAll('input[name="classes[]"]');
+        const selectedCountSpan = document.getElementById('selectedCount');
+        
+        function updateSelectedCount() {
+            const checked = document.querySelectorAll('input[name="classes[]"]:checked');
+            if (selectedCountSpan) {
+                selectedCountSpan.textContent = checked.length;
+            }
+        }
+        
+        if (checkboxes.length > 0) {
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateSelectedCount);
+            });
+            updateSelectedCount();
+        }
+
         // File size validation
         const fileInput = document.querySelector('input[type="file"]');
         if (fileInput) {
@@ -916,6 +1022,18 @@ function getFileIcon($file_type) {
                 if (file && file.size > 10 * 1024 * 1024) {
                     alert('File size exceeds 10MB limit!');
                     this.value = '';
+                }
+            });
+        }
+
+        // Form validation to ensure at least one class is selected
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function(e) {
+                const selectedClasses = document.querySelectorAll('input[name="classes[]"]:checked');
+                if (selectedClasses.length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one class to share this resource with.');
                 }
             });
         }

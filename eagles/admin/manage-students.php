@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /ida/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -275,12 +275,19 @@ foreach ($all_classes as &$class) {
 // Get current selected class
 $selected_class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$global_search_query = isset($_GET['global_search']) ? trim($_GET['global_search']) : '';
 $view_mode = isset($_GET['class_id']) ? 'students' : 'classes';
+
+// If global search is active, override view mode to show search results
+$is_global_search = !empty($global_search_query);
+if ($is_global_search) {
+    $view_mode = 'search_results';
+}
 
 $students = [];
 $current_class = null;
 
-if ($selected_class_id > 0) {
+if ($selected_class_id > 0 && !$is_global_search) {
     // Get current class info
     $stmt = $pdo->prepare("SELECT * FROM classes WHERE id = ? AND school_id = ?");
     $stmt->execute([$selected_class_id, $school_id]);
@@ -307,6 +314,21 @@ if ($selected_class_id > 0) {
         $stmt->execute($params);
         $students = $stmt->fetchAll();
     }
+}
+
+// Handle global search across all classes
+if ($is_global_search) {
+    $sql = "SELECT s.*, c.class_name as class_name_formatted,
+            (SELECT SUM(amount) FROM bills WHERE student_id = s.id AND status != 'paid') as total_owed
+            FROM students s 
+            LEFT JOIN classes c ON s.class_id = c.id
+            WHERE s.school_id = ? 
+            AND (s.full_name LIKE ? OR s.admission_number LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)";
+    $params = [$school_id, "%$global_search_query%", "%$global_search_query%", "%$global_search_query%", "%$global_search_query%"];
+    $sql .= " ORDER BY c.class_name, s.last_name, s.first_name";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $global_search_students = $stmt->fetchAll();
 }
 
 // Get student for modal (AJAX)
@@ -511,6 +533,49 @@ if (isset($_GET['get_student'])) {
         .header-title p {
             color: var(--gray-600);
             font-size: 0.75rem;
+        }
+
+        /* Global Search Bar */
+        .global-search-bar {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow-sm);
+            border: 2px solid var(--gray-200);
+        }
+        .global-search-bar .search-icon {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+        .global-search-bar input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        .global-search-bar input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .global-search-bar .search-btn {
+            padding: 12px 24px;
+            font-size: 0.9rem;
+        }
+        .global-search-bar .clear-btn {
+            background: var(--gray-200);
+            color: var(--gray-800);
+        }
+        .global-search-bar .clear-btn:hover {
+            background: var(--gray-400);
         }
 
         /* Buttons */
@@ -738,6 +803,16 @@ if (isset($_GET['get_student'])) {
             font-weight: 600;
             font-size: 0.9rem;
             color: var(--gray-800);
+        }
+
+        .student-class-badge {
+            font-size: 0.7rem;
+            color: var(--primary-color);
+            background: rgba(52, 152, 219, 0.1);
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 2px;
         }
 
         .student-admission {
@@ -1030,7 +1105,17 @@ if (isset($_GET['get_student'])) {
         <div class="top-header">
             <div class="header-title">
                 <h1>Manage Students</h1>
-                <p><?php echo $view_mode === 'students' && $current_class ? 'Viewing: ' . htmlspecialchars($current_class['class_name']) : 'Select a class to manage students'; ?></p>
+                <p>
+                    <?php 
+                    if ($is_global_search) {
+                        echo 'Search Results for: "' . htmlspecialchars($global_search_query) . '"';
+                    } elseif ($view_mode === 'students' && $current_class) {
+                        echo 'Viewing: ' . htmlspecialchars($current_class['class_name']);
+                    } else {
+                        echo 'Select a class to manage students';
+                    }
+                    ?>
+                </p>
             </div>
             <div>
                 <button class="btn btn-info" onclick="openScanner()">
@@ -1042,6 +1127,22 @@ if (isset($_GET['get_student'])) {
             </div>
         </div>
 
+        <!-- GLOBAL SEARCH BAR - Visible on all views -->
+        <div class="global-search-bar">
+            <i class="fas fa-search search-icon"></i>
+            <form method="GET" style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="text" name="global_search" placeholder="Search students by name, admission number across all classes..." value="<?php echo htmlspecialchars($global_search_query); ?>" autocomplete="off">
+                <button type="submit" class="btn btn-primary search-btn">
+                    <i class="fas fa-search"></i> Search All Classes
+                </button>
+                <?php if (!empty($global_search_query)): ?>
+                    <a href="manage-students.php" class="btn clear-btn">
+                        <i class="fas fa-times"></i> Clear Search
+                    </a>
+                <?php endif; ?>
+            </form>
+        </div>
+
         <?php if (isset($_GET['message'])): ?>
             <div class="alert alert-<?php echo $_GET['type'] ?? 'success'; ?>">
                 <i class="fas fa-<?php echo $_GET['type'] === 'error' ? 'exclamation-triangle' : 'check-circle'; ?>"></i>
@@ -1049,8 +1150,42 @@ if (isset($_GET['get_student'])) {
             </div>
         <?php endif; ?>
 
-        <!-- CLASSES VIEW (when no class selected) -->
-        <?php if ($view_mode === 'classes'): ?>
+        <!-- GLOBAL SEARCH RESULTS VIEW -->
+        <?php if ($is_global_search): ?>
+            <div class="students-list">
+                <?php if (empty($global_search_students)): ?>
+                    <div class="empty-state">
+                        <i class="fas fa-search" style="font-size: 40px; margin-bottom: 12px; color: var(--gray-400);"></i>
+                        <p>No students found matching "<?php echo htmlspecialchars($global_search_query); ?>"</p>
+                        <a href="manage-students.php" class="btn btn-primary btn-sm" style="margin-top: 10px;">View All Classes</a>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($global_search_students as $student): ?>
+                        <div class="student-item" onclick="viewStudent(<?php echo $student['id']; ?>, event)">
+                            <div class="student-avatar">
+                                <?php if (!empty($student['profile_picture'])): ?>
+                                    <img src="<?php echo htmlspecialchars($student['profile_picture']); ?>" alt="<?php echo htmlspecialchars($student['full_name']); ?>">
+                                <?php else: ?>
+                                    <?php echo strtoupper(substr($student['first_name'] ?: $student['full_name'], 0, 1)); ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="student-info">
+                                <div class="student-name"><?php echo htmlspecialchars($student['full_name']); ?></div>
+                                <div class="student-admission">Adm: <?php echo htmlspecialchars($student['admission_number']); ?></div>
+                                <div class="student-class-badge"><i class="fas fa-chalkboard"></i> <?php echo htmlspecialchars($student['class_name_formatted'] ?: $student['class']); ?></div>
+                            </div>
+                            <div class="student-status">
+                                <span class="status-badge status-<?php echo $student['status']; ?>">
+                                    <?php echo ucfirst($student['status']); ?>
+                                </span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+        <!-- CLASSES VIEW (when no class selected and no global search) -->
+        <?php elseif ($view_mode === 'classes'): ?>
             <div class="class-list">
                 <?php foreach ($all_classes as $class): ?>
                     <div class="class-item" onclick="window.location.href='?class_id=<?php echo $class['id']; ?>'">
@@ -1074,7 +1209,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- STUDENTS VIEW (when class selected) -->
+        <!-- STUDENTS VIEW (when class selected) -->
         <?php elseif ($view_mode === 'students' && $current_class): ?>
 
             <!-- Back Navigation Bar -->
@@ -1096,10 +1231,10 @@ if (isset($_GET['get_student'])) {
                 </div>
             </div>
 
-            <!-- Search Bar -->
+            <!-- Per-Class Search Bar (preserved for individual class filtering) -->
             <div class="search-bar">
-                <input type="text" id="searchInput" placeholder="Search by name or admission number..." value="<?php echo htmlspecialchars($search_query); ?>">
-                <button class="btn btn-primary" onclick="searchStudents()"><i class="fas fa-search"></i> Search</button>
+                <input type="text" id="searchInput" placeholder="Search students in this class by name or admission number..." value="<?php echo htmlspecialchars($search_query); ?>">
+                <button class="btn btn-primary" onclick="searchStudents()"><i class="fas fa-search"></i> Search in Class</button>
                 <?php if (!empty($search_query)): ?>
                     <a href="?class_id=<?php echo $selected_class_id; ?>" class="btn btn-outline"><i class="fas fa-times"></i> Clear</a>
                 <?php endif; ?>
@@ -1145,7 +1280,13 @@ if (isset($_GET['get_student'])) {
                 <?php if (empty($students)): ?>
                     <div class="empty-state">
                         <i class="fas fa-user-graduate" style="font-size: 40px; margin-bottom: 12px; color: var(--gray-400);"></i>
-                        <p>No students found in <?php echo htmlspecialchars($current_class['class_name']); ?></p>
+                        <p>
+                            <?php if (!empty($search_query)): ?>
+                                No students found matching "<?php echo htmlspecialchars($search_query); ?>" in <?php echo htmlspecialchars($current_class['class_name']); ?>
+                            <?php else: ?>
+                                No students found in <?php echo htmlspecialchars($current_class['class_name']); ?>
+                            <?php endif; ?>
+                        </p>
                         <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="margin-top: 10px;">Add Student</button>
                     </div>
                 <?php else: ?>
@@ -1459,7 +1600,7 @@ if (isset($_GET['get_student'])) {
             window.location.href = '?class_id=' + classId;
         }
 
-        // Search students
+        // Per-class search function (preserved)
         function searchStudents() {
             const searchTerm = document.getElementById('searchInput').value;
             window.location.href = '?class_id=<?php echo $selected_class_id; ?>&search=' + encodeURIComponent(searchTerm);
@@ -1507,7 +1648,7 @@ if (isset($_GET['get_student'])) {
 
         // View student details
         function viewStudent(studentId, event) {
-            if (event.target.type === 'checkbox') return;
+            if (event && event.target && event.target.type === 'checkbox') return;
             fetch(`?get_student=${studentId}`)
                 .then(response => response.json())
                 .then(data => {

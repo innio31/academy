@@ -22,15 +22,36 @@ $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND sc
 $stmt->execute([$staff_id_string, $school_id]);
 $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
+// Get staff assigned subjects
+$stmt = $pdo->prepare("
+    SELECT s.id, s.subject_name 
+    FROM staff_subjects ss
+    JOIN subjects s ON ss.subject_id = s.id
+    WHERE ss.staff_id = ? AND ss.school_id = ?
+    ORDER BY s.subject_name
+");
+$stmt->execute([$staff_id_string, $school_id]);
+$assigned_subjects = $stmt->fetchAll();
+
 // Handle upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
-    $subject = trim($_POST['subject']);
+    $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
     $class = trim($_POST['class']);
     $description = trim($_POST['description']);
 
-    if (empty($title) || empty($subject) || empty($class)) {
+    // Get subject name from ID
+    $subject_name = '';
+    if ($subject_id) {
+        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ?");
+        $stmt->execute([$subject_id, $school_id]);
+        $subject = $stmt->fetch();
+        $subject_name = $subject['subject_name'] ?? '';
+    }
+
+    if (empty($title) || empty($subject_id) || empty($class)) {
         $error = "Title, subject, and class are required";
+        $message_type = "error";
     } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = '../uploads/library/';
         if (!file_exists($upload_dir)) {
@@ -47,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
                 INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
-            $stmt->execute([$school_id, $title, $subject, $class, $file_type, $file_path, $file_size, $staff_id]);
+            $stmt->execute([$school_id, $title, $subject_name, $class, $file_type, $file_path, $file_size, $staff_id]);
 
             $message = "Resource uploaded successfully!";
             $message_type = "success";
@@ -115,6 +136,29 @@ $query .= " ORDER BY lr.uploaded_at DESC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $resources = $stmt->fetchAll();
+
+// Get file icon function
+function getFileIcon($file_type) {
+    $ext = strtolower($file_type);
+    $icons = [
+        'pdf' => '📕',
+        'doc' => '📘',
+        'docx' => '📘',
+        'ppt' => '📙',
+        'pptx' => '📙',
+        'xls' => '📗',
+        'xlsx' => '📗',
+        'jpg' => '🖼️',
+        'jpeg' => '🖼️',
+        'png' => '🖼️',
+        'gif' => '🖼️',
+        'mp4' => '🎬',
+        'mp3' => '🎵',
+        'txt' => '📄',
+        'zip' => '📦'
+    ];
+    return $icons[$ext] ?? '📁';
+}
 ?>
 
 <!DOCTYPE html>
@@ -122,7 +166,7 @@ $resources = $stmt->fetchAll();
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo htmlspecialchars($school_name); ?> - Library</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -162,6 +206,44 @@ $resources = $stmt->fetchAll();
             background: var(--gray-100);
             color: var(--gray-800);
             min-height: 100vh;
+        }
+
+        /* Mobile Menu Button */
+        .mobile-menu-btn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
         }
 
         /* Main Content */
@@ -451,6 +533,12 @@ $resources = $stmt->fetchAll();
             border-left: 4px solid var(--danger-color);
         }
 
+        .alert-info {
+            background: #eef2ff;
+            color: var(--info-color);
+            border-left: 4px solid var(--info-color);
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -483,13 +571,19 @@ $resources = $stmt->fetchAll();
             color: var(--primary-color);
         }
 
-        /* Responsive */
+        /* Desktop */
         @media (min-width: 768px) {
+            .mobile-menu-btn,
+            .sidebar-overlay {
+                display: none;
+            }
+
             .main-content {
                 margin-left: var(--sidebar-width);
             }
         }
 
+        /* Mobile */
         @media (max-width: 767px) {
             .main-content {
                 padding-top: 70px;
@@ -517,10 +611,12 @@ $resources = $stmt->fetchAll();
 </head>
 
 <body>
+
     <!-- Mobile Menu Button -->
     <button class="mobile-menu-btn" id="mobileMenuBtn">
         <i class="fas fa-bars"></i>
     </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Include Staff Sidebar -->
     <?php include_once 'includes/staff_sidebar.php'; ?>
@@ -550,7 +646,24 @@ $resources = $stmt->fetchAll();
             </div>
         <?php endif; ?>
 
-        <!-- Upload Form -->
+        <!-- No assigned subjects warning -->
+        <?php if (empty($assigned_subjects)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                You have not been assigned any subjects yet. Please contact the administrator to assign subjects to you.
+            </div>
+        <?php endif; ?>
+
+        <!-- No assigned classes warning -->
+        <?php if (empty($assigned_classes)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                You have not been assigned any classes yet. Please contact the administrator to assign classes to you.
+            </div>
+        <?php endif; ?>
+
+        <!-- Upload Form - Only show if staff has assigned subjects and classes -->
+        <?php if (!empty($assigned_subjects) && !empty($assigned_classes)): ?>
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-upload"></i> Upload Resource</h3>
@@ -564,7 +677,12 @@ $resources = $stmt->fetchAll();
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-book"></i> Subject *</label>
-                        <input type="text" name="subject" class="form-control" placeholder="e.g., Mathematics, English, Science" required>
+                        <select name="subject_id" class="form-select" required>
+                            <option value="">Select Subject</option>
+                            <?php foreach ($assigned_subjects as $subject): ?>
+                                <option value="<?php echo $subject['id']; ?>"><?php echo htmlspecialchars($subject['subject_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-layer-group"></i> Class *</label>
@@ -573,12 +691,11 @@ $resources = $stmt->fetchAll();
                             <?php foreach ($assigned_classes as $class): ?>
                                 <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
                             <?php endforeach; ?>
-                            <option value="All">All Classes</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-align-left"></i> Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Optional description of the resource..."></textarea>
+                        <label><i class="fas fa-align-left"></i> Description (Optional)</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the resource..."></textarea>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-paperclip"></i> File *</label>
@@ -591,6 +708,7 @@ $resources = $stmt->fetchAll();
                 </button>
             </form>
         </div>
+        <?php endif; ?>
 
         <!-- Resources List -->
         <div class="card">
@@ -626,6 +744,7 @@ $resources = $stmt->fetchAll();
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th>File</th>
                                 <th>Title</th>
                                 <th>Subject</th>
                                 <th>Class</th>
@@ -646,7 +765,9 @@ $resources = $stmt->fetchAll();
                                 elseif (in_array($file_type, ['jpg', 'jpeg', 'png', 'gif'])) $badge_class = 'file-image';
                             ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($resource['title']); ?></strong>
+                                    <td style="font-size: 1.5rem;"><?php echo getFileIcon($file_type); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($resource['title']); ?></strong>
                                         <?php if ($resource['description']): ?>
                                             <br><small style="color: var(--gray-500);"><?php echo htmlspecialchars(substr($resource['description'], 0, 60)); ?></small>
                                         <?php endif; ?>
@@ -680,23 +801,27 @@ $resources = $stmt->fetchAll();
     </div>
 
     <script>
-        // Mobile menu toggle - handled in staff_sidebar.php
+        // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('staffSidebar');
         const overlay = document.getElementById('sidebarOverlay');
 
         if (mobileBtn) {
-            mobileBtn.onclick = () => {
-                sidebar.classList.toggle('active');
+            mobileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (sidebar) sidebar.classList.toggle('active');
                 if (overlay) overlay.classList.toggle('active');
-            };
+                document.body.style.overflow = sidebar?.classList.contains('active') ? 'hidden' : '';
+            });
         }
 
         if (overlay) {
-            overlay.onclick = () => {
-                sidebar.classList.remove('active');
+            overlay.addEventListener('click', function() {
+                if (sidebar) sidebar.classList.remove('active');
                 overlay.classList.remove('active');
-            };
+                document.body.style.overflow = '';
+            });
         }
 
         // Close sidebar when clicking outside on mobile
@@ -705,9 +830,22 @@ $resources = $stmt->fetchAll();
                 if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
                     sidebar.classList.remove('active');
                     if (overlay) overlay.classList.remove('active');
+                    document.body.style.overflow = '';
                 }
             }
         });
+
+        // File size validation
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file && file.size > 10 * 1024 * 1024) {
+                    alert('File size exceeds 10MB limit!');
+                    this.value = '';
+                }
+            });
+        }
     </script>
 </body>
 

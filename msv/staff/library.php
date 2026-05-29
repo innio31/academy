@@ -15,29 +15,53 @@ $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 $staff_role = $_SESSION['staff_role'] ?? 'staff';
-$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
-// Get staff assigned classes
-$stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
-$stmt->execute([$staff_id_string, $school_id]);
-$assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Initialize variables
+$assigned_subjects = [];
+$assigned_classes = [];
+$staff_id_string = null;
 
-// Get staff assigned subjects
-$stmt = $pdo->prepare("
-    SELECT s.id, s.subject_name 
-    FROM staff_subjects ss
-    JOIN subjects s ON ss.subject_id = s.id
-    WHERE ss.staff_id = ? AND ss.school_id = ?
-    ORDER BY s.subject_name
-");
-$stmt->execute([$staff_id_string, $school_id]);
-$assigned_subjects = $stmt->fetchAll();
+try {
+    // Get the staff_id string from the staff table (same as index.php)
+    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
+    $stmt->execute([$staff_id, $school_id]);
+    $staff_id_string = $stmt->fetchColumn();
+
+    if (!$staff_id_string) {
+        $error = "Staff record not found. Please contact administrator.";
+    } else {
+        // Get assigned subjects - SAME as index.php
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.subject_name
+            FROM subjects s
+            JOIN staff_subjects ss ON s.id = ss.subject_id
+            WHERE ss.staff_id = ? AND ss.school_id = ?
+            ORDER BY s.subject_name
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_subjects = $stmt->fetchAll();
+
+        // Get assigned classes - SAME as index.php (using DISTINCT class)
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT class 
+            FROM staff_classes 
+            WHERE staff_id = ? AND school_id = ?
+            ORDER BY class
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_classes = $stmt->fetchAll();
+        $class_names = array_column($assigned_classes, 'class');
+    }
+} catch (Exception $e) {
+    error_log("Staff library error: " . $e->getMessage());
+    $error = "An error occurred while loading the library.";
+}
 
 // Handle upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
     $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
-    $class = trim($_POST['class']);
+    $class_name = trim($_POST['class']);
     $description = trim($_POST['description']);
 
     // Get subject name from ID
@@ -49,8 +73,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $subject_name = $subject['subject_name'] ?? '';
     }
 
-    if (empty($title) || empty($subject_id) || empty($class)) {
-        $error = "Title, subject, and class are required";
+    // Validate that the selected class is in staff's assigned classes
+    $class_valid = false;
+    foreach ($assigned_classes as $ac) {
+        if ($ac['class'] === $class_name) {
+            $class_valid = true;
+            break;
+        }
+    }
+
+    // Validate that the selected subject is in staff's assigned subjects
+    $subject_valid = false;
+    foreach ($assigned_subjects as $as) {
+        if ($as['id'] == $subject_id) {
+            $subject_valid = true;
+            break;
+        }
+    }
+
+    if (empty($title)) {
+        $error = "Title is required";
+        $message_type = "error";
+    } elseif (!$subject_valid) {
+        $error = "Invalid subject selected. You can only upload for your assigned subjects.";
+        $message_type = "error";
+    } elseif (!$class_valid) {
+        $error = "Invalid class selected. You can only upload for your assigned classes.";
         $message_type = "error";
     } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = '../uploads/library/';
@@ -68,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
                 INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
-            $stmt->execute([$school_id, $title, $subject_name, $class, $file_type, $file_path, $file_size, $staff_id]);
+            $stmt->execute([$school_id, $title, $subject_name, $class_name, $file_type, $file_path, $file_size, $staff_id]);
 
             $message = "Resource uploaded successfully!";
             $message_type = "success";
@@ -101,7 +149,7 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Get resources (staff's own + shared to their classes)
+// Get resources (staff's own + shared to their classes) - SAME logic as index.php for class filtering
 $search = $_GET['search'] ?? '';
 
 // Build the base query
@@ -115,11 +163,11 @@ $query = "SELECT lr.*,
 
 $params = [$school_id, $staff_id];
 
-// Add class condition only if there are assigned classes
-if (!empty($assigned_classes)) {
-    $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+// Add class condition only if there are assigned classes - SAME as index.php
+if (!empty($class_names)) {
+    $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
     $query .= " OR lr.class IN ($placeholders)";
-    $params = array_merge($params, $assigned_classes);
+    $params = array_merge($params, $class_names);
 }
 
 $query .= " OR lr.class = 'All')";
@@ -511,6 +559,27 @@ function getFileIcon($file_type) {
             color: var(--gray-600);
         }
 
+        /* Info Items */
+        .info-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
         /* Alerts */
         .alert {
             padding: 15px 20px;
@@ -554,21 +623,6 @@ function getFileIcon($file_type) {
 
         .empty-state p {
             margin-top: 8px;
-        }
-
-        /* Info Item */
-        .info-item {
-            background: var(--gray-100);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: var(--gray-800);
-            font-weight: 500;
-        }
-
-        .info-item i {
-            margin-right: 6px;
-            color: var(--primary-color);
         }
 
         /* Desktop */
@@ -646,21 +700,28 @@ function getFileIcon($file_type) {
             </div>
         <?php endif; ?>
 
-        <!-- No assigned subjects warning -->
-        <?php if (empty($assigned_subjects)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                You have not been assigned any subjects yet. Please contact the administrator to assign subjects to you.
+        <!-- Assigned Info Card - Same as index.php -->
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chalkboard"></i> My Assignments</h3>
             </div>
-        <?php endif; ?>
-
-        <!-- No assigned classes warning -->
-        <?php if (empty($assigned_classes)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                You have not been assigned any classes yet. Please contact the administrator to assign classes to you.
+            <div class="info-items">
+                <?php if (!empty($assigned_subjects)): ?>
+                    <?php foreach ($assigned_subjects as $subject): ?>
+                        <span class="info-item"><i class="fas fa-book"></i> <?php echo htmlspecialchars($subject['subject_name']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item"><i class="fas fa-info-circle"></i> No subjects assigned yet</span>
+                <?php endif; ?>
+                <?php if (!empty($assigned_classes)): ?>
+                    <?php foreach ($assigned_classes as $class): ?>
+                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
+        </div>
 
         <!-- Upload Form - Only show if staff has assigned subjects and classes -->
         <?php if (!empty($assigned_subjects) && !empty($assigned_classes)): ?>
@@ -689,7 +750,7 @@ function getFileIcon($file_type) {
                         <select name="class" class="form-select" required>
                             <option value="">Select Class</option>
                             <?php foreach ($assigned_classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
+                                <option value="<?php echo htmlspecialchars($class['class']); ?>"><?php echo htmlspecialchars($class['class']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -708,6 +769,18 @@ function getFileIcon($file_type) {
                 </button>
             </form>
         </div>
+        <?php elseif (!empty($assigned_subjects) && empty($assigned_classes)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have assigned subjects but no classes. Please contact the administrator to assign classes to you.
+            </div>
+        <?php elseif (empty($assigned_subjects) && !empty($assigned_classes)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have assigned classes but no subjects. Please contact the administrator to assign subjects to you.
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have not been assigned any subjects or classes yet. Please contact the administrator.
+            </div>
         <?php endif; ?>
 
         <!-- Resources List -->

@@ -653,7 +653,7 @@ function getGradeColor($grade) {
                     <div class="result-details">
                         <div class="result-detail-item">
                             <div class="result-detail-label">Score</div>
-                            <div class="result-detail-value"><?php echo $exam_result['total_score']; ?> / <?php echo $exam_result['total_questions']; ?></div>
+                            <div class="result-detail-value"><?php echo $exam_result['total_score']; ?> / <?php echo $exam_result['exam_total_questions'] ?? $exam_result['total_score']; ?></div>
                         </div>
                         <div class="result-detail-item">
                             <div class="result-detail-label">Subject</div>
@@ -674,35 +674,81 @@ function getGradeColor($grade) {
                     <div class="card-header" style="margin-top: 20px;">
                         <h3><i class="fas fa-list-check"></i> Question Breakdown</h3>
                     </div>
-                    <div style="overflow-x: auto;">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Question</th>
-                                    <th>Your Answer</th>
-                                    <th>Correct Answer</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($detailed_answers as $index => $qa): ?>
-                                    <tr>
-                                        <td><?php echo $index + 1; ?></td>
-                                        <td style="max-width: 300px;"><?php echo htmlspecialchars(substr($qa['question_text'], 0, 100)) . (strlen($qa['question_text']) > 100 ? '...' : ''); ?></td>
-                                        <td><?php echo htmlspecialchars($qa['selected_answer'] ?? 'Not answered'); ?></td>
-                                        <td><?php echo htmlspecialchars($qa['correct_answer']); ?></td>
-                                        <td>
-                                            <?php if ($qa['is_correct']): ?>
-                                                <i class="fas fa-check-circle" style="color: #27ae60;"></i> Correct
-                                            <?php else: ?>
-                                                <i class="fas fa-times-circle" style="color: #e74c3c;"></i> Incorrect
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
+                    <?php
+                    // Helper: get the full option text for a given letter
+                    function getOptionText($qa, $letter) {
+                        if (!$letter) return null;
+                        $key = 'option_' . strtolower($letter);
+                        return $qa[$key] ?? null;
+                    }
+                    ?>
+                    <div style="display:flex; flex-direction:column; gap:20px; margin-top:10px;">
+                        <?php foreach ($detailed_answers as $index => $qa):
+                            $selected = $qa['selected_answer'] ?? null;
+                            $correct  = strtoupper($qa['correct_answer']);
+                            $options  = ['A','B','C','D'];
+                            if (!empty($qa['option_e'])) $options[] = 'E';
+                        ?>
+                        <div style="background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.07); border-left:4px solid <?php echo $qa['is_correct'] ? '#27ae60' : '#e74c3c'; ?>;">
+                            
+                            <!-- Question -->
+                            <div style="display:flex; gap:12px; margin-bottom:14px;">
+                                <span style="background:<?php echo $qa['is_correct'] ? '#27ae60' : '#e74c3c'; ?>; color:#fff; border-radius:8px; padding:2px 10px; font-size:.75rem; font-weight:700; flex-shrink:0; height:fit-content;">
+                                    Q<?php echo $index + 1; ?>
+                                </span>
+                                <div style="font-size:.9rem; font-weight:600; color:#1e293b; line-height:1.5;">
+                                    <?php echo htmlspecialchars($qa['question_text']); ?>
+                                </div>
+                            </div>
+
+                            <!-- Options -->
+                            <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+                                <?php foreach ($options as $letter):
+                                    $text = getOptionText($qa, $letter);
+                                    if (!$text) continue;
+                                    $isSelected = strtoupper($selected) === $letter;
+                                    $isCorrect  = $letter === $correct;
+
+                                    if ($isSelected && $isCorrect) {
+                                        $bg = '#f0fdf4'; $border = '#22c55e'; $textColor = '#15803d'; $icon = '✓';
+                                    } elseif ($isSelected && !$isCorrect) {
+                                        $bg = '#fef2f2'; $border = '#ef4444'; $textColor = '#b91c1c'; $icon = '✗';
+                                    } elseif ($isCorrect) {
+                                        $bg = '#f0fdf4'; $border = '#22c55e'; $textColor = '#15803d'; $icon = '✓';
+                                    } else {
+                                        $bg = '#f8fafc'; $border = '#e2e8f0'; $textColor = '#64748b'; $icon = '';
+                                    }
+                                ?>
+                                <div style="display:flex; align-items:center; gap:10px; background:<?php echo $bg; ?>; border:1.5px solid <?php echo $border; ?>; border-radius:8px; padding:9px 14px;">
+                                    <span style="width:26px; height:26px; border-radius:6px; background:<?php echo $border; ?>; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:800; flex-shrink:0;">
+                                        <?php echo $letter; ?>
+                                    </span>
+                                    <span style="font-size:.85rem; color:<?php echo $textColor; ?>; flex:1;">
+                                        <?php echo htmlspecialchars($text); ?>
+                                    </span>
+                                    <?php if ($icon): ?>
+                                    <span style="font-size:1rem; font-weight:800; color:<?php echo $textColor; ?>;"><?php echo $icon; ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($isSelected && !$isCorrect): ?>
+                                        <span style="font-size:.68rem; color:#b91c1c; font-weight:600;">Your answer</span>
+                                    <?php elseif ($isCorrect && !$isSelected): ?>
+                                        <span style="font-size:.68rem; color:#15803d; font-weight:600;">Correct answer</span>
+                                    <?php elseif ($isCorrect && $isSelected): ?>
+                                        <span style="font-size:.68rem; color:#15803d; font-weight:600;">Your answer ✓</span>
+                                    <?php endif; ?>
+                                </div>
                                 <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                            </div>
+
+                            <!-- Not answered note -->
+                            <?php if (!$selected): ?>
+                            <div style="font-size:.78rem; color:#f59e0b; font-weight:600;">
+                                <i class="fas fa-exclamation-triangle"></i> Not answered — correct answer was <strong><?php echo $correct; ?>: <?php echo htmlspecialchars(getOptionText($qa, $correct)); ?></strong>
+                            </div>
+                            <?php endif; ?>
+
+                        </div>
+                        <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
                 

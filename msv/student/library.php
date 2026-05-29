@@ -41,9 +41,16 @@ $type_filter = $_GET['type'] ?? 'all';
 $search_query = $_GET['search'] ?? '';
 $sort_by = $_GET['sort'] ?? 'newest';
 
-// Build WHERE conditions with school_id
-$where_conditions = ["lr.school_id = ?", "(lr.class = ? OR lr.class = 'All' OR lr.class = '')"];
-$params = [$school_id, $student_class];
+// Build WHERE conditions with school_id - handle multi-class resources
+// Need to check if student's class is in the comma-separated list
+$where_conditions = ["lr.school_id = ?"];
+$params = [$school_id];
+
+// Access condition: student's class matches single class, is in comma-separated list, or 'All'
+$access_condition = "(lr.class = ? OR lr.class = 'All' OR lr.class = '' OR FIND_IN_SET(?, lr.class))";
+$params[] = $student_class;
+$params[] = $student_class;
+$where_conditions[] = $access_condition;
 
 // Subject filter
 if ($subject_filter !== 'all') {
@@ -122,17 +129,16 @@ $resources = $stmt->fetchAll();
 // Get distinct subjects for filter
 $stmt = $pdo->prepare("
     SELECT DISTINCT subject FROM library_resources 
-    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '') AND subject IS NOT NULL
+    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '' OR FIND_IN_SET(?, class)) AND subject IS NOT NULL
     ORDER BY subject
 ");
-$stmt->execute([$school_id, $student_class]);
+$stmt->execute([$school_id, $student_class, $student_class]);
 $available_subjects = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Get resource types for filter
 $resource_types = ['PDF', 'DOC', 'PPT', 'VIDEO', 'AUDIO', 'IMAGE'];
 
-// Get statistics
-$stmt = $pdo->prepare("
+// Get statistics$stmt = $pdo->prepare("
     SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN file_type LIKE '%.pdf%' THEN 1 ELSE 0 END) as pdf_count,
@@ -142,9 +148,9 @@ $stmt = $pdo->prepare("
         SUM(CASE WHEN file_type LIKE '%.doc%' OR file_type LIKE '%.docx%' THEN 1 ELSE 0 END) as doc_count,
         SUM(CASE WHEN file_type LIKE '%.ppt%' OR file_type LIKE '%.pptx%' THEN 1 ELSE 0 END) as ppt_count
     FROM library_resources 
-    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '')
+    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '' OR FIND_IN_SET(?, class))
 ");
-$stmt->execute([$school_id, $student_class]);
+$stmt->execute([$school_id, $student_class, $student_class]);
 $stats = $stmt->fetch();
 
 // Helper functions
@@ -788,13 +794,23 @@ function timeAgo($datetime) {
                                 </div>
                                 
                                 <div class="action-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                    <a href="/<?php echo $resource['file_path']; ?>" target="_blank" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-eye"></i> View Online
-                                    </a>
-                                    <a href="download-resource.php?id=<?php echo $resource['id']; ?>" class="btn btn-success btn-sm">
-                                        <i class="fas fa-download"></i> Download
-                                    </a>
-                                </div>
+    <?php
+    // Determine correct file URL
+    $file_url = '/msv/' . $resource['file_path'];
+    // If the path already starts with /msv, don't add it again
+    if (strpos($resource['file_path'], '/msv/') === 0) {
+        $file_url = $resource['file_path'];
+    } elseif (strpos($resource['file_path'], 'uploads/') === 0) {
+        $file_url = '/msv/' . $resource['file_path'];
+    }
+    ?>
+    <a href="<?php echo $file_url; ?>" target="_blank" class="btn btn-primary btn-sm">
+        <i class="fas fa-eye"></i> View Online
+    </a>
+    <a href="download-resource.php?id=<?php echo $resource['id']; ?>" class="btn btn-success btn-sm">
+        <i class="fas fa-download"></i> Download
+    </a>
+</div>
                             </div>
                         </div>
                     </div>

@@ -1,5 +1,5 @@
 <?php
-// ida/staff/library.php - Staff Library Management
+// ida/staff/library.php - Staff Library Management with Multi-Class Support
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
@@ -15,22 +15,91 @@ $primary_color = SCHOOL_PRIMARY;
 $staff_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
 $staff_role = $_SESSION['staff_role'] ?? 'staff';
-$staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
-// Get staff assigned classes
-$stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
-$stmt->execute([$staff_id_string, $school_id]);
-$assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// Initialize variables
+$assigned_subjects = [];
+$assigned_classes = [];
+$staff_id_string = null;
 
-// Handle upload
+try {
+    // Get the staff_id string from the staff table (same as index.php)
+    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
+    $stmt->execute([$staff_id, $school_id]);
+    $staff_id_string = $stmt->fetchColumn();
+
+    if (!$staff_id_string) {
+        $error = "Staff record not found. Please contact administrator.";
+    } else {
+        // Get assigned subjects - SAME as index.php
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.subject_name
+            FROM subjects s
+            JOIN staff_subjects ss ON s.id = ss.subject_id
+            WHERE ss.staff_id = ? AND ss.school_id = ?
+            ORDER BY s.subject_name
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_subjects = $stmt->fetchAll();
+
+        // Get assigned classes - SAME as index.php (using DISTINCT class)
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT class 
+            FROM staff_classes 
+            WHERE staff_id = ? AND school_id = ?
+            ORDER BY class
+        ");
+        $stmt->execute([$staff_id_string, $school_id]);
+        $assigned_classes = $stmt->fetchAll();
+        $class_names = array_column($assigned_classes, 'class');
+    }
+} catch (Exception $e) {
+    error_log("Staff library error: " . $e->getMessage());
+    $error = "An error occurred while loading the library.";
+}
+
+// Handle upload (with multiple classes support)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
-    $subject = trim($_POST['subject']);
-    $class = trim($_POST['class']);
+    $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
+    $selected_classes = $_POST['classes'] ?? []; // Array of selected classes
     $description = trim($_POST['description']);
 
-    if (empty($title) || empty($subject) || empty($class)) {
-        $error = "Title, subject, and class are required";
+    // Get subject name from ID
+    $subject_name = '';
+    if ($subject_id) {
+        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ?");
+        $stmt->execute([$subject_id, $school_id]);
+        $subject = $stmt->fetch();
+        $subject_name = $subject['subject_name'] ?? '';
+    }
+
+    // Validate that selected classes are in staff's assigned classes
+    $valid_classes = [];
+    $assigned_class_names = array_column($assigned_classes, 'class');
+    foreach ($selected_classes as $class) {
+        if (in_array($class, $assigned_class_names)) {
+            $valid_classes[] = $class;
+        }
+    }
+
+    // Validate that the selected subject is in staff's assigned subjects
+    $subject_valid = false;
+    foreach ($assigned_subjects as $as) {
+        if ($as['id'] == $subject_id) {
+            $subject_valid = true;
+            break;
+        }
+    }
+
+    if (empty($title)) {
+        $error = "Title is required";
+        $message_type = "error";
+    } elseif (!$subject_valid) {
+        $error = "Invalid subject selected. You can only upload for your assigned subjects.";
+        $message_type = "error";
+    } elseif (empty($valid_classes)) {
+        $error = "Please select at least one valid class from your assigned classes.";
+        $message_type = "error";
     } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = '../uploads/library/';
         if (!file_exists($upload_dir)) {
@@ -43,13 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $file_size = $_FILES['resource_file']['size'];
 
         if (move_uploaded_file($_FILES['resource_file']['tmp_name'], '../' . $file_path)) {
+            // Store classes as comma-separated string
+            $classes_string = implode(',', $valid_classes);
+            
             $stmt = $pdo->prepare("
                 INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
-            $stmt->execute([$school_id, $title, $subject, $class, $file_type, $file_path, $file_size, $staff_id]);
+            $stmt->execute([$school_id, $title, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
 
-            $message = "Resource uploaded successfully!";
+            $message = "Resource uploaded successfully! Shared with " . count($valid_classes) . " class(es).";
             $message_type = "success";
         } else {
             $error = "Failed to upload file";
@@ -80,10 +152,10 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Get resources (staff's own + shared to their classes)
+// Get resources (staff's own + shared to their classes) - with multi-class support
 $search = $_GET['search'] ?? '';
 
-// Build the base query
+// Build the base query - need to handle comma-separated classes
 $query = "SELECT lr.*, 
           CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
@@ -94,11 +166,14 @@ $query = "SELECT lr.*,
 
 $params = [$school_id, $staff_id];
 
-// Add class condition only if there are assigned classes
-if (!empty($assigned_classes)) {
-    $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
-    $query .= " OR lr.class IN ($placeholders)";
-    $params = array_merge($params, $assigned_classes);
+// Add class condition for multi-class resources - check if staff's class is in the comma-separated list
+if (!empty($class_names)) {
+    $class_conditions = [];
+    foreach ($class_names as $class) {
+        $class_conditions[] = "FIND_IN_SET(?, lr.class)";
+        $params[] = $class;
+    }
+    $query .= " OR (" . implode(" OR ", $class_conditions) . ")";
 }
 
 $query .= " OR lr.class = 'All')";
@@ -115,6 +190,42 @@ $query .= " ORDER BY lr.uploaded_at DESC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $resources = $stmt->fetchAll();
+
+// Get file icon function
+function getFileIcon($file_type) {
+    $ext = strtolower($file_type);
+    $icons = [
+        'pdf' => '📕',
+        'doc' => '📘',
+        'docx' => '📘',
+        'ppt' => '📙',
+        'pptx' => '📙',
+        'xls' => '📗',
+        'xlsx' => '📗',
+        'jpg' => '🖼️',
+        'jpeg' => '🖼️',
+        'png' => '🖼️',
+        'gif' => '🖼️',
+        'mp4' => '🎬',
+        'mp3' => '🎵',
+        'txt' => '📄',
+        'zip' => '📦'
+    ];
+    return $icons[$ext] ?? '📁';
+}
+
+// Helper to format class display (convert comma-separated to badges)
+function formatClasses($class_string) {
+    if ($class_string === 'All') {
+        return '<span class="info-item" style="background: var(--primary-color); color: white;"><i class="fas fa-globe"></i> All Classes</span>';
+    }
+    $classes = explode(',', $class_string);
+    $badges = [];
+    foreach ($classes as $class) {
+        $badges[] = '<span class="info-item"><i class="fas fa-users"></i> ' . htmlspecialchars(trim($class)) . '</span>';
+    }
+    return implode(' ', $badges);
+}
 ?>
 
 <!DOCTYPE html>
@@ -122,7 +233,7 @@ $resources = $stmt->fetchAll();
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo htmlspecialchars($school_name); ?> - Library</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -162,6 +273,44 @@ $resources = $stmt->fetchAll();
             background: var(--gray-100);
             color: var(--gray-800);
             min-height: 100vh;
+        }
+
+        /* Mobile Menu Button */
+        .mobile-menu-btn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
         }
 
         /* Main Content */
@@ -279,6 +428,50 @@ $resources = $stmt->fetchAll();
         textarea.form-control {
             resize: vertical;
             min-height: 80px;
+        }
+
+        /* Multi-select for classes */
+        .multi-select {
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .multi-select label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            margin: 0;
+            font-size: 0.85rem;
+            font-weight: normal;
+            text-transform: none;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+
+        .multi-select label:hover {
+            background: var(--gray-100);
+        }
+
+        .multi-select input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .selected-classes-badge {
+            display: inline-block;
+            background: var(--info-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            margin-left: 8px;
         }
 
         /* Search Bar */
@@ -429,6 +622,27 @@ $resources = $stmt->fetchAll();
             color: var(--gray-600);
         }
 
+        /* Info Items */
+        .info-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .info-item {
+            background: var(--gray-100);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            font-weight: 500;
+        }
+
+        .info-item i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
         /* Alerts */
         .alert {
             padding: 15px 20px;
@@ -451,6 +665,12 @@ $resources = $stmt->fetchAll();
             border-left: 4px solid var(--danger-color);
         }
 
+        .alert-info {
+            background: #eef2ff;
+            color: var(--info-color);
+            border-left: 4px solid var(--info-color);
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -468,28 +688,34 @@ $resources = $stmt->fetchAll();
             margin-top: 8px;
         }
 
-        /* Info Item */
-        .info-item {
-            background: var(--gray-100);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: var(--gray-800);
-            font-weight: 500;
+        /* Selection Info */
+        .selection-info {
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            padding: 12px 15px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: var(--gray-600);
         }
 
-        .info-item i {
+        .selection-info i {
+            color: var(--info-color);
             margin-right: 6px;
-            color: var(--primary-color);
         }
 
-        /* Responsive */
+        /* Desktop */
         @media (min-width: 768px) {
+            .mobile-menu-btn,
+            .sidebar-overlay {
+                display: none;
+            }
+
             .main-content {
                 margin-left: var(--sidebar-width);
             }
         }
 
+        /* Mobile */
         @media (max-width: 767px) {
             .main-content {
                 padding-top: 70px;
@@ -517,10 +743,12 @@ $resources = $stmt->fetchAll();
 </head>
 
 <body>
+
     <!-- Mobile Menu Button -->
     <button class="mobile-menu-btn" id="mobileMenuBtn">
         <i class="fas fa-bars"></i>
     </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Include Staff Sidebar -->
     <?php include_once 'includes/staff_sidebar.php'; ?>
@@ -550,13 +778,37 @@ $resources = $stmt->fetchAll();
             </div>
         <?php endif; ?>
 
-        <!-- Upload Form -->
+        <!-- Assigned Info Card - Same as index.php -->
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chalkboard"></i> My Assignments</h3>
+            </div>
+            <div class="info-items">
+                <?php if (!empty($assigned_subjects)): ?>
+                    <?php foreach ($assigned_subjects as $subject): ?>
+                        <span class="info-item"><i class="fas fa-book"></i> <?php echo htmlspecialchars($subject['subject_name']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item"><i class="fas fa-info-circle"></i> No subjects assigned yet</span>
+                <?php endif; ?>
+                <?php if (!empty($assigned_classes)): ?>
+                    <?php foreach ($assigned_classes as $class): ?>
+                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class']); ?></span>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Upload Form - Only show if staff has assigned subjects and classes -->
+        <?php if (!empty($assigned_subjects) && !empty($assigned_classes)): ?>
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-upload"></i> Upload Resource</h3>
                 <span class="info-item"><i class="fas fa-info-circle"></i> Max file size: 10MB</span>
             </div>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="form-grid">
                     <div class="form-group">
                         <label><i class="fas fa-heading"></i> Title *</label>
@@ -564,21 +816,31 @@ $resources = $stmt->fetchAll();
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-book"></i> Subject *</label>
-                        <input type="text" name="subject" class="form-control" placeholder="e.g., Mathematics, English, Science" required>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-layer-group"></i> Class *</label>
-                        <select name="class" class="form-select" required>
-                            <option value="">Select Class</option>
-                            <?php foreach ($assigned_classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
+                        <select name="subject_id" class="form-select" required>
+                            <option value="">Select Subject</option>
+                            <?php foreach ($assigned_subjects as $subject): ?>
+                                <option value="<?php echo $subject['id']; ?>"><?php echo htmlspecialchars($subject['subject_name']); ?></option>
                             <?php endforeach; ?>
-                            <option value="All">All Classes</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-align-left"></i> Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Optional description of the resource..."></textarea>
+                        <label><i class="fas fa-layer-group"></i> Classes * (Select one or more)</label>
+                        <div class="multi-select" id="classesMultiSelect">
+                            <?php foreach ($assigned_classes as $class): ?>
+                                <label>
+                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class']); ?>">
+                                    <span><?php echo htmlspecialchars($class['class']); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="selection-info" id="selectionInfo">
+                            <i class="fas fa-info-circle"></i>
+                            <span id="selectedCount">0</span> class(es) selected
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-align-left"></i> Description (Optional)</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the resource..."></textarea>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-paperclip"></i> File *</label>
@@ -591,6 +853,19 @@ $resources = $stmt->fetchAll();
                 </button>
             </form>
         </div>
+        <?php elseif (!empty($assigned_subjects) && empty($assigned_classes)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have assigned subjects but no classes. Please contact the administrator to assign classes to you.
+            </div>
+        <?php elseif (empty($assigned_subjects) && !empty($assigned_classes)): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have assigned classes but no subjects. Please contact the administrator to assign subjects to you.
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have not been assigned any subjects or classes yet. Please contact the administrator.
+            </div>
+        <?php endif; ?>
 
         <!-- Resources List -->
         <div class="card">
@@ -626,9 +901,10 @@ $resources = $stmt->fetchAll();
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th>File</th>
                                 <th>Title</th>
                                 <th>Subject</th>
-                                <th>Class</th>
+                                <th>Classes</th>
                                 <th>Type</th>
                                 <th>Size</th>
                                 <th>Actions</th>
@@ -646,13 +922,19 @@ $resources = $stmt->fetchAll();
                                 elseif (in_array($file_type, ['jpg', 'jpeg', 'png', 'gif'])) $badge_class = 'file-image';
                             ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($resource['title']); ?></strong>
+                                    <td style="font-size: 1.5rem;"><?php echo getFileIcon($file_type); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($resource['title']); ?></strong>
                                         <?php if ($resource['description']): ?>
                                             <br><small style="color: var(--gray-500);"><?php echo htmlspecialchars(substr($resource['description'], 0, 60)); ?></small>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($resource['subject']); ?></td>
-                                    <td><span class="info-item" style="background: none; padding: 0;"><?php echo htmlspecialchars($resource['class']); ?></span></td>
+                                    <td>
+                                        <div class="info-items" style="margin: 0;">
+                                            <?php echo formatClasses($resource['class']); ?>
+                                        </div>
+                                    </td>
                                     <td><span class="file-badge <?php echo $badge_class; ?>"><?php echo strtoupper($file_type); ?></span></td>
                                     <td><?php echo $resource['formatted_size']; ?></td>
                                     <td>
@@ -680,23 +962,27 @@ $resources = $stmt->fetchAll();
     </div>
 
     <script>
-        // Mobile menu toggle - handled in staff_sidebar.php
+        // Mobile menu toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('staffSidebar');
         const overlay = document.getElementById('sidebarOverlay');
 
         if (mobileBtn) {
-            mobileBtn.onclick = () => {
-                sidebar.classList.toggle('active');
+            mobileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (sidebar) sidebar.classList.toggle('active');
                 if (overlay) overlay.classList.toggle('active');
-            };
+                document.body.style.overflow = sidebar?.classList.contains('active') ? 'hidden' : '';
+            });
         }
 
         if (overlay) {
-            overlay.onclick = () => {
-                sidebar.classList.remove('active');
+            overlay.addEventListener('click', function() {
+                if (sidebar) sidebar.classList.remove('active');
                 overlay.classList.remove('active');
-            };
+                document.body.style.overflow = '';
+            });
         }
 
         // Close sidebar when clicking outside on mobile
@@ -705,9 +991,52 @@ $resources = $stmt->fetchAll();
                 if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
                     sidebar.classList.remove('active');
                     if (overlay) overlay.classList.remove('active');
+                    document.body.style.overflow = '';
                 }
             }
         });
+
+        // Update selected classes count
+        const checkboxes = document.querySelectorAll('input[name="classes[]"]');
+        const selectedCountSpan = document.getElementById('selectedCount');
+        
+        function updateSelectedCount() {
+            const checked = document.querySelectorAll('input[name="classes[]"]:checked');
+            if (selectedCountSpan) {
+                selectedCountSpan.textContent = checked.length;
+            }
+        }
+        
+        if (checkboxes.length > 0) {
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateSelectedCount);
+            });
+            updateSelectedCount();
+        }
+
+        // File size validation
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file && file.size > 10 * 1024 * 1024) {
+                    alert('File size exceeds 10MB limit!');
+                    this.value = '';
+                }
+            });
+        }
+
+        // Form validation to ensure at least one class is selected
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function(e) {
+                const selectedClasses = document.querySelectorAll('input[name="classes[]"]:checked');
+                if (selectedClasses.length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one class to share this resource with.');
+                }
+            });
+        }
     </script>
 </body>
 

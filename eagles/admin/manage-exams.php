@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in (support both session styles)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /gos/login.php");
     exit();
 }
 
@@ -1136,7 +1136,7 @@ if (isset($_GET['get_exam'])) {
                 <h1>Manage Exams</h1>
                 <p>Create, edit, and manage examination schedules</p>
             </div>
-            <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
+            <button class="logout-btn" onclick="window.location.href='../gos/logout.php'">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>

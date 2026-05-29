@@ -92,25 +92,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$student_id]);
 $completed_exams = $stmt->fetchAll();
 
-// ---------- helpers (same as index.php) ----------
-function hexToRgb($hex) {
-    $hex = ltrim($hex, '#');
-    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-    return hexdec(substr($hex,0,2)).','.hexdec(substr($hex,2,2)).','.hexdec(substr($hex,4,2));
-}
-function adjustBrightness($hex, $percent) {
-    $hex = ltrim($hex, '#');
-    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-    $r = hexdec(substr($hex,0,2)); $g = hexdec(substr($hex,2,2)); $b = hexdec(substr($hex,4,2));
-    $f = 1 + ($percent / 100);
-    return sprintf('#%02x%02x%02x', min(255,max(0,(int)($r*$f))), min(255,max(0,(int)($g*$f))), min(255,max(0,(int)($b*$f))));
-}
-
-$sb_bg        = adjustBrightness($primary_color, -12);
-$sb_hover_bg  = "rgba(".hexToRgb($accent_color).", 0.08)";
-$sb_active_bg = "rgba(".hexToRgb($secondary_color).", 0.18)";
-$logo_gradient = "linear-gradient(135deg, $secondary_color, $primary_color)";
-$current_page  = basename($_SERVER['PHP_SELF']);
+$current_page = basename($_SERVER['PHP_SELF']);
 
 // Grade badge colour helper
 function gradeBadgeColor($grade) {
@@ -140,62 +122,9 @@ function gradeBadgeColor($grade) {
         :root {
             --primary:   <?php echo $primary_color; ?>;
             --secondary: <?php echo $secondary_color; ?>;
-            --sidebar-bg: <?php echo $sb_bg; ?>;
-            --sidebar-w:  280px;
+            --sidebar-w: 280px;
             --radius: 16px;
             --shadow: 0 2px 12px rgba(0,0,0,.08);
-        }
-
-        /* ── Sidebar (exact match to index.php) ─────────────── */
-        .student-sidebar {
-            width: var(--sidebar-w); height: 100vh;
-            background: var(--sidebar-bg);
-            position: fixed; top: 0; left: 0;
-            overflow-y: auto; z-index: 1000;
-            transition: transform .3s ease;
-            box-shadow: 2px 0 10px rgba(0,0,0,.1);
-        }
-        .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; }
-        .sidebar-overlay.active { display:block; }
-
-        .sidebar-header { padding:25px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
-        .logo { display:flex; align-items:center; gap:12px; }
-        .logo-icon {
-            width:45px; height:45px; border-radius:12px;
-            background:<?php echo $logo_gradient; ?>;
-            display:flex; align-items:center; justify-content:center; overflow:hidden;
-        }
-        .logo-icon img { width:100%; height:100%; object-fit:cover; }
-        .logo-icon i { color:#fff; font-size:1.3rem; }
-        .logo-text .school-name { font-size:.9rem; font-weight:700; color:#fff; }
-        .logo-text p { font-size:.7rem; color:rgba(255,255,255,.7); }
-
-        .student-info { text-align:center; padding:25px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
-        .student-avatar { width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid var(--secondary); margin:0 auto 12px; }
-        .student-name   { font-size:1rem; font-weight:600; color:#fff; margin-bottom:5px; }
-        .student-details { font-size:.75rem; color:rgba(255,255,255,.7); margin:3px 0; }
-        .student-details i { width:18px; font-size:.7rem; }
-
-        .sidebar-nav { padding:15px 10px; }
-        .nav-item {
-            display:flex; align-items:center; gap:12px;
-            padding:12px 15px; border-radius:10px;
-            color:rgba(255,255,255,.85); text-decoration:none;
-            font-size:.85rem; font-weight:500; transition:all .2s;
-        }
-        .nav-item:hover { background:<?php echo $sb_hover_bg; ?>; color:#fff; }
-        .nav-item.active { background:<?php echo $sb_active_bg; ?>; color:<?php echo $secondary_color; ?>; }
-        .nav-item i { width:22px; font-size:1rem; }
-        .nav-item.logout { margin-top:20px; border-top:1px solid rgba(255,255,255,.1); border-radius:0; padding-top:20px; }
-
-        /* ── Mobile controls ────────────────────────────────── */
-        .mobile-menu-btn {
-            position:fixed; top:20px; right:20px; z-index:1001;
-            background:var(--primary); color:#fff;
-            border:none; width:45px; height:45px;
-            border-radius:12px; font-size:20px;
-            display:none; cursor:pointer;
-            box-shadow:0 2px 10px rgba(0,0,0,.1);
         }
 
         /* ── Main content ───────────────────────────────────── */
@@ -344,69 +273,15 @@ function gradeBadgeColor($grade) {
 
         /* ── Responsive ─────────────────────────────────────── */
         @media (max-width:768px) {
-            .student-sidebar { transform:translateX(-100%); }
-            .student-sidebar.active { transform:translateX(0); }
             .main-content { margin-left:0; padding:16px; }
-            .mobile-menu-btn { display:block; }
             .page-header { flex-direction:column; }
             .exams-grid { grid-template-columns:1fr; }
-        }
-        @media (min-width:769px) {
-            .student-sidebar { transform:translateX(0); }
         }
     </style>
 </head>
 <body>
 
-<button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<!-- ===== SIDEBAR ===== -->
-<div class="student-sidebar" id="studentSidebar">
-    <div class="sidebar-header">
-        <div class="logo">
-            <div class="logo-icon">
-                <?php
-                $logo_path = null;
-                $logo_locations = ['/msv/assets/logos/logo.png','/assets/logos/logo.png','../assets/logos/logo.png','assets/logos/logo.png'];
-                if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
-                    $logo_path = SCHOOL_LOGO;
-                } else {
-                    foreach ($logo_locations as $loc) {
-                        if (file_exists($_SERVER['DOCUMENT_ROOT'] . $loc)) { $logo_path = $loc; break; }
-                    }
-                }
-                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)): ?>
-                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
-                <?php else: ?><i class="fas fa-graduation-cap"></i><?php endif; ?>
-            </div>
-            <div class="logo-text">
-                <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Student Portal</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="student-info">
-        <img src="<?php echo htmlspecialchars($profile_picture); ?>"
-             class="student-avatar"
-             onerror="this.src='https://ui-avatars.com/api/?background=<?php echo ltrim($primary_color,'#'); ?>&color=fff&name=<?php echo urlencode($student_name); ?>'">
-        <div class="student-name"><?php echo htmlspecialchars($student_name); ?></div>
-        <div class="student-details"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number ?: 'N/A'); ?></div>
-        <div class="student-details"><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class ?: 'Not Assigned'); ?></div>
-    </div>
-
-    <nav class="sidebar-nav">
-        <a href="index.php"       class="nav-item <?php echo $current_page==='index.php'   ?'active':''; ?>"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-        <a href="exams.php"       class="nav-item <?php echo $current_page==='exams.php'   ?'active':''; ?>"><i class="fas fa-file-alt"></i> My Exams</a>
-        <a href="assignments.php" class="nav-item <?php echo $current_page==='assignments.php'?'active':''; ?>"><i class="fas fa-tasks"></i> Assignments</a>
-        <a href="view-results.php" class="nav-item <?php echo $current_page==='view-results.php'?'active':''; ?>"><i class="fas fa-chart-bar"></i> Results</a>
-        <a href="report-card.php" class="nav-item <?php echo $current_page==='report-card.php'?'active':''; ?>"><i class="fas fa-id-card"></i> Report Card</a>
-        <a href="library.php"     class="nav-item <?php echo $current_page==='library.php' ?'active':''; ?>"><i class="fas fa-book"></i> E-Library</a>
-        <a href="profile.php"     class="nav-item <?php echo $current_page==='profile.php' ?'active':''; ?>"><i class="fas fa-user-circle"></i> My Profile</a>
-        <a href="/msv/logout.php" class="nav-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
-    </nav>
-</div>
+<?php require_once '../includes/student_sidebar.php'; ?>
 
 <!-- ===== MAIN CONTENT ===== -->
 <div class="main-content">
@@ -592,33 +467,6 @@ function gradeBadgeColor($grade) {
 </div>
 
 <script>
-// Sidebar toggle
-(function() {
-    const btn     = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('studentSidebar');
-    const overlay = document.getElementById('sidebarOverlay');
-    if (btn && sidebar) {
-        btn.addEventListener('click', e => {
-            e.preventDefault();
-            sidebar.classList.toggle('active');
-            overlay?.classList.toggle('active');
-            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-        });
-    }
-    overlay?.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-        overlay.classList.remove('active');
-        document.body.style.overflow = '';
-    });
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            sidebar.classList.remove('active');
-            overlay?.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-    });
-})();
-
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {

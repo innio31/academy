@@ -89,22 +89,39 @@ if ($exam_id) {
     
     // If exam result found but we need more details, fetch detailed scores
     if ($exam_result) {
+        // Fetch session and decode answers from objective_answers JSON
         $stmt = $pdo->prepare("
-            SELECT q.*, esq.selected_answer,
-                   CASE WHEN q.correct_answer = esq.selected_answer THEN 1 ELSE 0 END as is_correct
-            FROM exam_session_questions esq
-            JOIN objective_questions q ON esq.question_id = q.id
-            WHERE esq.session_id = (
-                SELECT id FROM exam_sessions 
-                WHERE student_id = ? AND exam_id = ? AND status = 'completed'
-                ORDER BY id DESC LIMIT 1
-            )
+            SELECT es.objective_answers, es.id as session_id
+            FROM exam_sessions es
+            WHERE es.student_id = ? AND es.exam_id = ? AND es.status = 'completed'
+            ORDER BY es.id DESC LIMIT 1
         ");
         $stmt->execute([$student_id, $exam_id]);
-        $detailed_answers = $stmt->fetchAll();
+        $session_row = $stmt->fetch();
+
+        $detailed_answers = [];
         $correct_count = 0;
-        foreach ($detailed_answers as $answer) {
-            if ($answer['is_correct']) $correct_count++;
+
+        if ($session_row) {
+            $saved_answers = json_decode($session_row['objective_answers'], true) ?? [];
+
+            $stmt = $pdo->prepare("
+                SELECT q.*
+                FROM exam_session_questions esq
+                JOIN objective_questions q ON esq.question_id = q.id
+                WHERE esq.session_id = ?
+            ");
+            $stmt->execute([$session_row['session_id']]);
+            $questions_data = $stmt->fetchAll();
+
+            foreach ($questions_data as $q) {
+                $selected = $saved_answers[$q['id']] ?? null;
+                $is_correct = $selected && strtoupper($selected) === strtoupper($q['correct_answer']) ? 1 : 0;
+                $q['selected_answer'] = $selected;
+                $q['is_correct'] = $is_correct;
+                $detailed_answers[] = $q;
+                if ($is_correct) $correct_count++;
+            }
         }
     }
 }
@@ -793,7 +810,7 @@ function getGradeColor($grade) {
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($result['exam_name']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($result['subject_name']); ?></td>
-                                        <td><?php echo $result['total_score']; ?> / <?php echo $result['total_questions']; ?></td>
+                                        <td><?php echo $result['total_score']; ?> / <?php echo $result['exam_total_questions'] ?? $result['total_score']; ?></td>
                                         <td><?php echo number_format($result['percentage'] ?? 0, 1); ?>%</td>
                                         <td class="grade-<?php echo $result['grade']; ?>"><?php echo $result['grade']; ?></td>
                                         <td><?php echo date('M d, Y', strtotime($result['submitted_at'])); ?></td>

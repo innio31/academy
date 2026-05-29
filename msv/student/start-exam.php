@@ -61,6 +61,8 @@ if ($resume_session) {
         }
     }
 }
+// REPLACE the section that starts a new exam (around line 80-160) with this:
+
 // Start new exam
 elseif ($exam_id) {
     $stmt = $pdo->prepare("
@@ -81,17 +83,21 @@ elseif ($exam_id) {
             exit();
         }
 
-        // Check for orphaned in-progress session — resume it directly, no redirect
+        // Check for existing IN_PROGRESS session that hasn't expired
+        // FIX: Add ORDER BY and LIMIT to get only ONE session
         $stmt = $pdo->prepare("
             SELECT es.* FROM exam_sessions es
-            WHERE es.student_id = ? AND es.exam_id = ? AND es.status = 'in_progress' AND es.end_time > NOW()
-            ORDER BY es.id DESC LIMIT 1
+            WHERE es.student_id = ? AND es.exam_id = ? 
+              AND es.status = 'in_progress' 
+              AND es.end_time > NOW()
+            ORDER BY es.id DESC 
+            LIMIT 1
         ");
         $stmt->execute([$student_id, $exam_id]);
         $existing = $stmt->fetch();
 
         if ($existing) {
-            // Resume: load existing session and questions instead of creating new ones
+            // Resume existing session
             $session = $existing;
             $stmt = $pdo->prepare("
                 SELECT q.* FROM exam_session_questions esq
@@ -102,54 +108,126 @@ elseif ($exam_id) {
             $questions = $stmt->fetchAll();
             $saved_answers = json_decode($session['objective_answers'], true) ?? [];
         } else {
-            // Brand new session — fetch questions by subject + topics
-            $topic_ids = [];
-            if (!empty($exam['topics'])) {
-                $decoded = json_decode($exam['topics'], true);
-                if (is_array($decoded)) $topic_ids = array_map('intval', $decoded);
-            }
-
-            if (!empty($topic_ids)) {
-                $ph = implode(',', array_fill(0, count($topic_ids), '?'));
+            // FIX: Before creating new session, clean up any abandoned sessions for this student/exam
+            // (sessions that are 'in_progress' but expired)
+            $stmt = $pdo->prepare("
+                UPDATE exam_sessions 
+                SET status = 'completed' 
+                WHERE student_id = ? AND exam_id = ? 
+                  AND status = 'in_progress' 
+                  AND end_time <= NOW()
+            ");
+            $stmt->execute([$student_id, $exam_id]);
+            
+            // Also clean up any sessions with status = 'in_progress' that are older than 24 hours
+            // (prevents orphaned sessions from accumulating)
+            $stmt = $pdo->prepare("
+                UPDATE exam_sessions 
+                SET status = 'completed' 
+                WHERE student_id = ? AND exam_id = ? 
+                  AND status = 'in_progress' 
+                  AND start_time < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ");
+            $stmt->execute([$student_id, $exam_id]);
+            
+            // FIX: Check one more time if a session was just cleaned/created by another request
+            $stmt = $pdo->prepare("
+                SELECT es.* FROM exam_sessions es
+                WHERE es.student_id = ? AND es.exam_id = ? 
+                  AND es.status = 'in_progress' 
+                  AND es.end_time > NOW()
+                LIMIT 1
+            ");
+            $stmt->execute([$student_id, $exam_id]);
+            $double_check = $stmt->fetch();
+            
+            if ($double_check) {
+                // Another request created a session while we were cleaning up
+                $session = $double_check;
                 $stmt = $pdo->prepare("
-                    SELECT * FROM objective_questions
-                    WHERE subject_id = ? AND topic_id IN ($ph)
-                    ORDER BY RAND() LIMIT ?
+                    SELECT q.* FROM exam_session_questions esq
+                    JOIN objective_questions q ON esq.question_id = q.id
+                    WHERE esq.session_id = ?
                 ");
-                $stmt->execute([$exam['subject_id'], ...$topic_ids, (int)$exam['objective_count']]);
+                $stmt->execute([$session['id']]);
+                $questions = $stmt->fetchAll();
+                $saved_answers = json_decode($session['objective_answers'], true) ?? [];
             } else {
-                $stmt = $pdo->prepare("
-                    SELECT * FROM objective_questions
-                    WHERE subject_id = ?
-                    ORDER BY RAND() LIMIT ?
-                ");
-                $stmt->execute([$exam['subject_id'], (int)$exam['objective_count']]);
-            }
-            $questions = $stmt->fetchAll();
-
-            if (count($questions) > 0) {
-                $start_time = date('Y-m-d H:i:s');
-                $end_time   = date('Y-m-d H:i:s', strtotime("+{$exam['duration_minutes']} minutes"));
-
-                $stmt = $pdo->prepare("
-                    INSERT INTO exam_sessions (student_id, exam_id, exam_type, start_time, end_time, status, school_id)
-                    VALUES (?, ?, ?, ?, ?, 'in_progress', ?)
-                ");
-                $stmt->execute([$student_id, $exam_id, $exam['exam_type'], $start_time, $end_time, $school_id]);
-                $session_id = $pdo->lastInsertId();
-
-                foreach ($questions as $q) {
-                    $stmt = $pdo->prepare("INSERT INTO exam_session_questions (session_id, question_id, school_id) VALUES (?, ?, ?)");
-                    $stmt->execute([$session_id, $q['id'], $school_id]);
+                // Brand new session — fetch questions
+                $topic_ids = [];
+                if (!empty($exam['topics'])) {
+                    $decoded = json_decode($exam['topics'], true);
+                    if (is_array($decoded)) $topic_ids = array_map('intval', $decoded);
                 }
 
-                $stmt = $pdo->prepare("SELECT * FROM exam_sessions WHERE id = ?");
-                $stmt->execute([$session_id]);
-                $session = $stmt->fetch();
-                $saved_answers = [];
-            } else {
-                header("Location: exams.php?error=no_questions");
-                exit();
+                if (!empty($topic_ids)) {
+                    $ph = implode(',', array_fill(0, count($topic_ids), '?'));
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM objective_questions
+                        WHERE subject_id = ? AND topic_id IN ($ph)
+                        ORDER BY RAND() LIMIT ?
+                    ");
+                    $stmt->execute([$exam['subject_id'], ...$topic_ids, (int)$exam['objective_count']]);
+                } else {
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM objective_questions
+                        WHERE subject_id = ?
+                        ORDER BY RAND() LIMIT ?
+                    ");
+                    $stmt->execute([$exam['subject_id'], (int)$exam['objective_count']]);
+                }
+                $questions = $stmt->fetchAll();
+
+                if (count($questions) > 0) {
+                    $start_time = date('Y-m-d H:i:s');
+                    $end_time   = date('Y-m-d H:i:s', strtotime("+{$exam['duration_minutes']} minutes"));
+
+                    // FIX: Use INSERT IGNORE or check for existence with a unique constraint
+                    // First, verify no active session exists (last check before insert)
+                    $stmt = $pdo->prepare("
+                        SELECT id FROM exam_sessions 
+                        WHERE student_id = ? AND exam_id = ? 
+                          AND status = 'in_progress' AND end_time > NOW()
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$student_id, $exam_id]);
+                    if ($stmt->fetch()) {
+                        // Session was created between our previous check and now - redirect to resume
+                        header("Location: start-exam.php?exam_id=$exam_id&resume=1");
+                        exit();
+                    }
+                    
+                    $stmt = $pdo->prepare("
+                        INSERT INTO exam_sessions (student_id, exam_id, exam_type, start_time, end_time, status, school_id)
+                        VALUES (?, ?, ?, ?, ?, 'in_progress', ?)
+                    ");
+                    $stmt->execute([$student_id, $exam_id, $exam['exam_type'], $start_time, $end_time, $school_id]);
+                    $session_id = $pdo->lastInsertId();
+
+                    // FIX: Use a transaction to ensure all questions are inserted atomically
+                    $pdo->beginTransaction();
+                    try {
+                        foreach ($questions as $q) {
+                            $stmt = $pdo->prepare("INSERT INTO exam_session_questions (session_id, question_id, school_id) VALUES (?, ?, ?)");
+                            $stmt->execute([$session_id, $q['id'], $school_id]);
+                        }
+                        $pdo->commit();
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        // If insertion fails, delete the session
+                        $stmt = $pdo->prepare("DELETE FROM exam_sessions WHERE id = ?");
+                        $stmt->execute([$session_id]);
+                        throw $e;
+                    }
+
+                    $stmt = $pdo->prepare("SELECT * FROM exam_sessions WHERE id = ?");
+                    $stmt->execute([$session_id]);
+                    $session = $stmt->fetch();
+                    $saved_answers = [];
+                } else {
+                    header("Location: exams.php?error=no_questions");
+                    exit();
+                }
             }
         }
     }

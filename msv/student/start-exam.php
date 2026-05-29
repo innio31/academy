@@ -91,15 +91,35 @@ elseif ($exam_id) {
         }
 
         // Get random questions
-        $stmt = $pdo->prepare("
-            SELECT * FROM objective_questions
-            WHERE (school_id = ? OR school_id IS NULL)
-              AND subject_id = ?
-              AND (class = ? OR class IS NULL)
-            ORDER BY RAND()
-            LIMIT ?
-        ");
-        $stmt->execute([$school_id, $exam['subject_id'], $student_class, (int)$exam['objective_count']]);
+        // Decode topic IDs stored on the exam record
+        $topic_ids = [];
+        if (!empty($exam['topics'])) {
+            $decoded = json_decode($exam['topics'], true);
+            if (is_array($decoded)) {
+                $topic_ids = array_map('intval', $decoded);
+            }
+        }
+
+        if (!empty($topic_ids)) {
+            $ph = implode(',', array_fill(0, count($topic_ids), '?'));
+            $stmt = $pdo->prepare("
+                SELECT * FROM objective_questions
+                WHERE subject_id = ?
+                  AND topic_id IN ($ph)
+                ORDER BY RAND()
+                LIMIT ?
+            ");
+            $stmt->execute([$exam['subject_id'], ...$topic_ids, (int)$exam['objective_count']]);
+        } else {
+            // Fallback: exam has no topics set, use subject only
+            $stmt = $pdo->prepare("
+                SELECT * FROM objective_questions
+                WHERE subject_id = ?
+                ORDER BY RAND()
+                LIMIT ?
+            ");
+            $stmt->execute([$exam['subject_id'], (int)$exam['objective_count']]);
+        }
         $questions = $stmt->fetchAll();
 
         if (count($questions) > 0) {

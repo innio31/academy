@@ -138,7 +138,8 @@ $available_subjects = $stmt->fetchAll(PDO::FETCH_COLUMN);
 // Get resource types for filter
 $resource_types = ['PDF', 'DOC', 'PPT', 'VIDEO', 'AUDIO', 'IMAGE'];
 
-// Get statistics$stmt = $pdo->prepare("
+// Get statistics
+$stmt = $pdo->prepare("
     SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN file_type LIKE '%.pdf%' THEN 1 ELSE 0 END) as pdf_count,

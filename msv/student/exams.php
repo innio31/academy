@@ -281,7 +281,7 @@ function gradeBadgeColor($grade) {
 </head>
 <body>
 
-<?php require_once '../includes/student_sidebar.php'; ?>
+<?php require_once 'includes/student_sidebar.php'; ?>
 
 <!-- ===== MAIN CONTENT ===== -->
 <div class="main-content">

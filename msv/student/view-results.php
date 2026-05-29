@@ -40,10 +40,11 @@ $exam_id = $_GET['exam_id'] ?? 0;
 // Get all exams taken by student
 $stmt = $pdo->prepare("
     SELECT r.*, e.exam_name, s.subject_name, e.exam_type, e.duration_minutes,
-           e.total_questions as exam_total_questions
+           es.total_questions as exam_total_questions
     FROM results r
     JOIN exams e ON r.exam_id = e.id
     JOIN subjects s ON e.subject_id = s.id
+    LEFT JOIN exam_sessions es ON es.exam_id = r.exam_id AND es.student_id = r.student_id AND es.status = 'completed'
     WHERE r.student_id = ? AND r.school_id = ?
     ORDER BY r.submitted_at DESC
 ");

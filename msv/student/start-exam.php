@@ -67,9 +67,9 @@ elseif ($exam_id) {
         SELECT e.*, s.subject_name
         FROM exams e
         JOIN subjects s ON e.subject_id = s.id
-        WHERE e.id = ? AND e.school_id = ? AND e.class_id = ? AND e.is_active = 1
+        WHERE e.id = ? AND e.school_id = ? AND e.is_active = 1
     ");
-    $stmt->execute([$exam_id, $school_id, $student_class_id]);
+    $stmt->execute([$exam_id, $school_id]);
     $exam = $stmt->fetch();
 
     if ($exam) {

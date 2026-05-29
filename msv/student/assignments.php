@@ -908,32 +908,6 @@ $completed_assignments = $stmt->fetchAll();
     </div>
 
     <script>
-        // Mobile sidebar toggle - using the sidebar's built-in functionality
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('studentSidebar');
-        
-        if (mobileBtn && sidebar) {
-            mobileBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sidebar.classList.toggle('active');
-                const overlay = document.getElementById('sidebarOverlay');
-                if (overlay) overlay.classList.toggle('active');
-                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-            });
-        }
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && sidebar && 
-                !sidebar.contains(e.target) && 
-                !mobileBtn.contains(e.target)) {
-                sidebar.classList.remove('active');
-                const overlay = document.getElementById('sidebarOverlay');
-                if (overlay) overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
 
         // Method toggle for both submission types
         const methodDivs = document.querySelectorAll('.type-option');

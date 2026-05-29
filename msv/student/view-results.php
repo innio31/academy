@@ -752,6 +752,7 @@ function getGradeColor($grade) {
                     </div>
                 <?php endif; ?>
                 
+                <!--
                 <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: center;">
                     <button onclick="window.print();" class="btn btn-outline">
                         <i class="fas fa-print"></i> Print Result
@@ -759,7 +760,7 @@ function getGradeColor($grade) {
                     <button onclick="window.location.href='view-certificate.php?exam_id=<?php echo $exam_result['exam_id']; ?>'" class="btn btn-primary certificate-btn">
                         <i class="fas fa-certificate"></i> Download Certificate
                     </button>
-                </div>
+                </div> -->
             </div>
         <?php else: ?>
             <!-- Statistics Dashboard -->
@@ -880,31 +881,36 @@ function getGradeColor($grade) {
     </div>
 
     <script>
-        // Mobile sidebar toggle
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('studentSidebar');
-        
-        if (mobileBtn && sidebar) {
-            mobileBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sidebar.classList.toggle('active');
-                const overlay = document.getElementById('sidebarOverlay');
-                if (overlay) overlay.classList.toggle('active');
-                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-            });
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileBtn = document.getElementById('mobileMenuBtn');
+            const sidebar   = document.getElementById('studentSidebar');
+            const overlay   = document.getElementById('sidebarOverlay');
 
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && sidebar && 
-                !sidebar.contains(e.target) && 
-                !mobileBtn.contains(e.target)) {
-                sidebar.classList.remove('active');
-                const overlay = document.getElementById('sidebarOverlay');
-                if (overlay) overlay.classList.remove('active');
-                document.body.style.overflow = '';
+            if (mobileBtn && sidebar) {
+                mobileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sidebar.classList.toggle('active');
+                    if (overlay) overlay.classList.toggle('active');
+                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                });
             }
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar) {
+                    sidebar.classList.remove('active');
+                    if (overlay) overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
         });
 
         // Animate progress bars on load

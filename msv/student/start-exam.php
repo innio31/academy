@@ -61,7 +61,7 @@ if ($resume_session) {
         }
     }
 }
-// ── Start new exam ───────────────────────────────────────────
+// Start new exam
 elseif ($exam_id) {
     $stmt = $pdo->prepare("
         SELECT e.*, s.subject_name
@@ -81,71 +81,76 @@ elseif ($exam_id) {
             exit();
         }
 
-        // Check for orphaned in-progress session
-        $stmt = $pdo->prepare("SELECT id FROM exam_sessions WHERE student_id = ? AND exam_id = ? AND status = 'in_progress' AND end_time > NOW()");
+        // Check for orphaned in-progress session — resume it directly, no redirect
+        $stmt = $pdo->prepare("
+            SELECT es.* FROM exam_sessions es
+            WHERE es.student_id = ? AND es.exam_id = ? AND es.status = 'in_progress' AND es.end_time > NOW()
+            ORDER BY es.id DESC LIMIT 1
+        ");
         $stmt->execute([$student_id, $exam_id]);
         $existing = $stmt->fetch();
+
         if ($existing) {
-            header("Location: start-exam.php?resume=" . $existing['id']);
-            exit();
-        }
-
-        // Get random questions
-        // Decode topic IDs stored on the exam record
-        $topic_ids = [];
-        if (!empty($exam['topics'])) {
-            $decoded = json_decode($exam['topics'], true);
-            if (is_array($decoded)) {
-                $topic_ids = array_map('intval', $decoded);
-            }
-        }
-
-        if (!empty($topic_ids)) {
-            $ph = implode(',', array_fill(0, count($topic_ids), '?'));
+            // Resume: load existing session and questions instead of creating new ones
+            $session = $existing;
             $stmt = $pdo->prepare("
-                SELECT * FROM objective_questions
-                WHERE subject_id = ?
-                  AND topic_id IN ($ph)
-                ORDER BY RAND()
-                LIMIT ?
+                SELECT q.* FROM exam_session_questions esq
+                JOIN objective_questions q ON esq.question_id = q.id
+                WHERE esq.session_id = ?
             ");
-            $stmt->execute([$exam['subject_id'], ...$topic_ids, (int)$exam['objective_count']]);
+            $stmt->execute([$session['id']]);
+            $questions = $stmt->fetchAll();
+            $saved_answers = json_decode($session['objective_answers'], true) ?? [];
         } else {
-            // Fallback: exam has no topics set, use subject only
-            $stmt = $pdo->prepare("
-                SELECT * FROM objective_questions
-                WHERE subject_id = ?
-                ORDER BY RAND()
-                LIMIT ?
-            ");
-            $stmt->execute([$exam['subject_id'], (int)$exam['objective_count']]);
-        }
-        $questions = $stmt->fetchAll();
-
-        if (count($questions) > 0) {
-            $start_time = date('Y-m-d H:i:s');
-            $end_time   = date('Y-m-d H:i:s', strtotime("+{$exam['duration_minutes']} minutes"));
-
-            $stmt = $pdo->prepare("
-                INSERT INTO exam_sessions (student_id, exam_id, exam_type, start_time, end_time, status, school_id)
-                VALUES (?, ?, ?, ?, ?, 'in_progress', ?)
-            ");
-            $stmt->execute([$student_id, $exam_id, $exam['exam_type'], $start_time, $end_time, $school_id]);
-            $session_id = $pdo->lastInsertId();
-
-            foreach ($questions as $q) {
-                $stmt = $pdo->prepare("INSERT INTO exam_session_questions (session_id, question_id, school_id) VALUES (?, ?, ?)");
-                $stmt->execute([$session_id, $q['id'], $school_id]);
+            // Brand new session — fetch questions by subject + topics
+            $topic_ids = [];
+            if (!empty($exam['topics'])) {
+                $decoded = json_decode($exam['topics'], true);
+                if (is_array($decoded)) $topic_ids = array_map('intval', $decoded);
             }
 
-            $stmt = $pdo->prepare("SELECT * FROM exam_sessions WHERE id = ?");
-            $stmt->execute([$session_id]);
-            $session = $stmt->fetch();
-            $saved_answers = [];
-        } else {
-            // No questions available — redirect back gracefully
-            header("Location: exams.php?error=no_questions");
-            exit();
+            if (!empty($topic_ids)) {
+                $ph = implode(',', array_fill(0, count($topic_ids), '?'));
+                $stmt = $pdo->prepare("
+                    SELECT * FROM objective_questions
+                    WHERE subject_id = ? AND topic_id IN ($ph)
+                    ORDER BY RAND() LIMIT ?
+                ");
+                $stmt->execute([$exam['subject_id'], ...$topic_ids, (int)$exam['objective_count']]);
+            } else {
+                $stmt = $pdo->prepare("
+                    SELECT * FROM objective_questions
+                    WHERE subject_id = ?
+                    ORDER BY RAND() LIMIT ?
+                ");
+                $stmt->execute([$exam['subject_id'], (int)$exam['objective_count']]);
+            }
+            $questions = $stmt->fetchAll();
+
+            if (count($questions) > 0) {
+                $start_time = date('Y-m-d H:i:s');
+                $end_time   = date('Y-m-d H:i:s', strtotime("+{$exam['duration_minutes']} minutes"));
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO exam_sessions (student_id, exam_id, exam_type, start_time, end_time, status, school_id)
+                    VALUES (?, ?, ?, ?, ?, 'in_progress', ?)
+                ");
+                $stmt->execute([$student_id, $exam_id, $exam['exam_type'], $start_time, $end_time, $school_id]);
+                $session_id = $pdo->lastInsertId();
+
+                foreach ($questions as $q) {
+                    $stmt = $pdo->prepare("INSERT INTO exam_session_questions (session_id, question_id, school_id) VALUES (?, ?, ?)");
+                    $stmt->execute([$session_id, $q['id'], $school_id]);
+                }
+
+                $stmt = $pdo->prepare("SELECT * FROM exam_sessions WHERE id = ?");
+                $stmt->execute([$session_id]);
+                $session = $stmt->fetch();
+                $saved_answers = [];
+            } else {
+                header("Location: exams.php?error=no_questions");
+                exit();
+            }
         }
     }
 }

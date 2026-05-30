@@ -390,6 +390,42 @@ ob_start();
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .mode-cards { grid-template-columns: 1fr; }
   }
+  /* Fix for sidebar - add margin to main content */
+.layout {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* Make sure sidebar has fixed width */
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Main content - add left margin/padding */
+.main {
+  flex: 1;
+  margin-left: 0;
+  padding: 32px 40px;
+  overflow-y: auto;
+  max-height: 100vh;
+  width: calc(100% - 280px); /* Subtract sidebar width */
+}
+
+/* If sidebar is not fixed width, use this instead */
+.main {
+  flex: 1;
+  margin-left: auto;
+  padding: 32px 40px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
 </style>
 </head>
 <body>

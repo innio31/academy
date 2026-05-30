@@ -1,6 +1,5 @@
 <?php
-// File: msv/student/waec-practice.php
-// WAEC Practice - Mode Selection & Dashboard
+// msv/student/waec-practice.php - WAEC Practice Main Dashboard
 session_start();
 require_once '../includes/config.php';
 
@@ -9,35 +8,34 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     exit();
 }
 
+global $pdo;
+
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
 $student_name = $_SESSION['user_name'] ?? 'Student';
 $student_id = $_SESSION['user_id'];
-$school_id = $_SESSION['school_id'] ?? 1;
+$school_id = $_SESSION['school_id'] ?? SCHOOL_ID;
 $current_page = basename($_SERVER['PHP_SELF']);
 
-// Get student's performance summary
-$performance_stats = [];
+// Initialize variables
+$performance_stats = ['total_sessions' => 0, 'avg_percentage' => 0, 'total_questions_attempted' => 0, 'avg_score' => 0];
 $recent_sessions = [];
 $weak_topics = [];
+$subjects = [];
 
 try {
-    global $pdo;
-$conn = $pdo;
-    
     // Get overall performance stats
     $stats_query = "SELECT 
                         COUNT(DISTINCT id) as total_sessions,
-                        AVG(percentage) as avg_percentage,
-                        SUM(total_attempted) as total_questions_attempted,
-                        AVG(score) as avg_score
+                        COALESCE(AVG(percentage), 0) as avg_percentage,
+                        COALESCE(SUM(total_attempted), 0) as total_questions_attempted,
+                        COALESCE(AVG(score), 0) as avg_score
                     FROM waec_practice_sessions 
                     WHERE student_id = ? AND school_id = ? AND status = 'completed'";
-    $stmt = $conn->prepare($stats_query);
-    $stmt->bind_param("ii", $student_id, $school_id);
-    $stmt->execute();
-    $performance_stats = $stmt->get_result()->fetch_assoc();
+    $stmt = $pdo->prepare($stats_query);
+    $stmt->execute([$student_id, $school_id]);
+    $performance_stats = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Get recent sessions (last 5)
     $recent_query = "SELECT ws.*, wsub.subject_name 
@@ -45,12 +43,11 @@ $conn = $pdo;
                      LEFT JOIN waec_subjects wsub ON ws.waec_subject_id = wsub.id
                      WHERE ws.student_id = ? AND ws.school_id = ? AND ws.status = 'completed'
                      ORDER BY ws.created_at DESC LIMIT 5";
-    $stmt = $conn->prepare($recent_query);
-    $stmt->bind_param("ii", $student_id, $school_id);
-    $stmt->execute();
-    $recent_sessions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt = $pdo->prepare($recent_query);
+    $stmt->execute([$student_id, $school_id]);
+    $recent_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get weak topics (mastery_level = 'needs_work' or 'not_started')
+    // Get weak topics
     $weak_query = "SELECT wtp.*, wsub.subject_name, wt.topic_name
                    FROM waec_topic_performance wtp
                    JOIN waec_topics wt ON wtp.waec_topic_id = wt.id
@@ -58,13 +55,15 @@ $conn = $pdo;
                    WHERE wtp.student_id = ? AND wtp.school_id = ? 
                    AND wtp.mastery_level IN ('needs_work', 'not_started')
                    ORDER BY wtp.avg_percentage ASC LIMIT 5";
-    $stmt = $conn->prepare($weak_query);
-    $stmt->bind_param("ii", $student_id, $school_id);
-    $stmt->execute();
-    $weak_topics = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt = $pdo->prepare($weak_query);
+    $stmt->execute([$student_id, $school_id]);
+    $weak_topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $conn->close();
-} catch (Exception $e) {
+    // Get subjects for dropdown
+    $subjects_query = "SELECT id, subject_name FROM waec_subjects WHERE is_active = 1 ORDER BY subject_name";
+    $subjects = $pdo->query($subjects_query)->fetchAll(PDO::FETCH_ASSOC);
+    
+} catch (PDOException $e) {
     error_log("WAEC Practice Error: " . $e->getMessage());
 }
 
@@ -82,7 +81,6 @@ ob_start();
 <style>
   :root {
     --primary: <?= htmlspecialchars($primary_color ?? '#1a6b3c') ?>;
-    --secondary: <?= htmlspecialchars($secondary_color ?? '#e8f5ef') ?>;
     --bg: #0a0f0d;
     --surface: #111710;
     --card: #172118;
@@ -90,8 +88,6 @@ ob_start();
     --text: #e8f0ea;
     --muted: #7a9982;
     --accent: #4ade80;
-    --warning: #fbbf24;
-    --error: #fb7185;
     --radius: 16px;
     --mono: 'Space Mono', monospace;
     --sans: 'Sora', sans-serif;
@@ -133,7 +129,6 @@ ob_start();
     max-height: 100vh;
   }
   
-  /* Header */
   .header {
     display: flex;
     justify-content: space-between;
@@ -155,7 +150,6 @@ ob_start();
     margin-top: 4px;
   }
   
-  /* Stats Cards */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -197,7 +191,6 @@ ob_start();
     margin-top: 4px;
   }
   
-  /* Mode Selection Cards */
   .mode-section {
     margin-bottom: 48px;
   }
@@ -251,7 +244,6 @@ ob_start();
     line-height: 1.5;
   }
   
-  /* Modal */
   .modal {
     display: none;
     position: fixed;
@@ -334,7 +326,6 @@ ob_start();
     margin-top: 12px;
   }
   
-  /* Recent Sessions Table */
   .sessions-table {
     width: 100%;
     border-collapse: collapse;
@@ -369,7 +360,6 @@ ob_start();
     font-size: 0.75rem;
   }
   
-  /* Weak Topics */
   .topic-list {
     list-style: none;
   }
@@ -392,10 +382,9 @@ ob_start();
     border-radius: 6px;
     font-size: 0.7rem;
     background: rgba(251,113,133,.15);
-    color: var(--error);
+    color: #fb7185;
   }
   
-  /* Responsive */
   @media (max-width: 768px) {
     .main { padding: 20px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -419,7 +408,6 @@ ob_start();
       </div>
     </div>
     
-    <!-- Stats Cards -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
@@ -438,12 +426,11 @@ ob_start();
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
-        <div class="stat-value"><?= round(($performance_stats['avg_score'] ?? 0) * 100 / 100, 0) ?></div>
-        <div class="stat-label">Best Score</div>
+        <div class="stat-value"><?= round(($performance_stats['avg_score'] ?? 0)) ?></div>
+        <div class="stat-label">Avg Correct</div>
       </div>
     </div>
     
-    <!-- Practice Mode Selection -->
     <div class="mode-section">
       <div class="section-title">
         <i class="fa-solid fa-flask"></i>
@@ -453,17 +440,16 @@ ob_start();
         <div class="mode-card" onclick="openModeModal('year')">
           <div class="mode-icon"><i class="fa-solid fa-calendar-days"></i></div>
           <h3>Year-Based Practice</h3>
-          <p>Practice by selecting a specific WAEC year and subject. Experience the actual exam format with real past questions.</p>
+          <p>Practice by selecting a specific WAEC year and subject.</p>
         </div>
         <div class="mode-card" onclick="openModeModal('topical')">
           <div class="mode-icon"><i class="fa-solid fa-layer-group"></i></div>
           <h3>Topical Practice</h3>
-          <p>Focus on specific topics across multiple years. Perfect for mastering difficult areas.</p>
+          <p>Focus on specific topics across multiple years.</p>
         </div>
       </div>
     </div>
     
-    <!-- Recent Sessions -->
     <?php if (!empty($recent_sessions)): ?>
     <div class="mode-section">
       <div class="section-title">
@@ -491,7 +477,6 @@ ob_start();
     </div>
     <?php endif; ?>
     
-    <!-- Weak Topics -->
     <?php if (!empty($weak_topics)): ?>
     <div class="mode-section">
       <div class="section-title">
@@ -519,7 +504,6 @@ ob_start();
   </main>
 </div>
 
-<!-- Mode Selection Modal -->
 <div id="modeModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -546,18 +530,9 @@ ob_start();
           <label>Select Subject</label>
           <select name="subject_id" id="subjectSelect" onchange="loadTopics()" required>
             <option value="">Choose Subject</option>
-            <?php
-            try {
-                global $pdo;
-$conn = $pdo;
-                $subjects_query = "SELECT id, subject_name FROM waec_subjects WHERE is_active = 1 ORDER BY subject_name";
-                $subjects = $conn->query($subjects_query);
-                while($subject = $subjects->fetch_assoc()) {
-                    echo '<option value="' . $subject['id'] . '">' . htmlspecialchars($subject['subject_name']) . '</option>';
-                }
-                $conn->close();
-            } catch(Exception $e) {}
-            ?>
+            <?php foreach ($subjects as $subject): ?>
+            <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
         <div class="form-group">
@@ -573,17 +548,9 @@ $conn = $pdo;
           <label>Select Subject</label>
           <select name="subject_id" id="subjectYearSelect" required>
             <option value="">Choose Subject</option>
-            <?php
-            try {
-                global $pdo;
-$conn = $pdo;
-                $subjects = $conn->query("SELECT id, subject_name FROM waec_subjects WHERE is_active = 1 ORDER BY subject_name");
-                while($subject = $subjects->fetch_assoc()) {
-                    echo '<option value="' . $subject['id'] . '">' . htmlspecialchars($subject['subject_name']) . '</option>';
-                }
-                $conn->close();
-            } catch(Exception $e) {}
-            ?>
+            <?php foreach ($subjects as $subject): ?>
+            <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
       </div>
@@ -620,7 +587,6 @@ function openModeModal(mode) {
     document.getElementById('practiceMode').value = mode;
     document.getElementById('modalTitle').innerHTML = mode === 'year' ? 'Year-Based Practice' : 'Topical Practice';
     
-    // Hide all field groups
     document.getElementById('yearFields').style.display = 'none';
     document.getElementById('topicFields').style.display = 'none';
     document.getElementById('subjectYearFields').style.display = 'none';
@@ -668,7 +634,6 @@ function loadTopics() {
         });
 }
 
-// Show/hide custom settings based on session mode selection
 document.querySelectorAll('input[name="session_mode"]').forEach(radio => {
     radio.addEventListener('change', function() {
         const customDiv = document.getElementById('customSettings');
@@ -681,7 +646,6 @@ function viewSession(sessionId) {
 }
 
 function practiceTopic(topicId, subjectId) {
-    // Create a form and submit
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = 'waec-session.php';
@@ -714,7 +678,6 @@ function practiceTopic(topicId, subjectId) {
     form.submit();
 }
 
-// Close modal on outside click
 window.onclick = function(event) {
     const modal = document.getElementById('modeModal');
     if (event.target === modal) {
@@ -722,7 +685,6 @@ window.onclick = function(event) {
     }
 }
 </script>
-
 </body>
 </html>
 <?php

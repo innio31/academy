@@ -1,7 +1,5 @@
 <?php
-// File: msv/student/waec-session.php
-// WAEC Practice Session - CBT Interface
-
+// msv/student/waec-session.php
 session_start();
 require_once '../includes/config.php';
 
@@ -10,11 +8,13 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     exit();
 }
 
+global $pdo;
+
 $student_id = $_SESSION['user_id'];
-$school_id = $_SESSION['school_id'] ?? 1;
+$school_id = $_SESSION['school_id'] ?? SCHOOL_ID;
 
 // Get practice parameters
-$mode = $_POST['mode'] ?? $_GET['mode'] ?? '';
+$mode = $_POST['mode'] ?? '';
 $session_mode = $_POST['session_mode'] ?? 'standard';
 $subject_id = intval($_POST['subject_id'] ?? 0);
 $topic_id = isset($_POST['topic_id']) ? intval($_POST['topic_id']) : null;
@@ -28,14 +28,11 @@ if (!$mode || !$subject_id) {
 }
 
 try {
-    $conn = getDbConnection();
-    
     // Get subject details
     $subject_query = "SELECT * FROM waec_subjects WHERE id = ?";
-    $stmt = $conn->prepare($subject_query);
-    $stmt->bind_param("i", $subject_id);
-    $stmt->execute();
-    $subject = $stmt->get_result()->fetch_assoc();
+    $stmt = $pdo->prepare($subject_query);
+    $stmt->execute([$subject_id]);
+    $subject = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$subject) {
         throw new Exception("Subject not found");
@@ -53,24 +50,19 @@ try {
     // Build query to fetch questions
     $questions_query = "SELECT * FROM waec_questions WHERE waec_subject_id = ? AND is_active = 1";
     $params = [$subject_id];
-    $types = "i";
     
     if ($mode === 'topical' && $topic_id) {
         $questions_query .= " AND waec_topic_id = ?";
         $params[] = $topic_id;
-        $types .= "i";
     } elseif ($mode === 'year' && $exam_year) {
         $questions_query .= " AND exam_year = ?";
         $params[] = $exam_year;
-        $types .= "i";
     }
     
     // Shuffle and limit questions
-    $stmt = $conn->prepare($questions_query);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $all_questions = $result->fetch_all(MYSQLI_ASSOC);
+    $stmt = $pdo->prepare($questions_query);
+    $stmt->execute($params);
+    $all_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     if (count($all_questions) < $total_questions) {
         $total_questions = count($all_questions);
@@ -90,33 +82,25 @@ try {
                       start_time, status, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', NOW())";
     
-    $stmt = $conn->prepare($insert_query);
-    $practice_mode = $mode;
-    $waec_topic_id = $topic_id;
-    $waec_subject_id = $subject_id;
-    
-    $stmt->bind_param("iiiiisssiis", 
-        $student_id, $school_id, $waec_subject_id, $waec_topic_id, $practice_mode,
+    $stmt = $pdo->prepare($insert_query);
+    $stmt->execute([
+        $student_id, $school_id, $subject_id, $topic_id, $mode,
         $session_mode, $exam_year, $subject_ids_json, $total_questions, $duration_minutes,
         $start_time
-    );
-    $stmt->execute();
-    $session_id = $conn->insert_id;
+    ]);
+    $session_id = $pdo->lastInsertId();
     
     // Store questions for this session
     $insert_question = "INSERT INTO waec_practice_answers 
                         (session_id, waec_question_id, question_order, correct_answer) 
                         VALUES (?, ?, ?, ?)";
-    $stmt_q = $conn->prepare($insert_question);
+    $stmt_q = $pdo->prepare($insert_question);
     
     $order = 1;
     foreach ($selected_questions as $question) {
-        $stmt_q->bind_param("iiis", $session_id, $question['id'], $order, $question['correct_answer']);
-        $stmt_q->execute();
+        $stmt_q->execute([$session_id, $question['id'], $order, $question['correct_answer']]);
         $order++;
     }
-    
-    $conn->close();
     
     // Store session data for the practice page
     $_SESSION['waec_session'] = [
@@ -126,7 +110,7 @@ try {
         'subject_name' => $subject['subject_name']
     ];
     
-    header("Location: waec-practice-take.php?session_id=" . $session_id);
+    header("Location: waec-practices-take.php?session_id=" . $session_id);
     exit();
     
 } catch (Exception $e) {

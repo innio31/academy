@@ -1,7 +1,5 @@
 <?php
-// File: msv/student/waec-results.php
-// WAEC Practice Results Page
-
+// msv/student/waec-results.php
 session_start();
 require_once '../includes/config.php';
 
@@ -9,6 +7,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     header("Location: /msv/login.php");
     exit();
 }
+
+global $pdo;
 
 $session_id = isset($_GET['session_id']) ? intval($_GET['session_id']) : 0;
 $student_id = $_SESSION['user_id'];
@@ -19,18 +19,14 @@ if (!$session_id) {
 }
 
 try {
-    global $pdo;
-$conn = $pdo;
-    
     // Get session results
     $session_query = "SELECT ws.*, wsub.subject_name 
                       FROM waec_practice_sessions ws
                       JOIN waec_subjects wsub ON ws.waec_subject_id = wsub.id
                       WHERE ws.id = ? AND ws.student_id = ?";
-    $stmt = $conn->prepare($session_query);
-    $stmt->bind_param("ii", $session_id, $student_id);
-    $stmt->execute();
-    $session = $stmt->get_result()->fetch_assoc();
+    $stmt = $pdo->prepare($session_query);
+    $stmt->execute([$session_id, $student_id]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$session) {
         header("Location: waec-practices.php");
@@ -46,14 +42,11 @@ $conn = $pdo;
                         LEFT JOIN waec_topics ON waec_questions.waec_topic_id = waec_topics.id
                         WHERE waec_practice_answers.session_id = ?
                         ORDER BY waec_practice_answers.question_order";
-    $stmt = $conn->prepare($questions_query);
-    $stmt->bind_param("i", $session_id);
-    $stmt->execute();
-    $questions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt = $pdo->prepare($questions_query);
+    $stmt->execute([$session_id]);
+    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $conn->close();
-    
-} catch (Exception $e) {
+} catch (PDOException $e) {
     error_log("WAEC Results Error: " . $e->getMessage());
     header("Location: waec-practices.php?error=system_error");
     exit();
@@ -130,7 +123,6 @@ ob_start();
   .layout { display: flex; min-height: 100vh; position: relative; z-index: 1; }
   .main { flex: 1; padding: 32px 40px; overflow-y: auto; max-height: 100vh; }
   
-  /* Score Card */
   .score-card {
     background: linear-gradient(135deg, var(--card), var(--surface));
     border: 1px solid var(--border);
@@ -172,7 +164,6 @@ ob_start();
     margin-top: 16px;
   }
   
-  /* Stats Row */
   .stats-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -197,7 +188,6 @@ ob_start();
     margin-top: 4px;
   }
   
-  /* Questions Review */
   .review-section {
     background: var(--card);
     border: 1px solid var(--border);
@@ -259,7 +249,7 @@ ob_start();
     border-radius: 12px;
     margin-top: 12px;
   }
-  .your-answer { color: var(--warning); }
+  .your-answer { color: #fbbf24; }
   .correct-answer { color: var(--accent); }
   .explanation {
     margin-top: 12px;
@@ -396,7 +386,6 @@ function filterQuestions(status) {
     });
 }
 </script>
-
 </body>
 </html>
 <?php

@@ -1,7 +1,5 @@
 <?php
-// File: msv/student/waec-practice-take.php
-// WAEC Practice - Take Test Interface
-
+// msv/student/waec-practice-take.php
 session_start();
 require_once '../includes/config.php';
 
@@ -9,6 +7,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     header("Location: /msv/login.php");
     exit();
 }
+
+global $pdo;
 
 $session_id = isset($_GET['session_id']) ? intval($_GET['session_id']) : 0;
 $student_id = $_SESSION['user_id'];
@@ -19,17 +19,14 @@ if (!$session_id) {
 }
 
 try {
-    $conn = getDbConnection();
-    
     // Get session details
     $session_query = "SELECT ws.*, wsub.subject_name 
                       FROM waec_practice_sessions ws
                       JOIN waec_subjects wsub ON ws.waec_subject_id = wsub.id
                       WHERE ws.id = ? AND ws.student_id = ? AND ws.status = 'in_progress'";
-    $stmt = $conn->prepare($session_query);
-    $stmt->bind_param("ii", $session_id, $student_id);
-    $stmt->execute();
-    $session = $stmt->get_result()->fetch_assoc();
+    $stmt = $pdo->prepare($session_query);
+    $stmt->execute([$session_id, $student_id]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$session) {
         header("Location: waec-practices.php?error=session_not_found");
@@ -44,14 +41,11 @@ try {
                         JOIN waec_questions ON waec_practice_answers.waec_question_id = waec_questions.id
                         WHERE waec_practice_answers.session_id = ?
                         ORDER BY waec_practice_answers.question_order";
-    $stmt = $conn->prepare($questions_query);
-    $stmt->bind_param("i", $session_id);
-    $stmt->execute();
-    $questions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt = $pdo->prepare($questions_query);
+    $stmt->execute([$session_id]);
+    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $conn->close();
-    
-} catch (Exception $e) {
+} catch (PDOException $e) {
     error_log("WAEC Take Test Error: " . $e->getMessage());
     header("Location: waec-practices.php?error=system_error");
     exit();
@@ -84,6 +78,7 @@ ob_start();
     --text: #e8f0ea;
     --muted: #7a9982;
     --accent: #4ade80;
+    --warning: #fbbf24;
     --radius: 16px;
     --mono: 'Space Mono', monospace;
     --sans: 'Sora', sans-serif;
@@ -99,7 +94,6 @@ ob_start();
     overflow: hidden;
   }
   
-  /* Timer Bar */
   .timer-bar {
     position: fixed;
     top: 0;
@@ -116,13 +110,11 @@ ob_start();
     transition: width 1s linear;
   }
   
-  /* Main Layout */
   .exam-container {
     display: flex;
     height: 100vh;
   }
   
-  /* Question Panel */
   .question-panel {
     flex: 1;
     overflow-y: auto;
@@ -179,7 +171,6 @@ ob_start();
     line-height: 1.6;
   }
   
-  /* Options */
   .options {
     display: flex;
     flex-direction: column;
@@ -215,7 +206,6 @@ ob_start();
     flex: 1;
   }
   
-  /* Navigation */
   .nav-buttons {
     display: flex;
     justify-content: space-between;
@@ -235,7 +225,6 @@ ob_start();
     border: none;
   }
   
-  /* Question Palette */
   .palette-panel {
     width: 280px;
     background: var(--card);
@@ -387,7 +376,6 @@ foreach ($questions as $q) {
 echo "questionsData = " . json_encode($questions_json) . ";\n";
 ?>
 
-// Initialize answers and flagged from saved data
 for (let i = 0; i < questionsData.length; i++) {
     if (questionsData[i].student_answer) {
         answers[i] = questionsData[i].student_answer;
@@ -429,7 +417,6 @@ function renderQuestion() {
         </div>
     `;
     
-    // Update flag button
     const flagBtn = document.getElementById('flagBtn');
     if (flagged[currentQuestion]) {
         flagBtn.classList.add('flagged');
@@ -555,7 +542,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Timer functions
 function startTimer() {
     timerInterval = setInterval(() => {
         if (timerSeconds <= 0) {
@@ -572,12 +558,10 @@ function startTimer() {
     }, 1000);
 }
 
-// Initialize
 renderQuestion();
 updatePalette();
 startTimer();
 
-// Keyboard navigation
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') prevQuestion();
     if (e.key === 'ArrowRight') nextQuestion();

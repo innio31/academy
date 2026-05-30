@@ -569,7 +569,7 @@ ob_start();
   <?php endif; ?>
 </div>
 
-<!-- Mode Selection Modal -->
+<!-- Mode Selection Modal - FIXED VERSION -->
 <div id="modeModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -579,6 +579,7 @@ ob_start();
     <form id="practiceForm" action="waec-session.php" method="POST" onsubmit="return validateForm()">
       <input type="hidden" name="mode" id="practiceMode" value="">
       
+      <!-- Year Mode Fields -->
       <div id="yearFields" style="display: none;">
         <div class="form-group">
           <label>Select Year</label>
@@ -589,8 +590,18 @@ ob_start();
             <?php endfor; ?>
           </select>
         </div>
+        <div class="form-group">
+          <label>Select Subject</label>
+          <select name="subject_id" id="subjectYearSelect">
+            <option value="">Choose Subject</option>
+            <?php foreach ($subjects as $subject): ?>
+            <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>
       
+      <!-- Topical Mode Fields -->
       <div id="topicFields" style="display: none;">
         <div class="form-group">
           <label>Select Subject</label>
@@ -605,18 +616,6 @@ ob_start();
           <label>Select Topic</label>
           <select name="topic_id" id="topicSelect">
             <option value="">First select a subject</option>
-          </select>
-        </div>
-      </div>
-      
-      <div id="subjectYearFields" style="display: none;">
-        <div class="form-group">
-          <label>Select Subject</label>
-          <select name="subject_id" id="subjectYearSelect">
-            <option value="">Choose Subject</option>
-            <?php foreach ($subjects as $subject): ?>
-            <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
-            <?php endforeach; ?>
           </select>
         </div>
       </div>
@@ -714,45 +713,50 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// VALIDATION FUNCTION - This runs when form is submitted
+// VALIDATION FUNCTION - Fixed for topical mode
 function validateForm() {
     const mode = document.getElementById('practiceMode').value;
+    
+    console.log('Validating form for mode:', mode); // For debugging
     
     if (mode === 'year') {
         const subjectSelect = document.getElementById('subjectYearSelect');
         const yearSelect = document.getElementById('examYear');
         
-        if (!subjectSelect.value) {
+        if (!subjectSelect || !subjectSelect.value) {
             alert('Please select a subject');
-            subjectSelect.focus();
             return false;
         }
         
-        if (!yearSelect.value) {
+        if (!yearSelect || !yearSelect.value) {
             alert('Please select a year');
-            yearSelect.focus();
             return false;
         }
+        
+        console.log('Year mode validation passed - Subject:', subjectSelect.value, 'Year:', yearSelect.value);
+        return true;
     }
     
     if (mode === 'topical') {
         const subjectSelect = document.getElementById('subjectSelect');
         const topicSelect = document.getElementById('topicSelect');
         
-        if (!subjectSelect.value) {
+        if (!subjectSelect || !subjectSelect.value) {
             alert('Please select a subject');
-            subjectSelect.focus();
             return false;
         }
         
-        if (!topicSelect.value) {
+        if (!topicSelect || !topicSelect.value) {
             alert('Please select a topic');
-            topicSelect.focus();
             return false;
         }
+        
+        console.log('Topical mode validation passed - Subject:', subjectSelect.value, 'Topic:', topicSelect.value);
+        return true;
     }
     
-    return true;
+    alert('Invalid practice mode selected');
+    return false;
 }
 
 function viewSession(sessionId) {

@@ -1,4 +1,6 @@
 <?php
+// Add this for debugging - remove after testing
+error_log("WAEC Session Debug - POST data: " . print_r($_POST, true));
 // msv/student/waec-session.php - Fixed with proper error handling
 session_start();
 require_once '../includes/config.php';

@@ -655,11 +655,9 @@ function openModeModal(mode) {
     // Hide all field groups
     document.getElementById('yearFields').style.display = 'none';
     document.getElementById('topicFields').style.display = 'none';
-    document.getElementById('subjectYearFields').style.display = 'none';
     
     if (mode === 'year') {
         document.getElementById('yearFields').style.display = 'block';
-        document.getElementById('subjectYearFields').style.display = 'block';
     } else {
         document.getElementById('topicFields').style.display = 'block';
     }
@@ -669,12 +667,39 @@ function openModeModal(mode) {
 
 function closeModal() {
     document.getElementById('modeModal').classList.remove('active');
+    // Reset form fields when closing
+    resetFormFields();
+}
+
+function resetFormFields() {
+    // Reset radio buttons to default
+    const standardRadio = document.querySelector('input[name="session_mode"][value="standard"]');
+    if (standardRadio) standardRadio.checked = true;
+    
+    // Hide custom settings
+    const customDiv = document.getElementById('customSettings');
+    if (customDiv) customDiv.style.display = 'none';
+    
+    // Reset selects
+    const examYear = document.getElementById('examYear');
+    if (examYear) examYear.value = '';
+    
+    const subjectYearSelect = document.getElementById('subjectYearSelect');
+    if (subjectYearSelect) subjectYearSelect.value = '';
+    
+    const subjectSelect = document.getElementById('subjectSelect');
+    if (subjectSelect) subjectSelect.value = '';
+    
+    const topicSelect = document.getElementById('topicSelect');
+    if (topicSelect) topicSelect.innerHTML = '<option value="">First select a subject</option>';
 }
 
 function toggleCustomSettings() {
     const customDiv = document.getElementById('customSettings');
     const practiceRadio = document.querySelector('input[name="session_mode"][value="practice"]');
-    customDiv.style.display = practiceRadio.checked ? 'block' : 'none';
+    if (customDiv) {
+        customDiv.style.display = practiceRadio && practiceRadio.checked ? 'block' : 'none';
+    }
 }
 
 function loadTopics() {
@@ -691,18 +716,18 @@ function loadTopics() {
     fetch(`api/get_topics.php?subject_id=${subjectId}`)
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.topics.length > 0) {
+            if (data.success && data.topics && data.topics.length > 0) {
                 topicSelect.innerHTML = '<option value="">Select Topic</option>';
                 data.topics.forEach(topic => {
                     topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
                 });
             } else {
-                topicSelect.innerHTML = '<option value="">No topics available</option>';
+                topicSelect.innerHTML = '<option value="">No topics available for this subject</option>';
             }
         })
         .catch(error => {
             console.error('Error loading topics:', error);
-            topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+            topicSelect.innerHTML = '<option value="">Error loading topics. Please try again.</option>';
         });
 }
 
@@ -713,11 +738,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// VALIDATION FUNCTION - Fixed for topical mode
+// VALIDATION FUNCTION - Fixed for both modes
 function validateForm() {
     const mode = document.getElementById('practiceMode').value;
-    
-    console.log('Validating form for mode:', mode); // For debugging
     
     if (mode === 'year') {
         const subjectSelect = document.getElementById('subjectYearSelect');
@@ -733,7 +756,6 @@ function validateForm() {
             return false;
         }
         
-        console.log('Year mode validation passed - Subject:', subjectSelect.value, 'Year:', yearSelect.value);
         return true;
     }
     
@@ -751,7 +773,6 @@ function validateForm() {
             return false;
         }
         
-        console.log('Topical mode validation passed - Subject:', subjectSelect.value, 'Topic:', topicSelect.value);
         return true;
     }
     
@@ -760,7 +781,9 @@ function validateForm() {
 }
 
 function viewSession(sessionId) {
-    window.location.href = `waec-results.php?session_id=${sessionId}`;
+    if (sessionId) {
+        window.location.href = `waec-results.php?session_id=${sessionId}`;
+    }
 }
 
 function practiceTopic(topicId, subjectId) {
@@ -794,6 +817,12 @@ window.onclick = function(event) {
         closeModal();
     }
 }
+
+// Ensure DOM is fully loaded before attaching any additional event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up initial state
+    toggleCustomSettings();
+});
 </script>
 </body>
 </html>

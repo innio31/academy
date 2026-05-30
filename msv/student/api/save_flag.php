@@ -22,7 +22,8 @@ if (!$session_id || !$question_order) {
 require_once '../../includes/config.php';
 
 try {
-    $conn = getDbConnection();
+    global $pdo;
+$conn = $pdo;
     
     $query = "UPDATE waec_practice_answers 
               SET is_flagged = ? 

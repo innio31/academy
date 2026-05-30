@@ -19,7 +19,8 @@ if (!$session_id) {
 }
 
 try {
-    $conn = getDbConnection();
+    global $pdo;
+$conn = $pdo;
     
     // Get session results
     $session_query = "SELECT ws.*, wsub.subject_name 

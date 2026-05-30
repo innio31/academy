@@ -21,7 +21,8 @@ if (!$session_id) {
 require_once '../../includes/config.php';
 
 try {
-    $conn = getDbConnection();
+    global $pdo;
+$conn = $pdo;
     
     // Get all answers for this session
     $query = "SELECT waec_practice_answers.*, waec_questions.correct_answer, waec_questions.waec_subject_id, waec_questions.waec_topic_id

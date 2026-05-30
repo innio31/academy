@@ -23,7 +23,8 @@ $recent_sessions = [];
 $weak_topics = [];
 
 try {
-    $conn = getDbConnection();
+    global $pdo;
+$conn = $pdo;
     
     // Get overall performance stats
     $stats_query = "SELECT 
@@ -547,7 +548,8 @@ ob_start();
             <option value="">Choose Subject</option>
             <?php
             try {
-                $conn = getDbConnection();
+                global $pdo;
+$conn = $pdo;
                 $subjects_query = "SELECT id, subject_name FROM waec_subjects WHERE is_active = 1 ORDER BY subject_name";
                 $subjects = $conn->query($subjects_query);
                 while($subject = $subjects->fetch_assoc()) {
@@ -573,7 +575,8 @@ ob_start();
             <option value="">Choose Subject</option>
             <?php
             try {
-                $conn = getDbConnection();
+                global $pdo;
+$conn = $pdo;
                 $subjects = $conn->query("SELECT id, subject_name FROM waec_subjects WHERE is_active = 1 ORDER BY subject_name");
                 while($subject = $subjects->fetch_assoc()) {
                     echo '<option value="' . $subject['id'] . '">' . htmlspecialchars($subject['subject_name']) . '</option>';

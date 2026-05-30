@@ -20,7 +20,8 @@ if (!$subject_id) {
 }
 
 try {
-    $conn = getDbConnection();
+    global $pdo;
+$conn = $pdo;
     $query = "SELECT id, topic_name FROM waec_topics WHERE waec_subject_id = ? AND is_active = 1 ORDER BY sort_order, topic_name";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $subject_id);

@@ -1,5 +1,5 @@
 <?php
-// msv/student/waec-practice.php - WAEC Practice Main Dashboard (No Sidebar)
+// msv/student/waec-practice.php - Complete Fixed Version
 session_start();
 require_once '../includes/config.php';
 
@@ -16,7 +16,6 @@ $secondary_color = SCHOOL_SECONDARY;
 $student_name = $_SESSION['user_name'] ?? 'Student';
 $student_id = $_SESSION['user_id'];
 $school_id = $_SESSION['school_id'] ?? SCHOOL_ID;
-$current_page = basename($_SERVER['PHP_SELF']);
 
 // Initialize variables
 $performance_stats = ['total_sessions' => 0, 'avg_percentage' => 0, 'total_questions_attempted' => 0, 'avg_score' => 0];
@@ -37,7 +36,7 @@ try {
     $stmt->execute([$student_id, $school_id]);
     $performance_stats = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Get recent sessions (last 5)
+    // Get recent sessions
     $recent_query = "SELECT ws.*, wsub.subject_name 
                      FROM waec_practice_sessions ws
                      LEFT JOIN waec_subjects wsub ON ws.waec_subject_id = wsub.id
@@ -128,7 +127,6 @@ ob_start();
     z-index: 1;
   }
   
-  /* Top Navigation Bar */
   .top-nav {
     display: flex;
     justify-content: space-between;
@@ -167,6 +165,27 @@ ob_start();
   .back-btn:hover {
     background: rgba(74,222,128,.1);
     border-color: var(--accent);
+  }
+  
+  .alert-error {
+    background: rgba(251,113,133,.15);
+    border: 1px solid #fb7185;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .alert-warning {
+    background: rgba(251,191,36,.15);
+    border: 1px solid #fbbf24;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   
   .stats-grid {
@@ -420,7 +439,6 @@ ob_start();
 <div class="blob blob-2"></div>
 
 <div class="container">
-  <!-- Top Navigation Bar with Back Button -->
   <div class="top-nav">
     <div class="logo-area">
       <h1><i class="fa-solid fa-pen-to-square"></i> WAEC Practice</h1>
@@ -430,6 +448,27 @@ ob_start();
       <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
+  
+  <!-- Display error/warning messages -->
+  <?php if (isset($_SESSION['waec_error'])): ?>
+  <div class="alert-error">
+    <i class="fa-solid fa-circle-exclamation" style="color: #fb7185; font-size: 1.25rem;"></i>
+    <div style="flex: 1;">
+      <strong style="color: #fb7185;">Notice:</strong> <?= htmlspecialchars($_SESSION['waec_error']) ?>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.25rem;">&times;</button>
+  </div>
+  <?php unset($_SESSION['waec_error']); endif; ?>
+  
+  <?php if (isset($_SESSION['waec_warning'])): ?>
+  <div class="alert-warning">
+    <i class="fa-solid fa-triangle-exclamation" style="color: #fbbf24; font-size: 1.25rem;"></i>
+    <div style="flex: 1;">
+      <strong style="color: #fbbf24;">Warning:</strong> <?= htmlspecialchars($_SESSION['waec_warning']) ?>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.25rem;">&times;</button>
+  </div>
+  <?php unset($_SESSION['waec_warning']); endif; ?>
   
   <!-- Stats Cards -->
   <div class="stats-grid">
@@ -498,7 +537,7 @@ ob_start();
           </tr>
           <?php endforeach; ?>
         </tbody>
-       </table>
+      </table>
     </div>
   </div>
   <?php endif; ?>
@@ -537,13 +576,13 @@ ob_start();
       <h2 id="modalTitle">Select Practice Details</h2>
       <button class="close-modal" onclick="closeModal()">&times;</button>
     </div>
-    <form id="practiceForm" action="waec-session.php" method="POST">
+    <form id="practiceForm" action="waec-session.php" method="POST" onsubmit="return validateForm()">
       <input type="hidden" name="mode" id="practiceMode" value="">
       
       <div id="yearFields" style="display: none;">
         <div class="form-group">
           <label>Select Year</label>
-          <select name="exam_year" id="examYear" required>
+          <select name="exam_year" id="examYear">
             <option value="">Choose Year</option>
             <?php for($y = date('Y'); $y >= 2000; $y--): ?>
             <option value="<?= $y ?>"><?= $y ?></option>
@@ -555,7 +594,7 @@ ob_start();
       <div id="topicFields" style="display: none;">
         <div class="form-group">
           <label>Select Subject</label>
-          <select name="subject_id" id="subjectSelect" onchange="loadTopics()" required>
+          <select name="subject_id" id="subjectSelect" onchange="loadTopics()">
             <option value="">Choose Subject</option>
             <?php foreach ($subjects as $subject): ?>
             <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
@@ -564,7 +603,7 @@ ob_start();
         </div>
         <div class="form-group">
           <label>Select Topic</label>
-          <select name="topic_id" id="topicSelect" required>
+          <select name="topic_id" id="topicSelect">
             <option value="">First select a subject</option>
           </select>
         </div>
@@ -573,7 +612,7 @@ ob_start();
       <div id="subjectYearFields" style="display: none;">
         <div class="form-group">
           <label>Select Subject</label>
-          <select name="subject_id" id="subjectYearSelect" required>
+          <select name="subject_id" id="subjectYearSelect">
             <option value="">Choose Subject</option>
             <?php foreach ($subjects as $subject): ?>
             <option value="<?= $subject['id'] ?>"><?= htmlspecialchars($subject['subject_name']) ?></option>
@@ -585,8 +624,8 @@ ob_start();
       <div class="form-group">
         <label>Session Mode</label>
         <div class="radio-group">
-          <label><input type="radio" name="session_mode" value="standard" checked> Standard (WAEC Settings)</label>
-          <label><input type="radio" name="session_mode" value="practice"> Custom Settings</label>
+          <label><input type="radio" name="session_mode" value="standard" checked onchange="toggleCustomSettings()"> Standard (WAEC Settings)</label>
+          <label><input type="radio" name="session_mode" value="practice" onchange="toggleCustomSettings()"> Custom Settings</label>
         </div>
       </div>
       
@@ -614,6 +653,7 @@ function openModeModal(mode) {
     document.getElementById('practiceMode').value = mode;
     document.getElementById('modalTitle').innerHTML = mode === 'year' ? 'Year-Based Practice' : 'Topical Practice';
     
+    // Hide all field groups
     document.getElementById('yearFields').style.display = 'none';
     document.getElementById('topicFields').style.display = 'none';
     document.getElementById('subjectYearFields').style.display = 'none';
@@ -630,6 +670,12 @@ function openModeModal(mode) {
 
 function closeModal() {
     document.getElementById('modeModal').classList.remove('active');
+}
+
+function toggleCustomSettings() {
+    const customDiv = document.getElementById('customSettings');
+    const practiceRadio = document.querySelector('input[name="session_mode"][value="practice"]');
+    customDiv.style.display = practiceRadio.checked ? 'block' : 'none';
 }
 
 function loadTopics() {
@@ -668,12 +714,46 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-document.querySelectorAll('input[name="session_mode"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        const customDiv = document.getElementById('customSettings');
-        customDiv.style.display = this.value === 'practice' ? 'block' : 'none';
-    });
-});
+// VALIDATION FUNCTION - This runs when form is submitted
+function validateForm() {
+    const mode = document.getElementById('practiceMode').value;
+    
+    if (mode === 'year') {
+        const subjectSelect = document.getElementById('subjectYearSelect');
+        const yearSelect = document.getElementById('examYear');
+        
+        if (!subjectSelect.value) {
+            alert('Please select a subject');
+            subjectSelect.focus();
+            return false;
+        }
+        
+        if (!yearSelect.value) {
+            alert('Please select a year');
+            yearSelect.focus();
+            return false;
+        }
+    }
+    
+    if (mode === 'topical') {
+        const subjectSelect = document.getElementById('subjectSelect');
+        const topicSelect = document.getElementById('topicSelect');
+        
+        if (!subjectSelect.value) {
+            alert('Please select a subject');
+            subjectSelect.focus();
+            return false;
+        }
+        
+        if (!topicSelect.value) {
+            alert('Please select a topic');
+            topicSelect.focus();
+            return false;
+        }
+    }
+    
+    return true;
+}
 
 function viewSession(sessionId) {
     window.location.href = `waec-results.php?session_id=${sessionId}`;
@@ -684,34 +764,26 @@ function practiceTopic(topicId, subjectId) {
     form.method = 'POST';
     form.action = 'waec-session.php';
     
-    const modeInput = document.createElement('input');
-    modeInput.type = 'hidden';
-    modeInput.name = 'mode';
-    modeInput.value = 'topical';
-    form.appendChild(modeInput);
+    const inputs = {
+        mode: 'topical',
+        topic_id: topicId,
+        subject_id: subjectId,
+        session_mode: 'standard'
+    };
     
-    const topicInput = document.createElement('input');
-    topicInput.type = 'hidden';
-    topicInput.name = 'topic_id';
-    topicInput.value = topicId;
-    form.appendChild(topicInput);
-    
-    const subjectInput = document.createElement('input');
-    subjectInput.type = 'hidden';
-    subjectInput.name = 'subject_id';
-    subjectInput.value = subjectId;
-    form.appendChild(subjectInput);
-    
-    const sessionMode = document.createElement('input');
-    sessionMode.type = 'hidden';
-    sessionMode.name = 'session_mode';
-    sessionMode.value = 'standard';
-    form.appendChild(sessionMode);
+    for (const [name, value] of Object.entries(inputs)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+    }
     
     document.body.appendChild(form);
     form.submit();
 }
 
+// Close modal on outside click
 window.onclick = function(event) {
     const modal = document.getElementById('modeModal');
     if (event.target === modal) {

@@ -1,5 +1,5 @@
 <?php
-// msv/student/waec-session.php
+// msv/student/waec-session.php - Fixed with proper error handling
 session_start();
 require_once '../includes/config.php';
 
@@ -59,33 +59,51 @@ try {
         $params[] = $exam_year;
     }
     
-    // Shuffle and limit questions
+    // Get questions
     $stmt = $pdo->prepare($questions_query);
     $stmt->execute($params);
     $all_questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // CHECK IF NO QUESTIONS FOUND
+    if (count($all_questions) == 0) {
+        // Store error message in session and redirect back
+        $_SESSION['waec_error'] = "No questions available for this selection yet. We're still building our question bank. Please check back later!";
+        header("Location: waec-practices.php?error=no_questions");
+        exit();
+    }
+    
+    // Check if enough questions exist
     if (count($all_questions) < $total_questions) {
         $total_questions = count($all_questions);
+        $_SESSION['waec_warning'] = "Only " . $total_questions . " questions available for this selection. Using all available questions.";
     }
     
     // Shuffle and select questions
     shuffle($all_questions);
     $selected_questions = array_slice($all_questions, 0, $total_questions);
     
-    // Create practice session
-    $subject_ids_json = json_encode([$subject_id]);
+    // Check if we have any questions to practice
+    if ($total_questions == 0) {
+        $_SESSION['waec_error'] = "No questions available for this selection yet. Please try a different subject or topic.";
+        header("Location: waec-practices.php?error=no_questions");
+        exit();
+    }
+    
+    // Create practice session - REMOVED subject_ids_json column
     $start_time = date('Y-m-d H:i:s');
     
+    // First, check if the table has the columns we need
+    // Some tables might not have all columns, so we'll use a basic insert
     $insert_query = "INSERT INTO waec_practice_sessions 
                      (student_id, school_id, waec_subject_id, waec_topic_id, practice_mode, 
-                      session_mode, exam_year, subject_ids_json, total_questions, duration_minutes, 
+                      session_mode, exam_year, total_questions, duration_minutes, 
                       start_time, status, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', NOW())";
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', NOW())";
     
     $stmt = $pdo->prepare($insert_query);
     $stmt->execute([
         $student_id, $school_id, $subject_id, $topic_id, $mode,
-        $session_mode, $exam_year, $subject_ids_json, $total_questions, $duration_minutes,
+        $session_mode, $exam_year, $total_questions, $duration_minutes,
         $start_time
     ]);
     $session_id = $pdo->lastInsertId();
@@ -110,11 +128,59 @@ try {
         'subject_name' => $subject['subject_name']
     ];
     
-    header("Location: waec-practices-take.php?session_id=" . $session_id);
+    header("Location: waec-practice-take.php?session_id=" . $session_id);
     exit();
     
+} catch (PDOException $e) {
+    error_log("WAEC Session Error: " . $e->getMessage());
+    
+    // Check if it's a missing column error
+    if (strpos($e->getMessage(), 'subject_ids_json') !== false) {
+        // Try again without the problematic column
+        try {
+            $start_time = date('Y-m-d H:i:s');
+            $insert_query = "INSERT INTO waec_practice_sessions 
+                             (student_id, school_id, waec_subject_id, waec_topic_id, practice_mode, 
+                              session_mode, exam_year, total_questions, duration_minutes, 
+                              start_time, status, created_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', NOW())";
+            
+            $stmt = $pdo->prepare($insert_query);
+            $stmt->execute([
+                $student_id, $school_id, $subject_id, $topic_id, $mode,
+                $session_mode, $exam_year, $total_questions, $duration_minutes,
+                $start_time
+            ]);
+            $session_id = $pdo->lastInsertId();
+            
+            // Store questions...
+            $insert_question = "INSERT INTO waec_practice_answers 
+                                (session_id, waec_question_id, question_order, correct_answer) 
+                                VALUES (?, ?, ?, ?)";
+            $stmt_q = $pdo->prepare($insert_question);
+            
+            $order = 1;
+            foreach ($selected_questions as $question) {
+                $stmt_q->execute([$session_id, $question['id'], $order, $question['correct_answer']]);
+                $order++;
+            }
+            
+            header("Location: waec-practice-take.php?session_id=" . $session_id);
+            exit();
+            
+        } catch (Exception $e2) {
+            $_SESSION['waec_error'] = "Database error: " . $e2->getMessage();
+            header("Location: waec-practices.php?error=db_error");
+            exit();
+        }
+    } else {
+        $_SESSION['waec_error'] = "Error: " . $e->getMessage();
+        header("Location: waec-practices.php?error=" . urlencode($e->getMessage()));
+        exit();
+    }
 } catch (Exception $e) {
     error_log("WAEC Session Error: " . $e->getMessage());
+    $_SESSION['waec_error'] = $e->getMessage();
     header("Location: waec-practices.php?error=" . urlencode($e->getMessage()));
     exit();
 }

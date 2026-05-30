@@ -1,5 +1,5 @@
 <?php
-// msv/student/waec-practice.php - WAEC Practice Main Dashboard
+// msv/student/waec-practice.php - WAEC Practice Main Dashboard (No Sidebar)
 session_start();
 require_once '../includes/config.php';
 
@@ -120,41 +120,60 @@ ob_start();
   .blob-1 { width: 600px; height: 600px; background: var(--primary); top: -200px; right: -150px; }
   .blob-2 { width: 400px; height: 400px; background: var(--accent); bottom: -100px; left: -100px; }
   
-  .layout { display: flex; min-height: 100vh; position: relative; z-index: 1; }
-  
-  .main {
-    flex: 1;
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
     padding: 32px 40px;
-    overflow-y: auto;
-    max-height: 100vh;
+    position: relative;
+    z-index: 1;
   }
   
-  .header {
+  /* Top Navigation Bar */
+  .top-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
     gap: 16px;
   }
-  .header h1 {
-    font-size: 1.75rem;
+  .logo-area h1 {
+    font-size: 1.5rem;
     font-weight: 700;
     background: linear-gradient(135deg, #fff 30%, var(--accent));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
-  .header p {
+  .logo-area p {
     color: var(--muted);
     font-size: 0.875rem;
     margin-top: 4px;
+  }
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all .25s;
+  }
+  .back-btn:hover {
+    background: rgba(74,222,128,.1);
+    border-color: var(--accent);
   }
   
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
-    margin-bottom: 32px;
+    margin-bottom: 40px;
   }
   .stat-card {
     background: var(--card);
@@ -369,6 +388,8 @@ ob_start();
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
   }
   .topic-name {
     font-weight: 500;
@@ -386,46 +407,11 @@ ob_start();
   }
   
   @media (max-width: 768px) {
-    .main { padding: 20px; }
+    .container { padding: 20px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .mode-cards { grid-template-columns: 1fr; }
+    .top-nav { flex-direction: column; text-align: center; }
   }
-  /* Fix for sidebar - add margin to main content */
-.layout {
-  display: flex;
-  min-height: 100vh;
-  position: relative;
-  z-index: 1;
-}
-
-/* Make sure sidebar has fixed width */
-.sidebar {
-  width: 280px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-/* Main content - add left margin/padding */
-.main {
-  flex: 1;
-  margin-left: 0;
-  padding: 32px 40px;
-  overflow-y: auto;
-  max-height: 100vh;
-  width: calc(100% - 280px); /* Subtract sidebar width */
-}
-
-/* If sidebar is not fixed width, use this instead */
-.main {
-  flex: 1;
-  margin-left: auto;
-  padding: 32px 40px;
-  overflow-y: auto;
-  max-height: 100vh;
-}
 </style>
 </head>
 <body>
@@ -433,113 +419,118 @@ ob_start();
 <div class="blob blob-1"></div>
 <div class="blob blob-2"></div>
 
-<div class="layout">
-  <?php include 'includes/student_sidebar.php'; ?>
+<div class="container">
+  <!-- Top Navigation Bar with Back Button -->
+  <div class="top-nav">
+    <div class="logo-area">
+      <h1><i class="fa-solid fa-pen-to-square"></i> WAEC Practice</h1>
+      <p>Master your subjects with past questions and personalized drills</p>
+    </div>
+    <a href="index.php" class="back-btn">
+      <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+    </a>
+  </div>
   
-  <main class="main">
-    <div class="header">
-      <div>
-        <h1><i class="fa-solid fa-pen-to-square"></i> WAEC Practice</h1>
-        <p>Master your subjects with past questions and personalized drills</p>
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
+      <div class="stat-value"><?= round($performance_stats['avg_percentage'] ?? 0) ?>%</div>
+      <div class="stat-label">Average Score</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+      <div class="stat-value"><?= $performance_stats['total_sessions'] ?? 0 ?></div>
+      <div class="stat-label">Practice Sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fa-solid fa-question"></i></div>
+      <div class="stat-value"><?= number_format($performance_stats['total_questions_attempted'] ?? 0) ?></div>
+      <div class="stat-label">Questions Attempted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
+      <div class="stat-value"><?= round(($performance_stats['avg_score'] ?? 0)) ?></div>
+      <div class="stat-label">Avg Correct</div>
+    </div>
+  </div>
+  
+  <!-- Practice Mode Selection -->
+  <div class="mode-section">
+    <div class="section-title">
+      <i class="fa-solid fa-flask"></i>
+      <span>Choose Practice Mode</span>
+    </div>
+    <div class="mode-cards">
+      <div class="mode-card" onclick="openModeModal('year')">
+        <div class="mode-icon"><i class="fa-solid fa-calendar-days"></i></div>
+        <h3>Year-Based Practice</h3>
+        <p>Practice by selecting a specific WAEC year and subject. Experience the actual exam format.</p>
+      </div>
+      <div class="mode-card" onclick="openModeModal('topical')">
+        <div class="mode-icon"><i class="fa-solid fa-layer-group"></i></div>
+        <h3>Topical Practice</h3>
+        <p>Focus on specific topics across multiple years. Perfect for mastering difficult areas.</p>
       </div>
     </div>
-    
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
-        <div class="stat-value"><?= round($performance_stats['avg_percentage'] ?? 0) ?>%</div>
-        <div class="stat-label">Average Score</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-        <div class="stat-value"><?= $performance_stats['total_sessions'] ?? 0 ?></div>
-        <div class="stat-label">Practice Sessions</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-question"></i></div>
-        <div class="stat-value"><?= number_format($performance_stats['total_questions_attempted'] ?? 0) ?></div>
-        <div class="stat-label">Questions Attempted</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
-        <div class="stat-value"><?= round(($performance_stats['avg_score'] ?? 0)) ?></div>
-        <div class="stat-label">Avg Correct</div>
-      </div>
+  </div>
+  
+  <!-- Recent Sessions -->
+  <?php if (!empty($recent_sessions)): ?>
+  <div class="mode-section">
+    <div class="section-title">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <span>Recent Practice Sessions</span>
     </div>
-    
-    <div class="mode-section">
-      <div class="section-title">
-        <i class="fa-solid fa-flask"></i>
-        <span>Choose Practice Mode</span>
-      </div>
-      <div class="mode-cards">
-        <div class="mode-card" onclick="openModeModal('year')">
-          <div class="mode-icon"><i class="fa-solid fa-calendar-days"></i></div>
-          <h3>Year-Based Practice</h3>
-          <p>Practice by selecting a specific WAEC year and subject.</p>
-        </div>
-        <div class="mode-card" onclick="openModeModal('topical')">
-          <div class="mode-icon"><i class="fa-solid fa-layer-group"></i></div>
-          <h3>Topical Practice</h3>
-          <p>Focus on specific topics across multiple years.</p>
-        </div>
-      </div>
-    </div>
-    
-    <?php if (!empty($recent_sessions)): ?>
-    <div class="mode-section">
-      <div class="section-title">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>Recent Practice Sessions</span>
-      </div>
-      <div class="stat-card" style="padding: 0; overflow: hidden;">
-        <table class="sessions-table">
-          <thead>
-            <tr><th>Subject</th><th>Mode</th><th>Score</th><th>Date</th><th></th></tr>
-          </thead>
-          <tbody>
-            <?php foreach ($recent_sessions as $session): ?>
-            <tr>
-              <td><?= htmlspecialchars($session['subject_name'] ?? 'N/A') ?></td>
-              <td><?= ucfirst($session['practice_mode']) ?></td>
-              <td><span class="badge-score"><?= round($session['percentage'] ?? 0) ?>%</span></td>
-              <td><?= date('M j, Y', strtotime($session['created_at'])) ?></td>
-              <td><button class="btn-review" onclick="viewSession(<?= $session['id'] ?>)">Review</button></td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <?php endif; ?>
-    
-    <?php if (!empty($weak_topics)): ?>
-    <div class="mode-section">
-      <div class="section-title">
-        <i class="fa-solid fa-lightbulb"></i>
-        <span>Areas Needing Improvement</span>
-      </div>
-      <div class="stat-card" style="padding: 0;">
-        <ul class="topic-list">
-          <?php foreach ($weak_topics as $topic): ?>
-          <li>
-            <div>
-              <div class="topic-name"><?= htmlspecialchars($topic['topic_name']) ?></div>
-              <div class="topic-subject"><?= htmlspecialchars($topic['subject_name']) ?></div>
-            </div>
-            <div>
-              <span class="mastery-badge"><?= str_replace('_', ' ', $topic['mastery_level']) ?></span>
-              <button class="btn-review" style="margin-left: 12px;" onclick="practiceTopic(<?= $topic['waec_topic_id'] ?>, <?= $topic['waec_subject_id'] ?>)">Practice</button>
-            </div>
-          </li>
+    <div class="stat-card" style="padding: 0; overflow: hidden;">
+      <table class="sessions-table">
+        <thead>
+          <tr><th>Subject</th><th>Mode</th><th>Score</th><th>Date</th><th></th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($recent_sessions as $session): ?>
+          <tr>
+            <td><?= htmlspecialchars($session['subject_name'] ?? 'N/A') ?></td>
+            <td><?= ucfirst($session['practice_mode']) ?></td>
+            <td><span class="badge-score"><?= round($session['percentage'] ?? 0) ?>%</span></td>
+            <td><?= date('M j, Y', strtotime($session['created_at'])) ?></td>
+            <td><button class="btn-review" onclick="viewSession(<?= $session['id'] ?>)">Review</button></td>
+          </tr>
           <?php endforeach; ?>
-        </ul>
-      </div>
+        </tbody>
+       </table>
     </div>
-    <?php endif; ?>
-  </main>
+  </div>
+  <?php endif; ?>
+  
+  <!-- Weak Topics -->
+  <?php if (!empty($weak_topics)): ?>
+  <div class="mode-section">
+    <div class="section-title">
+      <i class="fa-solid fa-lightbulb"></i>
+      <span>Areas Needing Improvement</span>
+    </div>
+    <div class="stat-card" style="padding: 0;">
+      <ul class="topic-list">
+        <?php foreach ($weak_topics as $topic): ?>
+        <li>
+          <div>
+            <div class="topic-name"><?= htmlspecialchars($topic['topic_name']) ?></div>
+            <div class="topic-subject"><?= htmlspecialchars($topic['subject_name']) ?></div>
+          </div>
+          <div>
+            <span class="mastery-badge"><?= str_replace('_', ' ', $topic['mastery_level']) ?></span>
+            <button class="btn-review" style="margin-left: 12px;" onclick="practiceTopic(<?= $topic['waec_topic_id'] ?>, <?= $topic['waec_subject_id'] ?>)">Practice</button>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
 
+<!-- Mode Selection Modal -->
 <div id="modeModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -658,7 +649,7 @@ function loadTopics() {
             if (data.success && data.topics.length > 0) {
                 topicSelect.innerHTML = '<option value="">Select Topic</option>';
                 data.topics.forEach(topic => {
-                    topicSelect.innerHTML += `<option value="${topic.id}">${topic.topic_name}</option>`;
+                    topicSelect.innerHTML += `<option value="${topic.id}">${escapeHtml(topic.topic_name)}</option>`;
                 });
             } else {
                 topicSelect.innerHTML = '<option value="">No topics available</option>';
@@ -670,6 +661,13 @@ function loadTopics() {
         });
 }
 
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 document.querySelectorAll('input[name="session_mode"]').forEach(radio => {
     radio.addEventListener('change', function() {
         const customDiv = document.getElementById('customSettings');
@@ -678,7 +676,7 @@ document.querySelectorAll('input[name="session_mode"]').forEach(radio => {
 });
 
 function viewSession(sessionId) {
-    window.location.href = `waec-review.php?session_id=${sessionId}`;
+    window.location.href = `waec-results.php?session_id=${sessionId}`;
 }
 
 function practiceTopic(topicId, subjectId) {

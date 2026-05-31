@@ -642,13 +642,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     </div>
 
     <script>
-        // Mobile sidebar toggle
+        // Mobile sidebar toggle - FIXED
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('studentSidebar');
         const overlay = document.getElementById('sidebarOverlay');
 
         if (mobileBtn && sidebar) {
-            mobileBtn.addEventListener('click', function(e) {
+            // Remove any existing event listeners by cloning
+            const newMobileBtn = mobileBtn.cloneNode(true);
+            mobileBtn.parentNode.replaceChild(newMobileBtn, mobileBtn);
+
+            newMobileBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 sidebar.classList.toggle('active');
@@ -669,11 +673,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         document.addEventListener('click', function(e) {
             if (window.innerWidth <= 768 && sidebar &&
                 !sidebar.contains(e.target) &&
-                !mobileBtn.contains(e.target)) {
+                mobileBtn && !mobileBtn.contains(e.target)) {
                 sidebar.classList.remove('active');
                 if (overlay) overlay.classList.remove('active');
                 document.body.style.overflow = '';
             }
+        });
+
+        // Close sidebar with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && sidebar && sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
+                if (overlay) overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Handle window resize - auto close sidebar on desktop
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                if (window.innerWidth >= 768 && sidebar) {
+                    sidebar.classList.remove('active');
+                    if (overlay) overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            }, 250);
         });
 
         // Password form validation

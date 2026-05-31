@@ -1,8 +1,8 @@
 <?php
-// tbis/staff/library.php - Staff Library Management with Multi-Class Support
+// tbis/student/library.php - Online E-Library for Students
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
     header("Location: /tbis/login.php");
     exit();
 }
@@ -12,188 +12,152 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
-$staff_id = $_SESSION['user_id'];
-$staff_name = $_SESSION['user_name'] ?? 'Staff Member';
-$staff_role = $_SESSION['staff_role'] ?? 'staff';
+$secondary_color = SCHOOL_SECONDARY;
+$student_id = $_SESSION['user_id'];
+$student_name = $_SESSION['user_name'] ?? 'Student';
 
-// Initialize variables
-$assigned_subjects = [];
-$assigned_classes = [];
-$staff_id_string = null;
+// Get student details including class
+$stmt = $pdo->prepare("SELECT * FROM students WHERE id = ? AND school_id = ?");
+$stmt->execute([$student_id, $school_id]);
+$student_data = $stmt->fetch();
 
-try {
-    // Get the staff_id string from the staff table (same as index.php)
-    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
-    $stmt->execute([$staff_id, $school_id]);
-    $staff_id_string = $stmt->fetchColumn();
+if (!$student_data) {
+    header("Location: /tbis/login.php");
+    exit();
+}
 
-    if (!$staff_id_string) {
-        $error = "Staff record not found. Please contact administrator.";
+$student_class = $student_data['class'];
+$admission_number = $student_data['admission_number'];
+
+// Get profile picture path
+$profile_picture = !empty($student_data['profile_picture']) ? $student_data['profile_picture'] : '/assets/uploads/default-avatar.png';
+if (!empty($student_data['profile_picture']) && strpos($student_data['profile_picture'], '/') !== 0) {
+    $profile_picture = '/uploads/' . $student_data['profile_picture'];
+}
+
+// Get filter parameters
+$subject_filter = $_GET['subject'] ?? 'all';
+$type_filter = $_GET['type'] ?? 'all';
+$search_query = $_GET['search'] ?? '';
+$sort_by = $_GET['sort'] ?? 'newest';
+
+// Build WHERE conditions with school_id - handle multi-class resources
+// Need to check if student's class is in the comma-separated list
+$where_conditions = ["lr.school_id = ?"];
+$params = [$school_id];
+
+// Access condition: student's class matches single class, is in comma-separated list, or 'All'
+$access_condition = "(lr.class = ? OR lr.class = 'All' OR lr.class = '' OR FIND_IN_SET(?, lr.class))";
+$params[] = $student_class;
+$params[] = $student_class;
+$where_conditions[] = $access_condition;
+
+// Subject filter
+if ($subject_filter !== 'all') {
+    $where_conditions[] = "lr.subject = ?";
+    $params[] = $subject_filter;
+}
+
+// Type filter
+if ($type_filter !== 'all') {
+    if ($type_filter === 'IMAGE') {
+        $where_conditions[] = "(lr.file_type LIKE '%.jpg%' OR lr.file_type LIKE '%.jpeg%' OR lr.file_type LIKE '%.png%' OR lr.file_type LIKE '%.gif%')";
+    } elseif ($type_filter === 'VIDEO') {
+        $where_conditions[] = "(lr.file_type LIKE '%.mp4%' OR lr.file_type LIKE '%.avi%' OR lr.file_type LIKE '%.mov%')";
+    } elseif ($type_filter === 'AUDIO') {
+        $where_conditions[] = "(lr.file_type LIKE '%.mp3%' OR lr.file_type LIKE '%.wav%')";
+    } elseif ($type_filter === 'DOC') {
+        $where_conditions[] = "(lr.file_type LIKE '%.doc%' OR lr.file_type LIKE '%.docx%')";
+    } elseif ($type_filter === 'PPT') {
+        $where_conditions[] = "(lr.file_type LIKE '%.ppt%' OR lr.file_type LIKE '%.pptx%')";
+    } elseif ($type_filter === 'PDF') {
+        $where_conditions[] = "lr.file_type LIKE '%.pdf%'";
     } else {
-        // Get assigned subjects - SAME as index.php
-        $stmt = $pdo->prepare("
-            SELECT s.id, s.subject_name
-            FROM subjects s
-            JOIN staff_subjects ss ON s.id = ss.subject_id
-            WHERE ss.staff_id = ? AND ss.school_id = ?
-            ORDER BY s.subject_name
-        ");
-        $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_subjects = $stmt->fetchAll();
-
-        // Get assigned classes - SAME as index.php (using DISTINCT class)
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT class 
-            FROM staff_classes 
-            WHERE staff_id = ? AND school_id = ?
-            ORDER BY class
-        ");
-        $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_classes = $stmt->fetchAll();
-        $class_names = array_column($assigned_classes, 'class');
-    }
-} catch (Exception $e) {
-    error_log("Staff library error: " . $e->getMessage());
-    $error = "An error occurred while loading the library.";
-}
-
-// Handle upload (with multiple classes support)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
-    $title = trim($_POST['title']);
-    $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
-    $selected_classes = $_POST['classes'] ?? []; // Array of selected classes
-    $description = trim($_POST['description']);
-
-    // Get subject name from ID
-    $subject_name = '';
-    if ($subject_id) {
-        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ?");
-        $stmt->execute([$subject_id, $school_id]);
-        $subject = $stmt->fetch();
-        $subject_name = $subject['subject_name'] ?? '';
-    }
-
-    // Validate that selected classes are in staff's assigned classes
-    $valid_classes = [];
-    $assigned_class_names = array_column($assigned_classes, 'class');
-    foreach ($selected_classes as $class) {
-        if (in_array($class, $assigned_class_names)) {
-            $valid_classes[] = $class;
-        }
-    }
-
-    // Validate that the selected subject is in staff's assigned subjects
-    $subject_valid = false;
-    foreach ($assigned_subjects as $as) {
-        if ($as['id'] == $subject_id) {
-            $subject_valid = true;
-            break;
-        }
-    }
-
-    if (empty($title)) {
-        $error = "Title is required";
-        $message_type = "error";
-    } elseif (!$subject_valid) {
-        $error = "Invalid subject selected. You can only upload for your assigned subjects.";
-        $message_type = "error";
-    } elseif (empty($valid_classes)) {
-        $error = "Please select at least one valid class from your assigned classes.";
-        $message_type = "error";
-    } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/library/';
-        if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-
-        $file_name = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', basename($_FILES['resource_file']['name']));
-        $file_path = 'uploads/library/' . $file_name;
-        $file_type = pathinfo($file_name, PATHINFO_EXTENSION);
-        $file_size = $_FILES['resource_file']['size'];
-
-        if (move_uploaded_file($_FILES['resource_file']['tmp_name'], '../' . $file_path)) {
-            // Store classes as comma-separated string
-            $classes_string = implode(',', $valid_classes);
-            
-            $stmt = $pdo->prepare("
-                INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
-            ");
-            $stmt->execute([$school_id, $title, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
-
-            $message = "Resource uploaded successfully! Shared with " . count($valid_classes) . " class(es).";
-            $message_type = "success";
-        } else {
-            $error = "Failed to upload file";
-            $message_type = "error";
-        }
-    } else {
-        $error = "Please select a file to upload";
-        $message_type = "error";
+        $where_conditions[] = "lr.file_type LIKE ?";
+        $params[] = "%$type_filter%";
     }
 }
 
-// Handle delete (only own resources)
-if (isset($_GET['delete'])) {
-    $resource_id = $_GET['delete'];
-
-    $stmt = $pdo->prepare("SELECT file_path FROM library_resources WHERE id = ? AND school_id = ? AND uploaded_by = ? AND uploaded_by_type = 'staff'");
-    $stmt->execute([$resource_id, $school_id, $staff_id]);
-    $resource = $stmt->fetch();
-
-    if ($resource) {
-        if (file_exists('../' . $resource['file_path'])) {
-            unlink('../' . $resource['file_path']);
-        }
-        $stmt = $pdo->prepare("DELETE FROM library_resources WHERE id = ?");
-        $stmt->execute([$resource_id]);
-        $message = "Resource deleted successfully";
-        $message_type = "success";
-    }
+// Search filter
+if ($search_query) {
+    $where_conditions[] = "(lr.title LIKE ? OR lr.subject LIKE ?)";
+    $params[] = "%$search_query%";
+    $params[] = "%$search_query%";
 }
 
-// Get resources (staff's own + shared to their classes) - with multi-class support
-$search = $_GET['search'] ?? '';
+// Sort order
+switch ($sort_by) {
+    case 'oldest':
+        $order_by = "lr.uploaded_at ASC";
+        break;
+    case 'title_asc':
+        $order_by = "lr.title ASC";
+        break;
+    case 'title_desc':
+        $order_by = "lr.title DESC";
+        break;
+    default:
+        $order_by = "lr.uploaded_at DESC";
+}
 
-// Build the base query - need to handle comma-separated classes
-$query = "SELECT lr.*, 
-          CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
+$where_clause = "WHERE " . implode(" AND ", $where_conditions);
+
+// Get resources
+$query = "
+    SELECT lr.*, 
+           CASE 
+               WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
                ELSE CONCAT(ROUND(lr.file_size/1048576, 1), ' MB')
-          END as formatted_size
-          FROM library_resources lr
-          WHERE lr.school_id = ? AND (lr.uploaded_by = ?";
-
-$params = [$school_id, $staff_id];
-
-// Add class condition for multi-class resources - check if staff's class is in the comma-separated list
-if (!empty($class_names)) {
-    $class_conditions = [];
-    foreach ($class_names as $class) {
-        $class_conditions[] = "FIND_IN_SET(?, lr.class)";
-        $params[] = $class;
-    }
-    $query .= " OR (" . implode(" OR ", $class_conditions) . ")";
-}
-
-$query .= " OR lr.class = 'All')";
-
-// Add search condition if provided
-if (!empty($search)) {
-    $query .= " AND (lr.title LIKE ? OR lr.subject LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-}
-
-$query .= " ORDER BY lr.uploaded_at DESC";
+           END as formatted_size,
+           CASE 
+               WHEN lr.uploaded_by_type = 'staff' THEN st.full_name
+               WHEN lr.uploaded_by_type = 'admin' THEN au.full_name
+               ELSE 'System'
+           END as uploaded_by_name
+    FROM library_resources lr
+    LEFT JOIN staff st ON lr.uploaded_by = st.id AND lr.uploaded_by_type = 'staff' AND st.school_id = lr.school_id
+    LEFT JOIN admin_users au ON lr.uploaded_by = au.id AND lr.uploaded_by_type = 'admin'
+    $where_clause
+    ORDER BY $order_by
+";
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $resources = $stmt->fetchAll();
 
-// Get file icon function
-function getFileIcon($file_type) {
-    $ext = strtolower($file_type);
+// Get distinct subjects for filter
+$stmt = $pdo->prepare("
+    SELECT DISTINCT subject FROM library_resources 
+    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '' OR FIND_IN_SET(?, class)) AND subject IS NOT NULL
+    ORDER BY subject
+");
+$stmt->execute([$school_id, $student_class, $student_class]);
+$available_subjects = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Get resource types for filter
+$resource_types = ['PDF', 'DOC', 'PPT', 'VIDEO', 'AUDIO', 'IMAGE'];
+
+// Get statistics
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN file_type LIKE '%.pdf%' THEN 1 ELSE 0 END) as pdf_count,
+        SUM(CASE WHEN file_type LIKE '%.jpg%' OR file_type LIKE '%.jpeg%' OR file_type LIKE '%.png%' OR file_type LIKE '%.gif%' THEN 1 ELSE 0 END) as image_count,
+        SUM(CASE WHEN file_type LIKE '%.mp4%' OR file_type LIKE '%.avi%' OR file_type LIKE '%.mov%' THEN 1 ELSE 0 END) as video_count,
+        SUM(CASE WHEN file_type LIKE '%.mp3%' OR file_type LIKE '%.wav%' THEN 1 ELSE 0 END) as audio_count,
+        SUM(CASE WHEN file_type LIKE '%.doc%' OR file_type LIKE '%.docx%' THEN 1 ELSE 0 END) as doc_count,
+        SUM(CASE WHEN file_type LIKE '%.ppt%' OR file_type LIKE '%.pptx%' THEN 1 ELSE 0 END) as ppt_count
+    FROM library_resources 
+    WHERE school_id = ? AND (class = ? OR class = 'All' OR class = '' OR FIND_IN_SET(?, class))
+");
+$stmt->execute([$school_id, $student_class, $student_class]);
+$stats = $stmt->fetch();
+
+// Helper functions
+function getFileIcon($file_type)
+{
+    $ext = strtolower(pathinfo($file_type, PATHINFO_EXTENSION));
     $icons = [
         'pdf' => '📕',
         'doc' => '📘',
@@ -207,24 +171,45 @@ function getFileIcon($file_type) {
         'png' => '🖼️',
         'gif' => '🖼️',
         'mp4' => '🎬',
+        'avi' => '🎬',
+        'mov' => '🎬',
         'mp3' => '🎵',
+        'wav' => '🎵',
         'txt' => '📄',
         'zip' => '📦'
     ];
     return $icons[$ext] ?? '📁';
 }
 
-// Helper to format class display (convert comma-separated to badges)
-function formatClasses($class_string) {
-    if ($class_string === 'All') {
-        return '<span class="info-item" style="background: var(--primary-color); color: white;"><i class="fas fa-globe"></i> All Classes</span>';
-    }
-    $classes = explode(',', $class_string);
-    $badges = [];
-    foreach ($classes as $class) {
-        $badges[] = '<span class="info-item"><i class="fas fa-users"></i> ' . htmlspecialchars(trim($class)) . '</span>';
-    }
-    return implode(' ', $badges);
+function getFileBadgeColor($file_type)
+{
+    $ext = strtolower(pathinfo($file_type, PATHINFO_EXTENSION));
+    $colors = [
+        'pdf' => '#e74c3c',
+        'doc' => '#2c3e50',
+        'docx' => '#2c3e50',
+        'ppt' => '#e67e22',
+        'pptx' => '#e67e22',
+        'xls' => '#27ae60',
+        'xlsx' => '#27ae60',
+        'jpg' => '#3498db',
+        'jpeg' => '#3498db',
+        'png' => '#3498db',
+        'mp4' => '#9b59b6',
+        'mp3' => '#1abc9c'
+    ];
+    return $colors[$ext] ?? '#7f8c8d';
+}
+
+function timeAgo($datetime)
+{
+    $time = strtotime($datetime);
+    $diff = time() - $time;
+    if ($diff < 60) return 'just now';
+    if ($diff < 3600) return floor($diff / 60) . ' mins ago';
+    if ($diff < 86400) return floor($diff / 3600) . ' hours ago';
+    if ($diff < 604800) return floor($diff / 86400) . ' days ago';
+    return date('M j, Y', $time);
 }
 ?>
 
@@ -234,32 +219,23 @@ function formatClasses($class_string) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?php echo htmlspecialchars($school_name); ?> - Library</title>
+    <title><?php echo htmlspecialchars($school_name); ?> - E-Library</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
-            --primary-dark: #1a5a8a;
-            --secondary-color: #d4af7a;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --info-color: #3498db;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-            --gray-50: #f9fafb;
-            --gray-100: #f0f2f5;
-            --gray-200: #e4e7eb;
-            --gray-400: #9ca3af;
-            --gray-600: #6b7280;
-            --gray-800: #1f2937;
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --secondary-color: <?php echo $secondary_color; ?>;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
             --sidebar-width: 280px;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --radius: 12px;
+            --transition: all 0.3s ease;
         }
 
         * {
@@ -270,9 +246,9 @@ function formatClasses($class_string) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: var(--gray-100);
-            color: var(--gray-800);
+            background: #f5f6fa;
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
         /* Mobile Menu Button */
@@ -289,134 +265,147 @@ function formatClasses($class_string) {
             border-radius: 10px;
             font-size: 20px;
             cursor: pointer;
-            box-shadow: var(--shadow-sm);
+            box-shadow: var(--shadow);
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
         /* Main Content */
         .main-content {
-            margin-left: 0;
-            padding: 20px;
             min-height: 100vh;
-            transition: margin-left 0.28s ease;
+            padding: 20px;
+            transition: var(--transition);
         }
 
         /* Top Header */
         .top-header {
             background: white;
-            padding: 20px 25px;
-            border-radius: var(--radius-lg);
+            padding: 20px;
+            border-radius: var(--radius);
             margin-bottom: 25px;
+            background: linear-gradient(135deg, var(--primary-color), var(--dark));
+            color: white;
+        }
+
+        .welcome-banner {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 20px;
             flex-wrap: wrap;
-            gap: 15px;
-            box-shadow: var(--shadow-sm);
         }
 
-        .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.6rem;
+        .welcome-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d4af7a;
+            background: #f0f0f0;
+        }
+
+        .welcome-text h1 {
+            font-size: 1.5rem;
             margin-bottom: 5px;
-            font-weight: 700;
         }
 
-        .header-title h1 i {
-            margin-right: 10px;
-        }
-
-        .header-title p {
-            color: var(--gray-600);
+        .welcome-text p {
+            opacity: 0.9;
             font-size: 0.85rem;
         }
 
-        .header-title p i {
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            border-top: 3px solid var(--primary-color);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
             color: var(--primary-color);
-            font-size: 0.7rem;
-            margin: 0 4px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.75rem;
+            margin-top: 5px;
         }
 
         /* Cards */
-        .card {
+        .content-card {
             background: white;
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius);
             padding: 20px;
             margin-bottom: 25px;
-            box-shadow: var(--shadow-sm);
+            box-shadow: var(--shadow);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
             padding-bottom: 12px;
-            border-bottom: 2px solid var(--gray-200);
+            border-bottom: 2px solid var(--light);
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .card-header h3 {
-            color: var(--gray-800);
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .card-header h3 i {
             color: var(--primary-color);
-            margin-right: 8px;
-        }
-
-        /* Forms */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .form-group {
+            font-size: 1.1rem;
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
 
-        .form-group label {
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .filter-group label {
             font-size: 0.7rem;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-600);
-            margin-bottom: 6px;
+            color: #666;
+            margin-bottom: 5px;
+            display: block;
         }
 
         .form-control,
         .form-select {
             width: 100%;
-            padding: 10px 14px;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
+            padding: 10px 12px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Poppins', sans-serif;
             font-size: 0.85rem;
-            font-family: inherit;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
 
         .form-control:focus,
@@ -425,81 +414,112 @@ function formatClasses($class_string) {
             border-color: var(--primary-color);
         }
 
-        textarea.form-control {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        /* Multi-select for classes */
-        .multi-select {
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            padding: 8px;
-            max-height: 150px;
-            overflow-y: auto;
-        }
-
-        .multi-select label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            margin: 0;
-            font-size: 0.85rem;
-            font-weight: normal;
-            text-transform: none;
-            cursor: pointer;
-            border-radius: var(--radius-sm);
-            transition: background 0.2s;
-        }
-
-        .multi-select label:hover {
-            background: var(--gray-100);
-        }
-
-        .multi-select input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: var(--primary-color);
-        }
-
-        .selected-classes-badge {
-            display: inline-block;
-            background: var(--info-color);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            margin-left: 8px;
-        }
-
-        /* Search Bar */
-        .search-bar {
+        .filter-actions {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            align-items: center;
         }
 
-        .search-bar input {
+        /* Resource Items */
+        .resource-item {
+            border: 1px solid #e0e0e0;
+            border-radius: var(--radius);
+            padding: 18px;
+            margin-bottom: 15px;
+            transition: var(--transition);
+            background: white;
+        }
+
+        .resource-item:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .resource-header {
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+        }
+
+        .file-icon {
+            font-size: 2.5rem;
+        }
+
+        .resource-details {
             flex: 1;
-            min-width: 200px;
+        }
+
+        .resource-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+
+        .resource-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        .badge-subject {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-type {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .badge-size {
+            background: var(--light);
+            color: var(--dark);
+        }
+
+        .badge-date {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .resource-description {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .uploaded-by {
+            font-size: 0.7rem;
+            color: #999;
+            margin-bottom: 12px;
         }
 
         /* Buttons */
         .btn {
-            padding: 8px 18px;
-            border-radius: var(--radius-md);
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            text-decoration: none;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 500;
             font-size: 0.8rem;
-            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
         }
 
         .btn-primary {
@@ -508,205 +528,66 @@ function formatClasses($class_string) {
         }
 
         .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
+            opacity: 0.9;
+            transform: translateY(-1px);
         }
 
         .btn-success {
-            background: var(--success-color);
+            background: var(--success);
             color: white;
         }
 
         .btn-success:hover {
-            background: #219a52;
+            background: #0e9f6e;
         }
 
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
+        .btn-outline {
+            border: 1px solid #e0e0e0;
+            background: white;
+            color: var(--dark);
         }
 
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-
-        .btn-warning {
-            background: var(--warning-color);
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.75rem;
-        }
-
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 700px;
-        }
-
-        .data-table th {
-            text-align: left;
-            padding: 14px 16px;
-            background: var(--gray-50);
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-600);
-            border-bottom: 2px solid var(--gray-200);
-        }
-
-        .data-table td {
-            padding: 14px 16px;
-            font-size: 0.85rem;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .data-table tr:hover td {
-            background: var(--gray-50);
-        }
-
-        .data-table td strong {
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        /* File type badge */
-        .file-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .file-pdf {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .file-doc {
-            background: #d1fae5;
-            color: #059669;
-        }
-
-        .file-ppt {
-            background: #fed7aa;
-            color: #ea580c;
-        }
-
-        .file-xls {
-            background: #d1fae5;
-            color: #059669;
-        }
-
-        .file-zip {
-            background: #e0e7ff;
-            color: #4f46e5;
-        }
-
-        .file-image {
-            background: #fce7f3;
-            color: #db2777;
-        }
-
-        .file-default {
-            background: var(--gray-100);
-            color: var(--gray-600);
-        }
-
-        /* Info Items */
-        .info-items {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .info-item {
-            background: var(--gray-100);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: var(--gray-800);
-            font-weight: 500;
-        }
-
-        .info-item i {
-            margin-right: 6px;
+        .btn-outline:hover {
+            border-color: var(--primary-color);
             color: var(--primary-color);
         }
 
-        /* Alerts */
-        .alert {
-            padding: 15px 20px;
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.7rem;
         }
 
-        .alert-success {
-            background: #d5f4e6;
-            color: var(--success-color);
-            border-left: 4px solid var(--success-color);
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: var(--danger-color);
-            border-left: 4px solid var(--danger-color);
-        }
-
-        .alert-info {
-            background: #eef2ff;
-            color: var(--info-color);
-            border-left: 4px solid var(--info-color);
+        .btn-warning {
+            background: var(--warning);
+            color: white;
         }
 
         /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 50px 20px;
-            color: var(--gray-600);
+            padding: 60px 20px;
+            color: #999;
         }
 
         .empty-state i {
-            font-size: 48px;
-            margin-bottom: 15px;
-            color: var(--gray-400);
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
         }
 
-        .empty-state p {
-            margin-top: 8px;
-        }
-
-        /* Selection Info */
-        .selection-info {
-            background: var(--gray-50);
-            border-radius: var(--radius-md);
-            padding: 12px 15px;
-            margin-top: 10px;
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
             font-size: 0.8rem;
-            color: var(--gray-600);
-        }
-
-        .selection-info i {
-            color: var(--info-color);
-            margin-right: 6px;
+            border-top: 1px solid var(--light);
+            margin-top: 20px;
         }
 
         /* Desktop */
-        @media (min-width: 768px) {
-            .mobile-menu-btn,
-            .sidebar-overlay {
+        @media (min-width: 769px) {
+            .mobile-menu-btn {
                 display: none;
             }
 
@@ -716,27 +597,43 @@ function formatClasses($class_string) {
         }
 
         /* Mobile */
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
             .main-content {
-                padding-top: 70px;
+                padding: 70px 15px 20px;
             }
 
-            .top-header {
+            .welcome-banner {
                 flex-direction: column;
                 text-align: center;
             }
 
-            .form-grid {
-                grid-template-columns: 1fr;
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
 
-            .search-bar {
+            .filter-bar {
                 flex-direction: column;
             }
 
-            .card-header {
+            .filter-group {
+                width: 100%;
+            }
+
+            .filter-actions {
+                width: 100%;
+            }
+
+            .resource-header {
                 flex-direction: column;
-                gap: 10px;
+                text-align: center;
+            }
+
+            .resource-meta {
+                justify-content: center;
+            }
+
+            .action-buttons {
+                justify-content: center;
             }
         }
     </style>
@@ -745,298 +642,218 @@ function formatClasses($class_string) {
 <body>
 
     <!-- Mobile Menu Button -->
-    <button class="mobile-menu-btn" id="mobileMenuBtn">
-        <i class="fas fa-bars"></i>
-    </button>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <!-- Include Staff Sidebar -->
-    <?php include_once 'includes/staff_sidebar.php'; ?>
+    <!-- Include Student Sidebar -->
+    <?php require_once 'includes/student_sidebar.php'; ?>
 
     <!-- Main Content -->
     <div class="main-content">
+
         <div class="top-header">
-            <div class="header-title">
-                <h1><i class="fas fa-book"></i> Library Resources</h1>
-                <p><i class="fas fa-chevron-right"></i> Upload and manage teaching resources for your classes</p>
-            </div>
-            <div>
-                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
-            </div>
-        </div>
-
-        <?php if (isset($message)): ?>
-            <div class="alert alert-<?php echo $message_type ?? 'success'; ?>">
-                <i class="fas fa-<?php echo ($message_type ?? 'success') === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
-                <?php echo htmlspecialchars($message); ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($error)): ?>
-            <div class="alert alert-error">
-                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Assigned Info Card - Same as index.php -->
-        <div class="card">
-            <div class="card-header">
-                <h3><i class="fas fa-chalkboard"></i> My Assignments</h3>
-            </div>
-            <div class="info-items">
-                <?php if (!empty($assigned_subjects)): ?>
-                    <?php foreach ($assigned_subjects as $subject): ?>
-                        <span class="info-item"><i class="fas fa-book"></i> <?php echo htmlspecialchars($subject['subject_name']); ?></span>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <span class="info-item"><i class="fas fa-info-circle"></i> No subjects assigned yet</span>
-                <?php endif; ?>
-                <?php if (!empty($assigned_classes)): ?>
-                    <?php foreach ($assigned_classes as $class): ?>
-                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class']); ?></span>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Upload Form - Only show if staff has assigned subjects and classes -->
-        <?php if (!empty($assigned_subjects) && !empty($assigned_classes)): ?>
-        <div class="card">
-            <div class="card-header">
-                <h3><i class="fas fa-upload"></i> Upload Resource</h3>
-                <span class="info-item"><i class="fas fa-info-circle"></i> Max file size: 10MB</span>
-            </div>
-            <form method="POST" enctype="multipart/form-data" id="uploadForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label><i class="fas fa-heading"></i> Title *</label>
-                        <input type="text" name="title" class="form-control" placeholder="e.g., Mathematics Worksheet 1" required>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-book"></i> Subject *</label>
-                        <select name="subject_id" class="form-select" required>
-                            <option value="">Select Subject</option>
-                            <?php foreach ($assigned_subjects as $subject): ?>
-                                <option value="<?php echo $subject['id']; ?>"><?php echo htmlspecialchars($subject['subject_name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-layer-group"></i> Classes * (Select one or more)</label>
-                        <div class="multi-select" id="classesMultiSelect">
-                            <?php foreach ($assigned_classes as $class): ?>
-                                <label>
-                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class']); ?>">
-                                    <span><?php echo htmlspecialchars($class['class']); ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="selection-info" id="selectionInfo">
-                            <i class="fas fa-info-circle"></i>
-                            <span id="selectedCount">0</span> class(es) selected
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-align-left"></i> Description (Optional)</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the resource..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-paperclip"></i> File *</label>
-                        <input type="file" name="resource_file" class="form-control" required>
-                        <small style="color: var(--gray-600); margin-top: 5px;">Allowed: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, ZIP, Images</small>
-                    </div>
+            <div class="welcome-banner">
+                <img src="<?php echo htmlspecialchars($profile_picture); ?>"
+                    alt="Profile Picture"
+                    class="welcome-avatar"
+                    onerror="this.src='/assets/uploads/default-avatar.png'">
+                <div class="welcome-text">
+                    <h1><i class="fas fa-book-open"></i> Digital Library</h1>
+                    <p><i class="fas fa-graduation-cap"></i> Class: <?php echo htmlspecialchars($student_class); ?> | <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($admission_number); ?></p>
                 </div>
-                <button type="submit" name="upload_resource" class="btn btn-success">
-                    <i class="fas fa-cloud-upload-alt"></i> Upload Resource
-                </button>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $stats['total'] ?? 0; ?></div>
+                <div class="stat-label">Total Resources</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $stats['pdf_count'] ?? 0; ?></div>
+                <div class="stat-label">PDF Books</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $stats['video_count'] ?? 0; ?></div>
+                <div class="stat-label">Video Lessons</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $stats['doc_count'] ?? 0; ?></div>
+                <div class="stat-label">Documents</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="content-card">
+            <div class="card-header">
+                <h3><i class="fas fa-filter"></i> Filter Resources</h3>
+                <a href="library.php" class="btn btn-outline btn-sm">
+                    <i class="fas fa-redo-alt"></i> Reset
+                </a>
+            </div>
+            <form method="GET" class="filter-bar">
+                <div class="filter-group">
+                    <label><i class="fas fa-search"></i> Search</label>
+                    <input type="text" name="search" class="form-control"
+                        placeholder="Search by title or subject..."
+                        value="<?php echo htmlspecialchars($search_query); ?>">
+                </div>
+
+                <div class="filter-group">
+                    <label><i class="fas fa-book"></i> Subject</label>
+                    <select name="subject" class="form-select">
+                        <option value="all">All Subjects</option>
+                        <?php foreach ($available_subjects as $subject): ?>
+                            <option value="<?php echo htmlspecialchars($subject); ?>"
+                                <?php echo $subject_filter === $subject ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($subject); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label><i class="fas fa-file-alt"></i> File Type</label>
+                    <select name="type" class="form-select">
+                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
+                        <option value="PDF" <?php echo $type_filter === 'PDF' ? 'selected' : ''; ?>>PDF Documents</option>
+                        <option value="VIDEO" <?php echo $type_filter === 'VIDEO' ? 'selected' : ''; ?>>Videos</option>
+                        <option value="DOC" <?php echo $type_filter === 'DOC' ? 'selected' : ''; ?>>Word Documents</option>
+                        <option value="PPT" <?php echo $type_filter === 'PPT' ? 'selected' : ''; ?>>Presentations</option>
+                        <option value="IMAGE" <?php echo $type_filter === 'IMAGE' ? 'selected' : ''; ?>>Images</option>
+                        <option value="AUDIO" <?php echo $type_filter === 'AUDIO' ? 'selected' : ''; ?>>Audio</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label><i class="fas fa-sort"></i> Sort By</label>
+                    <select name="sort" class="form-select">
+                        <option value="newest" <?php echo $sort_by === 'newest' ? 'selected' : ''; ?>>Newest First</option>
+                        <option value="oldest" <?php echo $sort_by === 'oldest' ? 'selected' : ''; ?>>Oldest First</option>
+                        <option value="title_asc" <?php echo $sort_by === 'title_asc' ? 'selected' : ''; ?>>Title A-Z</option>
+                        <option value="title_desc" <?php echo $sort_by === 'title_desc' ? 'selected' : ''; ?>>Title Z-A</option>
+                    </select>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Apply
+                    </button>
+                </div>
             </form>
         </div>
-        <?php elseif (!empty($assigned_subjects) && empty($assigned_classes)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> You have assigned subjects but no classes. Please contact the administrator to assign classes to you.
-            </div>
-        <?php elseif (empty($assigned_subjects) && !empty($assigned_classes)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> You have assigned classes but no subjects. Please contact the administrator to assign subjects to you.
-            </div>
-        <?php else: ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> You have not been assigned any subjects or classes yet. Please contact the administrator.
-            </div>
-        <?php endif; ?>
 
         <!-- Resources List -->
-        <div class="card">
+        <div class="content-card">
             <div class="card-header">
-                <h3><i class="fas fa-list"></i> Available Resources</h3>
-                <?php if (!empty($resources)): ?>
-                    <span class="info-item"><i class="fas fa-database"></i> <?php echo count($resources); ?> resources</span>
-                <?php endif; ?>
-            </div>
-
-            <div class="search-bar">
-                <form method="GET" style="display: flex; gap: 10px; flex: 1; flex-wrap: wrap;">
-                    <input type="text" name="search" class="form-control" placeholder="Search by title or subject..." value="<?php echo htmlspecialchars($search); ?>">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
-                    <?php if (!empty($search)): ?>
-                        <a href="library.php" class="btn btn-warning"><i class="fas fa-times"></i> Clear</a>
-                    <?php endif; ?>
-                </form>
+                <h3>
+                    <i class="fas fa-list"></i>
+                    Available Resources
+                    <span class="badge" style="background: var(--light); color: var(--dark);">
+                        <?php echo count($resources); ?> items
+                    </span>
+                </h3>
             </div>
 
             <?php if (empty($resources)): ?>
                 <div class="empty-state">
-                    <i class="fas fa-folder-open"></i>
-                    <p>No resources found</p>
-                    <?php if (!empty($search)): ?>
-                        <p style="font-size: 0.8rem;">Try adjusting your search terms</p>
-                    <?php else: ?>
-                        <p>Upload your first resource using the form above</p>
-                    <?php endif; ?>
+                    <i class="fas fa-book-open"></i>
+                    <h3>No resources found</h3>
+                    <p style="margin-top: 10px;">Try adjusting your filters or check back later for new materials.</p>
+                    <a href="library.php" class="btn btn-primary" style="margin-top: 20px;">
+                        <i class="fas fa-sync-alt"></i> Clear Filters
+                    </a>
                 </div>
             <?php else: ?>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>File</th>
-                                <th>Title</th>
-                                <th>Subject</th>
-                                <th>Classes</th>
-                                <th>Type</th>
-                                <th>Size</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($resources as $resource):
-                                $file_type = strtolower($resource['file_type']);
-                                $badge_class = 'file-default';
-                                if (in_array($file_type, ['pdf'])) $badge_class = 'file-pdf';
-                                elseif (in_array($file_type, ['doc', 'docx'])) $badge_class = 'file-doc';
-                                elseif (in_array($file_type, ['ppt', 'pptx'])) $badge_class = 'file-ppt';
-                                elseif (in_array($file_type, ['xls', 'xlsx'])) $badge_class = 'file-xls';
-                                elseif (in_array($file_type, ['zip', 'rar'])) $badge_class = 'file-zip';
-                                elseif (in_array($file_type, ['jpg', 'jpeg', 'png', 'gif'])) $badge_class = 'file-image';
-                            ?>
-                                <tr>
-                                    <td style="font-size: 1.5rem;"><?php echo getFileIcon($file_type); ?></td>
-                                    <td>
-                                        <strong><?php echo htmlspecialchars($resource['title']); ?></strong>
-                                        <?php if ($resource['description']): ?>
-                                            <br><small style="color: var(--gray-500);"><?php echo htmlspecialchars(substr($resource['description'], 0, 60)); ?></small>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($resource['subject']); ?></td>
-                                    <td>
-                                        <div class="info-items" style="margin: 0;">
-                                            <?php echo formatClasses($resource['class']); ?>
-                                        </div>
-                                    </td>
-                                    <td><span class="file-badge <?php echo $badge_class; ?>"><?php echo strtoupper($file_type); ?></span></td>
-                                    <td><?php echo $resource['formatted_size']; ?></td>
-                                    <td>
-                                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                            <a href="/<?php echo $resource['file_path']; ?>" target="_blank" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-eye"></i> View
-                                            </a>
-                                            <a href="/<?php echo $resource['file_path']; ?>" download class="btn btn-success btn-sm">
-                                                <i class="fas fa-download"></i> Download
-                                            </a>
-                                            <?php if ($resource['uploaded_by'] == $staff_id && $resource['uploaded_by_type'] == 'staff'): ?>
-                                                <a href="library.php?delete=<?php echo $resource['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this resource?')">
-                                                    <i class="fas fa-trash"></i> Delete
-                                                </a>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                <?php foreach ($resources as $resource): ?>
+                    <div class="resource-item">
+                        <div class="resource-header">
+                            <div class="file-icon"><?php echo getFileIcon($resource['file_type']); ?></div>
+                            <div class="resource-details">
+                                <div class="resource-title"><?php echo htmlspecialchars($resource['title']); ?></div>
+
+                                <div class="resource-meta">
+                                    <span class="badge badge-subject">
+                                        <i class="fas fa-book"></i> <?php echo htmlspecialchars($resource['subject']); ?>
+                                    </span>
+                                    <span class="badge badge-type">
+                                        <i class="fas fa-file"></i> <?php echo strtoupper(pathinfo($resource['file_type'], PATHINFO_EXTENSION)); ?>
+                                    </span>
+                                    <span class="badge badge-size">
+                                        <i class="fas fa-database"></i> <?php echo $resource['formatted_size']; ?>
+                                    </span>
+                                    <span class="badge badge-date">
+                                        <i class="fas fa-calendar"></i> <?php echo timeAgo($resource['uploaded_at']); ?>
+                                    </span>
+                                </div>
+
+                                <?php if (!empty($resource['description'])): ?>
+                                    <div class="resource-description">
+                                        <?php echo htmlspecialchars(substr($resource['description'], 0, 150)) . (strlen($resource['description']) > 150 ? '...' : ''); ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div class="uploaded-by">
+                                    <i class="fas fa-user"></i> Uploaded by: <?php echo htmlspecialchars($resource['uploaded_by_name']); ?>
+                                </div>
+
+                                <div class="action-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <?php
+                                    // Determine correct file URL
+                                    $file_url = '/tbis/' . $resource['file_path'];
+                                    // If the path already starts with /tbis, don't add it again
+                                    if (strpos($resource['file_path'], '/tbis/') === 0) {
+                                        $file_url = $resource['file_path'];
+                                    } elseif (strpos($resource['file_path'], 'uploads/') === 0) {
+                                        $file_url = '/tbis/' . $resource['file_path'];
+                                    }
+                                    ?>
+                                    <a href="<?php echo $file_url; ?>" target="_blank" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-eye"></i> View Online
+                                    </a>
+                                    <a href="download-resource.php?id=<?php echo $resource['id']; ?>" class="btn btn-success btn-sm">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             <?php endif; ?>
+        </div>
+
+        <div class="footer">
+            <p>&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> - Student Portal</p>
         </div>
     </div>
 
     <script>
-        // Mobile menu toggle
+        // Mobile sidebar toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('staffSidebar');
-        const overlay = document.getElementById('sidebarOverlay');
+        const sidebar = document.getElementById('studentSidebar');
 
-        if (mobileBtn) {
+        if (mobileBtn && sidebar) {
             mobileBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (sidebar) sidebar.classList.toggle('active');
+                sidebar.classList.toggle('active');
+                const overlay = document.getElementById('sidebarOverlay');
                 if (overlay) overlay.classList.toggle('active');
-                document.body.style.overflow = sidebar?.classList.contains('active') ? 'hidden' : '';
-            });
-        }
-
-        if (overlay) {
-            overlay.addEventListener('click', function() {
-                if (sidebar) sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
+                document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
             });
         }
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
-                if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-                    sidebar.classList.remove('active');
-                    if (overlay) overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                }
+            if (window.innerWidth <= 768 && sidebar &&
+                !sidebar.contains(e.target) &&
+                !mobileBtn.contains(e.target)) {
+                sidebar.classList.remove('active');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (overlay) overlay.classList.remove('active');
+                document.body.style.overflow = '';
             }
         });
-
-        // Update selected classes count
-        const checkboxes = document.querySelectorAll('input[name="classes[]"]');
-        const selectedCountSpan = document.getElementById('selectedCount');
-        
-        function updateSelectedCount() {
-            const checked = document.querySelectorAll('input[name="classes[]"]:checked');
-            if (selectedCountSpan) {
-                selectedCountSpan.textContent = checked.length;
-            }
-        }
-        
-        if (checkboxes.length > 0) {
-            checkboxes.forEach(cb => {
-                cb.addEventListener('change', updateSelectedCount);
-            });
-            updateSelectedCount();
-        }
-
-        // File size validation
-        const fileInput = document.querySelector('input[type="file"]');
-        if (fileInput) {
-            fileInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file && file.size > 10 * 1024 * 1024) {
-                    alert('File size exceeds 10MB limit!');
-                    this.value = '';
-                }
-            });
-        }
-
-        // Form validation to ensure at least one class is selected
-        const uploadForm = document.getElementById('uploadForm');
-        if (uploadForm) {
-            uploadForm.addEventListener('submit', function(e) {
-                const selectedClasses = document.querySelectorAll('input[name="classes[]"]:checked');
-                if (selectedClasses.length === 0) {
-                    e.preventDefault();
-                    alert('Please select at least one class to share this resource with.');
-                }
-            });
-        }
     </script>
 </body>
 

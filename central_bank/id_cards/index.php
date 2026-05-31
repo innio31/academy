@@ -14,23 +14,32 @@ $message = '';
 $message_type = '';
 
 // Get selected filters
-$selected_school = isset($_GET['school_id']) ? (int)$_GET['school_id'] : 0;
-$selected_class = isset($_GET['class']) ? $_GET['class'] : '';
+$selected_school  = isset($_GET['school_id'])  ? (int)$_GET['school_id']  : 0;
+$selected_class   = isset($_GET['class_id'])   ? (int)$_GET['class_id']   : 0;
 $selected_student = isset($_GET['student_id']) ? (int)$_GET['student_id'] : 0;
 
 // Get all schools
 $schools = getAllSchoolsForIDCards();
 
 // Get classes for selected school
-$classes = [];
-$students = [];
+$classes        = [];
+$students       = [];
 $student_details = null;
+$selected_class_name = '';
 
 if ($selected_school > 0) {
     $classes = getSchoolClasses($selected_school);
 
-    if ($selected_class) {
+    if ($selected_class > 0) {
         $students = getStudentsByClass($selected_school, $selected_class);
+
+        // Find the class name for display
+        foreach ($classes as $c) {
+            if ($c['id'] == $selected_class) {
+                $selected_class_name = $c['class_name'];
+                break;
+            }
+        }
     }
 
     if ($selected_student > 0) {
@@ -41,14 +50,14 @@ if ($selected_school > 0) {
 // Handle bulk generation redirect
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_generate'])) {
     $school_id = (int)$_POST['school_id'];
-    $class = $_POST['class'];
-    header("Location: bulk_generate.php?school_id=$school_id&class=" . urlencode($class));
+    $class_id  = (int)$_POST['class_id'];
+    header("Location: bulk_generate.php?school_id=$school_id&class_id=$class_id");
     exit();
 }
 
 // Handle single generation redirect
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_single'])) {
-    $school_id = (int)$_POST['school_id'];
+    $school_id  = (int)$_POST['school_id'];
     $student_id = (int)$_POST['student_id'];
     header("Location: generate.php?school_id=$school_id&student_id=$student_id");
     exit();
@@ -172,11 +181,11 @@ include '../includes/header.php';
             <?php if ($selected_school > 0): ?>
                 <div class="form-group">
                     <label>Select Class</label>
-                    <select name="class" class="form-control" onchange="this.form.submit()">
+                    <select name="class_id" class="form-control" onchange="this.form.submit()">
                         <option value="">-- Select Class --</option>
                         <?php foreach ($classes as $class): ?>
-                            <option value="<?php echo htmlspecialchars($class); ?>" <?php echo $selected_class == $class ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($class); ?>
+                            <option value="<?php echo $class['id']; ?>" <?php echo $selected_class == $class['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($class['class_name']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -186,14 +195,14 @@ include '../includes/header.php';
     </form>
 </div>
 
-<?php if ($selected_class && !empty($students)): ?>
+<?php if ($selected_class > 0 && !empty($students)): ?>
     <!-- Bulk Generation -->
     <div class="filter-card">
-        <h3><i class="fas fa-layer-group"></i> Bulk Generation for <?php echo htmlspecialchars($selected_class); ?></h3>
+        <h3><i class="fas fa-layer-group"></i> Bulk Generation for <?php echo htmlspecialchars($selected_class_name); ?></h3>
         <p><?php echo count($students); ?> students found in this class.</p>
         <form method="POST" style="margin-top: 15px;">
             <input type="hidden" name="school_id" value="<?php echo $selected_school; ?>">
-            <input type="hidden" name="class" value="<?php echo htmlspecialchars($selected_class); ?>">
+            <input type="hidden" name="class_id" value="<?php echo $selected_class; ?>">
             <button type="submit" name="bulk_generate" class="btn btn-primary">
                 <i class="fas fa-print"></i> Generate ID Cards for All (<?php echo count($students); ?>)
             </button>
@@ -202,7 +211,7 @@ include '../includes/header.php';
 
     <!-- Student List -->
     <div class="results-card">
-        <h3><i class="fas fa-users"></i> Students in <?php echo htmlspecialchars($selected_class); ?></h3>
+        <h3><i class="fas fa-users"></i> Students in <?php echo htmlspecialchars($selected_class_name); ?></h3>
         <div class="student-list">
             <table class="data-table">
                 <thead>
@@ -211,6 +220,7 @@ include '../includes/header.php';
                         <th>Admission No.</th>
                         <th>Student Name</th>
                         <th>Actions</th>
+                    </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($students as $student): ?>
@@ -261,6 +271,7 @@ include '../includes/header.php';
                 <th>Generated By</th>
                 <th>Date</th>
                 <th>Actions</th>
+            </tr>
         </thead>
         <tbody>
             <?php

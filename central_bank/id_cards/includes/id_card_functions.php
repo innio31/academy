@@ -1,12 +1,10 @@
 <?php
 // /central_bank/id_cards/includes/id_card_functions.php
-// Remove the require_once lines at the top since config is already included
 
 // Do NOT add these lines here (they are already in the parent files):
 // require_once '../../includes/config.php';
 // require_once '../../includes/auth.php';
 
-// Just add the functions directly
 use setasign\Fpdi\Fpdi;
 
 /**
@@ -22,7 +20,6 @@ function generateStudentQRCode($student_id, $admission_number, $school_id, $scho
         'verification_url' => "https://acad.com.ng/verify/$school_code/$admission_number"
     ]);
 
-    // Use Google Charts API for QR code
     $qr_url = "https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=" . urlencode($qr_data) . "&choe=UTF-8";
 
     return $qr_url;
@@ -40,7 +37,8 @@ function getStudentIDCardData($student_id, $school_id)
             s.id,
             s.admission_number,
             s.full_name,
-            s.class,
+            s.class_id,
+            c.class_name,
             s.profile_picture,
             s.qr_code,
             s.parent_phone,
@@ -56,6 +54,7 @@ function getStudentIDCardData($student_id, $school_id)
             sch.secondary_color
         FROM students s
         JOIN schools sch ON s.school_id = sch.id
+        LEFT JOIN classes c ON s.class_id = c.id
         WHERE s.id = ? AND s.school_id = ?
     ");
     $stmt->execute([$student_id, $school_id]);
@@ -76,7 +75,6 @@ function getIDCardSettings($school_id)
     $settings = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$settings) {
-        // Default settings
         return [
             'card_back_text' => "This ID card is the property of the school. If found, please return to the school administration. Unauthorized use is prohibited.",
             'card_template' => 'modern',
@@ -93,17 +91,17 @@ function getIDCardSettings($school_id)
 /**
  * Get students by class for bulk generation
  */
-function getStudentsByClass($school_id, $class)
+function getStudentsByClass($school_id, $class_id)
 {
     global $pdo;
 
     $stmt = $pdo->prepare("
-        SELECT id, admission_number, full_name, class, profile_picture
+        SELECT id, admission_number, full_name, class_id, profile_picture
         FROM students
-        WHERE school_id = ? AND class = ? AND status = 'active'
+        WHERE school_id = ? AND class_id = ? AND status = 'active'
         ORDER BY full_name
     ");
-    $stmt->execute([$school_id, $class]);
+    $stmt->execute([$school_id, $class_id]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -115,13 +113,14 @@ function getSchoolClasses($school_id)
     global $pdo;
 
     $stmt = $pdo->prepare("
-        SELECT DISTINCT class 
-        FROM students 
-        WHERE school_id = ? AND class IS NOT NULL AND class != ''
-        ORDER BY class
+        SELECT DISTINCT c.id, c.class_name
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        WHERE s.school_id = ? AND s.class_id IS NOT NULL AND s.status = 'active'
+        ORDER BY c.class_name
     ");
     $stmt->execute([$school_id]);
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /**

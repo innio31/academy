@@ -2,15 +2,10 @@
 <html lang="en">
 
 <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Impact Digital Services — School Digitalization</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-    <!-- ═══════════════════════════════════════════════════════════════════════════
-     ENHANCED SEO & META OPTIMIZATION
-     Fully optimized for Nigerian school searches, rich snippets, social previews.
-  ═══════════════════════════════════════════════════════════════════════════ -->
-
-    <title>acad.com.ng | Complete Digital Suite for Nigerian Schools — Website, App, CBT</title>
     <meta name="description"
         content="Transform your school with a professional website, full management app, offline CBT system & social media. Trusted by 120+ schools. Packages from ₦20k/term. Free demo.">
     <meta name="keywords"
@@ -36,770 +31,2297 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-
-    <!-- Structured Data: Product + LocalBusiness + FAQ -->
-    <script type="application/ld+json">
-        {
-            "@context": "https://schema.org",
-            "@type": "Product",
-            "name": "acad.com.ng School Digital Suite",
-            "description": "Complete digital transformation package for Nigerian schools: professional website, school management app, offline CBT system, and social media management.",
-            "brand": {
-                "@type": "Organization",
-                "name": "acad.com.ng"
-            },
-            "offers": [{
-                    "@type": "Offer",
-                    "name": "Starter",
-                    "price": "20000",
-                    "priceCurrency": "NGN",
-                    "availability": "https://schema.org/InStock"
-                },
-                {
-                    "@type": "Offer",
-                    "name": "Professional",
-                    "price": "35000",
-                    "priceCurrency": "NGN",
-                    "availability": "https://schema.org/InStock"
-                },
-                {
-                    "@type": "Offer",
-                    "name": "Ultimate",
-                    "price": "50000",
-                    "priceCurrency": "NGN",
-                    "availability": "https://schema.org/InStock"
-                }
-            ],
-            "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.8",
-                "ratingCount": "112"
-            }
-        }
-    </script>
-
-    <!-- Google Fonts & Base Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Playfair+Display:ital,wght@0,500;0,700;1,500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-
     <style>
-        * {
+        :root {
+            --navy: #0D1F3C;
+            --navy-mid: #162845;
+            --navy-light: #1E3560;
+            --teal: #00C2CB;
+            --teal-dim: #009FA7;
+            --teal-glow: rgba(0, 194, 203, 0.15);
+            --amber: #F5A623;
+            --white: #FFFFFF;
+            --off-white: #F0F4F8;
+            --gray-light: #E2EAF4;
+            --gray-mid: #8FA3BF;
+            --text-body: #C8D8EC;
+            --text-muted: #6B85A3;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-border: rgba(0, 194, 203, 0.18);
+            --font-head: 'Syne', sans-serif;
+            --font-body: 'DM Sans', sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --ink: #0F1E1F;
-            --forest: #0F3B3C;
-            --leaf: #1E6F5C;
-            --mint: #C6E8D8;
-            --clay: #E76F51;
-            --gold: #F4A261;
-            --cream: #FAF7F2;
-            --paper: #FFFFFF;
-            --muted: #5C7575;
-            --rule: #E2EFEA;
-            --shadow-sm: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-            --shadow-md: 0 20px 35px -12px rgba(0, 0, 0, 0.12);
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: #F4F8F5;
-            color: var(--ink);
-            line-height: 1.5;
-            scroll-behavior: smooth;
+            font-family: var(--font-body);
+            background: var(--navy);
+            color: var(--text-body);
+            overflow-x: hidden;
+            cursor: default;
         }
 
-        .container {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px;
+        /* ── SCROLLBAR ── */
+        ::-webkit-scrollbar {
+            width: 4px;
         }
 
-        /* buttons & interactive elements */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 28px;
-            border-radius: 60px;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.25s ease;
-            cursor: pointer;
-            border: none;
-            text-decoration: none;
+        ::-webkit-scrollbar-track {
+            background: var(--navy);
         }
 
-        .btn-primary {
-            background: var(--forest);
-            color: white;
-            box-shadow: 0 2px 8px rgba(15, 62, 60, 0.2);
+        ::-webkit-scrollbar-thumb {
+            background: var(--teal);
+            border-radius: 2px;
         }
 
-        .btn-primary:hover {
-            background: var(--leaf);
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -5px rgba(30, 111, 92, 0.3);
+        /* ── SELECTION ── */
+        ::selection {
+            background: var(--teal);
+            color: var(--navy);
         }
 
-        .btn-outline {
-            background: transparent;
-            border: 1.5px solid var(--leaf);
-            color: var(--leaf);
+        /* ── NOISE OVERLAY ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            opacity: 0.5;
         }
 
-        .btn-outline:hover {
-            background: var(--mint);
-            border-color: var(--forest);
-            color: var(--forest);
-        }
-
-        .btn-download {
-            background: var(--gold);
-            color: var(--ink);
-            font-weight: 700;
-        }
-
-        .btn-download:hover {
-            background: #e08e3a;
-            transform: translateY(-2px);
-        }
-
-        /* navbar */
-        .navbar {
-            background: white;
-            box-shadow: var(--shadow-sm);
-            position: sticky;
+        /* ── NAV ── */
+        nav {
+            position: fixed;
             top: 0;
+            left: 0;
+            right: 0;
             z-index: 100;
-            backdrop-filter: blur(2px);
-        }
-
-        .nav-flex {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 16px 0;
-            flex-wrap: wrap;
-            gap: 16px;
+            justify-content: space-between;
+            padding: 1.2rem 6%;
+            background: rgba(13, 31, 60, 0.82);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0, 194, 203, 0.1);
+            transition: all 0.3s ease;
         }
 
-        .logo {
-            font-size: 1.6rem;
+        nav.scrolled {
+            padding: 0.85rem 6%;
+            background: rgba(13, 31, 60, 0.97);
+        }
+
+        .nav-logo {
+            font-family: var(--font-head);
             font-weight: 800;
-            font-family: 'Playfair Display', serif;
-            color: var(--forest);
-            letter-spacing: -0.3px;
+            font-size: 1.1rem;
+            color: var(--white);
+            letter-spacing: -0.02em;
         }
 
-        .logo span {
-            color: var(--clay);
+        .nav-logo span {
+            color: var(--teal);
         }
 
         .nav-links {
             display: flex;
-            gap: 28px;
-            align-items: center;
-            flex-wrap: wrap;
+            gap: 2rem;
+            list-style: none;
         }
 
         .nav-links a {
-            text-decoration: none;
+            font-size: 0.85rem;
             font-weight: 500;
-            color: var(--ink);
-            transition: 0.2s;
+            color: var(--gray-mid);
+            text-decoration: none;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            transition: color 0.2s;
         }
 
         .nav-links a:hover {
-            color: var(--leaf);
+            color: var(--teal);
         }
 
-        /* hero */
-        .hero {
-            padding: 60px 0 40px;
-            background: linear-gradient(135deg, #F9FCF9 0%, #EDF3EE 100%);
+        .nav-cta {
+            background: var(--teal);
+            color: var(--navy);
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 0.82rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            text-decoration: none;
+            padding: 0.6rem 1.4rem;
+            border-radius: 3px;
+            transition: all 0.2s;
         }
 
-        .hero-grid {
+        .nav-cta:hover {
+            background: #00E5EF;
+            transform: translateY(-1px);
+        }
+
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .hamburger span {
+            width: 24px;
+            height: 2px;
+            background: var(--teal);
+            display: block;
+            transition: all 0.3s;
+        }
+
+        /* ── HERO ── */
+        #hero {
+            min-height: 100vh;
             display: flex;
-            flex-wrap: wrap;
-            gap: 48px;
             align-items: center;
-            justify-content: space-between;
+            padding: 7rem 6% 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-grid-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(0, 194, 203, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 194, 203, 0.06) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+        }
+
+        .hero-orb {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 194, 203, 0.18) 0%, transparent 70%);
+            top: -200px;
+            right: -200px;
+            animation: floatOrb 8s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(245, 166, 35, 0.1) 0%, transparent 70%);
+            bottom: 0;
+            left: 5%;
+            animation: floatOrb 11s ease-in-out infinite reverse;
+        }
+
+        @keyframes floatOrb {
+
+            0%,
+            100% {
+                transform: translateY(0) scale(1);
+            }
+
+            50% {
+                transform: translateY(-30px) scale(1.05);
+            }
         }
 
         .hero-content {
-            flex: 1.2;
+            position: relative;
+            z-index: 1;
+            max-width: 780px;
         }
 
-        .hero-content h1 {
-            font-size: 3rem;
+        .hero-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 194, 203, 0.1);
+            border: 1px solid rgba(0, 194, 203, 0.3);
+            color: var(--teal);
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            margin-bottom: 1.8rem;
+            animation: fadeUp 0.6s ease both;
+        }
+
+        .hero-tag::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--teal);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .hero-title {
+            font-family: var(--font-head);
+            font-size: clamp(2.8rem, 6vw, 5.2rem);
             font-weight: 800;
-            line-height: 1.2;
-            font-family: 'Playfair Display', serif;
-            color: var(--forest);
-            margin-bottom: 20px;
+            line-height: 1.06;
+            letter-spacing: -0.03em;
+            color: var(--white);
+            margin-bottom: 1.6rem;
+            animation: fadeUp 0.6s 0.1s ease both;
         }
 
-        .hero-content h1 i {
-            color: var(--clay);
-            font-style: italic;
+        .hero-title .line-teal {
+            color: var(--teal);
+        }
+
+        .hero-title .line-outline {
+            -webkit-text-stroke: 2px var(--teal);
+            color: transparent;
+        }
+
+        .hero-desc {
+            font-size: 1.1rem;
+            font-weight: 300;
+            line-height: 1.75;
+            color: var(--text-body);
+            max-width: 560px;
+            margin-bottom: 2.5rem;
+            animation: fadeUp 0.6s 0.2s ease both;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            animation: fadeUp 0.6s 0.3s ease both;
+        }
+
+        .btn-primary {
+            background: var(--teal);
+            color: var(--navy);
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-decoration: none;
+            padding: 0.9rem 2rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #00E5EF;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 194, 203, 0.35);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--white);
+            font-family: var(--font-head);
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-decoration: none;
+            padding: 0.9rem 2rem;
+            border-radius: 4px;
+            border: 1.5px solid rgba(255, 255, 255, 0.25);
+            transition: all 0.25s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+            transform: translateY(-2px);
         }
 
         .hero-stats {
             display: flex;
-            gap: 32px;
-            margin: 32px 0;
+            gap: 3rem;
+            margin-top: 3.5rem;
+            padding-top: 2.5rem;
+            border-top: 1px solid rgba(0, 194, 203, 0.12);
+            animation: fadeUp 0.6s 0.4s ease both;
         }
 
-        .stat-item .number {
+        .stat-val {
+            font-family: var(--font-head);
             font-size: 2rem;
             font-weight: 800;
-            color: var(--leaf);
+            color: var(--teal);
         }
 
-        .interactive-card {
-            background: white;
-            border-radius: 28px;
-            padding: 28px;
-            box-shadow: var(--shadow-md);
-            flex: 0.8;
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-top: 0.2rem;
         }
 
-        /* calculator */
-        .calc-group {
-            margin-bottom: 20px;
-        }
-
-        .calc-group label {
-            font-weight: 600;
-            display: block;
-            margin-bottom: 6px;
-        }
-
-        select,
-        .price-display {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 48px;
-            border: 1px solid var(--rule);
-            font-family: inherit;
-            background: white;
-        }
-
-        .price-display {
-            background: var(--cream);
-            font-weight: 700;
-            font-size: 1.8rem;
-            text-align: center;
-            color: var(--forest);
-        }
-
-        /* sections */
-        .section {
-            padding: 80px 0;
-            border-bottom: 1px solid var(--rule);
-        }
-
-        .section-badge {
-            display: inline-block;
-            background: var(--mint);
-            color: var(--forest);
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            padding: 5px 14px;
-            border-radius: 40px;
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 2.2rem;
-            font-weight: 700;
-            font-family: 'Playfair Display', serif;
-            margin-bottom: 24px;
-            color: var(--ink);
-        }
-
-        .features-grid,
-        .packages-grid,
-        .why-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 28px;
-            margin-top: 32px;
-        }
-
-        .feature-card {
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            transition: all 0.25s;
-            border: 1px solid var(--rule);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .feature-icon {
-            font-size: 2.2rem;
-            margin-bottom: 16px;
-        }
-
-        .package-card {
-            background: white;
-            border-radius: 32px;
-            padding: 28px;
-            transition: 0.2s;
-            border: 1px solid var(--rule);
+        /* ── SECTION COMMONS ── */
+        section {
+            padding: 6rem 6%;
             position: relative;
         }
 
-        .package-card.popular {
-            border: 2px solid var(--leaf);
-            box-shadow: var(--shadow-md);
+        .section-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--teal);
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
         }
 
-        .popular-badge {
-            position: absolute;
-            top: -12px;
-            right: 24px;
-            background: var(--gold);
-            padding: 4px 16px;
-            border-radius: 40px;
-            font-size: 12px;
-            font-weight: 700;
+        .section-label::before {
+            content: '';
+            width: 28px;
+            height: 1.5px;
+            background: var(--teal);
         }
 
-        .price {
-            font-size: 2.4rem;
+        .section-title {
+            font-family: var(--font-head);
+            font-size: clamp(2rem, 4vw, 3rem);
             font-weight: 800;
-            margin: 16px 0;
-            color: var(--forest);
+            color: var(--white);
+            letter-spacing: -0.03em;
+            line-height: 1.12;
+            margin-bottom: 1.2rem;
         }
+
+        .section-sub {
+            font-size: 1.05rem;
+            font-weight: 300;
+            color: var(--text-body);
+            line-height: 1.7;
+            max-width: 560px;
+        }
+
+        .fade-in {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: none;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(22px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        /* ── SERVICES ── */
+        #services {
+            background: var(--navy-mid);
+        }
+
+        .services-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-bottom: 3.5rem;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1.5px;
+        }
+
+        .module-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 2.2rem 2rem 2rem;
+            transition: all 0.3s ease;
+            cursor: default;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--teal), transparent);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.4s ease;
+        }
+
+        .module-card:hover {
+            background: rgba(0, 194, 203, 0.06);
+            border-color: rgba(0, 194, 203, 0.35);
+            transform: translateY(-3px);
+        }
+
+        .module-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .module-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .module-num {
+            position: absolute;
+            top: 1.8rem;
+            right: 1.8rem;
+            font-family: var(--font-head);
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: rgba(0, 194, 203, 0.3);
+            letter-spacing: 0.1em;
+        }
+
+        .module-title {
+            font-family: var(--font-head);
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 0.7rem;
+        }
+
+        .module-desc {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-body);
+            margin-bottom: 1.2rem;
+        }
+
+        .module-features {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .module-features li {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .module-features li::before {
+            content: '▸';
+            color: var(--teal);
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* ── WEBSITE SECTION ── */
+        #website {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5rem;
+            align-items: center;
+        }
+
+        .website-mockup {
+            position: relative;
+            background: var(--navy-light);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .mockup-bar {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 0.7rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .mock-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .mock-url {
+            flex: 1;
+            margin-left: 0.5rem;
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 4px;
+            padding: 0.25rem 0.8rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .mock-content {
+            padding: 1.5rem;
+        }
+
+        .mock-hero-band {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--teal-dim) 100%);
+            height: 80px;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mock-hero-band span {
+            font-family: var(--font-head);
+            font-size: 0.8rem;
+            color: var(--white);
+            font-weight: 700;
+            opacity: 0.9;
+        }
+
+        .mock-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .mock-card {
+            background: rgba(0, 194, 203, 0.08);
+            border: 1px solid rgba(0, 194, 203, 0.12);
+            border-radius: 4px;
+            height: 50px;
+        }
+
+        .mock-form {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .mock-input {
+            background: rgba(255, 255, 255, 0.06);
+            height: 20px;
+            border-radius: 3px;
+            margin-bottom: 0.5rem;
+        }
+
+        .mock-btn {
+            background: var(--teal);
+            height: 22px;
+            border-radius: 3px;
+            width: 60%;
+        }
+
+        .website-content {}
 
         .feature-list {
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .feat-item {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .feat-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            background: var(--teal-glow);
+            border: 1px solid rgba(0, 194, 203, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .feat-text strong {
+            display: block;
+            font-family: var(--font-head);
+            color: var(--white);
+            font-size: 0.9rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .feat-text span {
+            font-size: 0.83rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* ── PROCESS ── */
+        #process {
+            background: var(--navy-mid);
+        }
+
+        .process-timeline {
+            margin-top: 3rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            position: relative;
+        }
+
+        .process-timeline::before {
+            content: '';
+            position: absolute;
+            left: 23px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: linear-gradient(to bottom, var(--teal), rgba(0, 194, 203, 0.1));
+        }
+
+        .process-step {
+            display: flex;
+            gap: 2rem;
+            padding: 1.5rem 0 1.5rem 0;
+            align-items: flex-start;
+        }
+
+        .step-marker {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--navy-mid);
+            border: 2px solid var(--teal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-head);
+            font-weight: 800;
+            font-size: 0.9rem;
+            color: var(--teal);
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s;
+        }
+
+        .process-step:hover .step-marker {
+            background: var(--teal);
+            color: var(--navy);
+        }
+
+        .step-body {
+            padding-top: 0.6rem;
+        }
+
+        .step-title {
+            font-family: var(--font-head);
+            font-weight: 700;
+            color: var(--white);
+            font-size: 1rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .step-desc {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.65;
+        }
+
+        .step-week {
+            font-size: 0.72rem;
+            letter-spacing: 0.1em;
+            color: var(--teal);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.3rem;
+        }
+
+        /* ── PRICING ── */
+        #pricing {}
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .price-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 2.2rem 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .price-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 194, 203, 0.5);
+        }
+
+        .price-card.featured {
+            background: linear-gradient(135deg, rgba(0, 194, 203, 0.12) 0%, rgba(0, 159, 167, 0.06) 100%);
+            border-color: var(--teal);
+        }
+
+        .price-card.featured::after {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: 1.2rem;
+            right: -0.5rem;
+            background: var(--teal);
+            color: var(--navy);
+            font-family: var(--font-head);
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            padding: 0.25rem 0.9rem;
+            border-radius: 3px 0 0 3px;
+        }
+
+        .price-label {
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--teal);
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+        }
+
+        .price-name {
+            font-family: var(--font-head);
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--white);
+            margin-bottom: 1rem;
+        }
+
+        .price-amount {
+            font-family: var(--font-head);
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--white);
+            margin-bottom: 0.3rem;
+        }
+
+        .price-amount span {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        .price-note {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 1.8rem;
+        }
+
+        .price-divider {
+            height: 1px;
+            background: rgba(0, 194, 203, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .price-features {
             list-style: none;
-            margin: 24px 0;
-        }
-
-        .feature-list li {
-            padding: 8px 0;
             display: flex;
-            gap: 10px;
-            align-items: center;
+            flex-direction: column;
+            gap: 0.7rem;
         }
 
-        .feature-list li i {
-            color: var(--leaf);
-            width: 20px;
-        }
-
-        /* demo form */
-        .demo-form {
-            background: linear-gradient(125deg, var(--forest) 0%, #1F4E4A 100%);
-            border-radius: 32px;
-            padding: 48px;
-            color: white;
+        .price-features li {
+            font-size: 0.86rem;
+            color: var(--text-body);
             display: flex;
-            flex-wrap: wrap;
-            gap: 40px;
+            gap: 0.6rem;
+            align-items: flex-start;
+        }
+
+        .price-features li::before {
+            content: '✓';
+            color: var(--teal);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .price-cta {
+            display: block;
+            margin-top: 2rem;
+            text-align: center;
+            text-decoration: none;
+            padding: 0.85rem;
+            border-radius: 5px;
+            font-family: var(--font-head);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            transition: all 0.25s;
+        }
+
+        .price-cta.outline {
+            border: 1.5px solid rgba(0, 194, 203, 0.4);
+            color: var(--teal);
+        }
+
+        .price-cta.outline:hover {
+            background: var(--teal);
+            color: var(--navy);
+            border-color: var(--teal);
+        }
+
+        .price-cta.solid {
+            background: var(--teal);
+            color: var(--navy);
+        }
+
+        .price-cta.solid:hover {
+            background: #00E5EF;
+            box-shadow: 0 6px 24px rgba(0, 194, 203, 0.35);
+        }
+
+        /* ── TESTIMONIAL / TRUST ── */
+        #trust {
+            background: var(--navy-mid);
+        }
+
+        .trust-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .trust-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 1.8rem 1.6rem;
+        }
+
+        .trust-quote {
+            font-size: 0.9rem;
+            line-height: 1.75;
+            color: var(--text-body);
+            margin-bottom: 1.4rem;
+            font-style: italic;
+        }
+
+        .trust-quote::before {
+            content: '"';
+            font-size: 2.5rem;
+            color: var(--teal);
+            font-family: var(--font-head);
+            display: block;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .trust-author {
+            display: flex;
             align-items: center;
+            gap: 0.8rem;
+        }
+
+        .trust-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--teal), var(--navy-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-head);
+            font-weight: 800;
+            color: var(--navy);
+            font-size: 0.85rem;
+        }
+
+        .trust-name {
+            font-weight: 600;
+            color: var(--white);
+            font-size: 0.85rem;
+        }
+
+        .trust-role {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* ── FAQ ── */
+        #faq {}
+
+        .faq-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 3rem;
+        }
+
+        .faq-item {
+            border: 1px solid rgba(0, 194, 203, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .faq-q {
+            padding: 1.3rem 1.5rem;
+            font-family: var(--font-head);
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--white);
+            cursor: pointer;
+            display: flex;
             justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            background: var(--card-bg);
+            transition: background 0.2s;
+            user-select: none;
+        }
+
+        .faq-q:hover {
+            background: rgba(0, 194, 203, 0.07);
+        }
+
+        .faq-q .arrow {
+            font-size: 0.8rem;
+            color: var(--teal);
+            transition: transform 0.3s;
+            flex-shrink: 0;
+        }
+
+        .faq-a {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, padding 0.35s ease;
+        }
+
+        .faq-a p {
+            font-size: 0.88rem;
+            line-height: 1.7;
+            color: var(--text-body);
+            padding: 0 1.5rem 1.3rem;
+        }
+
+        .faq-item.open .faq-q {
+            background: rgba(0, 194, 203, 0.07);
+        }
+
+        .faq-item.open .faq-a {
+            max-height: 300px;
+        }
+
+        .faq-item.open .arrow {
+            transform: rotate(180deg);
+        }
+
+        /* ── CONTACT ── */
+        #contact {
+            background: var(--navy-mid);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5rem;
+            align-items: start;
+        }
+
+        .contact-info {}
+
+        .contact-block {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.6rem;
+            align-items: flex-start;
+        }
+
+        .contact-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            background: var(--teal-glow);
+            border: 1px solid rgba(0, 194, 203, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .contact-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 0.2rem;
+        }
+
+        .contact-val {
+            color: var(--white);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .contact-val a {
+            color: var(--teal);
+            text-decoration: none;
+        }
+
+        .contact-form {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 2.5rem 2rem;
         }
 
         .form-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 20px;
+            margin-bottom: 1.2rem;
         }
 
-        .demo-form input {
-            padding: 14px 20px;
-            border-radius: 60px;
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 0.75rem 1rem;
+            color: var(--white);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            border-color: var(--teal);
+            box-shadow: 0 0 0 3px rgba(0, 194, 203, 0.1);
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-select option {
+            background: var(--navy-mid);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 110px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-submit {
+            width: 100%;
+            background: var(--teal);
+            color: var(--navy);
+            font-family: var(--font-head);
+            font-weight: 800;
+            font-size: 0.9rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
             border: none;
-            flex: 1;
-            min-width: 200px;
-            font-family: inherit;
+            border-radius: 5px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.25s;
+            margin-top: 0.5rem;
         }
 
-        .toast-msg {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: var(--forest);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 48px;
-            font-weight: 500;
-            z-index: 1000;
-            opacity: 0;
-            transition: 0.2s;
-            pointer-events: none;
-            box-shadow: var(--shadow-md);
+        .form-submit:hover {
+            background: #00E5EF;
+            box-shadow: 0 6px 24px rgba(0, 194, 203, 0.35);
+            transform: translateY(-1px);
         }
 
-        /* footer */
+        .form-success {
+            display: none;
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .form-success .check {
+            font-size: 2.5rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .form-success p {
+            color: var(--white);
+            font-family: var(--font-head);
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .form-success small {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ── FOOTER ── */
         footer {
-            background: var(--ink);
-            color: #AAB7B7;
-            padding: 48px 0 32px;
+            background: #080F1E;
+            padding: 3rem 6% 2rem;
+            border-top: 1px solid rgba(0, 194, 203, 0.1);
         }
 
-        @media (max-width: 768px) {
-            .hero-content h1 {
-                font-size: 2.2rem;
+        .footer-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 2.5rem;
+        }
+
+        .footer-brand .nav-logo {
+            font-size: 1.2rem;
+            display: block;
+            margin-bottom: 0.6rem;
+        }
+
+        .footer-tagline {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            max-width: 240px;
+            line-height: 1.6;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 4rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-col h4 {
+            font-family: var(--font-head);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--white);
+            margin-bottom: 1rem;
+        }
+
+        .footer-col ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .footer-col a {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-col a:hover {
+            color: var(--teal);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .footer-bottom p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .social-links {
+            display: flex;
+            gap: 0.8rem;
+        }
+
+        .social-link {
+            width: 34px;
+            height: 34px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .social-link:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+            background: var(--teal-glow);
+        }
+
+        /* ── MOBILE ── */
+        @media (max-width: 900px) {
+
+            #website,
+            #contact {
+                grid-template-columns: 1fr;
+                gap: 3rem;
             }
 
-            .section-title {
-                font-size: 1.8rem;
+            .faq-grid {
+                grid-template-columns: 1fr;
             }
 
-            .demo-form {
-                padding: 32px;
+            .hero-stats {
+                gap: 1.5rem;
+                flex-wrap: wrap;
             }
 
-            .nav-flex {
-                flex-direction: column;
+            .footer-links {
+                gap: 2rem;
             }
+
+            .nav-links,
+            .nav-cta {
+                display: none;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            section {
+                padding: 4rem 5%;
+            }
+
+            nav {
+                padding: 1rem 5%;
+            }
+
+            .hero-title {
+                font-size: 2.4rem;
+            }
+
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── MOBILE MENU ── */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99;
+            background: var(--navy);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .mobile-menu.open {
+            display: flex;
+        }
+
+        .mobile-menu a {
+            font-family: var(--font-head);
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--white);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .mobile-menu a:hover {
+            color: var(--teal);
+        }
+
+        .mobile-close {
+            position: absolute;
+            top: 1.5rem;
+            right: 5%;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: var(--gray-mid);
+            background: none;
+            border: none;
+        }
+
+        /* ── BACK TO TOP ── */
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 50;
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            background: var(--teal);
+            color: var(--navy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            box-shadow: 0 4px 20px rgba(0, 194, 203, 0.4);
+        }
+
+        #btt.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #btt:hover {
+            background: #00E5EF;
+            transform: translateY(-2px);
         }
     </style>
 </head>
 
 <body>
 
-    <div class="navbar">
-        <div class="container nav-flex">
-            <div class="logo">acad<span>.com.ng</span></div>
-            <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="#packages">Packages</a>
-                <a href="#demo">Request Demo</a>
-                <button id="downloadProposalBtn" class="btn btn-download"
-                    style="background: var(--gold); color: var(--ink);"><i class="fas fa-file-pdf"></i> Download
-                    Proposal (PDF)</button>
-            </div>
+    <!-- NAV -->
+    <nav id="navbar">
+        <a href="#" class="nav-logo">Impact<span>Digital</span></a>
+        <ul class="nav-links">
+            <li><a href="#services">Services</a></li>
+            <li><a href="#website">Website</a></li>
+            <li><a href="#process">Process</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <a href="#contact" class="nav-cta">Book a Demo</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
         </div>
+    </nav>
+
+    <!-- MOBILE MENU -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button class="mobile-close" id="mobileClose">✕</button>
+        <a href="#services" class="mobile-link">Services</a>
+        <a href="#website" class="mobile-link">Website</a>
+        <a href="#process" class="mobile-link">Process</a>
+        <a href="#pricing" class="mobile-link">Pricing</a>
+        <a href="#faq" class="mobile-link">FAQ</a>
+        <a href="#contact" class="mobile-link" style="color:var(--teal)">Book a Demo →</a>
     </div>
 
-    <!-- Hero Section with Interactive Calculator -->
-    <section class="hero">
-        <div class="container hero-grid">
-            <div class="hero-content">
-                <span class="section-badge" style="background: var(--gold); color: var(--ink);">Digital
-                    Transformation</span>
-                <h1>Your School Deserves <i>More Than a Notice Board.</i><br> It Deserves a Digital Presence.</h1>
-                <p style="font-size: 1.1rem; margin: 24px 0; color: #2C4A4B;">Professional website + full management app
-                    + offline CBT + social media — starting at ₦20,000 per term. Trusted by 120+ Nigerian schools.</p>
-                <div class="hero-stats">
-                    <div class="stat-item"><span class="number">120+</span><br>Schools Onboard</div>
-                    <div class="stat-item"><span class="number">24/7</span><br>Support Included</div>
-                    <div class="stat-item"><span class="number">3-Day</span><br>Setup Time</div>
-                </div>
-                <a href="#demo" class="btn btn-primary"><i class="fas fa-calendar-check"></i> Get Free Demo</a>
+    <!-- HERO -->
+    <section id="hero">
+        <div class="hero-grid-bg"></div>
+        <div class="hero-orb orb-1"></div>
+        <div class="hero-orb orb-2"></div>
+        <div class="hero-content">
+            <div class="hero-tag">School Digitalization Experts</div>
+            <h1 class="hero-title">
+                The Digital<br>
+                <span class="line-teal">School Platform</span><br>
+                <span class="line-outline">Your School Needs.</span>
+            </h1>
+            <p class="hero-desc">
+                From online admissions to AI-powered teaching tools, real-time parent alerts, digital ID cards, offline
+                CBT, and full finance management — one platform, fully tailored to your school.
+            </p>
+            <div class="hero-actions">
+                <a href="#contact" class="btn-primary">Book a Free Demo ↗</a>
+                <a href="#services" class="btn-secondary">Explore Platform</a>
             </div>
-
-            <!-- Interactive Pricing Calculator -->
-            <div class="interactive-card">
-                <h3 style="font-weight: 700; margin-bottom: 12px;"><i class="fas fa-calculator"></i> Live Pricing
-                    Estimator</h3>
-                <p style="font-size: 14px; margin-bottom: 18px;">Select your preferred package to see termly cost.</p>
-                <div class="calc-group">
-                    <label>Choose Package</label>
-                    <select id="packageSelect">
-                        <option value="20000">📘 Starter — ₦20,000/term (Website + App)</option>
-                        <option value="35000" selected>⭐ Professional — ₦35,000/term (+ Offline CBT)</option>
-                        <option value="50000">🚀 Ultimate — ₦50,000/term (+ Social Media Mgmt)</option>
-                    </select>
+            <div class="hero-stats">
+                <div>
+                    <div class="stat-val">9</div>
+                    <div class="stat-label">Core Modules</div>
                 </div>
-                <div class="price-display" id="livePriceDisplay">₦35,000<span style="font-size: 14px;"> / term</span>
+                <div>
+                    <div class="stat-val">13</div>
+                    <div class="stat-label">Weeks to Go-Live</div>
                 </div>
-                <p style="font-size: 13px; margin-top: 16px; color: var(--muted);"><i class="fas fa-check-circle"
-                        style="color: var(--leaf);"></i> No hidden fees • Free staff training • Cancel anytime</p>
+                <div>
+                    <div class="stat-val">24/7</div>
+                    <div class="stat-label">Support & Uptime</div>
+                </div>
+                <div>
+                    <div class="stat-val">100%</div>
+                    <div class="stat-label">School-Owned Data</div>
+                </div>
             </div>
         </div>
     </section>
 
-    <div class="container">
-        <!-- Features Section -->
-        <section id="features" class="section">
-            <span class="section-badge">What You Get</span>
-            <h2 class="section-title">Complete Digital Ecosystem for Your School</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon"><i class="fas fa-globe"></i></div>
-                    <h3>Professional Website</h3>
-                    <p>Responsive school website with online admission, SSL security, SEO-ready, subdomain
-                        yourschool.acad.com.ng.</p>
+    <!-- SERVICES / MODULES -->
+    <section id="services">
+        <div class="services-header fade-in">
+            <div>
+                <p class="section-label">Platform Modules</p>
+                <h2 class="section-title">Everything Your School<br>Needs in One Place</h2>
+            </div>
+            <p class="section-sub">Each module is purpose-built for Nigerian schools and can be deployed as a full suite
+                or in phases.</p>
+        </div>
+
+        <div class="modules-grid">
+            <div class="module-card fade-in">
+                <span class="module-icon">👔</span>
+                <span class="module-num">01</span>
+                <div class="module-title">Staff Management</div>
+                <p class="module-desc">Centralize all HR functions — from onboarding to attendance tracking — in one
+                    secure dashboard.</p>
+                <ul class="module-features">
+                    <li>Digital staff profiles with documents & qualifications</li>
+                    <li>QR/biometric attendance with late-arrival alerts</li>
+                    <li>Leave requests & management approvals</li>
+                    <li>Performance records & payroll-linked summaries</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">🎒</span>
+                <span class="module-num">02</span>
+                <div class="module-title">Student Management & Parent Connect</div>
+                <p class="module-desc">Keep parents meaningfully connected with real-time updates on their child's
+                    school life.</p>
+                <ul class="module-features">
+                    <li>QR check-in/out at the school gate</li>
+                    <li>Instant SMS & app alert: "Child has arrived / left school"</li>
+                    <li>Parent dashboard: attendance, grades, fees, messages</li>
+                    <li>Direct parent–teacher communication channel</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">🪪</span>
+                <span class="module-num">03</span>
+                <div class="module-title">Digital ID Cards</div>
+                <p class="module-desc">Auto-generate professional digital ID cards for every student and staff member —
+                    each with a scannable QR code.</p>
+                <ul class="module-features">
+                    <li>Auto-generated on enrollment/registration</li>
+                    <li>QR code links to live portal profile</li>
+                    <li>One-click PDF for printing or sharing</li>
+                    <li>Auto-renews each academic session</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">📚</span>
+                <span class="module-num">04</span>
+                <div class="module-title">Teacher Resources & AI Tools</div>
+                <p class="module-desc">Give your teachers a professional toolkit powered by AI — cutting lesson prep
+                    time dramatically.</p>
+                <ul class="module-features">
+                    <li>Digital lesson note preparation & HOD review</li>
+                    <li>AI Lesson Plan Generator from any topic</li>
+                    <li>AI Quiz & CBT Question Generator</li>
+                    <li>Assignment distribution & digital submissions</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">📊</span>
+                <span class="module-num">05</span>
+                <div class="module-title">Smart Report Card Processing</div>
+                <p class="module-desc">Eliminate manual computation errors. Generate every student's report card in
+                    minutes, not days.</p>
+                <ul class="module-features">
+                    <li>CA + exam score entry with auto-calculation</li>
+                    <li>Configurable grading systems (your school's format)</li>
+                    <li>Auto class positions & subject rankings</li>
+                    <li>One-click PDF generation for all students</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">💻</span>
+                <span class="module-num">06</span>
+                <div class="module-title">Offline CBT + Portal Sync</div>
+                <p class="module-desc">Run Computer-Based Tests in your lab with zero internet dependency — then sync
+                    results instantly.</p>
+                <ul class="module-features">
+                    <li>Installable CBT software for any computer lab</li>
+                    <li>Question bank managed from the portal</li>
+                    <li>Auto-grading + one-click result sync to portal</li>
+                    <li>Instant result notifications to students & parents</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in">
+                <span class="module-icon">💰</span>
+                <span class="module-num">07</span>
+                <div class="module-title">Finance Management</div>
+                <p class="module-desc">A full school accounting system — from fee invoicing to expenditure tracking and
+                    financial reporting.</p>
+                <ul class="module-features">
+                    <li>Multi-category fee structure & per-student invoicing</li>
+                    <li>Online payment tracking & automated receipts</li>
+                    <li>Outstanding fees reports with parent reminders</li>
+                    <li>Income vs. expense dashboard, PDF/Excel exports</li>
+                </ul>
+            </div>
+
+            <div class="module-card fade-in"
+                style="border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.03);">
+                <span class="module-icon">🌐</span>
+                <span class="module-num">08</span>
+                <div class="module-title">School Website + Online Admission</div>
+                <p class="module-desc">A professional, branded website that is your school's digital front door — with a
+                    built-in admission system.</p>
+                <ul class="module-features">
+                    <li>Custom-designed, mobile-first school website</li>
+                    <li>Online admission application + document upload</li>
+                    <li>Application status tracking for parents</li>
+                    <li>SEO-optimized for local Google search</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- WEBSITE SECTION -->
+    <section id="website">
+        <div class="website-mockup fade-in">
+            <div class="mockup-bar">
+                <div class="mock-dot" style="background:#ff5f57"></div>
+                <div class="mock-dot" style="background:#febc2e"></div>
+                <div class="mock-dot" style="background:#28c840"></div>
+                <div class="mock-url">www.yourschool.edu.ng</div>
+            </div>
+            <div class="mock-content">
+                <div class="mock-hero-band">
+                    <span>Welcome to Excellence Academy</span>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
-                    <h3>School Management App</h3>
-                    <p>Result processing, attendance with SMS alerts, staff clock-in, fee management, digital ID cards,
-                        parent dashboard.</p>
+                <div class="mock-grid">
+                    <div class="mock-card"></div>
+                    <div class="mock-card"></div>
+                    <div class="mock-card"></div>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon"><i class="fas fa-laptop-code"></i></div>
-                    <h3>Offline CBT System</h3>
-                    <p>No internet needed! Supports 500+ students, auto-marking, question bank, randomised exams —
-                        perfect for computer labs.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
-                    <h3>Analytics & Reports</h3>
-                    <p>Real-time class performance, subject analytics, automated report cards with affective traits.</p>
+                <div class="mock-form">
+                    <div class="mock-input" style="width:70%; margin-bottom: 0.4rem;"></div>
+                    <div class="mock-input" style="width:100%; margin-bottom: 0.4rem;"></div>
+                    <div class="mock-input" style="width:100%; margin-bottom: 0.7rem;"></div>
+                    <div class="mock-btn"></div>
                 </div>
             </div>
-        </section>
+        </div>
 
-        <!-- Packages Section (Interactive) -->
-        <section id="packages" class="section">
-            <span class="section-badge">Flexible Pricing</span>
-            <h2 class="section-title">Choose Your Package — Per Term Billing</h2>
-            <div class="packages-grid" id="packagesGrid">
-                <!-- dynamic from JS, but static fallback -->
+        <div class="website-content fade-in">
+            <p class="section-label">School Website</p>
+            <h2 class="section-title">Your School's<br>Digital Front Door</h2>
+            <p class="section-sub">A professionally designed, mobile-first website that builds trust with prospective
+                families and converts visitors into applicants — with a built-in online admission portal.</p>
+            <div class="feature-list">
+                <div class="feat-item">
+                    <div class="feat-icon">🎨</div>
+                    <div class="feat-text">
+                        <strong>Fully Branded & Custom Designed</strong>
+                        <span>Every element — colors, fonts, photos, copy — tailored to reflect your school's identity
+                            and values.</span>
+                    </div>
+                </div>
+                <div class="feat-item">
+                    <div class="feat-icon">📋</div>
+                    <div class="feat-text">
+                        <strong>Online Admission Application</strong>
+                        <span>Parents apply, upload documents, and track application status entirely online — no
+                            physical paperwork.</span>
+                    </div>
+                </div>
+                <div class="feat-item">
+                    <div class="feat-icon">📣</div>
+                    <div class="feat-text">
+                        <strong>News, Events & Announcements</strong>
+                        <span>Publish school news, upcoming events, and important notices from a simple admin
+                            dashboard.</span>
+                    </div>
+                </div>
+                <div class="feat-item">
+                    <div class="feat-icon">🔍</div>
+                    <div class="feat-text">
+                        <strong>SEO-Optimized & Secure</strong>
+                        <span>Rank on Google for local searches. SSL-secured, fast-loading, and accessible on all
+                            devices.</span>
+                    </div>
+                </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Why Digital (Interactive Hover) -->
-        <section class="section">
-            <span class="section-badge">Why Go Digital Now</span>
-            <h2 class="section-title">The Schools That Communicate Better, Win</h2>
-            <div class="why-grid">
-                <div class="feature-card"><i class="fas fa-search fa-2x" style="color: var(--leaf);"></i>
-                    <h3>Attract More Enrolments</h3>
-                    <p>Parents search online first. A professional website with admission form builds trust instantly.
+    <!-- PROCESS -->
+    <section id="process">
+        <div class="fade-in" style="max-width:540px;">
+            <p class="section-label">How It Works</p>
+            <h2 class="section-title">From Kickoff to<br>Go-Live in 4 Weeks</h2>
+            <p class="section-sub">A structured, zero-disruption deployment. We do the heavy lifting — you just provide
+                your school's information and feedback.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0 5rem; margin-top: 1rem;">
+            <div class="process-timeline fade-in">
+                <div class="process-step">
+                    <div class="step-marker">1</div>
+                    <div class="step-body">
+                        <div class="step-week">Week 1</div>
+                        <div class="step-title">Phase 1: Discovery, Planning & Website</div>
+                        <div class="step-desc">We learn your school's structure, workflows, branding, and goals.
+                            Database architecture and project scope finalized. Your custom school website and online
+                            admission portal are designed, built, and reviewed with you before launch.</div>
+                    </div>
+                </div>
+                <div class="process-step">
+                    <div class="step-marker">2</div>
+                    <div class="step-body">
+                        <div class="step-week">Week 2</div>
+                        <div class="step-title">Phase 2: Portal & Advanced Modules</div>
+                        <div class="step-desc">Core school portal modules built: Admin, Staff, Student, Parent
+                            dashboards, digital IDs, and parent alerts. CBT software, AI tools, report card engine,
+                            and the full finance management system are integrated and tested.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="process-timeline fade-in">
+                <div class="process-step">
+                    <div class="step-marker">3</div>
+                    <div class="step-body">
+                        <div class="step-week">Week 3</div>
+                        <div class="step-title">Phase 3: Training & Data Migration</div>
+                        <div class="step-desc">On-site or virtual training for all staff groups. Historical data
+                            migrated. Full User Acceptance Testing (UAT) completed.</div>
+                    </div>
+                </div>
+                <div class="process-step">
+                    <div class="step-marker">4</div>
+                    <div class="step-body">
+                        <div class="step-week">Week 4</div>
+                        <div class="step-title">Phase 4: Go-Live & Hypercare</div>
+                        <div class="step-desc">Systems go live. Our team is on standby for 2 weeks of intensive
+                            post-launch support. Full handover documentation provided.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="pricing">
+        <div class="fade-in" style="max-width:540px; margin-bottom: 0;">
+            <p class="section-label">Transparent Pricing</p>
+            <h2 class="section-title">Simple, Honest Pricing.<br>No Hidden Fees.</h2>
+            <p class="section-sub">A one-time development investment with an affordable annual maintenance plan.
+                Flexible payment terms available.</p>
+        </div>
+
+        <div class="pricing-grid">
+            <div class="price-card fade-in">
+                <div class="price-label">Starter</div>
+                <div class="price-name">Website Package</div>
+                <div class="price-amount">₦200,000 <span>one-time</span></div>
+                <div class="price-note">+ ₦80,000/yr hosting & support</div>
+                <div class="price-divider"></div>
+                <ul class="price-features">
+                    <li>Custom school website (all pages)</li>
+                    <li>Online admission portal</li>
+                    <li>News & events dashboard</li>
+                    <li>SSL certificate & hosting setup</li>
+                    <li>Mobile-responsive & SEO-optimized</li>
+                    <li>1 year free support & updates</li>
+                </ul>
+                <a href="#contact" class="price-cta outline">Get Started</a>
+            </div>
+
+            <div class="price-card featured fade-in">
+                <div class="price-label">Complete</div>
+                <div class="price-name">Full School Platform</div>
+                <div class="price-amount">₦400,000 <span>one-time</span></div>
+                <div class="price-note">+ ₦150,000/yr maintenance & support</div>
+                <div class="price-divider"></div>
+                <ul class="price-features">
+                    <li>Everything in Starter, plus:</li>
+                    <li>Full school portal (all 7 modules)</li>
+                    <li>Staff & student management</li>
+                    <li>Digital ID cards generation</li>
+                    <li>AI teaching tools & resources</li>
+                    <li>Finance management system</li>
+                    <li>Parent connect & real-time alerts</li>
+                    <li>Smart report card processing</li>
+                    <li>Staff training & data migration</li>
+                </ul>
+                <a href="#contact" class="price-cta solid">Book a Demo</a>
+            </div>
+
+            <div class="price-card fade-in">
+                <div class="price-label">Custom</div>
+                <div class="price-name">Offline CBT + Portal Suite</div>
+                <div class="price-amount">₦600,000 <span>one-time</span></div>
+                <div class="price-note">+ ₦180,000/yr maintenance & support</div>
+                <div class="price-divider"></div>
+                <ul class="price-features">
+                    <li>Everything in Complete, plus:</li>
+                    <li><strong>Offline CBT Engine</strong> – No internet required</li>
+                    <li><strong>Automatic Portal Sync</strong> – Seamless online/offline merge</li>
+                    <li><strong>Unlimited exam creation</strong> – Objective & theory questions</li>
+                    <li><strong>Instant auto-grading</strong> with detailed analytics</li>
+                    <li><strong>Cheat prevention</strong> – Tab-switch monitoring & timers</li>
+                    <li><strong>Multi-device support</strong> – Laptops, tablets, school labs</li>
+                    <li><strong>Export results to portal</strong> – One-click sync to reports</li>
+                    <li>Custom module selection</li>
+                    <li>Multi-campus / branch support</li>
+                    <li>API integrations with 3rd-party tools</li>
+                    <li>Custom branding & domain setup</li>
+                    <li>Dedicated account manager + priority SLA</li>
+                </ul>
+                <a href="#contact" class="price-cta outline">Contact Us</a>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; padding: 1.2rem 1.5rem; background: rgba(245,166,35,0.07); border: 1px solid rgba(245,166,35,0.2); border-radius: 8px; max-width: 700px;"
+            class="fade-in">
+            <p style="font-size: 0.85rem; color: var(--text-body);">💳 <strong style="color: var(--amber);">Flexible
+                    Payment Plans Available</strong> — Pay 50% upfront and 50% at go-live, or ask about our
+                3-installment option. We work with your budget.</p>
+        </div>
+    </section>
+
+    <!-- TRUST / TESTIMONIALS -->
+    <section id="trust">
+        <div class="fade-in" style="text-align:center; max-width: 480px; margin: 0 auto 3rem;">
+            <p class="section-label" style="justify-content:center;">Testimonials</p>
+            <h2 class="section-title">Schools Trust Us</h2>
+        </div>
+        <div class="trust-grid">
+            <div class="trust-card fade-in">
+                <p class="trust-quote">The parent alert system alone was worth every kobo. Parents now call us to say
+                    how much they love knowing when their child arrives. Our school's reputation improved overnight.</p>
+                <div class="trust-author">
+                    <div class="trust-avatar">AO</div>
+                    <div>
+                        <div class="trust-name">Mr. Adeyemi Okonkwo</div>
+                        <div class="trust-role">Principal, Greenfield Academy, Lagos</div>
+                    </div>
+                </div>
+            </div>
+            <div class="trust-card fade-in">
+                <p class="trust-quote">Report cards that used to take our teachers two weeks of stress now take two
+                    hours. The system auto-calculates everything and the parents get it on their phones the same day.
+                </p>
+                <div class="trust-author">
+                    <div class="trust-avatar">FN</div>
+                    <div>
+                        <div class="trust-name">Mrs. Fatima Nwosu</div>
+                        <div class="trust-role">Head of Academics, Crown Heights School, Abuja</div>
+                    </div>
+                </div>
+            </div>
+            <div class="trust-card fade-in">
+                <p class="trust-quote">We used to lose track of fee payments across multiple classes. Now the finance
+                    module gives us a real-time view of everything. Our bursar says it's the best tool she's ever used.
+                </p>
+                <div class="trust-author">
+                    <div class="trust-avatar">TI</div>
+                    <div>
+                        <div class="trust-name">Dr. Tunde Ibrahim</div>
+                        <div class="trust-role">School Director, Dayspring International, Port Harcourt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq">
+        <div class="fade-in" style="max-width:480px; margin-bottom: 0;">
+            <p class="section-label">FAQ</p>
+            <h2 class="section-title">Common Questions</h2>
+        </div>
+        <div class="faq-grid fade-in">
+            <div class="faq-item">
+                <div class="faq-q">Do we need a fast internet connection to use the platform? <span
+                        class="arrow">▾</span></div>
+                <div class="faq-a">
+                    <p>The school portal works on standard broadband. The CBT module is fully offline — students sit
+                        their exams without internet, and results sync to the portal when connectivity is restored.
+                        Parent notifications use SMS as backup when data is unavailable.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">Who owns the school data? <span class="arrow">▾</span></div>
+                <div class="faq-a">
+                    <p>Your school owns 100% of its data at all times. You can export all records (students, staff,
+                        finance, results) in standard formats at any time. We never share your data with third parties.
                     </p>
                 </div>
-                <div class="feature-card"><i class="fas fa-users fa-2x" style="color: var(--leaf);"></i>
-                    <h3>Parent Engagement</h3>
-                    <p>Real-time results, attendance, fee statements keep parents loyal and informed.</p>
-                </div>
-                <div class="feature-card"><i class="fas fa-clock fa-2x" style="color: var(--leaf);"></i>
-                    <h3>Save 15+ Hours/Week</h3>
-                    <p>Automate results, attendance, fee records — reduce manual workload drastically.</p>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">Can the system handle multiple arms/classes per year group? <span
+                        class="arrow">▾</span></div>
+                <div class="faq-a">
+                    <p>Yes. The platform is built to support any school structure — multiple arms per class (JSS1A,
+                        JSS1B, etc.), different subject combinations per class level, and multiple teachers per subject.
+                        It scales from small schools to large multi-section institutions.</p>
                 </div>
             </div>
-        </section>
-
-        <!-- Demo Request Form + Download CTA -->
-        <section id="demo" class="section">
-            <div class="demo-form">
-                <div style="flex:1">
-                    <h3 style="font-size: 1.8rem; font-weight: 700;">Ready to transform your school?</h3>
-                    <p style="margin-top: 12px;">Schedule a free, no-obligation live demo tailored to your school. We’ll
-                        set up a branded preview within 24 hours.</p>
-                    <div class="form-group">
-                        <input type="text" id="demoSchool" placeholder="School name" autocomplete="off">
-                        <input type="tel" id="demoPhone" placeholder="Phone number">
-                        <button id="requestDemoBtn" class="btn btn-primary"
-                            style="background: var(--gold); color: var(--ink);"><i class="fas fa-headset"></i> Request
-                            Demo</button>
-                    </div>
-                    <p style="font-size: 13px; margin-top: 16px;"><i class="fas fa-download"></i> Or download full
-                        proposal PDF — includes all package details & terms.</p>
+            <div class="faq-item">
+                <div class="faq-q">What happens after the 13-week deployment? <span class="arrow">▾</span></div>
+                <div class="faq-a">
+                    <p>After go-live, you're covered by our annual maintenance plan, which includes bug fixes, security
+                        patches, 2 major feature updates per year, and priority support. Our team remains your dedicated
+                        technology partner.</p>
                 </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">Can parents access the system on their phones? <span class="arrow">▾</span></div>
+                <div class="faq-a">
+                    <p>Yes. The parent portal is fully mobile-responsive and works on any smartphone browser — no app
+                        download required. Parents can view attendance, results, fee status, and communicate with
+                        teachers from their phones.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">Is the grading system flexible for our school format? <span class="arrow">▾</span>
+                </div>
+                <div class="faq-a">
+                    <p>Absolutely. The report card and grading system is fully configurable — you define the score
+                        breakdowns (CA percentages, exam weight), grade boundaries, remarks, and the report card layout.
+                        We replicate your existing format exactly.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">Do you provide training for our staff and teachers? <span class="arrow">▾</span>
+                </div>
+                <div class="faq-a">
+                    <p>Yes, training is included in the deployment. We conduct role-specific sessions: one for
+                        administrators, one for teachers, and a guide for parents. Training can be done on-site or
+                        virtually, and we provide written documentation for reference.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q">What payment methods are supported for school fees? <span class="arrow">▾</span>
+                </div>
+                <div class="faq-a">
+                    <p>The finance module supports bank transfer reference verification, and can be integrated with
+                        Nigerian payment gateways including Paystack and Flutterwave for direct card/bank payments.
+                        Remita integration is available for government schools on request.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONTACT -->
+    <section id="contact">
+        <div class="contact-info fade-in">
+            <p class="section-label">Contact Us</p>
+            <h2 class="section-title">Let's Build Your<br>Digital School</h2>
+            <p class="section-sub" style="margin-bottom: 2.5rem;">Book a free 30-minute demo and we'll walk you through
+                a live prototype built specifically for your school type.</p>
+
+            <div class="contact-block">
+                <div class="contact-icon">📧</div>
                 <div>
-                    <button id="downloadProposalBtn2" class="btn btn-download"
-                        style="background: white; color: var(--forest); font-size: 1rem;"><i
-                            class="fas fa-file-pdf"></i> 📄 Download Proposal (PDF)</button>
+                    <div class="contact-label">Email</div>
+                    <div class="contact-val"><a href="mailto:schools@acad.com.ng">schools@acad.com.ng</a>
+                    </div>
                 </div>
             </div>
-        </section>
-    </div>
+            <div class="contact-block">
+                <div class="contact-icon">📞</div>
+                <div>
+                    <div class="contact-label">Phone / WhatsApp</div>
+                    <div class="contact-val"><a href="tel:+2349035448295">+234 903 544 8295</a></div>
+                </div>
+            </div>
+            <div class="contact-block">
+                <div class="contact-icon">📍</div>
+                <div>
+                    <div class="contact-label">Location</div>
+                    <div class="contact-val">Lagos, Nigeria (Nationwide Service)</div>
+                </div>
+            </div>
+            <div class="contact-block">
+                <div class="contact-icon">🕐</div>
+                <div>
+                    <div class="contact-label">Office Hours</div>
+                    <div class="contact-val">Monday – Friday, 8am – 6pm WAT</div>
+                </div>
+            </div>
 
+            <div
+                style="margin-top: 2rem; padding: 1.5rem; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;">
+                <p
+                    style="font-family: var(--font-head); font-size: 1rem; color: var(--white); margin-bottom: 0.5rem; font-weight: 700;">
+                    🎯 Free Demo Includes:</p>
+                <ul style="list-style:none; display:flex; flex-direction:column; gap:0.5rem; margin-top: 0.8rem;">
+                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Live walkthrough
+                        of all 9 modules</li>
+                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Prototype mockup
+                        of your school's portal</li>
+                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Custom pricing
+                        based on your school size</li>
+                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ No obligation, no
+                        pressure</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="contact-form fade-in">
+            <div id="formContent">
+                <p
+                    style="font-family: var(--font-head); font-size: 1.1rem; color: var(--white); font-weight: 700; margin-bottom: 1.5rem;">
+                    Book Your Free Demo
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">First Name <span style="color: var(--teal);">*</span></label>
+                        <input type="text" class="form-input" placeholder="John" id="fname" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name <span style="color: var(--teal);">*</span></label>
+                        <input type="text" class="form-input" placeholder="Doe" id="lname" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">School Name <span style="color: var(--teal);">*</span></label>
+                    <input type="text" class="form-input" placeholder="e.g. Excellence Academy" id="school" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Your Role <span style="color: var(--teal);">*</span></label>
+                    <select class="form-select" id="role" required>
+                        <option value="">Select your role</option>
+                        <option>School Proprietor / Owner</option>
+                        <option>Principal / Head Teacher</option>
+                        <option>Administrator</option>
+                        <option>Board Member</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone / WhatsApp <span style="color: var(--teal);">*</span></label>
+                        <input type="tel" class="form-input" placeholder="+234 800 000 0000" id="phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address <span style="color: var(--teal);">*</span></label>
+                        <input type="email" class="form-input" placeholder="you@school.com" id="email" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Package of Interest</label>
+                    <select class="form-select" id="package">
+                        <option value="">Select a package</option>
+                        <option>Starter — Website Package</option>
+                        <option>Complete — Full School Platform</option>
+                        <option>Custom / Multi-Branch</option>
+                        <option>Not sure yet — need a demo first</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tell Us About Your School (optional)</label>
+                    <textarea class="form-textarea"
+                        placeholder="e.g. We are a private primary and secondary school in Ibadan with about 400 students..."
+                        id="message"></textarea>
+                </div>
+                <button class="form-submit" id="demoSubmitBtn">Send Request → Book Demo</button>
+            </div>
+            <div class="form-success" id="formSuccess" style="display: none;">
+                <div class="check">✅</div>
+                <p>Request Sent Successfully!</p>
+                <small>Thank you. A member of our team will contact you within 24 hours to schedule your free
+                    demo.<br><br>
+                    <strong>Check your email</strong> — we've sent your demo portal login credentials to the email
+                    address you provided.</small>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
     <footer>
-        <div class="container" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 24px;">
-            <div><strong style="color:white;">acad.com.ng</strong><br>Smart School Solutions<br>Ota, Nigeria</div>
-            <div><i class="fas fa-phone-alt"></i> +234 905 158 6024<br><i class="fab fa-whatsapp"></i> +234 903 544
-                8295<br><i class="far fa-envelope"></i> schools@acad.com.ng</div>
-            <div><small>© 2025 — Trusted by 120+ schools across Nigeria.</small></div>
+        <div class="footer-top">
+            <div class="footer-brand">
+                <span class="nav-logo">Impact<span>Digital</span> Services</span>
+                <p class="footer-tagline">Empowering Nigerian schools through purposeful, practical technology.</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-col">
+                    <h4>Platform</h4>
+                    <ul>
+                        <li><a href="#services">All Modules</a></li>
+                        <li><a href="#website">School Website</a></li>
+                        <li><a href="#process">Deployment Process</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Case Studies</a></li>
+                        <li><a href="#">Blog</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Data Processing Agreement</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 Impact Digital Services. All rights reserved. Built in Nigeria 🇳🇬</p>
+            <div class="social-links">
+                <a href="#" class="social-link" title="LinkedIn">in</a>
+                <a href="#" class="social-link" title="Twitter">𝕏</a>
+                <a href="#" class="social-link" title="Facebook">f</a>
+                <a href="#" class="social-link" title="WhatsApp">W</a>
+            </div>
         </div>
     </footer>
 
-    <div id="toastMsg" class="toast-msg">✓ Demo request sent! We’ll respond within 2 hours.</div>
+    <!-- BACK TO TOP -->
+    <button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 
     <script>
-        // ------------------------------
-        // 1. Interactive Pricing Calculator (live update)
-        // ------------------------------
-        const packageSelect = document.getElementById('packageSelect');
-        const livePriceSpan = document.getElementById('livePriceDisplay');
+        // NAV scroll
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 60);
+            document.getElementById('btt').classList.toggle('show', window.scrollY > 400);
+        });
 
-        function updatePrice() {
-            let val = packageSelect.value;
-            let formatted = new Intl.NumberFormat('en-NG').format(val);
-            livePriceSpan.innerHTML = `₦${formatted}<span style="font-size: 14px;"> / term</span>`;
-        }
-        packageSelect.addEventListener('change', updatePrice);
-        updatePrice();
+        // Mobile menu
+        document.getElementById('hamburger').addEventListener('click', () => {
+            document.getElementById('mobileMenu').classList.add('open');
+        });
+        document.getElementById('mobileClose').addEventListener('click', () => {
+            document.getElementById('mobileMenu').classList.remove('open');
+        });
+        document.querySelectorAll('.mobile-link').forEach(link => {
+            link.addEventListener('click', () => document.getElementById('mobileMenu').classList.remove('open'));
+        });
 
-        // ------------------------------
-        // 2. Render Packages with better interactivity
-        // ------------------------------
-        const packagesData = [{
-            name: "Starter",
-            price: 20000,
-            desc: "Website + Full Management App",
-            popular: false,
-            features: ["Professional school website", "Online admission form", "Full management app", "Result processing & report cards", "Attendance + parent alerts", "Staff clock-in", "Fee management & receipts", "Digital ID cards", "Multi-role access"]
-        },
-        {
-            name: "Professional",
-            price: 35000,
-            desc: "Website + App + Offline CBT",
-            popular: true,
-            features: ["Everything in Starter", "Offline CBT system (full setup)", "500+ concurrent exam devices", "Randomised questions per student", "Auto-marking & instant results", "Question bank management", "Class & subject analytics", "On-site installation & training"]
-        },
-        {
-            name: "Ultimate",
-            price: 50000,
-            desc: "Everything + Social Media Management",
-            popular: false,
-            features: ["Everything in Professional", "Facebook & Instagram management", "Regular branded content", "School news auto-posted", "WhatsApp broadcast setup", "Monthly social media report", "2 official email addresses", "Community engagement strategy"]
-        }
-        ];
+        // FAQ accordion
+        document.querySelectorAll('.faq-q').forEach(q => {
+            q.addEventListener('click', () => {
+                const item = q.parentElement;
+                const isOpen = item.classList.contains('open');
+                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+                if (!isOpen) item.classList.add('open');
+            });
+        });
 
-        const packagesGrid = document.getElementById('packagesGrid');
-
-        function buildPackages() {
-            packagesGrid.innerHTML = '';
-            packagesData.forEach(pkg => {
-                const card = document.createElement('div');
-                card.className = `package-card ${pkg.popular ? 'popular' : ''}`;
-                if (pkg.popular) {
-                    const badge = document.createElement('div');
-                    badge.className = 'popular-badge';
-                    badge.innerText = 'Most Popular';
-                    card.appendChild(badge);
+        // Scroll animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => entry.target.classList.add('visible'), i * 80);
                 }
-                card.innerHTML += `
-        <h3 style="font-size: 1.6rem; font-weight: 700;">${pkg.name}</h3>
-        <div class="price">₦${pkg.price.toLocaleString()}<span style="font-size: 1rem;">/term</span></div>
-        <p style="color: var(--muted);">${pkg.desc}</p>
-        <ul class="feature-list">
-          ${pkg.features.slice(0, 6).map(f => `<li><i class="fas fa-check-circle"></i> ${f}</li>`).join('')}
-          ${pkg.features.length > 6 ? `<li><i class="fas fa-plus-circle"></i> +${pkg.features.length - 6} more features</li>` : ''}
-        </ul>
-        <button class="btn btn-outline select-pkg-btn" data-price="${pkg.price}" data-name="${pkg.name}" style="width:100%; justify-content:center;">Choose ${pkg.name} →</button>
-      `;
-                packagesGrid.appendChild(card);
             });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-            // attach event listeners to "Choose package" buttons
-            document.querySelectorAll('.select-pkg-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const price = btn.getAttribute('data-price');
-                    const name = btn.getAttribute('data-name');
-                    if (packageSelect) {
-                        if (price === '20000') packageSelect.value = '20000';
-                        else if (price === '35000') packageSelect.value = '35000';
-                        else if (price === '50000') packageSelect.value = '50000';
-                        updatePrice();
-                        // scroll to calculator
-                        document.querySelector('.interactive-card').scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
-                        // show toast feedback
-                        showToast(`✓ ${name} package selected! Price updated.`);
-                    }
-                });
-            });
-        }
-        buildPackages();
+        // ============================================
+        // DEMO BOOKING FORM SUBMIT FUNCTION
+        // ============================================
+        function submitForm() {
+            // Get form values
+            const fname = document.getElementById('fname').value.trim();
+            const lname = document.getElementById('lname').value.trim();
+            const school = document.getElementById('school').value.trim();
+            const role = document.getElementById('role').value;
+            const phone = document.getElementById('phone').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const packageInt = document.getElementById('package').value;
+            const message = document.getElementById('message').value.trim();
 
-        // ------------------------------
-        // 3. PDF Download simulation (user uploads their proposal.pdf)
-        //    We embed trigger that downloads a placeholder, but you'll replace with actual PDF
-        // ------------------------------
-        function downloadProposal() {
-            // In real scenario, the user will replace 'proposal_sample.pdf' with their own PDF file.
-            // The requirement: "add a feature where they can download the proposal, (I'll upload the proposal in pdf)"
-            // So we create a dummy link but allows custom PDF file name. For now, we'll simulate with a download 
-            // that uses a default pdf, but developer can simply replace the file path.
-            // We'll also give a clear comment.
-            const pdfUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'; // Placeholder — replace with actual uploaded proposal PDF
-            // However to be professional, we'll use a data URI? Better to instruct: 
-            // In production, upload your proposal.pdf to server and change this variable.
-            // For demonstration, we'll force download from an actual placeholder that says "replace me".
-            // But per user specification: "I'll upload the proposal in pdf" — we provide mechanism.
-            const link = document.createElement('a');
-            // CHANGE THIS TO YOUR ACTUAL PDF FILE PATH:
-            const actualProposalPDF = '/proposal.pdf'; // <-- REPLACE WITH YOUR UPLOADED PDF FILE LOCATION (e.g., "./acad_proposal.pdf")
-            // We use fetch to check existence, but simpler: download attempt.
-            link.href = actualProposalPDF;
-            link.download = 'acad_school_proposal.pdf';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            // if file not found, show fallback message. but we also provide explanation to user.
-            showToast('⬇ Download started! If file missing, ensure proposal.pdf is uploaded to site root.');
-        }
-
-        // attach both download buttons
-        const downloadBtn1 = document.getElementById('downloadProposalBtn');
-        const downloadBtn2 = document.getElementById('downloadProposalBtn2');
-        if (downloadBtn1) downloadBtn1.addEventListener('click', downloadProposal);
-        if (downloadBtn2) downloadBtn2.addEventListener('click', downloadProposal);
-
-        // ------------------------------
-        // 4. Demo Request (Interactive Toast)
-        // ------------------------------
-        const requestBtn = document.getElementById('requestDemoBtn');
-        const schoolInput = document.getElementById('demoSchool');
-        const phoneInput = document.getElementById('demoPhone');
-        const toast = document.getElementById('toastMsg');
-
-        function showToast(message) {
-            toast.textContent = message || '✓ Demo request sent! We’ll respond within 2 hours.';
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
-            setTimeout(() => {
-                toast.style.opacity = '0';
-            }, 4000);
-        }
-
-        // Replace the current requestDemoBtn click handler with:
-        requestBtn.addEventListener('click', () => {
-            const school = schoolInput.value.trim();
-            const phone = phoneInput.value.trim();
-            if (!school || !phone) {
-                showToast('⚠️ Please enter school name and phone number.');
-                return;
+            // Validate required fields
+            if (!fname) {
+                alert('Please enter your first name.');
+                document.getElementById('fname').focus();
+                return false;
             }
-            const message = `Demo request from ${school}. Contact: ${phone}`;
-            window.open(`https://wa.me/2349051586024?text=${encodeURIComponent(message)}`, '_blank');
-            schoolInput.value = '';
-            phoneInput.value = '';
-        });
+            if (!lname) {
+                alert('Please enter your last name.');
+                document.getElementById('lname').focus();
+                return false;
+            }
+            if (!school) {
+                alert('Please enter your school name.');
+                document.getElementById('school').focus();
+                return false;
+            }
+            if (!role) {
+                alert('Please select your role.');
+                document.getElementById('role').focus();
+                return false;
+            }
+            if (!phone) {
+                alert('Please enter your phone number.');
+                document.getElementById('phone').focus();
+                return false;
+            }
+            if (!email) {
+                alert('Please enter your email address.');
+                document.getElementById('email').focus();
+                return false;
+            }
 
-        // additional smooth scroll for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    e.preventDefault();
-                    target.scrollIntoView({
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address (e.g., name@school.com).');
+                document.getElementById('email').focus();
+                return false;
+            }
 
-        // dynamic year for footer (optional)
+            // Disable button to prevent double submission
+            const submitBtn = document.getElementById('demoSubmitBtn');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+
+            // Send data to backend
+            fetch('/api/book-demo.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    first_name: fname,
+                    last_name: lname,
+                    school_name: school,
+                    role: role,
+                    phone: phone,
+                    email: email,
+                    package: packageInt,
+                    message: message
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Hide form, show success message
+                        document.getElementById('formContent').style.display = 'none';
+                        document.getElementById('formSuccess').style.display = 'block';
+                    } else {
+                        alert(data.message || 'Something went wrong. Please try again or call us directly.');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Network error. Please check your internet connection and try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
+                });
+
+            return false;
+        }
+
+        // Attach submit function to button
+        document.getElementById('demoSubmitBtn').addEventListener('click', submitForm);
     </script>
-
-
 </body>
 
 </html>

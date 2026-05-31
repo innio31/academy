@@ -1,5 +1,5 @@
 <?php
-// msv/student/report-card.php — Student Report Card Viewer
+// tbis/student/report-card.php — Student Report Card Viewer
 // Checks publish status, loads the student's own record, renders card + PDF download
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 
@@ -43,7 +43,7 @@ try {
 }
 
 if (!$student) {
-    header("Location: /msv/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 

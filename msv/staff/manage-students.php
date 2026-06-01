@@ -74,7 +74,7 @@ if (empty($assigned_classes)) {
 
     // Apply status filter
     if (!empty($status_filter) && $status_filter !== 'all') {
-        $query .= " AND status = ?";
+        $query .= " AND s.status = ?";
         $params[] = $status_filter;
     }
 

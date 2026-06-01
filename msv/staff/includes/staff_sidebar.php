@@ -220,6 +220,9 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                     <a href="library.php" class="<?php echo $current_page == 'library.php' ? 'active' : ''; ?>">
                         <i class="fas fa-book"></i> Library
                     </a>
+                    <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
+                        <i class="fas fa-robot"></i> AI Teaching Tools
+                    </a>
                 </li>
             </ul>
         </div>

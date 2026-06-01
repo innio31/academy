@@ -21,8 +21,8 @@ $staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 // Initialize variables with default values
 $error = null;
 $assigned_subjects = [];
-$assigned_classes = [];
-$class_names = [];
+$assigned_classes = [];      // Will contain rows with class_id (string)
+$class_ids = [];             // Array of actual class ID values (strings)
 $total_students = 0;
 $total_exams = 0;
 $pending_grading = 0;
@@ -41,7 +41,7 @@ try {
     } else {
         $staff_id_string = $staff_id_string_db;
 
-        // Get assigned subjects using the string staff_id (removed subject_code)
+        // Get assigned subjects using the string staff_id
         $stmt = $pdo->prepare("
             SELECT s.id, s.subject_name
             FROM subjects s
@@ -52,69 +52,48 @@ try {
         $stmt->execute([$staff_id_string, $school_id]);
         $assigned_subjects = $stmt->fetchAll();
 
-        // Get assigned classes using the string staff_id
+        // Get assigned classes using the string staff_id (now class_id column)
         $stmt = $pdo->prepare("
             SELECT DISTINCT class_id 
-FROM staff_classes 
-WHERE staff_id = ? AND school_id = ?
-            ORDER BY class
+            FROM staff_classes 
+            WHERE staff_id = ? AND school_id = ?
+            ORDER BY class_id
         ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_classes = $stmt->fetchAll();
-        $class_names = array_column($assigned_classes, 'class_id');
+        $assigned_classes = $stmt->fetchAll();      // Each row: ['class_id' => 'CLASS_1_SCI']
+        
+        // Extract the class_id values into a simple array
+        $class_ids = array_column($assigned_classes, 'class_id');
 
-        // Total Students in assigned classes - USING CLASS_ID
-if (!empty($assigned_classes)) {
-    // First, get the class IDs for the assigned class names
-    $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
-    $stmt = $pdo->prepare("
-        SELECT id FROM classes 
-WHERE school_id = ? AND class_name IN ($placeholders)
-    ");
-    $stmt->execute(array_merge([$school_id], array_column($assigned_classes, 'class')));
-    $class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (!empty($class_ids)) {
-        $id_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM students 
-            WHERE school_id = ? AND status = 'active' 
-            AND class_id IN ($id_placeholders)
-        ");
-        $stmt->execute(array_merge([$school_id], $class_ids));
-        $total_students = $stmt->fetch()['total'];
-    }
-}
+        // Total Students in assigned classes - using class_id directly (no lookup needed)
+        if (!empty($class_ids)) {
+            $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as total 
+                FROM students 
+                WHERE school_id = ? AND status = 'active' 
+                AND class_id IN ($placeholders)
+            ");
+            $stmt->execute(array_merge([$school_id], $class_ids));
+            $total_students = $stmt->fetch()['total'];
+        }
 
-        // Total Exams - using class_id
-if (!empty($assigned_subjects) && !empty($assigned_classes)) {
-    $subject_ids = array_column($assigned_subjects, 'id');
-    $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
-    
-    // Get class IDs for assigned classes
-    $class_names = array_column($assigned_classes, 'class_id');
-    $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
-    $stmt = $pdo->prepare("
-        SELECT id FROM classes 
-        WHERE school_id = ? AND class_name IN ($class_placeholders)
-    ");
-    $stmt->execute(array_merge([$school_id], $class_names));
-    $class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (!empty($class_ids)) {
-        $id_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM exams 
-            WHERE school_id = ? 
-            AND subject_id IN ($subject_placeholders)
-            AND class_id IN ($id_placeholders)
-        ");
-        $stmt->execute(array_merge([$school_id], $subject_ids, $class_ids));
-        $total_exams = $stmt->fetch()['total'];
-    }
-}
+        // Total Exams - using subject_id and class_id
+        if (!empty($assigned_subjects) && !empty($class_ids)) {
+            $subject_ids = array_column($assigned_subjects, 'id');
+            $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
+            $class_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+            
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as total 
+                FROM exams 
+                WHERE school_id = ? 
+                AND subject_id IN ($subject_placeholders)
+                AND class_id IN ($class_placeholders)
+            ");
+            $stmt->execute(array_merge([$school_id], $subject_ids, $class_ids));
+            $total_exams = $stmt->fetch()['total'];
+        }
 
         // Pending grading
         try {
@@ -190,15 +169,15 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
             error_log("Upcoming deadlines query error: " . $e->getMessage());
         }
 
-        // Recent results from students in assigned classes
-        if (!empty($class_names)) {
+        // Recent results from students in assigned classes (using class_ids directly)
+        if (!empty($class_ids)) {
             try {
                 // Check if results table exists
                 $stmt = $pdo->query("SHOW TABLES LIKE 'results'");
                 if ($stmt->rowCount() > 0) {
-                    $placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+                    $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
                     $stmt = $pdo->prepare("
-                        SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class,
+                        SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class_id,
                                r.percentage, r.grade, r.submitted_at
                         FROM results r 
                         JOIN students stu ON r.student_id = stu.id 
@@ -207,7 +186,7 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
                         ORDER BY r.submitted_at DESC 
                         LIMIT 5
                     ");
-                    $stmt->execute(array_merge([$school_id], $class_names));
+                    $stmt->execute(array_merge([$school_id], $class_ids));
                     $recent_results = $stmt->fetchAll();
                 } else {
                     $recent_results = [];
@@ -667,7 +646,7 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
                 <?php endif; ?>
                 <?php if (!empty($assigned_classes)): ?>
                     <?php foreach ($assigned_classes as $class): ?>
-                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class']); ?></span>
+                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class_id']); ?></span>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
@@ -808,7 +787,7 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
                                 <tr>
                                     <td>
                                         <strong><?php echo htmlspecialchars($result['student_name']); ?></strong><br>
-                                        <small><?php echo htmlspecialchars($result['class']); ?></small>
+                                        <small><?php echo htmlspecialchars($result['class_id']); ?></small>
                                     </td>
                                     <td><?php echo htmlspecialchars($result['exam_name']); ?></td>
                                     <td><?php echo number_format($result['percentage'] ?? 0, 1); ?>%</td>

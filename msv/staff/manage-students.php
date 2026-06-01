@@ -32,7 +32,7 @@ if (!$staff_id_string_db) {
     $stmt = $pdo->prepare("
         SELECT class_id FROM staff_classes 
         WHERE staff_id = ? AND school_id = ?
-        ORDER BY class
+        ORDER BY class_id
     ");
     $stmt->execute([$staff_id_string, $school_id]);
     $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -49,7 +49,10 @@ if (empty($assigned_classes)) {
     $status_filter = $_GET['status'] ?? 'active';
 
     // Build query - START WITH ALL ASSIGNED CLASSES, THEN APPLY FILTERS
-    $query = "SELECT * FROM students WHERE school_id = ? AND class_id IN (" . str_repeat('?,', count($assigned_classes) - 1) . '?)';
+    $query = "SELECT s.*, c.class_name 
+          FROM students s
+          LEFT JOIN classes c ON s.class_id = c.id
+          WHERE s.school_id = ? AND s.class_id IN (" . str_repeat('?,', count($assigned_classes) - 1) . '?)';
     $params = [$school_id];
     $params = array_merge($params, $assigned_classes);
 
@@ -65,7 +68,7 @@ if (empty($assigned_classes)) {
 
     // Apply class filter (if specific class selected)
     if (!empty($class_filter)) {
-        $query .= " AND class_id = ?";
+        $query .= " AND s.class_id = ?";
         $params[] = $class_filter;
     }
 
@@ -75,7 +78,7 @@ if (empty($assigned_classes)) {
         $params[] = $status_filter;
     }
 
-    $query .= " ORDER BY class, full_name";
+    $query .= " ORDER BY c.class_name, s.full_name";
 
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
@@ -479,7 +482,7 @@ if (empty($assigned_classes)) {
                                 <td><?php echo $sn++; ?></td>
                                 <td><code><?php echo htmlspecialchars($student['admission_number']); ?></code></td>
                                 <td><strong class="student-name"><?php echo htmlspecialchars($student['full_name']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($student['class_id']); ?></td>
+                                <td><?php echo htmlspecialchars($student['class_name']); ?></td>
                                 <td><?php echo htmlspecialchars($student['parent_phone'] ?? '—'); ?></td>
                                 <td><span class="status-badge status-<?php echo $student['status']; ?>"><?php echo ucfirst($student['status']); ?></span></td>
                                 <td>

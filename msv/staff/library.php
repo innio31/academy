@@ -22,6 +22,9 @@ $assigned_classes = [];      // Will store class_id => class_name mapping
 $class_options = [];         // For dropdown/checkbox: class_id => class_name
 $class_names_for_display = []; // For display in info items
 $staff_id_string = null;
+$error = null;
+$message = null;
+$message_type = null;
 
 try {
     // Get the staff_id string from the staff table
@@ -65,12 +68,12 @@ try {
     $error = "An error occurred while loading the library.";
 }
 
-// Handle upload (with multiple classes support - storing class_ids)
+// Handle upload (with multiple classes support - storing class_ids as comma-separated)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
     $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
     $selected_class_ids = $_POST['classes'] ?? []; // Array of selected class IDs
-    $description = trim($_POST['description']);
+    $description = trim($_POST['description'] ?? '');
 
     // Get subject name from ID
     $subject_name = '';
@@ -81,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $subject_name = $subject['subject_name'] ?? '';
     }
 
-    // Validate that selected classes are in staff's assigned classes (using class_id)
+    // Validate that selected classes are in staff's assigned classes
     $valid_class_ids = [];
     $assigned_class_ids = array_keys($class_options);
     foreach ($selected_class_ids as $class_id) {
@@ -124,13 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
             $classes_string = implode(',', $valid_class_ids);
             
             $stmt = $pdo->prepare("
-                INSERT INTO library_resources (school_id, title, subject, class_ids, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
+                INSERT INTO library_resources (school_id, title, description, subject, class_id, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
-            $stmt->execute([$school_id, $title, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
+            $stmt->execute([$school_id, $title, $description, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
 
             $message = "Resource uploaded successfully! Shared with " . count($valid_class_ids) . " class(es).";
             $message_type = "success";
+            
+            // Redirect to clear POST data
+            header("Location: library.php?message=" . urlencode($message) . "&type=success");
+            exit();
         } else {
             $error = "Failed to upload file";
             $message_type = "error";
@@ -143,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
 
 // Handle delete (only own resources)
 if (isset($_GET['delete'])) {
-    $resource_id = $_GET['delete'];
+    $resource_id = (int)$_GET['delete'];
 
     $stmt = $pdo->prepare("SELECT file_path FROM library_resources WHERE id = ? AND school_id = ? AND uploaded_by = ? AND uploaded_by_type = 'staff'");
     $stmt->execute([$resource_id, $school_id, $staff_id]);
@@ -157,13 +164,21 @@ if (isset($_GET['delete'])) {
         $stmt->execute([$resource_id]);
         $message = "Resource deleted successfully";
         $message_type = "success";
+        header("Location: library.php?message=" . urlencode($message) . "&type=success");
+        exit();
     }
 }
 
-// Get resources (staff's own + shared to their classes) - with multi-class support using class_ids
+// Check for message from redirect
+if (isset($_GET['message'])) {
+    $message = $_GET['message'];
+    $message_type = $_GET['type'] ?? 'success';
+}
+
+// Get resources (staff's own + shared to their classes) - using class_id column
 $search = $_GET['search'] ?? '';
 
-// Build the base query - need to handle comma-separated class_ids and join with classes for display
+// Build the base query - check if staff's class_id is in the comma-separated class_id column
 $query = "SELECT lr.*, 
           CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
@@ -174,18 +189,18 @@ $query = "SELECT lr.*,
 
 $params = [$school_id, $staff_id];
 
-// Add class condition for multi-class resources - check if staff's class_id is in the comma-separated list
+// Add class condition - check if staff's class_id is in the comma-separated list
 $assigned_class_ids = array_keys($class_options);
 if (!empty($assigned_class_ids)) {
     $class_conditions = [];
     foreach ($assigned_class_ids as $class_id) {
-        $class_conditions[] = "FIND_IN_SET(?, lr.class_ids)";
+        $class_conditions[] = "FIND_IN_SET(?, lr.class_id)";
         $params[] = $class_id;
     }
     $query .= " OR (" . implode(" OR ", $class_conditions) . ")";
 }
 
-$query .= " OR lr.class_ids = 'all')";
+$query .= " OR lr.class_id = 'all')";
 
 // Add search condition if provided
 if (!empty($search)) {
@@ -203,10 +218,10 @@ $resources = $stmt->fetchAll();
 // For each resource, fetch class names for display
 foreach ($resources as &$resource) {
     $class_names_display = [];
-    if ($resource['class_ids'] === 'all') {
+    if ($resource['class_id'] === 'all') {
         $class_names_display = ['All Classes'];
-    } elseif (!empty($resource['class_ids'])) {
-        $class_ids_array = explode(',', $resource['class_ids']);
+    } elseif (!empty($resource['class_id'])) {
+        $class_ids_array = explode(',', $resource['class_id']);
         if (!empty($class_ids_array)) {
             $placeholders = str_repeat('?,', count($class_ids_array) - 1) . '?';
             $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
@@ -255,7 +270,6 @@ function formatClasses($class_names_array) {
     return implode(' ', $badges);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -490,16 +504,6 @@ function formatClasses($class_names_array) {
             height: 16px;
             cursor: pointer;
             accent-color: var(--primary-color);
-        }
-
-        .selected-classes-badge {
-            display: inline-block;
-            background: var(--info-color);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            margin-left: 8px;
         }
 
         /* Search Bar */
@@ -793,14 +797,14 @@ function formatClasses($class_names_array) {
             </div>
         </div>
 
-        <?php if (isset($message)): ?>
+        <?php if (isset($message) && $message): ?>
             <div class="alert alert-<?php echo $message_type ?? 'success'; ?>">
                 <i class="fas fa-<?php echo ($message_type ?? 'success') === 'success' ? 'check-circle' : 'exclamation-triangle'; ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <?php if (isset($error)): ?>
+        <?php if (isset($error) && $error): ?>
             <div class="alert alert-error">
                 <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
             </div>
@@ -843,6 +847,10 @@ function formatClasses($class_names_array) {
                         <input type="text" name="title" class="form-control" placeholder="e.g., Mathematics Worksheet 1" required>
                     </div>
                     <div class="form-group">
+                        <label><i class="fas fa-align-left"></i> Description (Optional)</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the resource..."></textarea>
+                    </div>
+                    <div class="form-group">
                         <label><i class="fas fa-book"></i> Subject *</label>
                         <select name="subject_id" class="form-select" required>
                             <option value="">Select Subject</option>
@@ -865,10 +873,6 @@ function formatClasses($class_names_array) {
                             <i class="fas fa-info-circle"></i>
                             <span id="selectedCount">0</span> class(es) selected
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-align-left"></i> Description (Optional)</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the resource..."></textarea>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-paperclip"></i> File *</label>
@@ -930,7 +934,7 @@ function formatClasses($class_names_array) {
                         <thead>
                             <tr>
                                 <th>File</th>
-                                <th>Title</th>
+                                <th>Title / Description</th>
                                 <th>Subject</th>
                                 <th>Classes</th>
                                 <th>Type</th>
@@ -953,14 +957,14 @@ function formatClasses($class_names_array) {
                                     <td style="font-size: 1.5rem;"><?php echo getFileIcon($file_type); ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($resource['title']); ?></strong>
-                                        <?php if ($resource['description']): ?>
-                                            <br><small style="color: var(--gray-500);"><?php echo htmlspecialchars(substr($resource['description'], 0, 60)); ?></small>
+                                        <?php if (!empty($resource['description'])): ?>
+                                            <br><small style="color: var(--gray-500);"><?php echo htmlspecialchars(substr($resource['description'], 0, 80)); ?></small>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($resource['subject']); ?></td>
                                     <td>
                                         <div class="info-items" style="margin: 0;">
-                                            <?php echo formatClasses($resource['class_names_display']); ?>
+                                            <?php echo formatClasses($resource['class_names_display'] ?? []); ?>
                                         </div>
                                     </td>
                                     <td><span class="file-badge <?php echo $badge_class; ?>"><?php echo strtoupper($file_type); ?></span></td>

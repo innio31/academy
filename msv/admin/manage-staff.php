@@ -298,7 +298,7 @@ if (isset($_POST['assign_subjects'])) {
 // Assign Classes
 if (isset($_POST['assign_classes'])) {
     $staff_id_num = $_POST['staff_id'];
-    $classes = $_POST['classes'] ?? [];
+    $class_ids = $_POST['classes'] ?? []; // Now this contains class IDs, not class names
 
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ?");
     $stmt->execute([$staff_id_num]);
@@ -306,9 +306,10 @@ if (isset($_POST['assign_classes'])) {
 
     $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
 
-    foreach ($classes as $class) {
+    foreach ($class_ids as $class_id) {
+        // Store class_id directly (as ID from classes table)
         $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$staff_id_string, $class, $school_id]);
+        $stmt->execute([$staff_id_string, $class_id, $school_id]);
     }
 
     header("Location: manage-staff.php?action=assign_classes&id=$staff_id_num&message=Classes+assigned+successfully&type=success");
@@ -320,6 +321,9 @@ $action = $_GET['action'] ?? 'list';
 $staff = null;
 $assigned_subjects = [];
 $assigned_classes = [];
+$assigned_subject_ids = [];   // Add this for subject IDs
+$assigned_class_ids = [];     // Add this for class IDs
+$assigned_class_names = [];   // Add this for class names display
 $password_error = isset($_SESSION['staff_error']) ? $_SESSION['staff_error'] : null;
 unset($_SESSION['staff_error']); // Clear error after retrieving
 
@@ -330,17 +334,21 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
     $staff = $stmt->fetch();
 
     if ($staff) {
-        $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
-        $stmt->execute([$staff['staff_id']]);
-        $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
+    $stmt->execute([$staff['staff_id']]);
+    $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        $stmt = $pdo->prepare("
-    SELECT c.class_name 
-    FROM staff_classes sc 
-    JOIN classes c ON sc.class_id = c.id 
-    WHERE sc.staff_id = ?
-");
-        $stmt->execute([$staff['staff_id']]);
+    // Get assigned class IDs directly from staff_classes
+    $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
+    $stmt->execute([$staff['staff_id']]);
+    $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Also get class names for display (if needed)
+    $assigned_class_names = [];
+    if (!empty($assigned_class_ids)) {
+        $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
+        $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders)");
+        $stmt->execute($assigned_class_ids);
         $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }
@@ -1524,19 +1532,19 @@ if (empty($all_classes)) {
                     <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
                     <input type="hidden" name="assign_classes" value="1">
                     <div class="checkbox-group">
-                        <?php if (!empty($all_classes)): ?>
-                            <?php foreach ($all_classes as $class): ?>
-                                <label class="checkbox-item">
-                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class_name']); ?>" <?php echo in_array($class['class_name'], $assigned_class_names) ? 'checked' : ''; ?>>
-                                    <span><?php echo htmlspecialchars($class['class_name']); ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <div style="padding: 20px; text-align: center; color: var(--gray-600);">
-                                <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
-                            </div>
-                        <?php endif; ?>
-                    </div>
+    <?php if (!empty($all_classes)): ?>
+        <?php foreach ($all_classes as $class): ?>
+            <label class="checkbox-item">
+                <input type="checkbox" name="classes[]" value="<?php echo $class['id']; ?>" <?php echo in_array($class['id'], $assigned_class_ids) ? 'checked' : ''; ?>>
+                <span><?php echo htmlspecialchars($class['class_name']); ?></span>
+            </label>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <div style="padding: 20px; text-align: center; color: var(--gray-600);">
+            <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
+        </div>
+    <?php endif; ?>
+</div>
                     <div style="margin-top: 20px; display: flex; gap: 12px;">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Classes</button>
                         <a href="manage-staff.php?action=list" class="btn btn-outline">Back</a>

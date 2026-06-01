@@ -56,19 +56,16 @@ try {
             $permission_error = "You have not been granted attendance permissions. Please contact administrator.";
         }
 
-        // Also check staff_classes as backup (for backward compatibility)
+        // Also check staff_classes as backup (for backward compatibility) - using class_id now
         if (empty($assigned_class_ids)) {
-            $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+            // Get class IDs directly from staff_classes (now using class_id column)
+            $stmt = $pdo->prepare("
+                SELECT sc.class_id 
+                FROM staff_classes sc
+                WHERE sc.staff_id = ? AND sc.school_id = ?
+            ");
             $stmt->execute([$staff_id_string, $school_id]);
-            $staff_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-            if (!empty($staff_classes)) {
-                // Convert class names to IDs
-                $placeholders = str_repeat('?,', count($staff_classes) - 1) . '?';
-                $stmt = $pdo->prepare("SELECT id FROM classes WHERE school_id = ? AND class_name IN ($placeholders)");
-                $stmt->execute(array_merge([$school_id], $staff_classes));
-                $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            }
+            $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
     }
 } catch (Exception $e) {
@@ -1370,7 +1367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                                 <td>${escapeHtml(scan.class_name || '-')}</td>
                                 <td><span class="status-badge">${scan.scan_type === 'check_in' ? 'In' : 'Out'}</span></td>
                                 <td><span class="status-badge status-${scan.status}">${scan.status}</span></td>
-                            </tr>
+                            </table>
                         `;
                         });
                     }

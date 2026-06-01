@@ -18,10 +18,11 @@ $staff_role = $_SESSION['staff_role'] ?? 'staff';
 $staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
-$classes = [];
+$assigned_classes = [];      // Will store class_id => class_name mapping
+$class_options = [];         // For dropdown: class_id => class_name
 $exams = [];
 $results = [];
-$selected_class = '';
+$selected_class_id = '';
 $selected_exam = '';
 $error = null;
 
@@ -36,10 +37,21 @@ try {
     } else {
         $staff_id_string = $staff_id_string_db;
 
-        // Get assigned classes using the string staff_id
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? ORDER BY class");
+        // Get assigned classes with their friendly names using JOIN
+        $stmt = $pdo->prepare("
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+            ORDER BY c.class_name
+        ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $assigned_classes = $stmt->fetchAll();
+        
+        // Build class options array (class_id => class_name) for dropdown
+        foreach ($assigned_classes as $class) {
+            $class_options[$class['class_id']] = $class['class_name'];
+        }
     }
 } catch (Exception $e) {
     error_log("Staff data fetch error: " . $e->getMessage());
@@ -47,21 +59,24 @@ try {
 }
 
 // Get filters
-$selected_class = $_GET['class'] ?? ($classes[0] ?? '');
+$selected_class_id = $_GET['class_id'] ?? (count($class_options) > 0 ? array_key_first($class_options) : '');
 $selected_exam = $_GET['exam'] ?? '';
 
 // Get exams for this staff's classes
-if (!empty($classes)) {
+if (!empty($class_options)) {
     try {
-        $placeholders = str_repeat('?,', count($classes) - 1) . '?';
+        $class_ids = array_keys($class_options);
+        $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
         $stmt = $pdo->prepare("
-            SELECT id, exam_name, class, exam_type, subject_id,
-                   (SELECT subject_name FROM subjects WHERE id = exams.subject_id) as subject_name
-            FROM exams 
-            WHERE school_id = ? AND class IN ($placeholders)
-            ORDER BY created_at DESC
+            SELECT e.id, e.exam_name, e.class_id, e.exam_type, e.subject_id,
+                   s.subject_name, c.class_name
+            FROM exams e
+            LEFT JOIN subjects s ON e.subject_id = s.id
+            LEFT JOIN classes c ON e.class_id = c.id
+            WHERE e.school_id = ? AND e.class_id IN ($placeholders)
+            ORDER BY e.created_at DESC
         ");
-        $stmt->execute(array_merge([$school_id], $classes));
+        $stmt->execute(array_merge([$school_id], $class_ids));
         $exams = $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Exams fetch error: " . $e->getMessage());
@@ -70,16 +85,17 @@ if (!empty($classes)) {
 }
 
 // Get results
-if ($selected_class && !empty($selected_exam)) {
+if ($selected_class_id && !empty($selected_exam)) {
     try {
         $stmt = $pdo->prepare("
-            SELECT r.*, s.full_name, s.admission_number, s.id as student_id
+            SELECT r.*, s.full_name, s.admission_number, s.id as student_id, c.class_name
             FROM results r
             JOIN students s ON r.student_id = s.id
-            WHERE r.school_id = ? AND r.exam_id = ? AND s.class = ?
+            JOIN classes c ON s.class_id = c.id
+            WHERE r.school_id = ? AND r.exam_id = ? AND s.class_id = ?
             ORDER BY r.percentage DESC
         ");
-        $stmt->execute([$school_id, $selected_exam, $selected_class]);
+        $stmt->execute([$school_id, $selected_exam, $selected_class_id]);
         $results = $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Results fetch error: " . $e->getMessage());
@@ -538,7 +554,7 @@ if ($selected_exam) {
             </div>
         <?php endif; ?>
 
-        <?php if (empty($classes)): ?>
+        <?php if (empty($class_options)): ?>
             <div class="card">
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -552,11 +568,11 @@ if ($selected_exam) {
                 <form method="GET">
                     <div class="form-group">
                         <label><i class="fas fa-layer-group"></i> Select Class</label>
-                        <select name="class" class="form-select" onchange="this.form.submit()">
+                        <select name="class_id" class="form-select" onchange="this.form.submit()">
                             <option value="">-- Select Class --</option>
-                            <?php foreach ($classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class); ?>" <?php echo $selected_class == $class ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($class); ?>
+                            <?php foreach ($class_options as $class_id => $class_name): ?>
+                                <option value="<?php echo htmlspecialchars($class_id); ?>" <?php echo $selected_class_id == $class_id ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($class_name); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -566,7 +582,7 @@ if ($selected_exam) {
                         <select name="exam" class="form-select" onchange="this.form.submit()">
                             <option value="">-- Select Exam --</option>
                             <?php foreach ($exams as $exam): ?>
-                                <?php if ($exam['class'] == $selected_class): ?>
+                                <?php if ($exam['class_id'] == $selected_class_id): ?>
                                     <option value="<?php echo $exam['id']; ?>" <?php echo $selected_exam == $exam['id'] ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($exam['exam_name']); ?>
                                         (<?php echo htmlspecialchars($exam['subject_name'] ?? 'General'); ?>)
@@ -579,7 +595,7 @@ if ($selected_exam) {
             </div>
 
             <!-- Results Display -->
-            <?php if ($selected_class && $selected_exam && !empty($results)): ?>
+            <?php if ($selected_class_id && $selected_exam && !empty($results)): ?>
                 <!-- Statistics Overview -->
                 <div class="card">
                     <div class="card-header">
@@ -662,7 +678,7 @@ if ($selected_exam) {
                         </table>
                     </div>
                 </div>
-            <?php elseif ($selected_class && $selected_exam): ?>
+            <?php elseif ($selected_class_id && $selected_exam): ?>
                 <div class="card">
                     <div class="empty-state">
                         <i class="fas fa-folder-open"></i>
@@ -670,7 +686,7 @@ if ($selected_exam) {
                         <p>Results may not have been published yet.</p>
                     </div>
                 </div>
-            <?php elseif ($selected_class): ?>
+            <?php elseif ($selected_class_id): ?>
                 <div class="card">
                     <div class="empty-state">
                         <i class="fas fa-info-circle"></i>

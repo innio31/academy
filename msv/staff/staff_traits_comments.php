@@ -59,7 +59,26 @@ if (!$record || ($record['status'] ?? '') === 'archived') {
     exit();
 }
 
-$class   = $record['class'];
+// Get class_id from record (use class_id if available, otherwise look up by class name)
+$class_name_display = $record['class'];
+$class_id = $record['class_id'] ?? 0;
+
+if ($class_id == 0) {
+    // Fallback: look up class_id from class name
+    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class_name_display, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
+} else {
+    // Get the actual class name for display
+    $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id = ? AND school_id = ?");
+    $stmt->execute([$class_id, $school_id]);
+    $class_row = $stmt->fetch();
+    if ($class_row) {
+        $class_name_display = $class_row['class_name'];
+    }
+}
+
 $session = $record['session'];
 $term    = $record['term'];
 
@@ -70,43 +89,37 @@ if (!empty($record['principal_comments_per_grade'])) {
 }
 $default_class_teacher = $record['default_class_teacher_name'] ?? '';
 
-// ── Get subjects assigned to this staff for this class ────────────────────────
+// ── Get subjects assigned to this staff for this class (using class_id) ────────
 $assigned_subjects = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name
-          FROM subjects s
-          JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
-          JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-         WHERE ss.staff_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-         ORDER BY s.subject_name ASC
+        SELECT DISTINCT s.id, s.subject_name
+        FROM subjects s
+        JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
+        JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ? AND sc.class_id = ?
+        WHERE ss.staff_id = ? AND (s.school_id = ? OR s.is_central = 1)
+        ORDER BY s.subject_name ASC
     ");
-    $stmt->execute([$school_id, $school_id, $staff_id_string, $class, $school_id]);
+    $stmt->execute([$school_id, $school_id, $class_id, $staff_id_string, $school_id]);
     $assigned_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("staff_traits subjects: " . $e->getMessage());
 }
 
-// ── Load students ─────────────────────────────────────────────────────────────
+// ── Load students using class_id ─────────────────────────────────────────────
 $students = [];
 try {
-    // Get class_id from classes table
-    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
-    $stmt->execute([$class, $school_id]);
-    $class_row = $stmt->fetch();
-    $class_id = $class_row ? $class_row['id'] : 0;
-    
     if ($class_id > 0) {
         $stmt = $pdo->prepare("
             SELECT id, full_name, admission_number, gender, dob, guardian_name
-              FROM students
-             WHERE school_id = ? AND class_id = ? AND status = 'active'
-             ORDER BY full_name ASC
+            FROM students
+            WHERE school_id = ? AND class_id = ? AND status = 'active'
+            ORDER BY full_name ASC
         ");
         $stmt->execute([$school_id, $class_id]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        error_log("Class not found: " . $class);
+        error_log("Class not found: " . $class_name_display);
         $students = [];
     }
 } catch (Exception $e) {
@@ -752,7 +765,7 @@ render:
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-heart"></i> Traits & Comments</h1>
-                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class); ?></p>
+                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class_name_display); ?></p>
             </div>
             <div>
                 <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
@@ -792,7 +805,7 @@ render:
         </div>
 
         <?php if (empty($students)): ?>
-            <div class="empty-state"><i class="fas fa-user-graduate"></i><h3>No students in <?php echo htmlspecialchars($class); ?></h3></div>
+            <div class="empty-state"><i class="fas fa-user-graduate"></i><h3>No students in <?php echo htmlspecialchars($class_name_display); ?></h3></div>
         <?php else: ?>
 
         <div class="grid">

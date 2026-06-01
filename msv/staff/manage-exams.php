@@ -19,7 +19,8 @@ $staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
 $subject_ids = [];
-$class_names = [];
+$assigned_classes = [];      // Will store class_id => class_name mapping
+$class_options = [];         // For dropdown: class_id => class_name
 $subjects = [];
 $exams = [];
 $message = null;
@@ -37,15 +38,26 @@ try {
     } else {
         $staff_id_string = $staff_id_string_db;
 
-        // Get staff assigned subjects using the string staff_id
+        // Get staff assigned subject_ids using the string staff_id
         $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ? AND school_id = ?");
         $stmt->execute([$staff_id_string, $school_id]);
         $subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        // Get staff assigned classes using the string staff_id
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+        // Get staff assigned classes with their friendly names using JOIN
+        $stmt = $pdo->prepare("
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+            ORDER BY c.class_name
+        ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $assigned_classes = $stmt->fetchAll();
+        
+        // Build class options array (class_id => class_name) for dropdown
+        foreach ($assigned_classes as $class) {
+            $class_options[$class['class_id']] = $class['class_name'];
+        }
     }
 } catch (Exception $e) {
     error_log("Staff data fetch error: " . $e->getMessage());
@@ -56,7 +68,7 @@ try {
 // Handle exam creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_exam'])) {
     $exam_name = trim($_POST['exam_name']);
-    $class = trim($_POST['class']);
+    $class_id = trim($_POST['class_id']);  // Now storing class_id instead of class name
     $subject_id = intval($_POST['subject_id']);
     $duration_minutes = intval($_POST['duration_minutes']);
     $objective_count = intval($_POST['objective_count'] ?? 0);
@@ -68,14 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_exam'])) {
 
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO exams (exam_name, class, subject_id, duration_minutes, objective_count, 
+            INSERT INTO exams (exam_name, class_id, subject_id, duration_minutes, objective_count, 
                               subjective_count, theory_count, exam_type, instructions, is_active, 
                               school_id, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
         $stmt->execute([
             $exam_name,
-            $class,
+            $class_id,
             $subject_id,
             $duration_minutes,
             $objective_count,
@@ -119,20 +131,23 @@ if (!empty($subject_ids)) {
     }
 }
 
-// Get exams created by this staff
-if (!empty($subject_ids) && !empty($class_names)) {
+// Get exams created by this staff (join with classes to get class_name for display)
+if (!empty($subject_ids) && !empty($class_options)) {
     try {
+        $class_ids = array_keys($class_options);
         $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
-        $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
+        $class_placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+        
         $stmt = $pdo->prepare("
-            SELECT e.*, s.subject_name 
+            SELECT e.*, s.subject_name, c.class_name
             FROM exams e
             JOIN subjects s ON e.subject_id = s.id
+            JOIN classes c ON e.class_id = c.id
             WHERE e.school_id = ? AND e.subject_id IN ($subject_placeholders) 
-            AND e.class IN ($class_placeholders)
+            AND e.class_id IN ($class_placeholders)
             ORDER BY e.created_at DESC
         ");
-        $params = array_merge([$school_id], $subject_ids, $class_names);
+        $params = array_merge([$school_id], $subject_ids, $class_ids);
         $stmt->execute($params);
         $exams = $stmt->fetchAll();
     } catch (Exception $e) {
@@ -526,7 +541,7 @@ if (!empty($subject_ids) && !empty($class_names)) {
             <div class="card-header">
                 <h3><i class="fas fa-plus-circle"></i> Create New Exam</h3>
             </div>
-            <?php if (empty($class_names) || empty($subjects)): ?>
+            <?php if (empty($class_options) || empty($subjects)): ?>
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>You need to be assigned to classes and subjects before creating exams.</p>
@@ -541,10 +556,10 @@ if (!empty($subject_ids) && !empty($class_names)) {
                         </div>
                         <div class="form-group">
                             <label><i class="fas fa-layer-group"></i> Class *</label>
-                            <select name="class" class="form-select" required>
+                            <select name="class_id" class="form-select" required>
                                 <option value="">Select Class</option>
-                                <?php foreach ($class_names as $class): ?>
-                                    <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
+                                <?php foreach ($class_options as $class_id => $class_name): ?>
+                                    <option value="<?php echo htmlspecialchars($class_id); ?>"><?php echo htmlspecialchars($class_name); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -631,7 +646,7 @@ if (!empty($subject_ids) && !empty($class_names)) {
                             <?php foreach ($exams as $exam): ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($exam['exam_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($exam['class']); ?></td>
+                                    <td><?php echo htmlspecialchars($exam['class_name']); ?> <!-- Display friendly class name --></td>
                                     <td><?php echo htmlspecialchars($exam['subject_name']); ?></td>
                                     <td>
                                         <?php

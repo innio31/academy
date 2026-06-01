@@ -74,17 +74,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     }
 }
 
-// Get assigned subjects count
+// Get assigned subjects count - using staff_id_string and subject_id
 $assigned_subjects_count = 0;
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM staff_subjects WHERE staff_id = ? AND school_id = ?");
-$stmt->execute([$staff_id_string, $school_id]);
-$assigned_subjects_count = $stmt->fetchColumn();
+$assigned_subject_names = [];
+if ($staff_id_string) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total 
+        FROM staff_subjects 
+        WHERE staff_id = ? AND school_id = ?
+    ");
+    $stmt->execute([$staff_id_string, $school_id]);
+    $assigned_subjects_count = $stmt->fetchColumn();
+    
+    // Also get subject names for display
+    $stmt = $pdo->prepare("
+        SELECT s.subject_name
+        FROM subjects s
+        JOIN staff_subjects ss ON s.id = ss.subject_id
+        WHERE ss.staff_id = ? AND ss.school_id = ?
+        ORDER BY s.subject_name
+        LIMIT 5
+    ");
+    $stmt->execute([$staff_id_string, $school_id]);
+    $assigned_subject_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
-// Get assigned classes count
+// Get assigned classes count - using staff_id_string and class_id
 $assigned_classes_count = 0;
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM staff_classes WHERE staff_id = ? AND school_id = ?");
-$stmt->execute([$staff_id_string, $school_id]);
-$assigned_classes_count = $stmt->fetchColumn();
+$assigned_class_names = [];
+if ($staff_id_string) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total 
+        FROM staff_classes 
+        WHERE staff_id = ? AND school_id = ?
+    ");
+    $stmt->execute([$staff_id_string, $school_id]);
+    $assigned_classes_count = $stmt->fetchColumn();
+    
+    // Also get class names for display
+    $stmt = $pdo->prepare("
+        SELECT c.class_name
+        FROM classes c
+        JOIN staff_classes sc ON c.id = sc.class_id
+        WHERE sc.staff_id = ? AND sc.school_id = ? AND c.school_id = ?
+        ORDER BY c.class_name
+        LIMIT 5
+    ");
+    $stmt->execute([$staff_id_string, $school_id, $school_id]);
+    $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 ?>
 
 <!DOCTYPE html>
@@ -411,6 +449,41 @@ $assigned_classes_count = $stmt->fetchColumn();
             font-size: 0.85rem;
         }
 
+        /* Assigned List */
+        .assigned-list {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .assigned-item {
+            display: inline-block;
+            background: var(--gray-100);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin: 4px 6px 4px 0;
+            color: var(--gray-700);
+        }
+
+        .assigned-item i {
+            margin-right: 5px;
+            color: var(--primary-color);
+            font-size: 0.7rem;
+        }
+
+        .view-all-link {
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .view-all-link:hover {
+            text-decoration: underline;
+        }
+
         /* Info Item for top bar */
         .info-item-badge {
             background: var(--gray-100);
@@ -441,6 +514,20 @@ $assigned_classes_count = $stmt->fetchColumn();
 
         .password-notice i {
             font-size: 1rem;
+        }
+
+        /* Password Toggle */
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--gray-600);
         }
 
         /* Responsive */
@@ -537,6 +624,35 @@ $assigned_classes_count = $stmt->fetchColumn();
                     </div>
                 </div>
             </div>
+            
+            <!-- Show assigned subjects and classes if any -->
+            <?php if (!empty($assigned_subject_names)): ?>
+            <div class="assigned-list">
+                <strong style="font-size: 0.75rem; color: var(--gray-600);"><i class="fas fa-book"></i> Your Subjects:</strong>
+                <div style="margin-top: 8px;">
+                    <?php foreach ($assigned_subject_names as $subject): ?>
+                        <span class="assigned-item"><i class="fas fa-book-open"></i> <?php echo htmlspecialchars($subject); ?></span>
+                    <?php endforeach; ?>
+                    <?php if ($assigned_subjects_count > 5): ?>
+                        <span class="assigned-item">+<?php echo $assigned_subjects_count - 5; ?> more</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($assigned_class_names)): ?>
+            <div class="assigned-list">
+                <strong style="font-size: 0.75rem; color: var(--gray-600);"><i class="fas fa-users"></i> Your Classes:</strong>
+                <div style="margin-top: 8px;">
+                    <?php foreach ($assigned_class_names as $class): ?>
+                        <span class="assigned-item"><i class="fas fa-chalkboard"></i> <?php echo htmlspecialchars($class); ?></span>
+                    <?php endforeach; ?>
+                    <?php if ($assigned_classes_count > 5): ?>
+                        <span class="assigned-item">+<?php echo $assigned_classes_count - 5; ?> more</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Profile Information -->
@@ -582,18 +698,18 @@ $assigned_classes_count = $stmt->fetchColumn();
                 <div class="info-grid">
                     <div class="form-group">
                         <label><i class="fas fa-lock"></i> Current Password</label>
-                        <div style="position: relative;">
+                        <div class="password-wrapper">
                             <input type="password" name="current_password" id="current_password" class="form-control" required>
-                            <span class="password-toggle" onclick="togglePassword('current_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                            <span class="password-toggle" onclick="togglePassword('current_password')">
                                 <i class="far fa-eye" id="current_password_icon"></i>
                             </span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-key"></i> New Password</label>
-                        <div style="position: relative;">
+                        <div class="password-wrapper">
                             <input type="password" name="new_password" id="new_password" class="form-control" required>
-                            <span class="password-toggle" onclick="togglePassword('new_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                            <span class="password-toggle" onclick="togglePassword('new_password')">
                                 <i class="far fa-eye" id="new_password_icon"></i>
                             </span>
                         </div>
@@ -601,9 +717,9 @@ $assigned_classes_count = $stmt->fetchColumn();
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-check-circle"></i> Confirm New Password</label>
-                        <div style="position: relative;">
+                        <div class="password-wrapper">
                             <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
-                            <span class="password-toggle" onclick="togglePassword('confirm_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-600);">
+                            <span class="password-toggle" onclick="togglePassword('confirm_password')">
                                 <i class="far fa-eye" id="confirm_password_icon"></i>
                             </span>
                         </div>

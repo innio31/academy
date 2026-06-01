@@ -19,7 +19,8 @@ $staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 
 // Initialize variables
 $subjects = [];
-$classes = [];
+$assigned_classes = [];      // Will store class_id => class_name mapping
+$class_options = [];         // For dropdown: class_id => class_name
 $assignments = [];
 $message = null;
 $message_type = null;
@@ -53,10 +54,21 @@ try {
         $stmt->execute([$staff_id_string, $school_id]);
         $subjects = $stmt->fetchAll();
 
-        // Get staff assigned classes using the string staff_id
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? ORDER BY class");
+        // Get staff assigned classes with friendly names using JOIN
+        $stmt = $pdo->prepare("
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+            ORDER BY c.class_name
+        ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $assigned_classes = $stmt->fetchAll();
+        
+        // Build class options array (class_id => class_name) for dropdown
+        foreach ($assigned_classes as $class) {
+            $class_options[$class['class_id']] = $class['class_name'];
+        }
     }
 } catch (Exception $e) {
     error_log("Staff data fetch error: " . $e->getMessage());
@@ -68,7 +80,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment'])) {
     $title = trim($_POST['title']);
     $subject_id = intval($_POST['subject_id']);
-    $class = trim($_POST['class']);
+    $class_id = trim($_POST['class_id']);  // Now storing class_id
     $instructions = trim($_POST['instructions']);
     $deadline = $_POST['deadline'];
     $max_marks = intval($_POST['max_marks'] ?? 0);
@@ -94,14 +106,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_assignment']))
 
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO assignments (title, subject_id, class, instructions, deadline, max_marks, 
+            INSERT INTO assignments (title, subject_id, class_id, instructions, deadline, max_marks, 
                                     submission_type, allow_attachment, file_path, staff_id, school_id, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
         $stmt->execute([
             $title,
             $subject_id,
-            $class,
+            $class_id,
             $instructions,
             $deadline,
             $max_marks,
@@ -153,19 +165,21 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     }
 }
 
-// Get assignments (using numeric staff_id)
-if (!empty($classes)) {
+// Get assignments (using numeric staff_id and class_id)
+if (!empty($class_options)) {
     try {
-        $placeholders = str_repeat('?,', count($classes) - 1) . '?';
+        $class_ids = array_keys($class_options);
+        $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
         $stmt = $pdo->prepare("
-            SELECT a.*, s.subject_name,
+            SELECT a.*, s.subject_name, c.class_name,
                    (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submissions_count
             FROM assignments a
             JOIN subjects s ON a.subject_id = s.id
-            WHERE a.school_id = ? AND a.staff_id = ? AND a.class IN ($placeholders)
+            JOIN classes c ON a.class_id = c.id
+            WHERE a.school_id = ? AND a.staff_id = ? AND a.class_id IN ($placeholders)
             ORDER BY a.created_at DESC
         ");
-        $stmt->execute(array_merge([$school_id, $staff_id], $classes));
+        $stmt->execute(array_merge([$school_id, $staff_id], $class_ids));
         $assignments = $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Assignments fetch error: " . $e->getMessage());
@@ -652,7 +666,7 @@ if (isset($_GET['message'])) {
             <div class="card-header">
                 <h3><i class="fas fa-plus-circle"></i> Create New Assignment</h3>
             </div>
-            <?php if (empty($classes) || empty($subjects)): ?>
+            <?php if (empty($class_options) || empty($subjects)): ?>
                 <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>You need to be assigned to classes and subjects before creating assignments.</p>
@@ -676,10 +690,10 @@ if (isset($_GET['message'])) {
                         </div>
                         <div class="form-group">
                             <label><i class="fas fa-layer-group"></i> Class *</label>
-                            <select name="class" class="form-select" required>
+                            <select name="class_id" class="form-select" required>
                                 <option value="">Select Class</option>
-                                <?php foreach ($classes as $class): ?>
-                                    <option value="<?php echo htmlspecialchars($class); ?>"><?php echo htmlspecialchars($class); ?></option>
+                                <?php foreach ($class_options as $class_id => $class_name): ?>
+                                    <option value="<?php echo htmlspecialchars($class_id); ?>"><?php echo htmlspecialchars($class_name); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -815,7 +829,7 @@ if (isset($_GET['message'])) {
                                     <td><strong><?php echo htmlspecialchars($assignment['title']); ?></strong></td>
                                     <td>
                                         <?php echo htmlspecialchars($assignment['subject_name']); ?><br>
-                                        <small class="info-item" style="background: none; padding: 0;">📚 <?php echo htmlspecialchars($assignment['class']); ?></small>
+                                        <small class="info-item" style="background: none; padding: 0;">📚 <?php echo htmlspecialchars($assignment['class_name']); ?></small>
                                     </td>
                                     <td>
                                         <?php echo date('M d, Y H:i', strtotime($assignment['deadline'])); ?>

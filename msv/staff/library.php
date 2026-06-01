@@ -18,11 +18,13 @@ $staff_role = $_SESSION['staff_role'] ?? 'staff';
 
 // Initialize variables
 $assigned_subjects = [];
-$assigned_classes = [];
+$assigned_classes = [];      // Will store class_id => class_name mapping
+$class_options = [];         // For dropdown/checkbox: class_id => class_name
+$class_names_for_display = []; // For display in info items
 $staff_id_string = null;
 
 try {
-    // Get the staff_id string from the staff table (same as index.php)
+    // Get the staff_id string from the staff table
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id, $school_id]);
     $staff_id_string = $stmt->fetchColumn();
@@ -30,7 +32,7 @@ try {
     if (!$staff_id_string) {
         $error = "Staff record not found. Please contact administrator.";
     } else {
-        // Get assigned subjects - SAME as index.php
+        // Get assigned subjects
         $stmt = $pdo->prepare("
             SELECT s.id, s.subject_name
             FROM subjects s
@@ -41,27 +43,33 @@ try {
         $stmt->execute([$staff_id_string, $school_id]);
         $assigned_subjects = $stmt->fetchAll();
 
-        // Get assigned classes - SAME as index.php (using DISTINCT class)
+        // Get assigned classes with friendly names using JOIN
         $stmt = $pdo->prepare("
-            SELECT DISTINCT class 
-            FROM staff_classes 
-            WHERE staff_id = ? AND school_id = ?
-            ORDER BY class
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+            ORDER BY c.class_name
         ");
         $stmt->execute([$staff_id_string, $school_id]);
         $assigned_classes = $stmt->fetchAll();
-        $class_names = array_column($assigned_classes, 'class');
+        
+        // Build class options array (class_id => class_name)
+        foreach ($assigned_classes as $class) {
+            $class_options[$class['class_id']] = $class['class_name'];
+            $class_names_for_display[] = $class['class_name'];
+        }
     }
 } catch (Exception $e) {
     error_log("Staff library error: " . $e->getMessage());
     $error = "An error occurred while loading the library.";
 }
 
-// Handle upload (with multiple classes support)
+// Handle upload (with multiple classes support - storing class_ids)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     $title = trim($_POST['title']);
     $subject_id = !empty($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
-    $selected_classes = $_POST['classes'] ?? []; // Array of selected classes
+    $selected_class_ids = $_POST['classes'] ?? []; // Array of selected class IDs
     $description = trim($_POST['description']);
 
     // Get subject name from ID
@@ -73,12 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $subject_name = $subject['subject_name'] ?? '';
     }
 
-    // Validate that selected classes are in staff's assigned classes
-    $valid_classes = [];
-    $assigned_class_names = array_column($assigned_classes, 'class');
-    foreach ($selected_classes as $class) {
-        if (in_array($class, $assigned_class_names)) {
-            $valid_classes[] = $class;
+    // Validate that selected classes are in staff's assigned classes (using class_id)
+    $valid_class_ids = [];
+    $assigned_class_ids = array_keys($class_options);
+    foreach ($selected_class_ids as $class_id) {
+        if (in_array($class_id, $assigned_class_ids)) {
+            $valid_class_ids[] = $class_id;
         }
     }
 
@@ -97,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
     } elseif (!$subject_valid) {
         $error = "Invalid subject selected. You can only upload for your assigned subjects.";
         $message_type = "error";
-    } elseif (empty($valid_classes)) {
+    } elseif (empty($valid_class_ids)) {
         $error = "Please select at least one valid class from your assigned classes.";
         $message_type = "error";
     } elseif (isset($_FILES['resource_file']) && $_FILES['resource_file']['error'] === UPLOAD_ERR_OK) {
@@ -112,16 +120,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_resource'])) {
         $file_size = $_FILES['resource_file']['size'];
 
         if (move_uploaded_file($_FILES['resource_file']['tmp_name'], '../' . $file_path)) {
-            // Store classes as comma-separated string
-            $classes_string = implode(',', $valid_classes);
+            // Store class_ids as comma-separated string
+            $classes_string = implode(',', $valid_class_ids);
             
             $stmt = $pdo->prepare("
-                INSERT INTO library_resources (school_id, title, subject, class, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
+                INSERT INTO library_resources (school_id, title, subject, class_ids, file_type, file_path, file_size, uploaded_by, uploaded_by_type, uploaded_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff', NOW())
             ");
             $stmt->execute([$school_id, $title, $subject_name, $classes_string, $file_type, $file_path, $file_size, $staff_id]);
 
-            $message = "Resource uploaded successfully! Shared with " . count($valid_classes) . " class(es).";
+            $message = "Resource uploaded successfully! Shared with " . count($valid_class_ids) . " class(es).";
             $message_type = "success";
         } else {
             $error = "Failed to upload file";
@@ -152,10 +160,10 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Get resources (staff's own + shared to their classes) - with multi-class support
+// Get resources (staff's own + shared to their classes) - with multi-class support using class_ids
 $search = $_GET['search'] ?? '';
 
-// Build the base query - need to handle comma-separated classes
+// Build the base query - need to handle comma-separated class_ids and join with classes for display
 $query = "SELECT lr.*, 
           CASE WHEN lr.file_size < 1024 THEN CONCAT(lr.file_size, ' B')
                WHEN lr.file_size < 1048576 THEN CONCAT(ROUND(lr.file_size/1024, 1), ' KB')
@@ -166,17 +174,18 @@ $query = "SELECT lr.*,
 
 $params = [$school_id, $staff_id];
 
-// Add class condition for multi-class resources - check if staff's class is in the comma-separated list
-if (!empty($class_names)) {
+// Add class condition for multi-class resources - check if staff's class_id is in the comma-separated list
+$assigned_class_ids = array_keys($class_options);
+if (!empty($assigned_class_ids)) {
     $class_conditions = [];
-    foreach ($class_names as $class) {
-        $class_conditions[] = "FIND_IN_SET(?, lr.class)";
-        $params[] = $class;
+    foreach ($assigned_class_ids as $class_id) {
+        $class_conditions[] = "FIND_IN_SET(?, lr.class_ids)";
+        $params[] = $class_id;
     }
     $query .= " OR (" . implode(" OR ", $class_conditions) . ")";
 }
 
-$query .= " OR lr.class = 'All')";
+$query .= " OR lr.class_ids = 'all')";
 
 // Add search condition if provided
 if (!empty($search)) {
@@ -190,6 +199,23 @@ $query .= " ORDER BY lr.uploaded_at DESC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $resources = $stmt->fetchAll();
+
+// For each resource, fetch class names for display
+foreach ($resources as &$resource) {
+    $class_names_display = [];
+    if ($resource['class_ids'] === 'all') {
+        $class_names_display = ['All Classes'];
+    } elseif (!empty($resource['class_ids'])) {
+        $class_ids_array = explode(',', $resource['class_ids']);
+        if (!empty($class_ids_array)) {
+            $placeholders = str_repeat('?,', count($class_ids_array) - 1) . '?';
+            $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
+            $stmt->execute(array_merge($class_ids_array, [$school_id]));
+            $class_names_display = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+    }
+    $resource['class_names_display'] = $class_names_display;
+}
 
 // Get file icon function
 function getFileIcon($file_type) {
@@ -214,15 +240,17 @@ function getFileIcon($file_type) {
     return $icons[$ext] ?? '📁';
 }
 
-// Helper to format class display (convert comma-separated to badges)
-function formatClasses($class_string) {
-    if ($class_string === 'All') {
+// Helper to format class display (convert class_ids to class name badges)
+function formatClasses($class_names_array) {
+    if (empty($class_names_array)) {
+        return '<span class="info-item"><i class="fas fa-info-circle"></i> No classes</span>';
+    }
+    if (in_array('All Classes', $class_names_array)) {
         return '<span class="info-item" style="background: var(--primary-color); color: white;"><i class="fas fa-globe"></i> All Classes</span>';
     }
-    $classes = explode(',', $class_string);
     $badges = [];
-    foreach ($classes as $class) {
-        $badges[] = '<span class="info-item"><i class="fas fa-users"></i> ' . htmlspecialchars(trim($class)) . '</span>';
+    foreach ($class_names_array as $class_name) {
+        $badges[] = '<span class="info-item"><i class="fas fa-users"></i> ' . htmlspecialchars($class_name) . '</span>';
     }
     return implode(' ', $badges);
 }
@@ -778,7 +806,7 @@ function formatClasses($class_string) {
             </div>
         <?php endif; ?>
 
-        <!-- Assigned Info Card - Same as index.php -->
+        <!-- Assigned Info Card -->
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-chalkboard"></i> My Assignments</h3>
@@ -791,9 +819,9 @@ function formatClasses($class_string) {
                 <?php else: ?>
                     <span class="info-item"><i class="fas fa-info-circle"></i> No subjects assigned yet</span>
                 <?php endif; ?>
-                <?php if (!empty($assigned_classes)): ?>
-                    <?php foreach ($assigned_classes as $class): ?>
-                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class']); ?></span>
+                <?php if (!empty($class_names_for_display)): ?>
+                    <?php foreach ($class_names_for_display as $class_name): ?>
+                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class_name); ?></span>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
@@ -802,7 +830,7 @@ function formatClasses($class_string) {
         </div>
 
         <!-- Upload Form - Only show if staff has assigned subjects and classes -->
-        <?php if (!empty($assigned_subjects) && !empty($assigned_classes)): ?>
+        <?php if (!empty($assigned_subjects) && !empty($class_options)): ?>
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-upload"></i> Upload Resource</h3>
@@ -826,10 +854,10 @@ function formatClasses($class_string) {
                     <div class="form-group">
                         <label><i class="fas fa-layer-group"></i> Classes * (Select one or more)</label>
                         <div class="multi-select" id="classesMultiSelect">
-                            <?php foreach ($assigned_classes as $class): ?>
+                            <?php foreach ($class_options as $class_id => $class_name): ?>
                                 <label>
-                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class['class']); ?>">
-                                    <span><?php echo htmlspecialchars($class['class']); ?></span>
+                                    <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class_id); ?>">
+                                    <span><?php echo htmlspecialchars($class_name); ?></span>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -853,11 +881,11 @@ function formatClasses($class_string) {
                 </button>
             </form>
         </div>
-        <?php elseif (!empty($assigned_subjects) && empty($assigned_classes)): ?>
+        <?php elseif (!empty($assigned_subjects) && empty($class_options)): ?>
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i> You have assigned subjects but no classes. Please contact the administrator to assign classes to you.
             </div>
-        <?php elseif (empty($assigned_subjects) && !empty($assigned_classes)): ?>
+        <?php elseif (empty($assigned_subjects) && !empty($class_options)): ?>
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i> You have assigned classes but no subjects. Please contact the administrator to assign subjects to you.
             </div>
@@ -932,7 +960,7 @@ function formatClasses($class_string) {
                                     <td><?php echo htmlspecialchars($resource['subject']); ?></td>
                                     <td>
                                         <div class="info-items" style="margin: 0;">
-                                            <?php echo formatClasses($resource['class']); ?>
+                                            <?php echo formatClasses($resource['class_names_display']); ?>
                                         </div>
                                     </td>
                                     <td><span class="file-badge <?php echo $badge_class; ?>"><?php echo strtoupper($file_type); ?></span></td>

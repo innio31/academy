@@ -307,7 +307,7 @@ if (isset($_POST['assign_classes'])) {
     $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
 
     foreach ($classes as $class) {
-        $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class, school_id, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
         $stmt->execute([$staff_id_string, $class, $school_id]);
     }
 
@@ -334,7 +334,12 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
         $stmt->execute([$staff['staff_id']]);
         $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ?");
+        $stmt = $pdo->prepare("
+    SELECT c.class_name 
+    FROM staff_classes sc 
+    JOIN classes c ON sc.class_id = c.id 
+    WHERE sc.staff_id = ?
+");
         $stmt->execute([$staff['staff_id']]);
         $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }

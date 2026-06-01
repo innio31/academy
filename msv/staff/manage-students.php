@@ -51,12 +51,16 @@ if (empty($assigned_classes)) {
     $status_filter = $_GET['status'] ?? 'active';
 
     // Build query - START WITH ALL ASSIGNED CLASSES, THEN APPLY FILTERS
-    $query = "SELECT s.*, c.class_name 
+    // Extract just the class IDs for the IN clause
+$class_ids = array_column($assigned_classes, 'class_id');
+$placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
+
+$query = "SELECT s.*, c.class_name 
           FROM students s
           LEFT JOIN classes c ON s.class_id = c.id
-          WHERE s.school_id = ? AND s.class_id IN (" . str_repeat('?,', count($assigned_classes) - 1) . '?)';
-    $params = [$school_id];
-    $params = array_merge($params, $assigned_classes);
+          WHERE s.school_id = ? AND s.class_id IN ($placeholders)";
+$params = [$school_id];
+$params = array_merge($params, $class_ids);
 
     // Apply search filter (if search term provided)
     if (!empty($search)) {
@@ -421,13 +425,13 @@ if (empty($assigned_classes)) {
                 <div class="filter-group">
                     <label><i class="fas fa-layer-group"></i> Filter by Class</label>
                     <select name="class" class="form-select">
-                        <option value="">All Classes</option>
-                        <?php foreach ($assigned_classes as $class): ?>
-                            <option value="<?php echo htmlspecialchars($class); ?>" <?php echo ($_GET['class'] ?? '') == $class ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($class); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+    <option value="">All Classes</option>
+    <?php foreach ($assigned_classes as $class): ?>
+        <option value="<?php echo $class['class_id']; ?>" <?php echo ($_GET['class'] ?? '') == $class['class_id'] ? 'selected' : ''; ?>>
+            <?php echo htmlspecialchars($class['class_name']); ?>
+        </option>
+    <?php endforeach; ?>
+</select>
                 </div>
                 <div class="filter-group">
                     <label><i class="fas fa-flag"></i> Status</label>

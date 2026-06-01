@@ -54,14 +54,14 @@ try {
 
         // Get assigned classes using the string staff_id
         $stmt = $pdo->prepare("
-            SELECT DISTINCT class 
-            FROM staff_classes 
-            WHERE staff_id = ? AND school_id = ?
+            SELECT DISTINCT class_id 
+FROM staff_classes 
+WHERE staff_id = ? AND school_id = ?
             ORDER BY class
         ");
         $stmt->execute([$staff_id_string, $school_id]);
         $assigned_classes = $stmt->fetchAll();
-        $class_names = array_column($assigned_classes, 'class');
+        $class_names = array_column($assigned_classes, 'class_id');
 
         // Total Students in assigned classes - USING CLASS_ID
 if (!empty($assigned_classes)) {
@@ -69,7 +69,7 @@ if (!empty($assigned_classes)) {
     $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
     $stmt = $pdo->prepare("
         SELECT id FROM classes 
-        WHERE school_id = ? AND class_name IN ($placeholders)
+WHERE school_id = ? AND class_name IN ($placeholders)
     ");
     $stmt->execute(array_merge([$school_id], array_column($assigned_classes, 'class')));
     $class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -93,7 +93,7 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
     $subject_placeholders = str_repeat('?,', count($subject_ids) - 1) . '?';
     
     // Get class IDs for assigned classes
-    $class_names = array_column($assigned_classes, 'class');
+    $class_names = array_column($assigned_classes, 'class_id');
     $class_placeholders = str_repeat('?,', count($class_names) - 1) . '?';
     $stmt = $pdo->prepare("
         SELECT id FROM classes 
@@ -203,7 +203,7 @@ if (!empty($assigned_subjects) && !empty($assigned_classes)) {
                         FROM results r 
                         JOIN students stu ON r.student_id = stu.id 
                         JOIN exams e ON r.exam_id = e.id 
-                        WHERE stu.school_id = ? AND stu.class IN ($placeholders)
+                        WHERE stu.school_id = ? AND stu.class_id IN ($placeholders)
                         ORDER BY r.submitted_at DESC 
                         LIMIT 5
                     ");

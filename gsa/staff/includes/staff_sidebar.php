@@ -174,32 +174,32 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
         </div>
 
         <!-- Exams & Results Group -->
-        <div class="nav-group <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'open' : ''; ?>" data-group="exams">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
-                <span class="nav-label">Exams & Results</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-pen-alt"></i> Manage Exams
-                    </a>
-                </li>
-                <li>
-                    <a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-bar"></i> View Results
-                    </a>
-                </li>
-                <li>
-                    <a href="staff_score_entry.php" class="<?php echo $current_page == 'staff_score_entry.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-comment-dots"></i> Process Results
-                    </a>
-                </li>
-            </ul>
-        </div>
+<div class="nav-group <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'open' : ''; ?>" data-group="exams">
+    <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'true' : 'false'; ?>">
+        <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
+        <span class="nav-label">Exams & Results</span>
+        <span class="group-badge">
+            <i class="fas fa-chevron-down chevron"></i>
+        </span>
+    </button>
+    <ul class="nav-group-items <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'expanded' : ''; ?>">
+        <li>
+            <a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
+                <i class="fas fa-pen-alt"></i> Manage Exams
+            </a>
+        </li>
+        <li>
+            <a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>">
+                <i class="fas fa-chart-bar"></i> View Results
+            </a>
+        </li>
+        <li>
+            <a href="staff_score_entry.php" class="<?php echo $current_page == 'staff_score_entry.php' ? 'active' : ''; ?>">
+                <i class="fas fa-comment-dots"></i> Process Results
+            </a>
+        </li>
+    </ul>
+</div>
 
         <!-- Resources Group (Assignments + Library) -->
         <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
@@ -219,6 +219,9 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 <li>
                     <a href="library.php" class="<?php echo $current_page == 'library.php' ? 'active' : ''; ?>">
                         <i class="fas fa-book"></i> Library
+                    </a>
+                    <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
+                        <i class="fas fa-robot"></i> AI Teaching Tools
                     </a>
                 </li>
             </ul>

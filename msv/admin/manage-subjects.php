@@ -41,9 +41,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])
 
         $stmt = $pdo->prepare("
             SELECT s.*, 
-                   GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes
+                   GROUP_CONCAT(DISTINCT c.id ORDER BY c.class_name) as assigned_class_ids,
+                   GROUP_CONCAT(DISTINCT c.class_name ORDER BY c.class_name) as assigned_class_names
             FROM subjects s
             LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
+            LEFT JOIN classes c ON sc.class_id = c.id
             WHERE s.id = ? AND s.school_id = ? AND s.is_central = 0
             GROUP BY s.id
         ");
@@ -57,7 +59,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])
                     'id' => $subject['id'],
                     'subject_name' => $subject['subject_name'],
                     'description' => $subject['description'],
-                    'assigned_classes' => $subject['assigned_classes']
+                    'assigned_class_ids' => $subject['assigned_class_ids'],
+                    'assigned_class_names' => $subject['assigned_class_names']
                 ]
             ]);
         } else {
@@ -76,21 +79,39 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])
 }
 
 // ============================================
-// ENSURE TABLES EXIST
+// ENSURE TABLES EXIST WITH UPDATED STRUCTURE
 // ============================================
 
 try {
+    // Check if subject_classes table exists with class_id column
     $stmt = $pdo->query("SHOW TABLES LIKE 'subject_classes'");
     if (!$stmt->fetch()) {
         $pdo->exec("CREATE TABLE subject_classes (
             id INT PRIMARY KEY AUTO_INCREMENT,
             subject_id INT NOT NULL,
-            class VARCHAR(100) NOT NULL,
+            class_id INT NOT NULL,
             school_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_subject_class (subject_id, class),
-            INDEX idx_school_id (school_id)
+            UNIQUE KEY uk_subject_class (subject_id, class_id),
+            INDEX idx_school_id (school_id),
+            INDEX idx_class_id (class_id)
         )");
+    } else {
+        // Check if class column exists and migrate if needed
+        $stmt = $pdo->query("SHOW COLUMNS FROM subject_classes LIKE 'class'");
+        if ($stmt->fetch()) {
+            // Migrate from class to class_id
+            $pdo->exec("ALTER TABLE subject_classes ADD COLUMN class_id INT NULL AFTER class");
+            $pdo->exec("
+                UPDATE subject_classes sc
+                JOIN classes c ON sc.class = c.class_name AND sc.school_id = c.school_id
+                SET sc.class_id = c.id
+                WHERE sc.class IS NOT NULL
+            ");
+            $pdo->exec("ALTER TABLE subject_classes MODIFY COLUMN class_id INT NOT NULL");
+            $pdo->exec("ALTER TABLE subject_classes ADD INDEX idx_class_id (class_id)");
+            $pdo->exec("ALTER TABLE subject_classes DROP COLUMN class");
+        }
     }
 
     $stmt = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'is_central'");
@@ -118,10 +139,14 @@ $message_type = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
     try {
         $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
-        $classes = $_POST['classes'] ?? [];
+        $selected_class_ids = $_POST['class_ids'] ?? []; // Now using class_ids instead of class names
 
         if (empty($selected_subject_ids)) {
             throw new Exception("Please select at least one subject to add");
+        }
+
+        if (empty($selected_class_ids)) {
+            throw new Exception("Please select at least one class to assign these subjects to");
         }
 
         $added_count = 0;
@@ -147,10 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects
             $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
             $new_subject_id = $pdo->lastInsertId();
 
-            foreach ($classes as $class) {
-                if (!empty($class)) {
-                    $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class, school_id) VALUES (?, ?, ?)");
-                    $stmt->execute([$new_subject_id, $class, $school_id]);
+            foreach ($selected_class_ids as $class_id) {
+                if (!empty($class_id)) {
+                    $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class_id, school_id) VALUES (?, ?, ?)");
+                    $stmt->execute([$new_subject_id, $class_id, $school_id]);
                 }
             }
             $added_count++;
@@ -176,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
     try {
         $subject_id = $_POST['subject_id'];
         $description = trim($_POST['description'] ?? '');
-        $classes = $_POST['classes'] ?? [];
+        $selected_class_ids = $_POST['class_ids'] ?? [];
 
         $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
         $stmt->execute([$subject_id, $school_id]);
@@ -187,13 +212,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
         $stmt = $pdo->prepare("UPDATE subjects SET description = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$description, $subject_id]);
 
+        // Delete existing class assignments
         $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ? AND school_id = ?");
         $stmt->execute([$subject_id, $school_id]);
 
-        foreach ($classes as $class) {
-            if (!empty($class)) {
-                $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class, school_id) VALUES (?, ?, ?)");
-                $stmt->execute([$subject_id, $class, $school_id]);
+        // Insert new class assignments
+        foreach ($selected_class_ids as $class_id) {
+            if (!empty($class_id)) {
+                $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class_id, school_id) VALUES (?, ?, ?)");
+                $stmt->execute([$subject_id, $class_id, $school_id]);
             }
         }
 
@@ -249,6 +276,10 @@ if (isset($_GET['delete'])) {
             throw new Exception("Cannot delete subject. It has associated questions, exams, or scores.");
         }
 
+        // Delete subject classes first
+        $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ?");
+        $stmt->execute([$subject_id]);
+
         $stmt = $pdo->prepare("DELETE FROM subjects WHERE id = ?");
         $stmt->execute([$subject_id]);
 
@@ -275,10 +306,10 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $available_subjects = $stmt->fetchAll();
 
-// Fetch all subjects for this school
+// Fetch all subjects for this school with class names (joined with classes table)
 $stmt = $pdo->prepare("
     SELECT s.*, 
-           GROUP_CONCAT(DISTINCT sc.class ORDER BY sc.class) as assigned_classes,
+           GROUP_CONCAT(DISTINCT c.class_name ORDER BY c.class_name) as assigned_classes,
            (SELECT COUNT(*) FROM objective_questions WHERE subject_id = s.id) as objective_count,
            (SELECT COUNT(*) FROM subjective_questions WHERE subject_id = s.id) as subjective_count,
            (SELECT COUNT(*) FROM theory_questions WHERE subject_id = s.id) as theory_count,
@@ -287,6 +318,7 @@ $stmt = $pdo->prepare("
            (SELECT COUNT(*) FROM student_scores WHERE subject_id = s.id) as score_count
     FROM subjects s
     LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
+    LEFT JOIN classes c ON sc.class_id = c.id
     WHERE s.school_id = ?
     GROUP BY s.id
     ORDER BY s.subject_name
@@ -297,9 +329,7 @@ $subjects = $stmt->fetchAll();
 // Fetch available classes from the classes table
 $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
 $stmt->execute([$school_id]);
-$classes_from_db = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$available_classes = array_column($classes_from_db, 'class_name');
+$available_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fallback if no classes exist in the classes table
 if (empty($available_classes)) {
@@ -309,10 +339,15 @@ if (empty($available_classes)) {
     $student_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     if (!empty($student_classes)) {
-        $available_classes = $student_classes;
-    } else {
-        // Ultimate fallback
-        $available_classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
+        // Create temporary class entries
+        foreach ($student_classes as $class_name) {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO classes (school_id, class_name, status) VALUES (?, ?, 'active')");
+            $stmt->execute([$school_id, $class_name]);
+        }
+        // Refetch
+        $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
+        $stmt->execute([$school_id]);
+        $available_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 ?>
@@ -1054,7 +1089,7 @@ if (empty($available_classes)) {
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
     <?php
-    // Include sidebar at the end (it will be positioned fixed)
+    // Include sidebar
     require_once 'includes/sidebar.php';
     ?>
 
@@ -1193,8 +1228,8 @@ if (empty($available_classes)) {
                             <?php if (!empty($available_classes)): ?>
                                 <?php foreach ($available_classes as $class): ?>
                                     <div class="checkbox-item">
-                                        <input type="checkbox" name="classes[]" value="<?php echo htmlspecialchars($class); ?>" id="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>">
-                                        <label for="modal_class_<?php echo preg_replace('/[^a-zA-Z0-9]/', '_', $class); ?>"><?php echo htmlspecialchars($class); ?></label>
+                                        <input type="checkbox" name="class_ids[]" value="<?php echo $class['id']; ?>" id="modal_class_<?php echo $class['id']; ?>">
+                                        <label for="modal_class_<?php echo $class['id']; ?>"><?php echo htmlspecialchars($class['class_name']); ?></label>
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -1383,17 +1418,17 @@ if (empty($available_classes)) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const assignedClasses = data.subject.assigned_classes ? data.subject.assigned_classes.split(',') : [];
+                        const assignedClassIds = data.subject.assigned_class_ids ? data.subject.assigned_class_ids.split(',') : [];
                         let classesHtml = '';
 
                         if (availableClasses.length > 0) {
-                            availableClasses.forEach(className => {
-                                const isChecked = assignedClasses.includes(className);
-                                const safeId = 'edit_class_' + className.replace(/[^a-zA-Z0-9]/g, '_');
+                            availableClasses.forEach(classObj => {
+                                const isChecked = assignedClassIds.includes(String(classObj.id));
+                                const safeId = 'edit_class_' + classObj.id;
                                 classesHtml += `
                                     <div class="checkbox-item">
-                                        <input type="checkbox" name="classes[]" value="${escapeHtml(className)}" id="${safeId}" ${isChecked ? 'checked' : ''}>
-                                        <label for="${safeId}">${escapeHtml(className)}</label>
+                                        <input type="checkbox" name="class_ids[]" value="${classObj.id}" id="${safeId}" ${isChecked ? 'checked' : ''}>
+                                        <label for="${safeId}">${escapeHtml(classObj.class_name)}</label>
                                     </div>
                                 `;
                             });

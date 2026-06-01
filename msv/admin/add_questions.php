@@ -46,18 +46,29 @@ if ($topic_id) {
         ");
         $stmt->execute([$topic_id, $school_id]);
         $selected_topic = $stmt->fetch();
+        
         if ($selected_topic) {
-    // Try to get class from subject_classes
-    $cs = $pdo->prepare("SELECT class FROM subject_classes WHERE subject_id = ? AND school_id = ? LIMIT 1");
-    $cs->execute([$selected_topic['subject_id'], $school_id]);
-    $cr = $cs->fetch();
-    $selected_topic['class'] = ($cr && isset($cr['class'])) ? $cr['class'] : 'Not specified';
-    
-    // If still empty, try to get from topics table if it has a class field
-    if ($selected_topic['class'] == 'Not specified' && isset($selected_topic['class_level'])) {
-        $selected_topic['class'] = $selected_topic['class_level'];
-    }
-}
+            // Initialize class with a default value
+            $selected_topic['class'] = 'Not specified';
+            
+            // Try to get class from subject_classes
+            $cs = $pdo->prepare("SELECT class FROM subject_classes WHERE subject_id = ? AND school_id = ? LIMIT 1");
+            $cs->execute([$selected_topic['subject_id'], $school_id]);
+            $cr = $cs->fetch();
+            
+            if ($cr && !empty($cr['class'])) {
+                $selected_topic['class'] = $cr['class'];
+            } elseif (!empty($selected_topic['class_level'])) {
+                // Fallback to class_level from topics table
+                $selected_topic['class'] = $selected_topic['class_level'];
+            } elseif (!empty($selected_topic['class'])) {
+                // Fallback to class field from topics table
+                $selected_topic['class'] = $selected_topic['class'];
+            }
+            
+            // Debug log to verify class is set
+            error_log("Topic: {$selected_topic['topic_name']}, Class set to: {$selected_topic['class']}");
+        }
     } catch (Exception $e) {
         error_log("Error loading topic: " . $e->getMessage());
     }
@@ -727,17 +738,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
 <div class="main-content">
 
     <div class="top-header">
-        <div class="header-title">
-            <h1>Add Questions</h1>
-            <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong>
-               &nbsp;|&nbsp; Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?>
-               &nbsp;|&nbsp; Class: <?php echo htmlspecialchars($selected_topic['class'] ?? 'Not specified'); ?>
-            </p>
-        </div>
-        <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
+    <div class="header-title">
+        <h1>Add Questions</h1>
+        <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name'] ?? 'Unknown'); ?></strong>
+           &nbsp;|&nbsp; Subject: <?php echo htmlspecialchars($selected_topic['subject_name'] ?? 'Unknown'); ?>
+           &nbsp;|&nbsp; Class: <?php echo htmlspecialchars($selected_topic['class'] ?? 'Not specified'); ?></p>
     </div>
+    <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
+        <i class="fas fa-sign-out-alt"></i> Logout
+    </button>
+</div>
 
     <?php if ($message): ?>
     <div class="alert alert-<?php echo $message_type; ?>">
@@ -747,27 +757,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
     <?php endif; ?>
 
     <div class="topic-info-card">
-        <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($selected_topic['topic_name']); ?></h2>
-        <div class="topic-meta">
-            <span class="meta-item">
-                <i class="fas fa-arrow-left"></i>
-                <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">Back to Questions</a>
-            </span>
-            <span class="meta-item">
-                <i class="fas fa-file-csv"></i>
-                <a href="javascript:void(0)" onclick="openCSVModal()">Bulk CSV Import</a>
-            </span>
-         
-            <span class="meta-item">
-                <i class="fas fa-graduation-cap"></i>
-                <a href="javascript:void(0)" onclick="openWAECModal()">Import from WAEC Bank</a>
-            </span>
-            <span class="meta-item">
-                <i class="fas fa-robot"></i>
-                <a href="javascript:void(0)" onclick="openAIModal()">AI Generate Questions</a>
-            </span>
-        </div>
+    <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($selected_topic['topic_name'] ?? 'Unknown Topic'); ?></h2>
+    <div class="topic-meta">
+        <span class="meta-item">
+            <i class="fas fa-arrow-left"></i>
+            <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">Back to Questions</a>
+        </span>
+        <span class="meta-item">
+            <i class="fas fa-file-csv"></i>
+            <a href="javascript:void(0)" onclick="openCSVModal()">Bulk CSV Import</a>
+        </span>
+        <span class="meta-item">
+            <i class="fas fa-graduation-cap"></i>
+            <a href="javascript:void(0)" onclick="openWAECModal()">Import from WAEC Bank</a>
+        </span>
+        <span class="meta-item">
+            <i class="fas fa-robot"></i>
+            <a href="javascript:void(0)" onclick="openAIModal()">AI Generate Questions</a>
+        </span>
     </div>
+</div>
 
     <!-- Tabs (keep existing) -->
     <div class="tabs-navigation">
@@ -955,9 +964,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
                     <input type="text" id="aiTopic" class="form-control" value="<?php echo htmlspecialchars($selected_topic['topic_name']); ?>" readonly>
                 </div>
                 <div class="form-group">
-                    <label>Class Level</label>
-                    <input type="text" id="aiClass" class="form-control" value="<?php echo htmlspecialchars($selected_topic['class']); ?>" readonly>
-                </div>
+    <label>Class Level</label>
+    <input type="text" id="aiClass" class="form-control" value="<?php echo htmlspecialchars($selected_topic['class'] ?? 'Not specified'); ?>" readonly>
+</div>
                 <div class="form-group">
                     <label>Number of Questions</label>
                     <select id="aiCount" class="form-control">
@@ -1224,6 +1233,12 @@ function generateAIPreview() {
     const count = document.getElementById('aiCount').value;
     const generateBtn = document.getElementById('aiGenerateBtn');
     const statusSpan = document.getElementById('aiStatus');
+
+    // Fallback if class level is empty
+    if (!classLevel || classLevel === '') {
+        classLevel = 'Not specified';
+        console.log('Class level was empty, using fallback:', classLevel);
+    }
 
     if (!subject || !topic) {
         alert('Subject and topic are required');

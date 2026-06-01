@@ -6,7 +6,7 @@ ob_start();
 session_start();
 
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gos/login.php");
+    header("Location: /gsa/login.php");
     exit();
 }
 
@@ -744,7 +744,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
            &nbsp;|&nbsp; Subject: <?php echo htmlspecialchars($selected_topic['subject_name'] ?? 'Unknown'); ?>
            &nbsp;|&nbsp; Class: <?php echo htmlspecialchars($selected_topic['class'] ?? 'Not specified'); ?></p>
     </div>
-    <button class="logout-btn" onclick="window.location.href='../gos/logout.php'">
+    <button class="logout-btn" onclick="window.location.href='../gsa/logout.php'">
         <i class="fas fa-sign-out-alt"></i> Logout
     </button>
 </div>

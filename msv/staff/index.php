@@ -21,8 +21,8 @@ $staff_id_string = $_SESSION['staff_id'] ?? $staff_id;
 // Initialize variables with default values
 $error = null;
 $assigned_subjects = [];
-$assigned_classes = [];      // Will contain rows with class_id (string)
-$class_ids = [];             // Array of actual class ID values (strings)
+$assigned_classes = [];      // Will contain rows with class_id and class_name
+$class_ids = [];             // Array of actual class ID values (strings) for lookups
 $total_students = 0;
 $total_exams = 0;
 $pending_grading = 0;
@@ -53,19 +53,21 @@ try {
         $assigned_subjects = $stmt->fetchAll();
 
         // Get assigned classes using the string staff_id (now class_id column)
+        // Join with classes table to get the friendly class_name
         $stmt = $pdo->prepare("
-            SELECT DISTINCT class_id 
-            FROM staff_classes 
-            WHERE staff_id = ? AND school_id = ?
-            ORDER BY class_id
+            SELECT DISTINCT sc.class_id, c.class_name
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+            ORDER BY c.class_name
         ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_classes = $stmt->fetchAll();      // Each row: ['class_id' => 'CLASS_1_SCI']
+        $assigned_classes = $stmt->fetchAll();      // Each row: ['class_id' => '1', 'class_name' => 'Grade 10A']
         
-        // Extract the class_id values into a simple array
+        // Extract the class_id values into a simple array for lookups
         $class_ids = array_column($assigned_classes, 'class_id');
 
-        // Total Students in assigned classes - using class_id directly (no lookup needed)
+        // Total Students in assigned classes - using class_id directly
         if (!empty($class_ids)) {
             $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
             $stmt = $pdo->prepare("
@@ -177,11 +179,12 @@ try {
                 if ($stmt->rowCount() > 0) {
                     $placeholders = str_repeat('?,', count($class_ids) - 1) . '?';
                     $stmt = $pdo->prepare("
-                        SELECT r.*, stu.full_name as student_name, e.exam_name, stu.class_id,
+                        SELECT r.*, stu.full_name as student_name, e.exam_name, c.class_name,
                                r.percentage, r.grade, r.submitted_at
                         FROM results r 
                         JOIN students stu ON r.student_id = stu.id 
                         JOIN exams e ON r.exam_id = e.id 
+                        JOIN classes c ON stu.class_id = c.id
                         WHERE stu.school_id = ? AND stu.class_id IN ($placeholders)
                         ORDER BY r.submitted_at DESC 
                         LIMIT 5
@@ -646,7 +649,7 @@ try {
                 <?php endif; ?>
                 <?php if (!empty($assigned_classes)): ?>
                     <?php foreach ($assigned_classes as $class): ?>
-                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class_id']); ?></span>
+                        <span class="info-item"><i class="fas fa-users"></i> <?php echo htmlspecialchars($class['class_name']); ?></span>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <span class="info-item"><i class="fas fa-info-circle"></i> No classes assigned yet</span>
@@ -787,7 +790,7 @@ try {
                                 <tr>
                                     <td>
                                         <strong><?php echo htmlspecialchars($result['student_name']); ?></strong><br>
-                                        <small><?php echo htmlspecialchars($result['class_id']); ?></small>
+                                        <small><?php echo htmlspecialchars($result['class_name']); ?></small>
                                     </td>
                                     <td><?php echo htmlspecialchars($result['exam_name']); ?></td>
                                     <td><?php echo number_format($result['percentage'] ?? 0, 1); ?>%</td>

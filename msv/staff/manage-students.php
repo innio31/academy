@@ -30,12 +30,14 @@ if (!$staff_id_string_db) {
     $staff_id_string = $staff_id_string_db;
     // Get staff assigned classes using the string version
     $stmt = $pdo->prepare("
-        SELECT class_id FROM staff_classes 
-        WHERE staff_id = ? AND school_id = ?
-        ORDER BY class_id
-    ");
-    $stmt->execute([$staff_id_string, $school_id]);
-    $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    SELECT sc.class_id, c.class_name 
+    FROM staff_classes sc
+    LEFT JOIN classes c ON sc.class_id = c.id
+    WHERE sc.staff_id = ? AND sc.school_id = ?
+    ORDER BY c.class_name
+");
+$stmt->execute([$staff_id_string, $school_id]);
+$assigned_classes = $stmt->fetchAll(); // Now contains both id and name
 }
 
 // If no classes assigned

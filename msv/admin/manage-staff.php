@@ -334,23 +334,25 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
     $staff = $stmt->fetch();
 
     if ($staff) {
-    $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
-    $stmt->execute([$staff['staff_id']]);
-    $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
+        $stmt->execute([$staff['staff_id']]);
+        $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // Get assigned class IDs directly from staff_classes
-    $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
-    $stmt->execute([$staff['staff_id']]);
-    $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    // Also get class names for display (if needed)
-    $assigned_class_names = [];
-    if (!empty($assigned_class_ids)) {
-        $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
-        $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders)");
-        $stmt->execute($assigned_class_ids);
-        $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    }
+        // Get assigned class IDs directly from staff_classes
+        $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
+        $stmt->execute([$staff['staff_id']]);
+        $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // Also get class names for display (if needed)
+        $assigned_class_names = [];
+        if (!empty($assigned_class_ids)) {
+            $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
+            $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
+            $params = array_merge($assigned_class_ids, [$school_id]);
+            $stmt->execute($params);
+            $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+    } // <-- THIS CLOSING BRACE WAS MISSING!
 }
 
 // Get all subjects for this school (only school-specific subjects, not central subjects)

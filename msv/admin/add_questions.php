@@ -47,11 +47,17 @@ if ($topic_id) {
         $stmt->execute([$topic_id, $school_id]);
         $selected_topic = $stmt->fetch();
         if ($selected_topic) {
-            $cs = $pdo->prepare("SELECT class FROM subject_classes WHERE subject_id = ? AND school_id = ? LIMIT 1");
-            $cs->execute([$selected_topic['subject_id'], $school_id]);
-            $cr = $cs->fetch();
-            $selected_topic['class'] = $cr['class'] ?? 'N/A';
-        }
+    // Try to get class from subject_classes
+    $cs = $pdo->prepare("SELECT class FROM subject_classes WHERE subject_id = ? AND school_id = ? LIMIT 1");
+    $cs->execute([$selected_topic['subject_id'], $school_id]);
+    $cr = $cs->fetch();
+    $selected_topic['class'] = ($cr && isset($cr['class'])) ? $cr['class'] : 'Not specified';
+    
+    // If still empty, try to get from topics table if it has a class field
+    if ($selected_topic['class'] == 'Not specified' && isset($selected_topic['class_level'])) {
+        $selected_topic['class'] = $selected_topic['class_level'];
+    }
+}
     } catch (Exception $e) {
         error_log("Error loading topic: " . $e->getMessage());
     }
@@ -725,7 +731,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
             <h1>Add Questions</h1>
             <p>Topic: <strong><?php echo htmlspecialchars($selected_topic['topic_name']); ?></strong>
                &nbsp;|&nbsp; Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?>
-               &nbsp;|&nbsp; Class: <?php echo htmlspecialchars($selected_topic['class']); ?></p>
+               &nbsp;|&nbsp; Class: <?php echo htmlspecialchars($selected_topic['class'] ?? 'Not specified'); ?>
+            </p>
         </div>
         <button class="logout-btn" onclick="window.location.href='../msv/logout.php'">
             <i class="fas fa-sign-out-alt"></i> Logout

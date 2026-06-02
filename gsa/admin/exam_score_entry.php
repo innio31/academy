@@ -99,21 +99,25 @@ function getGradeInfo(float $total, array $scale): array
 // ── Load subjects for this class ──────────────────────────────────────────────
 $subjects = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name
-          FROM subjects s
-          JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-         WHERE sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-         ORDER BY s.subject_name ASC
-    ");
-    $stmt->execute([$school_id, $class, $school_id]);
-    $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Resolve class_id from class name first
+    $stmtCls = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ? LIMIT 1");
+    $stmtCls->execute([$class, $school_id]);
+    $class_row_for_subjects = $stmtCls->fetch();
+    $class_id_for_subjects  = $class_row_for_subjects ? (int)$class_row_for_subjects['id'] : 0;
+
+    if ($class_id_for_subjects > 0) {
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.subject_name
+              FROM subjects s
+              JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
+             WHERE sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1)
+             ORDER BY s.subject_name ASC
+        ");
+        $stmt->execute([$school_id, $class_id_for_subjects, $school_id]);
+        $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     error_log("score_entry subjects: " . $e->getMessage());
-}
-
-if ($active_subject_id === 0 && !empty($subjects)) {
-    $active_subject_id = (int)$subjects[0]['id'];
 }
 
 // ── Load students ─────────────────────────────────────────────────────────────

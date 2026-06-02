@@ -177,7 +177,7 @@ try {
     $stmt->execute([$class, $school_id]);
     $class_row = $stmt->fetch(PDO::FETCH_ASSOC);
     $class_id = $class_row ? $class_row['id'] : 0;
-
+    
     if ($class_id > 0) {
         $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class_id = ? AND status = 'active' ORDER BY full_name ASC");
         $stmt->execute([$school_id, $class_id]);

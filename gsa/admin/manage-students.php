@@ -548,12 +548,10 @@ if (isset($_GET['get_student'])) {
             box-shadow: var(--shadow-sm);
             border: 2px solid var(--gray-200);
         }
-
         .global-search-bar .search-icon {
             color: var(--primary-color);
             font-size: 1.2rem;
         }
-
         .global-search-bar input {
             flex: 1;
             min-width: 250px;
@@ -564,22 +562,18 @@ if (isset($_GET['get_student'])) {
             font-size: 0.9rem;
             transition: border-color 0.2s;
         }
-
         .global-search-bar input:focus {
             outline: none;
             border-color: var(--primary-color);
         }
-
         .global-search-bar .search-btn {
             padding: 12px 24px;
             font-size: 0.9rem;
         }
-
         .global-search-bar .clear-btn {
             background: var(--gray-200);
             color: var(--gray-800);
         }
-
         .global-search-bar .clear-btn:hover {
             background: var(--gray-400);
         }
@@ -1112,7 +1106,7 @@ if (isset($_GET['get_student'])) {
             <div class="header-title">
                 <h1>Manage Students</h1>
                 <p>
-                    <?php
+                    <?php 
                     if ($is_global_search) {
                         echo 'Search Results for: "' . htmlspecialchars($global_search_query) . '"';
                     } elseif ($view_mode === 'students' && $current_class) {
@@ -1190,7 +1184,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- CLASSES VIEW (when no class selected and no global search) -->
+        <!-- CLASSES VIEW (when no class selected and no global search) -->
         <?php elseif ($view_mode === 'classes'): ?>
             <div class="class-list">
                 <?php foreach ($all_classes as $class): ?>
@@ -1215,7 +1209,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- STUDENTS VIEW (when class selected) -->
+        <!-- STUDENTS VIEW (when class selected) -->
         <?php elseif ($view_mode === 'students' && $current_class): ?>
 
             <!-- Back Navigation Bar -->

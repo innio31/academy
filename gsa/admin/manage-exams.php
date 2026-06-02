@@ -511,7 +511,7 @@ if (isset($_GET['get_exam'])) {
     header('Content-Type: application/json');
     try {
         $exam_id = intval($_GET['get_exam']);
-
+        
         $stmt = $pdo->prepare("SELECT * FROM exams WHERE id = ? AND school_id = ?");
         $stmt->execute([$exam_id, $school_id]);
         $exam = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -523,14 +523,14 @@ if (isset($_GET['get_exam'])) {
                 $topics = [];
             }
             $exam['topics'] = $topics;
-
+            
             // Ensure all numeric values are integers
             $exam['objective_count'] = (int)$exam['objective_count'];
             $exam['subjective_count'] = (int)$exam['subjective_count'];
             $exam['theory_count'] = (int)$exam['theory_count'];
             $exam['duration_minutes'] = (int)$exam['duration_minutes'];
             $exam['is_active'] = (int)$exam['is_active'];
-
+            
             echo json_encode(['success' => true, 'exam' => $exam]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Exam not found']);
@@ -1517,20 +1517,20 @@ if (isset($_GET['get_exam'])) {
         // Function to safely set checkboxes based on topics array
         function setTopicsCheckboxes(topicsArray) {
             const checkboxes = document.querySelectorAll('input[name="topics[]"]');
-
+            
             if (checkboxes.length === 0) {
                 console.warn('No checkboxes found. Topics container might be empty.');
                 return false;
             }
-
+            
             console.log('Setting checkboxes for topics:', topicsArray);
             console.log('Found checkboxes count:', checkboxes.length);
-
+            
             // First uncheck all
             checkboxes.forEach(cb => {
                 cb.checked = false;
             });
-
+            
             // Then check the ones that match
             if (topicsArray && topicsArray.length > 0) {
                 topicsArray.forEach(topicId => {
@@ -1542,7 +1542,7 @@ if (isset($_GET['get_exam'])) {
                     });
                 });
             }
-
+            
             return true;
         }
 
@@ -1555,13 +1555,13 @@ if (isset($_GET['get_exam'])) {
                 btn.disabled = true;
 
                 console.log('Fetching exam ID:', examId);
-
+                
                 const response = await fetch(`?get_exam=${examId}`);
-
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
+                
                 const data = await response.json();
                 console.log('Response data:', data);
 
@@ -1570,11 +1570,11 @@ if (isset($_GET['get_exam'])) {
 
                 if (data.success && data.exam) {
                     const e = data.exam;
-
+                    
                     // Set basic fields
                     document.getElementById('exam_id').value = e.id;
                     document.getElementById('exam_name').value = e.exam_name || '';
-
+                    
                     // Set class dropdown
                     if (e.class) {
                         const classSelect = document.getElementById('class_name');
@@ -1597,7 +1597,7 @@ if (isset($_GET['get_exam'])) {
                         }
                         updateClassId();
                     }
-
+                    
                     // Set subject
                     if (e.subject_id) {
                         document.getElementById('subject_id').value = e.subject_id;
@@ -1607,7 +1607,7 @@ if (isset($_GET['get_exam'])) {
                     } else {
                         document.getElementById('subject_id').value = '';
                     }
-
+                    
                     // Set exam type and other fields
                     document.getElementById('exam_type').value = e.exam_type || 'objective';
                     document.getElementById('duration_minutes').value = e.duration_minutes || 60;
@@ -1630,19 +1630,19 @@ if (isset($_GET['get_exam'])) {
                             topicsArray = [];
                         }
                     }
-
+                    
                     // Update modal title and button
                     document.getElementById('modalTitle').textContent = 'Edit Exam';
                     const submitBtn = document.getElementById('submitBtn');
                     submitBtn.name = 'update_exam';
                     submitBtn.innerHTML = '<i class="fas fa-edit"></i> Update Exam';
-
+                    
                     // Update question counts based on exam type
                     updateQuestionCounts();
-
+                    
                     // Open the modal first
                     openModal();
-
+                    
                     // Wait for modal to be fully visible and topics to be rendered
                     // Use multiple attempts to set checkboxes
                     setTimeout(() => {
@@ -1654,14 +1654,14 @@ if (isset($_GET['get_exam'])) {
                             }, 500);
                         }
                     }, 200);
-
+                    
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error occurred'));
                 }
             } catch (error) {
                 console.error('Error loading exam:', error);
                 alert('Error loading exam details. Please refresh and try again.\n\nError: ' + error.message);
-
+                
                 if (event && event.currentTarget) {
                     const btn = event.currentTarget;
                     btn.innerHTML = '<i class="fas fa-edit"></i>';
@@ -1689,7 +1689,7 @@ if (isset($_GET['get_exam'])) {
                     classSelect.focus();
                     return false;
                 }
-
+                
                 updateClassId();
             });
         }
@@ -1705,7 +1705,7 @@ if (isset($_GET['get_exam'])) {
         document.addEventListener('DOMContentLoaded', function() {
             updateQuestionCounts();
             console.log('Page loaded - modal functionality ready');
-
+            
             // Debug: Check if topics container has checkboxes
             const checkboxes = document.querySelectorAll('input[name="topics[]"]');
             console.log('Total topics checkboxes found:', checkboxes.length);
@@ -1737,174 +1737,47 @@ if (isset($_GET['get_exam'])) {
 
     <style>
         /* Details modal extras */
-        .summary-cards {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
+        .summary-cards { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+        .summary-card  { flex:1; min-width:110px; background:#f8f9fa; border-radius:10px;
+            padding:14px 18px; text-align:center; border-top:3px solid #ccc; }
+        .summary-card.total     { border-color:var(--info-color); }
+        .summary-card.completed { border-color:var(--success-color); }
+        .summary-card.progress  { border-color:var(--warning-color); }
+        .summary-card .sc-num   { font-size:1.8rem; font-weight:700; line-height:1; }
+        .summary-card .sc-label { font-size:.75rem; color:#666; margin-top:4px; }
+        .summary-card.total     .sc-num { color:var(--info-color); }
+        .summary-card.completed .sc-num { color:var(--success-color); }
+        .summary-card.progress  .sc-num { color:var(--warning-color); }
 
-        .summary-card {
-            flex: 1;
-            min-width: 110px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 14px 18px;
-            text-align: center;
-            border-top: 3px solid #ccc;
-        }
+        .details-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+        .details-table th { background:var(--primary-color); color:white; padding:10px 12px;
+            text-align:left; font-weight:600; white-space:nowrap; }
+        .details-table td { padding:10px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+        .details-table tr:hover td { background:#f9f9f9; }
+        .details-table .status-pill { padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:600; }
+        .status-pill.completed  { background:#d5f4e6; color:#155724; }
+        .status-pill.in_progress { background:#fff3cd; color:#856404; }
+        .grade-pill { display:inline-block; padding:2px 9px; border-radius:12px; font-size:.75rem;
+            font-weight:700; background:#e3f2fd; color:#1565c0; }
+        .reset-btn { background:var(--danger-color); color:white; border:none; padding:5px 10px;
+            border-radius:6px; cursor:pointer; font-size:.78rem; display:inline-flex; align-items:center; gap:5px; }
+        .reset-btn:hover { opacity:.85; }
+        .no-sessions { text-align:center; padding:40px; color:#aaa; }
+        .no-sessions i { font-size:36px; margin-bottom:10px; }
 
-        .summary-card.total {
-            border-color: var(--info-color);
-        }
-
-        .summary-card.completed {
-            border-color: var(--success-color);
-        }
-
-        .summary-card.progress {
-            border-color: var(--warning-color);
-        }
-
-        .summary-card .sc-num {
-            font-size: 1.8rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .summary-card .sc-label {
-            font-size: .75rem;
-            color: #666;
-            margin-top: 4px;
-        }
-
-        .summary-card.total .sc-num {
-            color: var(--info-color);
-        }
-
-        .summary-card.completed .sc-num {
-            color: var(--success-color);
-        }
-
-        .summary-card.progress .sc-num {
-            color: var(--warning-color);
-        }
-
-        .details-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: .84rem;
-        }
-
-        .details-table th {
-            background: var(--primary-color);
-            color: white;
-            padding: 10px 12px;
-            text-align: left;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .details-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #eee;
-            vertical-align: middle;
-        }
-
-        .details-table tr:hover td {
-            background: #f9f9f9;
-        }
-
-        .details-table .status-pill {
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: .72rem;
-            font-weight: 600;
-        }
-
-        .status-pill.completed {
-            background: #d5f4e6;
-            color: #155724;
-        }
-
-        .status-pill.in_progress {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .grade-pill {
-            display: inline-block;
-            padding: 2px 9px;
-            border-radius: 12px;
-            font-size: .75rem;
-            font-weight: 700;
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-
-        .reset-btn {
-            background: var(--danger-color);
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: .78rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .reset-btn:hover {
-            opacity: .85;
-        }
-
-        .no-sessions {
-            text-align: center;
-            padding: 40px;
-            color: #aaa;
-        }
-
-        .no-sessions i {
-            font-size: 36px;
-            margin-bottom: 10px;
-        }
-
-        .details-filters {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 14px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .details-filters select {
-            padding: 7px 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: .85rem;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .details-filters input {
-            padding: 7px 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: .85rem;
-            font-family: 'Poppins', sans-serif;
-            flex: 1;
-            min-width: 160px;
-        }
+        .details-filters { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+        .details-filters select { padding:7px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:.85rem; font-family:'Poppins',sans-serif; }
+        .details-filters input  { padding:7px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:.85rem; font-family:'Poppins',sans-serif; flex:1; min-width:160px; }
     </style>
 
     <script>
         // ── Exam Details ────────────────────────────────────────────────────
-        let currentExamId = null;
-        let allSessions = [];
+        let currentExamId   = null;
+        let allSessions     = [];
 
         async function viewExamDetails(examId, examName) {
             currentExamId = examId;
-            document.getElementById('detailsModalTitle').textContent = examName;
+            document.getElementById('detailsModalTitle').textContent   = examName;
             document.getElementById('detailsModalSubtitle').textContent = 'Loading sessions…';
             document.getElementById('detailsModalBody').innerHTML =
                 '<div style="text-align:center;padding:40px;"><div class="loading" style="width:32px;height:32px;border-width:3px;border-color:rgba(0,0,0,.1);border-top-color:var(--primary-color);display:inline-block;"></div><p style="margin-top:12px;color:#666;">Fetching session data…</p></div>';
@@ -1912,7 +1785,7 @@ if (isset($_GET['get_exam'])) {
             document.getElementById('detailsModal').classList.add('active');
 
             try {
-                const res = await fetch(`?get_exam_details=${examId}`);
+                const res  = await fetch(`?get_exam_details=${examId}`);
                 const data = await res.json();
 
                 if (!data.success) throw new Error(data.error || 'Failed to load details');
@@ -1926,11 +1799,7 @@ if (isset($_GET['get_exam'])) {
         }
 
         function renderDetailsModal(data) {
-            const {
-                exam,
-                sessions,
-                summary
-            } = data;
+            const { exam, sessions, summary } = data;
             const body = document.getElementById('detailsModalBody');
 
             document.getElementById('detailsModalSubtitle').textContent =
@@ -1998,13 +1867,13 @@ if (isset($_GET['get_exam'])) {
         function buildSessionRows(sessions) {
             if (!sessions.length) return '';
             return sessions.map((s, i) => {
-                const started = s.start_time ? fmtDate(s.start_time) : '—';
-                const submitted = s.submitted_at ? fmtDate(s.submitted_at) : (s.end_time ? fmtDate(s.end_time) : '—');
-                const score = s.score != null ? `${s.correct_answers ?? 0}/${s.total_questions ?? 0}` : '—';
-                const pct = s.percentage != null ? parseFloat(s.percentage).toFixed(1) + '%' : '—';
-                const grade = s.grade ? `<span class="grade-pill">${escHtml(s.grade)}</span>` : '—';
-                const pillCls = s.status === 'completed' ? 'completed' : 'in_progress';
-                const pillTxt = s.status === 'completed' ? 'Completed' : 'In Progress';
+                const started   = s.start_time   ? fmtDate(s.start_time)   : '—';
+                const submitted = s.submitted_at  ? fmtDate(s.submitted_at) : (s.end_time ? fmtDate(s.end_time) : '—');
+                const score     = s.score != null ? `${s.correct_answers ?? 0}/${s.total_questions ?? 0}` : '—';
+                const pct       = s.percentage   != null ? parseFloat(s.percentage).toFixed(1) + '%' : '—';
+                const grade     = s.grade         ? `<span class="grade-pill">${escHtml(s.grade)}</span>` : '—';
+                const pillCls   = s.status === 'completed' ? 'completed' : 'in_progress';
+                const pillTxt   = s.status === 'completed' ? 'Completed' : 'In Progress';
                 return `
                     <tr data-name="${escAttr((s.student_name||'').toLowerCase())}"
                         data-adm="${escAttr((s.admission_number||'').toLowerCase())}"
@@ -2030,9 +1899,9 @@ if (isset($_GET['get_exam'])) {
         function filterSessions() {
             const search = (document.getElementById('detailsSearch')?.value || '').toLowerCase();
             const status = document.getElementById('detailsStatusFilter')?.value || '';
-            const rows = document.querySelectorAll('#sessionsTableBody tr');
+            const rows   = document.querySelectorAll('#sessionsTableBody tr');
             rows.forEach(row => {
-                const nameMatch = !search || row.dataset.name?.includes(search) || row.dataset.adm?.includes(search);
+                const nameMatch   = !search || row.dataset.name?.includes(search) || row.dataset.adm?.includes(search);
                 const statusMatch = !status || row.dataset.status === status;
                 row.style.display = nameMatch && statusMatch ? '' : 'none';
             });
@@ -2042,12 +1911,12 @@ if (isset($_GET['get_exam'])) {
             if (!confirm(`Reset ${studentName}'s session? This will permanently delete their answers and allow them to retake the exam.`)) return;
 
             try {
-                const res = await fetch(`?reset_session=${sessionId}&exam_id=${currentExamId}`);
+                const res  = await fetch(`?reset_session=${sessionId}&exam_id=${currentExamId}`);
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
 
                 // Refresh the modal
-                const refreshRes = await fetch(`?get_exam_details=${currentExamId}`);
+                const refreshRes  = await fetch(`?get_exam_details=${currentExamId}`);
                 const refreshData = await refreshRes.json();
                 if (refreshData.success) {
                     allSessions = refreshData.sessions;
@@ -2063,12 +1932,12 @@ if (isset($_GET['get_exam'])) {
             if (!confirm(`Reset ALL ${count} session(s) for this exam? Every student's answers will be permanently deleted and they can retake it. This cannot be undone.`)) return;
 
             try {
-                const res = await fetch(`?reset_all_sessions=1&exam_id=${currentExamId}`);
+                const res  = await fetch(`?reset_all_sessions=1&exam_id=${currentExamId}`);
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
 
                 // Refresh the modal
-                const refreshRes = await fetch(`?get_exam_details=${currentExamId}`);
+                const refreshRes  = await fetch(`?get_exam_details=${currentExamId}`);
                 const refreshData = await refreshRes.json();
                 if (refreshData.success) {
                     allSessions = refreshData.sessions;
@@ -2082,7 +1951,7 @@ if (isset($_GET['get_exam'])) {
         function closeDetailsModal() {
             document.getElementById('detailsModal').classList.remove('active');
             currentExamId = null;
-            allSessions = [];
+            allSessions   = [];
         }
 
         // ── Utilities ───────────────────────────────────────────────────────
@@ -2091,22 +1960,14 @@ if (isset($_GET['get_exam'])) {
             d.textContent = String(str || '');
             return d.innerHTML;
         }
-
         function escAttr(str) {
             return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
-
         function fmtDate(dt) {
             if (!dt) return '—';
             const d = new Date(dt);
             if (isNaN(d)) return dt;
-            return d.toLocaleString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            return d.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
         }
     </script>
 

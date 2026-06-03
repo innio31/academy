@@ -1,6 +1,6 @@
 <?php
-// eagles/admin/exam_recalculate.php - Recalculate Scores, Positions, and Grades
-// AJAX endpoint - No HTML output, only JSON
+// gsa/admin/exam_recalculate.php - Recalculate Scores, Positions, and Grades
+// FIXED: Proper class filtering and subject position calculation
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -62,7 +62,7 @@ $class = $record['class'];
 $session = $record['session'];
 $term = $record['term'];
 
-// ── Get class_id ──────────────────────────────────────────────────────────────
+// ── Get class_id from class name ──────────────────────────────────────────────
 $class_id = 0;
 try {
     $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
@@ -97,7 +97,7 @@ function getGradeInfoRecalc($total, $scale) {
     return ['grade' => 'F', 'remark' => 'Fail'];
 }
 
-// ── Load all students in the class ────────────────────────────────────────────
+// ── Load all students in THIS class ONLY ──────────────────────────────────────
 $students = [];
 try {
     if ($class_id > 0) {
@@ -116,15 +116,33 @@ try {
 $total_students = count($students);
 $student_ids = array_column($students, 'id');
 
-// ── Load all subjects for the class ───────────────────────────────────────────
+if (empty($student_ids)) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'No students found for this class']);
+    exit();
+}
+
+// ── Load all subjects for THIS class ONLY ─────────────────────────────────────
 $subjects = [];
 try {
     if ($class_id > 0) {
-        $stmt = $pdo->prepare("SELECT s.id, s.subject_name FROM subjects s JOIN subject_classes sc ON sc.subject_id = s.id WHERE sc.school_id = ? AND sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1) ORDER BY s.subject_name ASC");
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.subject_name 
+            FROM subjects s 
+            JOIN subject_classes sc ON sc.subject_id = s.id 
+            WHERE sc.school_id = ? AND sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1) 
+            ORDER BY s.subject_name ASC
+        ");
         $stmt->execute([$school_id, $class_id, $school_id]);
         $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->prepare("SELECT s.id, s.subject_name FROM subjects s JOIN subject_classes sc ON sc.subject_id = s.id WHERE sc.school_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1) ORDER BY s.subject_name ASC");
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.subject_name 
+            FROM subjects s 
+            JOIN subject_classes sc ON sc.subject_id = s.id 
+            WHERE sc.school_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1) 
+            ORDER BY s.subject_name ASC
+        ");
         $stmt->execute([$school_id, $class, $school_id]);
         $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -140,12 +158,25 @@ if (empty($subjects)) {
 
 $subject_ids = array_column($subjects, 'id');
 
-// ── Load all scores ───────────────────────────────────────────────────────────
+// ── Load scores for THIS class ONLY (using student_ids filter) ─────────────────
 $scores = [];
 try {
-    $ph = implode(',', array_fill(0, count($subject_ids), '?'));
-    $stmt = $pdo->prepare("SELECT student_id, subject_id, score_data, total_score FROM student_scores WHERE school_id = ? AND session = ? AND term = ? AND subject_id IN ($ph)");
-    $stmt->execute(array_merge([$school_id, $session, $term], $subject_ids));
+    // Build query with student_id filter
+    $student_ph = implode(',', array_fill(0, count($student_ids), '?'));
+    $subject_ph = implode(',', array_fill(0, count($subject_ids), '?'));
+    
+    $stmt = $pdo->prepare("
+        SELECT ss.student_id, ss.subject_id, ss.score_data, ss.total_score 
+        FROM student_scores ss
+        WHERE ss.school_id = ? 
+          AND ss.session = ? 
+          AND ss.term = ? 
+          AND ss.student_id IN ($student_ph)
+          AND ss.subject_id IN ($subject_ph)
+    ");
+    $params = array_merge([$school_id, $session, $term], $student_ids, $subject_ids);
+    $stmt->execute($params);
+    
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
         $scores[(int)$row['student_id']][(int)$row['subject_id']] = $row;
@@ -188,7 +219,7 @@ if ($action === 'all' || $action === 'scores') {
             $max_score = (int)($record['max_score'] ?? 100);
             $percentage = $max_score > 0 ? round(($total / $max_score) * 100, 2) : 0;
             
-            // Get grade based on percentage (using total_score percentage)
+            // Get grade based on percentage
             $grade_info = getGradeInfoRecalc($percentage, $grading_scale);
             
             // Update the database
@@ -210,29 +241,34 @@ if ($action === 'all' || $action === 'scores') {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// STEP 2: RECALCULATE SUBJECT POSITIONS (per subject, within class)
+// STEP 2: RECALCULATE SUBJECT POSITIONS (per subject, within THIS class ONLY)
 // ──────────────────────────────────────────────────────────────────────────────
 if ($action === 'all' || $action === 'positions') {
     
+    $sequential_positions = (int)($record['sequential_positions'] ?? 0);
+    
     foreach ($subject_ids as $subject_id) {
-        // Get all students' total scores for this subject, ordered by total_score DESC
-        $subjectScores = [];
-        
-        // Also handle sequential positions option
-        $sequential_positions = (int)($record['sequential_positions'] ?? 0);
+        // Get all students' total scores for this subject, filtered by THIS class
+        $subject_ph = '?';
+        $student_ph = implode(',', array_fill(0, count($student_ids), '?'));
         
         $stmt = $pdo->prepare("
             SELECT ss.student_id, ss.total_score, ss.id as score_id
             FROM student_scores ss
-            WHERE ss.school_id = ? AND ss.subject_id = ? AND ss.session = ? AND ss.term = ?
+            WHERE ss.school_id = ? 
+              AND ss.subject_id = ? 
+              AND ss.session = ? 
+              AND ss.term = ?
+              AND ss.student_id IN ($student_ph)
             ORDER BY ss.total_score DESC
         ");
-        $stmt->execute([$school_id, $subject_id, $session, $term]);
+        $params = array_merge([$school_id, $subject_id, $session, $term], $student_ids);
+        $stmt->execute($params);
         $ranked = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         $position = 1;
         $prev_score = null;
-        $prev_position = 1;
+        $prev_display_position = 1;
         
         foreach ($ranked as $idx => $row) {
             $current_score = (float)$row['total_score'];
@@ -242,19 +278,14 @@ if ($action === 'all' || $action === 'positions') {
                 $display_position = $idx + 1;
             } else {
                 // Standard: handle ties (same score = same position)
-                if ($prev_score !== null && $current_score < $prev_score) {
-                    $position = $idx + 1;
-                } elseif ($prev_score !== null && $current_score == $prev_score) {
-                    // Same position for tie
-                    $display_position = $prev_position;
-                    $position = $prev_position;
+                if ($idx === 0) {
+                    $display_position = 1;
+                } elseif ($current_score == $prev_score) {
+                    $display_position = $prev_display_position;
                 } else {
-                    $display_position = $position;
+                    $display_position = $idx + 1;
                 }
-                $prev_position = $position;
             }
-            
-            $display_position = $position;
             
             // Update student_scores table
             $updateStmt = $pdo->prepare("UPDATE student_scores SET subject_position = ? WHERE id = ?");
@@ -281,13 +312,14 @@ if ($action === 'all' || $action === 'positions') {
             
             $stats['subject_positions_updated']++;
             $prev_score = $current_score;
+            $prev_display_position = $display_position;
         }
         $stats['subjects_processed']++;
     }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// STEP 3: RECALCULATE CLASS POSITIONS AND AVERAGES
+// STEP 3: RECALCULATE CLASS POSITIONS AND AVERAGES (within THIS class ONLY)
 // ──────────────────────────────────────────────────────────────────────────────
 if ($action === 'all' || $action === 'class_positions') {
     
@@ -316,32 +348,28 @@ if ($action === 'all' || $action === 'class_positions') {
     
     // Sort by average to determine class positions
     $sequential_positions = (int)($record['sequential_positions'] ?? 0);
-    $position = 1;
-    $prev_avg = null;
-    $prev_position = 1;
     
     // Sort students by average DESC
     arsort($student_averages);
     $ranked_students = [];
+    $position = 1;
+    $prev_avg = null;
+    $prev_display_position = 1;
     $idx = 0;
     
     foreach ($student_averages as $student_id => $avg) {
         if ($sequential_positions) {
             $display_position = $idx + 1;
-            $position = $display_position;
         } else {
-            if ($prev_avg !== null && $avg < $prev_avg) {
-                $position = $idx + 1;
-            } elseif ($prev_avg !== null && $avg == $prev_avg) {
-                $display_position = $prev_position;
-                $position = $prev_position;
+            if ($idx === 0) {
+                $display_position = 1;
+            } elseif ($avg == $prev_avg) {
+                $display_position = $prev_display_position;
             } else {
-                $display_position = $position;
+                $display_position = $idx + 1;
             }
-            $prev_position = $position;
         }
         
-        $display_position = $position;
         $ranked_students[$student_id] = [
             'position' => $display_position,
             'average' => $avg,
@@ -350,6 +378,7 @@ if ($action === 'all' || $action === 'class_positions') {
         ];
         
         $prev_avg = $avg;
+        $prev_display_position = $display_position;
         $idx++;
     }
     
@@ -401,7 +430,10 @@ echo json_encode([
     'success' => true,
     'message' => 'Recalculation completed successfully!',
     'stats' => $stats,
-    'record_id' => $record_id
+    'record_id' => $record_id,
+    'class' => $class,
+    'students_count' => $total_students,
+    'subjects_count' => count($subjects)
 ]);
 exit();
 ?>

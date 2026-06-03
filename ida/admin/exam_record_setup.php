@@ -1,5 +1,5 @@
 <?php
-// ida/admin/exam_record_setup.php - Create / Edit Exam Record Setup (Modal-based UX)
+// ida/admin/exam_record_setup.php - Create / Edit Exam Record Setup (Class-first UX)
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -33,23 +33,55 @@ $school_name     = SCHOOL_NAME;
 $primary_color   = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
 
-// ── Fetch supporting data ─────────────────────────────────────────────────────
-$classes = [];
-$existing_sessions = [];
-$success_message = '';
-$error_message = '';
+// ── Get selected class from URL ───────────────────────────────────────────────
+$selected_class = isset($_GET['class']) ? trim($_GET['class']) : '';
+$selected_class_id = 0;
 
+// ── Fetch all classes for this school ─────────────────────────────────────────
+$classes = [];
 try {
-    // Active classes for this school
     $stmt = $pdo->prepare(
-        "SELECT class_name FROM classes
+        "SELECT id, class_name FROM classes
           WHERE school_id = ? AND status = 'active'
           ORDER BY sort_order ASC, class_name ASC"
     );
     $stmt->execute([$school_id]);
-    $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("exam_record_setup.php fetch classes error: " . $e->getMessage());
+}
 
-    // Distinct academic years already used
+// If class is selected, get its ID
+if (!empty($selected_class)) {
+    foreach ($classes as $c) {
+        if ($c['class_name'] === $selected_class) {
+            $selected_class_id = $c['id'];
+            break;
+        }
+    }
+}
+
+// ── Fetch exam records for selected class ─────────────────────────────────────
+$class_records = [];
+if (!empty($selected_class)) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT id, record_name, session, term, template, status, created_at, updated_at
+            FROM report_card_settings 
+            WHERE school_id = ? AND class = ? 
+            ORDER BY session DESC, 
+                     FIELD(term, 'First', 'Second', 'Third') ASC
+        ");
+        $stmt->execute([$school_id, $selected_class]);
+        $class_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("exam_record_setup.php fetch records error: " . $e->getMessage());
+    }
+}
+
+// ── Fetch existing sessions for dropdown ──────────────────────────────────────
+$existing_sessions = [];
+try {
     $stmt = $pdo->prepare(
         "SELECT DISTINCT session FROM report_card_settings
           WHERE school_id = ?
@@ -58,10 +90,13 @@ try {
     $stmt->execute([$school_id]);
     $existing_sessions = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
-    error_log("exam_record_setup.php fetch error: " . $e->getMessage());
+    error_log("exam_record_setup.php fetch sessions error: " . $e->getMessage());
 }
 
 // ── Flash messages ───────────────────────────────────────────────────────────
+$success_message = '';
+$error_message = '';
+
 if (isset($_SESSION['flash_success'])) {
     $success_message = $_SESSION['flash_success'];
     unset($_SESSION['flash_success']);
@@ -104,7 +139,7 @@ $grading_presets = [
     ],
 ];
 
-// ── Handle form POST (AJAX style but works with regular POST) ─────────────────
+// ── Handle form POST ──────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $response = ['success' => false, 'message' => '', 'record_id' => 0];
     
@@ -327,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response['message'] = implode('<br>', $errors);
         }
         
-        // Return JSON for AJAX or redirect for regular POST
+        // Return JSON for AJAX
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
             echo json_encode($response);
@@ -342,7 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $_SESSION['flash_error'] = $response['message'];
                 }
-                header("Location: exam_record_setup.php");
+                header("Location: exam_record_setup.php" . (!empty($class) ? "?class=" . urlencode($class) : ""));
                 exit();
             }
         }
@@ -374,7 +409,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     } elseif ($action === 'delete_record') {
         $record_id = (int)$_POST['record_id'];
-        // Check if record can be deleted
         $stmt = $pdo->prepare("SELECT status FROM report_card_settings WHERE id = ? AND school_id = ?");
         $stmt->execute([$record_id, $school_id]);
         $record = $stmt->fetch();
@@ -391,19 +425,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode($response);
         exit();
     }
-}
-
-// ── Fetch all records for display ─────────────────────────────────────────────
-$all_records = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT id, record_name, session, term, class, template, status, created_at, updated_at
-        FROM report_card_settings WHERE school_id = ? ORDER BY created_at DESC
-    ");
-    $stmt->execute([$school_id]);
-    $all_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $all_records = [];
 }
 
 $page_title = "Exam Records Management";
@@ -439,11 +460,7 @@ $page_title = "Exam Records Management";
             --transition: all 0.3s ease;
         }
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: 'Poppins', sans-serif;
@@ -453,7 +470,6 @@ $page_title = "Exam Records Management";
             overflow-x: hidden;
         }
         
-        /* Mobile Menu Toggle */
         .mobile-menu-toggle {
             position: fixed;
             top: 15px;
@@ -486,12 +502,8 @@ $page_title = "Exam Records Management";
             transition: var(--transition);
         }
         
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .sidebar-overlay.active { opacity: 1; visibility: visible; }
         
-        /* Main Layout */
         .main-content {
             min-height: 100vh;
             padding: 20px;
@@ -503,9 +515,7 @@ $page_title = "Exam Records Management";
             .main-content { margin-left: var(--sidebar-width); }
         }
         
-        @media (max-width: 767px) {
-            .main-content { padding-top: 70px; }
-        }
+        @media (max-width: 767px) { .main-content { padding-top: 70px; } }
         
         /* Header */
         .top-header {
@@ -521,16 +531,8 @@ $page_title = "Exam Records Management";
             box-shadow: var(--shadow-sm);
         }
         
-        .top-header h1 {
-            color: var(--primary-color);
-            font-size: 1.5rem;
-            margin-bottom: 4px;
-        }
-        
-        .top-header p {
-            color: #666;
-            font-size: 0.85rem;
-        }
+        .top-header h1 { color: var(--primary-color); font-size: 1.5rem; margin-bottom: 4px; }
+        .top-header p { color: #666; font-size: 0.85rem; }
         
         .btn-create {
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
@@ -547,62 +549,82 @@ $page_title = "Exam Records Management";
             transition: var(--transition);
         }
         
-        .btn-create:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
+        .btn-create:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
         
-        /* Stats Cards */
-        .stats-grid {
+        /* Classes Grid */
+        .classes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
         
-        .stat-card {
+        .class-card {
             background: white;
             border-radius: var(--radius-md);
             padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            box-shadow: var(--shadow-sm);
+            text-align: center;
+            cursor: pointer;
             transition: var(--transition);
+            border: 2px solid transparent;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            overflow: hidden;
         }
         
-        .stat-card:hover {
-            transform: translateY(-3px);
+        .class-card:hover {
+            transform: translateY(-5px);
             box-shadow: var(--shadow-md);
         }
         
-        .stat-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: var(--radius-sm);
+        .class-card.selected {
+            border-color: var(--primary-color);
+            background: #f0f7ff;
+        }
+        
+        .class-card.selected::before {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: var(--success-color);
+            font-size: 14px;
+        }
+        
+        .class-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 24px;
+            margin: 0 auto 12px;
         }
         
-        .stat-info h3 {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: var(--dark-color);
+        .class-card h3 { font-size: 1rem; margin-bottom: 5px; color: var(--dark-color); }
+        .class-card p { font-size: 0.7rem; color: #888; }
+        
+        .record-count {
+            display: inline-block;
+            background: var(--light-color);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            margin-top: 8px;
         }
         
-        .stat-info p {
-            font-size: 0.8rem;
-            color: #888;
-        }
-        
-        /* Records Table */
-        .records-card {
+        /* Records Section */
+        .records-section {
             background: white;
             border-radius: var(--radius-md);
             overflow: hidden;
             box-shadow: var(--shadow-sm);
+            margin-top: 20px;
         }
         
         .records-header {
@@ -613,34 +635,12 @@ $page_title = "Exam Records Management";
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            background: var(--primary-color);
+            color: white;
         }
         
-        .records-header h2 {
-            font-size: 1.2rem;
-            color: var(--dark-color);
-        }
-        
-        .search-box {
-            display: flex;
-            align-items: center;
-            background: #f5f6fa;
-            border-radius: var(--radius-sm);
-            padding: 8px 15px;
-            gap: 8px;
-        }
-        
-        .search-box i {
-            color: #999;
-        }
-        
-        .search-box input {
-            border: none;
-            background: none;
-            outline: none;
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.85rem;
-            width: 200px;
-        }
+        .records-header h2 { font-size: 1.2rem; }
+        .records-header h2 i { margin-right: 8px; }
         
         .records-table {
             width: 100%;
@@ -663,9 +663,7 @@ $page_title = "Exam Records Management";
             font-size: 0.85rem;
         }
         
-        .records-table tr:hover {
-            background: #fafafa;
-        }
+        .records-table tr:hover { background: #fafafa; }
         
         .status-badge {
             display: inline-block;
@@ -675,15 +673,9 @@ $page_title = "Exam Records Management";
             font-weight: 500;
         }
         
-        .status-active {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-draft {
-            background: #e2e3e5;
-            color: #383d41;
-        }
+        .status-active { background: #d4edda; color: #155724; }
+        .status-draft { background: #e2e3e5; color: #383d41; }
+        .status-published { background: #cce5ff; color: #004085; }
         
         .action-buttons {
             display: flex;
@@ -704,36 +696,13 @@ $page_title = "Exam Records Management";
             font-size: 12px;
         }
         
-        .action-btn.edit {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
+        .action-btn.edit { background: #e3f2fd; color: #1976d2; }
+        .action-btn.scores { background: #e8f5e9; color: #388e3c; }
+        .action-btn.results { background: #fff3e0; color: #f57c00; }
+        .action-btn.clone { background: #e0f7fa; color: #0097a7; }
+        .action-btn.delete { background: #ffebee; color: #d32f2f; }
+        .action-btn:hover { transform: scale(1.05); }
         
-        .action-btn.scores {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-        
-        .action-btn.results {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-        
-        .action-btn.clone {
-            background: #e0f7fa;
-            color: #0097a7;
-        }
-        
-        .action-btn.delete {
-            background: #ffebee;
-            color: #d32f2f;
-        }
-        
-        .action-btn:hover {
-            transform: scale(1.05);
-        }
-        
-        /* Alert Messages */
         .alert {
             padding: 14px 18px;
             border-radius: var(--radius-sm);
@@ -743,17 +712,16 @@ $page_title = "Exam Records Management";
             gap: 10px;
         }
         
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border-left: 4px solid var(--success-color);
+        .alert-success { background: #d4edda; color: #155724; border-left: 4px solid var(--success-color); }
+        .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
         }
         
-        .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid var(--danger-color);
-        }
+        .empty-state i { font-size: 48px; margin-bottom: 14px; opacity: 0.3; display: block; }
         
         /* Modal Styles */
         .modal {
@@ -769,9 +737,7 @@ $page_title = "Exam Records Management";
             justify-content: center;
         }
         
-        .modal.active {
-            display: flex;
-        }
+        .modal.active { display: flex; }
         
         .modal-container {
             background: white;
@@ -785,14 +751,8 @@ $page_title = "Exam Records Management";
         }
         
         @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .modal-header {
@@ -805,18 +765,8 @@ $page_title = "Exam Records Management";
             color: white;
         }
         
-        .modal-header h3 {
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-        
-        .modal-close {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-        }
+        .modal-header h3 { font-size: 1.1rem; font-weight: 500; }
+        .modal-close { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
         
         .modal-body {
             padding: 24px;
@@ -878,21 +828,10 @@ $page_title = "Exam Records Management";
             font-size: 18px;
         }
         
-        .section-icon.completed {
-            background: var(--success-color);
-        }
+        .section-icon.completed { background: var(--success-color); }
         
-        .section-info h4 {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--dark-color);
-        }
-        
-        .section-info p {
-            font-size: 0.75rem;
-            color: #888;
-            margin-top: 2px;
-        }
+        .section-info h4 { font-size: 0.95rem; font-weight: 600; color: var(--dark-color); }
+        .section-info p { font-size: 0.75rem; color: #888; margin-top: 2px; }
         
         .section-status {
             display: flex;
@@ -907,9 +846,7 @@ $page_title = "Exam Records Management";
             background: #ffc107;
         }
         
-        .status-indicator.completed {
-            background: var(--success-color);
-        }
+        .status-indicator.completed { background: var(--success-color); }
         
         .section-content {
             display: none;
@@ -918,26 +855,13 @@ $page_title = "Exam Records Management";
             background: white;
         }
         
-        .section-content.active {
-            display: block;
-        }
+        .section-content.active { display: block; }
         
         /* Form Elements */
-        .form-group {
-            margin-bottom: 16px;
-        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: #555; margin-bottom: 5px; }
         
-        .form-group label {
-            display: block;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: #555;
-            margin-bottom: 5px;
-        }
-        
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
+        .form-group input, .form-group select, .form-group textarea {
             width: 100%;
             padding: 10px 12px;
             border: 1.5px solid #e0e0e0;
@@ -947,9 +871,7 @@ $page_title = "Exam Records Management";
             transition: border-color 0.2s;
         }
         
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             outline: none;
             border-color: var(--primary-color);
         }
@@ -961,9 +883,7 @@ $page_title = "Exam Records Management";
             margin-bottom: 16px;
         }
         
-        .form-row-3 {
-            grid-template-columns: 1fr 1fr 1fr;
-        }
+        .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
         
         /* Template Grid */
         .template-grid {
@@ -973,13 +893,8 @@ $page_title = "Exam Records Management";
             margin-bottom: 20px;
         }
         
-        .tpl-option {
-            cursor: pointer;
-        }
-        
-        .tpl-option input {
-            display: none;
-        }
+        .tpl-option { cursor: pointer; }
+        .tpl-option input { display: none; }
         
         .tpl-preview {
             border: 2px solid #e0e0e0;
@@ -994,15 +909,8 @@ $page_title = "Exam Records Management";
             background: #f0f7ff;
         }
         
-        .tpl-preview i {
-            font-size: 24px;
-            margin-bottom: 8px;
-            display: block;
-        }
-        
-        .tpl-preview span {
-            font-size: 0.75rem;
-        }
+        .tpl-preview i { font-size: 24px; margin-bottom: 8px; display: block; }
+        .tpl-preview span { font-size: 0.75rem; }
         
         /* Score Builder */
         .score-row {
@@ -1030,9 +938,7 @@ $page_title = "Exam Records Management";
             border-bottom: 1px solid #eee;
         }
         
-        .toggle-switch label {
-            margin-bottom: 0;
-        }
+        .toggle-switch label { margin-bottom: 0; }
         
         .switch {
             position: relative;
@@ -1044,6 +950,7 @@ $page_title = "Exam Records Management";
             opacity: 0;
             width: 0;
             height: 0;
+            position: absolute;
         }
         
         .slider {
@@ -1067,13 +974,8 @@ $page_title = "Exam Records Management";
             transition: 0.2s;
         }
         
-        .switch input:checked + .slider {
-            background: var(--primary-color);
-        }
-        
-        .switch input:checked + .slider:before {
-            transform: translateX(20px);
-        }
+        .switch input:checked + .slider { background: var(--primary-color); }
+        .switch input:checked + .slider:before { transform: translateX(20px); }
         
         /* Buttons */
         .btn {
@@ -1090,37 +992,13 @@ $page_title = "Exam Records Management";
             transition: var(--transition);
         }
         
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-secondary { background: white; color: var(--primary-color); border: 1px solid var(--primary-color); }
+        .btn-success { background: var(--success-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 0.75rem; }
+        .btn-icon { padding: 6px 10px; }
         
-        .btn-secondary {
-            background: white;
-            color: var(--primary-color);
-            border: 1px solid var(--primary-color);
-        }
-        
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-        
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-        
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.75rem;
-        }
-        
-        .btn-icon {
-            padding: 6px 10px;
-        }
-        
-        /* Footer */
         .footer {
             text-align: center;
             padding: 20px;
@@ -1134,11 +1012,9 @@ $page_title = "Exam Records Management";
             .form-row, .form-row-3, .template-grid {
                 grid-template-columns: 1fr;
             }
-            
-            .stats-grid {
+            .classes-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
-            
             .records-table {
                 display: block;
                 overflow-x: auto;
@@ -1160,11 +1036,13 @@ $page_title = "Exam Records Management";
     <div class="top-header">
         <div>
             <h1><i class="fas fa-clipboard-list"></i> <?php echo $page_title; ?></h1>
-            <p>Manage all exam records, create new ones, or edit existing settings</p>
+            <p>Select a class to view or manage its exam records</p>
         </div>
-        <button class="btn-create" onclick="openCreateModal()">
-            <i class="fas fa-plus"></i> Create New Exam Record
-        </button>
+        <?php if (!empty($selected_class)): ?>
+            <a href="exam_record_setup.php" class="btn-create" style="background: #6c757d;">
+                <i class="fas fa-arrow-left"></i> Back to All Classes
+            </a>
+        <?php endif; ?>
     </div>
     
     <?php if ($success_message): ?>
@@ -1174,91 +1052,102 @@ $page_title = "Exam Records Management";
         <div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> <?php echo $error_message; ?></div>
     <?php endif; ?>
     
-    <!-- Stats -->
-    <?php 
-        $total_records = count($all_records);
-        $active_records = count(array_filter($all_records, fn($r) => ($r['status'] ?? '') === 'active'));
-        $draft_records = count(array_filter($all_records, fn($r) => ($r['status'] ?? '') === 'draft'));
-    ?>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: #e3f2fd; color: #1976d2;"><i class="fas fa-database"></i></div>
-            <div class="stat-info"><h3><?php echo $total_records; ?></h3><p>Total Records</p></div>
+    <?php if (empty($selected_class)): ?>
+        <!-- Class Selection View -->
+        <div class="classes-grid">
+            <?php 
+            // Get record counts per class
+            $record_counts = [];
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT class, COUNT(*) as count FROM report_card_settings 
+                    WHERE school_id = ? 
+                    GROUP BY class
+                ");
+                $stmt->execute([$school_id]);
+                $counts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($counts as $c) {
+                    $record_counts[$c['class']] = $c['count'];
+                }
+            } catch (Exception $e) { }
+            
+            foreach ($classes as $class): 
+                $count = $record_counts[$class['class_name']] ?? 0;
+            ?>
+                <div class="class-card" onclick="selectClass('<?php echo htmlspecialchars($class['class_name']); ?>')">
+                    <div class="class-icon"><i class="fas fa-chalkboard"></i></div>
+                    <h3><?php echo htmlspecialchars($class['class_name']); ?></h3>
+                    <span class="record-count">
+                        <i class="fas fa-file-alt"></i> <?php echo $count; ?> record(s)
+                    </span>
+                </div>
+            <?php endforeach; ?>
         </div>
-        <div class="stat-card">
-            <div class="stat-icon" style="background: #e8f5e9; color: #388e3c;"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-info"><h3><?php echo $active_records; ?></h3><p>Active Records</p></div>
+        
+        <div class="footer">
+            &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
         </div>
-        <div class="stat-card">
-            <div class="stat-icon" style="background: #fff3e0; color: #f57c00;"><i class="fas fa-pen-fancy"></i></div>
-            <div class="stat-info"><h3><?php echo $draft_records; ?></h3><p>Draft Records</p></div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon" style="background: #f3e5f5; color: #9c27b0;"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="stat-info"><h3><?php echo count($classes); ?></h3><p>Classes</p></div>
-        </div>
-    </div>
-    
-    <!-- Records List -->
-    <div class="records-card">
-        <div class="records-header">
-            <h2><i class="fas fa-list"></i> All Exam Records</h2>
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Search records..." onkeyup="filterRecords()">
+        
+    <?php else: ?>
+        <!-- Records View for Selected Class -->
+        <div class="records-section">
+            <div class="records-header">
+                <h2><i class="fas fa-book-open"></i> <?php echo htmlspecialchars($selected_class); ?> - Exam Records</h2>
+                <button class="btn-create" onclick="openCreateModal('<?php echo htmlspecialchars($selected_class); ?>')">
+                    <i class="fas fa-plus"></i> New Exam Record
+                </button>
             </div>
+            
+            <?php if (empty($class_records)): ?>
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <h3>No exam records found for <?php echo htmlspecialchars($selected_class); ?></h3>
+                    <p>Click "New Exam Record" to create one.</p>
+                </div>
+            <?php else: ?>
+                <div style="overflow-x: auto;">
+                    <table class="records-table">
+                        <thead>
+                            <tr>
+                                <th>Record Name</th>
+                                <th>Session</th>
+                                <th>Term</th>
+                                <th>Template</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($class_records as $r): ?>
+                            <tr data-record-id="<?php echo $r['id']; ?>">
+                                <td><strong><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></strong></td>
+                                <td><?php echo htmlspecialchars($r['session']); ?></td>
+                                <td><?php echo htmlspecialchars($r['term']); ?> Term</td>
+                                <td><i class="fas fa-palette"></i> <?php echo ucfirst($r['template']); ?></td>
+                                <td><span class="status-badge status-<?php echo $r['status']; ?>"><?php echo ucfirst($r['status']); ?></span></td>
+                                <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="action-btn edit" onclick="editRecord(<?php echo $r['id']; ?>)" title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="action-btn scores" onclick="goToScores(<?php echo $r['id']; ?>)" title="Enter Scores"><i class="fas fa-pencil-alt"></i></button>
+                                        <button class="action-btn results" onclick="goToResults(<?php echo $r['id']; ?>)" title="Generate Results"><i class="fas fa-id-card"></i></button>
+                                        <button class="action-btn clone" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone"><i class="fas fa-copy"></i></button>
+                                        <button class="action-btn delete" onclick="deleteRecord(<?php echo $r['id']; ?>)" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
-        <div style="overflow-x: auto;">
-            <table class="records-table" id="recordsTable">
-                <thead>
-                    <tr>
-                        <th>Record Name</th>
-                        <th>Session</th>
-                        <th>Term</th>
-                        <th>Class</th>
-                        <th>Template</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($all_records as $r): ?>
-                    <tr data-record-id="<?php echo $r['id']; ?>">
-                        <td><strong><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></strong></td>
-                        <td><?php echo htmlspecialchars($r['session']); ?></td>
-                        <td><?php echo htmlspecialchars($r['term']); ?></td>
-                        <td><?php echo htmlspecialchars($r['class']); ?></td>
-                        <td><i class="fas fa-palette"></i> <?php echo ucfirst($r['template']); ?></td>
-                        <td><span class="status-badge status-<?php echo $r['status']; ?>"><?php echo ucfirst($r['status']); ?></span></td>
-                        <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
-                        <td>
-                            <div class="action-buttons">
-                                <button class="action-btn edit" onclick="editRecord(<?php echo $r['id']; ?>)" title="Edit"><i class="fas fa-edit"></i></button>
-                                <button class="action-btn scores" onclick="goToScores(<?php echo $r['id']; ?>)" title="Enter Scores"><i class="fas fa-pencil-alt"></i></button>
-                                <button class="action-btn results" onclick="goToResults(<?php echo $r['id']; ?>)" title="Generate Results"><i class="fas fa-id-card"></i></button>
-                                <button class="action-btn clone" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone"><i class="fas fa-copy"></i></button>
-                                <button class="action-btn delete" onclick="deleteRecord(<?php echo $r['id']; ?>)" title="Delete"><i class="fas fa-trash-alt"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($all_records)): ?>
-                    <tr>
-                        <td colspan="8" style="text-align: center; padding: 40px;">
-                            <i class="fas fa-folder-open" style="font-size: 48px; color: #ccc; margin-bottom: 10px; display: block;"></i>
-                            No exam records found. Click "Create New Exam Record" to get started.
-                        </td>
-                    </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+        
+        <div class="footer">
+            &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
         </div>
-    </div>
-    
-    <div class="footer">
-        &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> — Online Portal
-    </div>
+    <?php endif; ?>
 </div>
 
 <!-- Main Create/Edit Modal -->
@@ -1333,6 +1222,8 @@ let completedSections = {
 };
 
 const gradingPresets = <?php echo json_encode($grading_presets); ?>;
+const classesList = <?php echo json_encode(array_column($classes, 'class_name')); ?>;
+const existingSessions = <?php echo json_encode($existing_sessions); ?>;
 
 // Section definitions
 const sections = [
@@ -1345,14 +1236,18 @@ const sections = [
     { id: 'display_options', title: 'Display Options', icon: 'fa-cog', description: 'Toggle report card sections' }
 ];
 
-function openCreateModal() {
+function selectClass(className) {
+    window.location.href = 'exam_record_setup.php?class=' + encodeURIComponent(className);
+}
+
+function openCreateModal(className = '') {
     isEditMode = false;
     currentRecordId = 0;
     formData.record_id = 0;
     formData.record_name = '';
     formData.session = '';
     formData.term = '';
-    formData.class = '';
+    formData.class = className || '';
     formData.template = 'classic';
     formData.grading_system = 'simple';
     formData.default_class_teacher_name = '';
@@ -1495,14 +1390,20 @@ function toggleSection(sectionId) {
 
 function markSectionCompleted(sectionId, value = true) {
     completedSections[sectionId] = value;
-    const sectionItem = document.querySelector(`.section-item .section-header`).closest('.section-item');
-    if (sectionItem) {
-        if (value) {
-            sectionItem.classList.add('completed');
-            const iconDiv = sectionItem.querySelector('.section-icon');
-            if (iconDiv) iconDiv.classList.add('completed');
-            const statusSpan = sectionItem.querySelector('.section-status');
-            if (statusSpan) statusSpan.innerHTML = '<i class="fas fa-check-circle" style="color: #27ae60;"></i> <i class="fas fa-chevron-down"></i>';
+    // Find the section item and update its appearance
+    const sectionsContainer = document.getElementById('sectionsList');
+    const sectionItems = sectionsContainer.querySelectorAll('.section-item');
+    for (let item of sectionItems) {
+        const header = item.querySelector('.section-header h4');
+        if (header && header.innerText.toLowerCase().includes(sectionId.replace('_', ' '))) {
+            if (value) {
+                item.classList.add('completed');
+                const iconDiv = item.querySelector('.section-icon');
+                if (iconDiv) iconDiv.classList.add('completed');
+                const statusSpan = item.querySelector('.section-status');
+                if (statusSpan) statusSpan.innerHTML = '<i class="fas fa-check-circle" style="color: #27ae60;"></i> <i class="fas fa-chevron-down"></i>';
+            }
+            break;
         }
     }
 }
@@ -1524,7 +1425,7 @@ function renderTemplateSection() {
         html += `
             <div class="tpl-option" onclick="selectTemplate('${tpl.id}')">
                 <input type="radio" name="template_radio" value="${tpl.id}" ${formData.template === tpl.id ? 'checked' : ''}>
-                <div class="tpl-preview" style="border-color: ${formData.template === tpl.id ? formData.template === tpl.id ? '#006' : '#e0e0e0' : '#e0e0e0'}">
+                <div class="tpl-preview">
                     <i class="fas ${tpl.icon}" style="font-size: 28px; color: ${tpl.color};"></i>
                     <span>${tpl.name}</span>
                 </div>
@@ -1556,14 +1457,11 @@ function renderRecordDetailsSection() {
     const container = document.getElementById('section-record_details');
     if (!container) return;
     
-    const classes = <?php echo json_encode($classes); ?>;
-    const existingSessions = <?php echo json_encode($existing_sessions); ?>;
-    
     let sessionOptions = '';
     existingSessions.forEach(s => { sessionOptions += `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`; });
     
     let classOptions = '<option value="">— Select class —</option>';
-    classes.forEach(c => { classOptions += `<option value="${c.replace(/"/g, '&quot;')}" ${formData.class === c ? 'selected' : ''}>${c}</option>`; });
+    classesList.forEach(c => { classOptions += `<option value="${c.replace(/"/g, '&quot;')}" ${formData.class === c ? 'selected' : ''}>${c}</option>`; });
     
     container.innerHTML = `
         <div class="form-group">
@@ -1622,7 +1520,7 @@ function renderScoreSettingsSection() {
     let scoreRowsHtml = '';
     formData.score_types.forEach((st, idx) => {
         scoreRowsHtml += `
-            <div class="score-row" data-idx="${idx}">
+            <div class="score-row">
                 <input type="text" class="score-label" value="${st.label.replace(/"/g, '&quot;')}" placeholder="Score label">
                 <input type="number" class="score-max" value="${st.max}" min="1" max="100">
                 <button class="btn btn-icon btn-sm" onclick="removeScoreRow(this)"><i class="fas fa-trash-alt"></i></button>
@@ -1646,10 +1544,8 @@ function renderScoreSettingsSection() {
 
 function addScoreRowUI() {
     const container = document.getElementById('scoreBuilderContainer');
-    const idx = container.children.length;
     const div = document.createElement('div');
     div.className = 'score-row';
-    div.setAttribute('data-idx', idx);
     div.innerHTML = `
         <input type="text" class="score-label" value="New Score" placeholder="Score label">
         <input type="number" class="score-max" value="10" min="1" max="100">
@@ -1824,7 +1720,7 @@ function renderCommentsSetupSection() {
         commentsRowsHtml += `
             <div class="form-group">
                 <label><strong>${grade.grade}</strong> - ${grade.remark}</label>
-                <textarea class="principal-comment" data-grade="${grade.grade}" rows="2" placeholder="Principal's comment for grade ${grade.grade}...">${comment.replace(/"/g, '&quot;')}</textarea>
+                <textarea class="principal-comment" data-grade="${grade.grade}" rows="2" placeholder="Principal's comment for grade ${grade.grade}..." style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;">${comment.replace(/"/g, '&quot;')}</textarea>
             </div>
         `;
     });
@@ -1832,8 +1728,8 @@ function renderCommentsSetupSection() {
     container.innerHTML = `
         <div class="form-group">
             <label>Default Class Teacher Name</label>
-            <input type="text" id="defaultTeacherName" value="${formData.default_class_teacher_name.replace(/"/g, '&quot;')}" placeholder="e.g. Mrs. Oluwaseun Adebayo">
-            <small>This name will be auto-filled for all students</small>
+            <input type="text" id="defaultTeacherName" value="${formData.default_class_teacher_name.replace(/"/g, '&quot;')}" placeholder="e.g. Mrs. Oluwaseun Adebayo" style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;">
+            <small style="color:#666;">This name will be auto-filled for all students</small>
         </div>
         <div style="margin: 20px 0;">
             <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Principal's Comments by Grade</h4>
@@ -1954,10 +1850,6 @@ function saveAllSections() {
         return;
     }
     
-    // Build the actual form data for submission
-    const form = document.getElementById('recordForm');
-    const formHtml = buildFormHtml();
-    
     // Submit via AJAX
     const formDataObj = new FormData();
     formDataObj.append('action', 'save_exam_record');
@@ -1986,7 +1878,7 @@ function saveAllSections() {
     formDataObj.append('save_as', 'active');
     
     // Add score types
-    formData.score_types.forEach((st, idx) => {
+    formData.score_types.forEach((st) => {
         formDataObj.append('score_label[]', st.label);
         formDataObj.append('score_max[]', st.max);
     });
@@ -2030,56 +1922,6 @@ function saveAllSections() {
     });
 }
 
-function buildFormHtml() {
-    // Helper function to build form - used if we need to submit via regular POST
-    let html = '';
-    html += `<input type="hidden" name="action" value="save_exam_record">`;
-    html += `<input type="hidden" name="record_id" value="${formData.record_id}">`;
-    html += `<input type="hidden" name="record_name" value="${formData.record_name.replace(/"/g, '&quot;')}">`;
-    html += `<input type="hidden" name="session" value="${formData.session.replace(/"/g, '&quot;')}">`;
-    html += `<input type="hidden" name="term" value="${formData.term}">`;
-    html += `<input type="hidden" name="class" value="${formData.class.replace(/"/g, '&quot;')}">`;
-    html += `<input type="hidden" name="template" value="${formData.template}">`;
-    html += `<input type="hidden" name="grading_system" value="${formData.grading_system}">`;
-    html += `<input type="hidden" name="default_class_teacher_name" value="${formData.default_class_teacher_name.replace(/"/g, '&quot;')}">`;
-    html += `<input type="hidden" name="current_resumption_date" value="${formData.current_resumption_date}">`;
-    html += `<input type="hidden" name="current_closing_date" value="${formData.current_closing_date}">`;
-    html += `<input type="hidden" name="next_resumption_date" value="${formData.next_resumption_date}">`;
-    html += `<input type="hidden" name="days_school_opened" value="${formData.days_school_opened}">`;
-    html += `<input type="hidden" name="show_class_position" value="${formData.show_class_position ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_subject_position" value="${formData.show_subject_position ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_promoted_to" value="${formData.show_promoted_to ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_cumulative_avg" value="${formData.show_cumulative_avg ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_lowest_highest_avg" value="${formData.show_lowest_highest_avg ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_lowest_highest_class" value="${formData.show_lowest_highest_class ? '1' : '0'}">`;
-    html += `<input type="hidden" name="sequential_positions" value="${formData.sequential_positions ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_attendance" value="${formData.show_attendance ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_affective_traits" value="${formData.show_affective_traits ? '1' : '0'}">`;
-    html += `<input type="hidden" name="show_psychomotor" value="${formData.show_psychomotor ? '1' : '0'}">`;
-    html += `<input type="hidden" name="save_as" value="active">`;
-    
-    formData.score_types.forEach(st => {
-        html += `<input type="hidden" name="score_label[]" value="${st.label.replace(/"/g, '&quot;')}">`;
-        html += `<input type="hidden" name="score_max[]" value="${st.max}">`;
-    });
-    
-    formData.grading_scale.forEach(grade => {
-        html += `<input type="hidden" name="grade_letter[]" value="${grade.grade.replace(/"/g, '&quot;')}">`;
-        html += `<input type="hidden" name="grade_min[]" value="${grade.min}">`;
-        html += `<input type="hidden" name="grade_max[]" value="${grade.max}">`;
-        html += `<input type="hidden" name="grade_remark[]" value="${grade.remark.replace(/"/g, '&quot;')}">`;
-    });
-    
-    Object.keys(formData.principal_comments).forEach(grade => {
-        html += `<input type="hidden" name="principal_grade[]" value="${grade.replace(/"/g, '&quot;')}">`;
-        html += `<input type="hidden" name="principal_comment[]" value="${formData.principal_comments[grade].replace(/"/g, '&quot;')}">`;
-    });
-    
-    const tempForm = document.getElementById('recordForm');
-    tempForm.innerHTML = html;
-    return tempForm;
-}
-
 function closeModal() {
     document.getElementById('examModal').classList.remove('active');
 }
@@ -2118,20 +1960,6 @@ function deleteRecord(id) {
     }
 }
 
-function filterRecords() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const rows = document.querySelectorAll('#recordsTable tbody tr');
-    rows.forEach(row => {
-        if (row.cells.length > 1) {
-            const text = row.cells[0]?.innerText.toLowerCase() + ' ' +
-                        (row.cells[1]?.innerText || '').toLowerCase() + ' ' +
-                        (row.cells[2]?.innerText || '').toLowerCase() + ' ' +
-                        (row.cells[3]?.innerText || '').toLowerCase();
-            row.style.display = text.includes(searchTerm) ? '' : 'none';
-        }
-    });
-}
-
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.style.cssText = `
@@ -2146,14 +1974,14 @@ function showToast(message, type = 'success') {
 }
 
 // Add animation styles
-const style = document.createElement('style');
-style.textContent = `
+const styleAnim = document.createElement('style');
+styleAnim.textContent = `
     @keyframes slideIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
     }
 `;
-document.head.appendChild(style);
+document.head.appendChild(styleAnim);
 
 // Mobile menu toggle
 (function() {

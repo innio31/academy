@@ -554,17 +554,20 @@ $psychomotor_fields = [
         <?php else: ?>
 
             <div class="publish-bar no-print">
-                <div><strong><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term"); ?></strong><span style="margin-left:10px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span></div>
-                <div style="display:flex;gap:8px;">
-                    <?php if (($record['status'] ?? '') !== 'published'): ?>
-                        <form method="POST" style="display:inline"><input type="hidden" name="action" value="publish_record"><button type="submit" class="btn btn-primary" <?php echo !$all_ready ? 'disabled' : ''; ?>>Publish Cards</button></form>
-                    <?php else: ?>
-                        <form method="POST" style="display:inline"><input type="hidden" name="action" value="unpublish_record"><button type="submit" class="btn btn-secondary">Unpublish</button></form>
-                    <?php endif; ?>
-                    <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
-                    <button class="btn btn-primary" onclick="downloadReportCardPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
-                </div>
-            </div>
+    <div><strong><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term"); ?></strong><span style="margin-left:10px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-warning" onclick="recalculateScoresAndPositions()" id="recalcBtn" style="background:#f39c12;color:white;">
+            <i class="fas fa-sync-alt"></i> Recalculate
+        </button>
+        <?php if (($record['status'] ?? '') !== 'published'): ?>
+            <form method="POST" style="display:inline"><input type="hidden" name="action" value="publish_record"><button type="submit" class="btn btn-primary" <?php echo !$all_ready ? 'disabled' : ''; ?>>Publish Cards</button></form>
+        <?php else: ?>
+            <form method="POST" style="display:inline"><input type="hidden" name="action" value="unpublish_record"><button type="submit" class="btn btn-secondary">Unpublish</button></form>
+        <?php endif; ?>
+        <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+        <button class="btn btn-primary" onclick="downloadReportCardPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+    </div>
+</div>
 
             <div class="layout-grid">
                 <div class="student-panel no-print">
@@ -849,6 +852,58 @@ $psychomotor_fields = [
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF'; }
             }
         }
+        // Recalculate scores and positions via AJAX
+async function recalculateScoresAndPositions() {
+    const recordId = <?php echo $record_id; ?>;
+    const recalcBtn = document.getElementById('recalcBtn');
+    
+    if (!confirm('This will recalculate all scores, subject positions, class positions, and grades for this exam record. Continue?')) {
+        return;
+    }
+    
+    // Show loading state
+    const originalText = recalcBtn.innerHTML;
+    recalcBtn.disabled = true;
+    recalcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recalculating...';
+    
+    try {
+        const response = await fetch('exam_recalculate.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `record_id=${recordId}&recalc_action=all`
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show success message with stats
+            let message = data.message + '\n\n';
+            message += `📊 Statistics:\n`;
+            message += `• Scores updated: ${data.stats.scores_updated}\n`;
+            message += `• Grades updated: ${data.stats.grades_updated}\n`;
+            message += `• Subject positions updated: ${data.stats.subject_positions_updated}\n`;
+            message += `• Class positions updated: ${data.stats.class_positions_updated}\n`;
+            message += `• Subjects processed: ${data.stats.subjects_processed}\n`;
+            message += `• Students processed: ${data.stats.students_processed}\n\n`;
+            message += `The page will now reload to show updated data.`;
+            
+            alert(message);
+            
+            // Reload the page to show updated data
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to recalculate. Please try again. Error: ' + error.message);
+    } finally {
+        recalcBtn.disabled = false;
+        recalcBtn.innerHTML = originalText;
+    }
+}
     </script>
 </body>
 </html>

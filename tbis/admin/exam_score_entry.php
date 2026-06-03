@@ -1,5 +1,5 @@
 <?php
-// msv/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
+// tbis/admin/exam_score_entry.php — Enter exam scores per subject (Mobile Friendly)
 // ─────────────────────────────────────────────────────────────────────────────
 
 error_reporting(E_ALL);
@@ -9,7 +9,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /tbis/login.php");
     exit();
 }
 
@@ -83,9 +83,6 @@ $class   = $record['class'];
 $session = $record['session'];
 $term    = $record['term'];
 
-// ── Active subject from GET ───────────────────────────────────────────────────
-$active_subject_id = isset($_GET['subject_id']) ? (int)$_GET['subject_id'] : 0;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getGradeInfo(float $total, array $scale): array
 {
@@ -155,6 +152,8 @@ try {
 
 // ── Load existing scores for active subject ───────────────────────────────────
 $existing_scores = [];
+$active_subject_id = isset($_GET['subject_id']) ? (int)$_GET['subject_id'] : 0;
+
 if ($active_subject_id > 0 && !empty($students)) {
     try {
         // Get class_id for the class
@@ -343,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 }
             }
 
-            // ── Recalculate subject positions ─────────────────────────────────
+            // ── Recalculate subject positions ─────────────────────────────────────────────────
             $stmt = $pdo->prepare("
                 SELECT id, student_id, total_score FROM student_scores
                  WHERE school_id=? AND subject_id=? AND session=? AND term=?
@@ -1158,7 +1157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             }
         }
 
-        /* ── Desktop Subject Panel ───────────────────────────────────────────────── */
+        /* Desktop Subject Panel */
         .desktop-layout {
             display: block;
         }
@@ -1231,7 +1230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <?php
-    // Include sidebar at the end (it will be positioned fixed)
+    // Include sidebar (it will be positioned fixed)
     require_once 'includes/sidebar.php';
     ?>
 
@@ -1535,169 +1534,186 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     </div>
 
     <script>
-        const GRADING_PRESETS = <?php echo json_encode($grading_presets); ?>;
-
-        // Score total calculator
-        function recalcTotal() {
-            const maxInputs = document.querySelectorAll('#scoreBuilder input[name="score_max[]"]');
-            let total = 0;
-            maxInputs.forEach(i => total += parseInt(i.value) || 0);
-            const sumEl = document.getElementById('scoreSum');
-            const errEl = document.getElementById('scoreSumError');
-            sumEl.textContent = total;
-            sumEl.className = 'score-sum ' + (total === 100 ? 'ok' : 'error');
-            errEl.style.display = total !== 100 ? 'inline' : 'none';
-        }
-
-        let scoreRowCount = <?php echo count($saved_score_types); ?>;
-
-        function addScoreRow() {
-            const builder = document.getElementById('scoreBuilder');
-            const div = document.createElement('div');
-            div.className = 'score-row';
-            div.id = 'scoreRow' + scoreRowCount++;
-            div.innerHTML = `<input type="text" name="score_label[]" placeholder="Score label e.g. CA 3" oninput="recalcTotal()">
-            <input type="number" name="score_max[]" min="1" max="100" value="10" oninput="recalcTotal()">
-            <button type="button" class="btn btn-icon" onclick="removeScoreRow(this)" title="Remove"><i class="fas fa-trash-alt"></i></button>`;
-            builder.appendChild(div);
-            recalcTotal();
-        }
-
-        function removeScoreRow(btn) {
-            const rows = document.querySelectorAll('#scoreBuilder .score-row');
-            if (rows.length <= 1) {
-                alert('You must have at least one score type.');
-                return;
-            }
-            btn.closest('.score-row').remove();
-            recalcTotal();
-        }
-
-        function loadGradingPreset(system) {
-            if (system === 'custom') return;
-            const rows = GRADING_PRESETS[system] || GRADING_PRESETS['simple'];
-            const tbody = document.getElementById('gradingBody');
-            tbody.innerHTML = rows.map(r => `
-            <tr>
-                <td><input type="text" name="grade_letter[]" value="${r.grade}" style="width:70px;text-align:center;font-weight:600"></td>
-                <td><input type="number" name="grade_min[]" value="${r.min}" min="0" max="100"></td>
-                <td><input type="number" name="grade_max[]" value="${r.max}" min="0" max="100"></td>
-                <td><input type="text" name="grade_remark[]" value="${r.remark}"></td>
-                <td><button type="button" class="btn btn-icon btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-times"></i></button></td>
-            </tr>`).join('');
-
-            updatePrincipalCommentsTable(rows);
-        }
-
-        function updatePrincipalCommentsTable(grades) {
-            const tbody = document.getElementById('principalCommentsBody');
-            if (!tbody) return;
-            tbody.innerHTML = grades.map(g => `
-            <tr data-grade="${g.grade}">
-                <td style="text-align:center; font-weight:600;">
-                    ${g.grade}
-                    <input type="hidden" name="principal_grade[]" value="${g.grade}">
-                </td>
-                <td>
-                    <textarea name="principal_comment[]" rows="2" 
-                        placeholder="e.g. Excellent performance! Keep up the good work."
-                        style="width:100%;"></textarea>
-                </td>
-            </tr>`).join('');
-        }
-
-        function addGradeRow() {
-            const tbody = document.getElementById('gradingBody');
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td><input type="text" name="grade_letter[]" placeholder="F+" style="width:70px;text-align:center;font-weight:600"></td>
-            <td><input type="number" name="grade_min[]" value="0" min="0" max="100"></td>
-            <td><input type="number" name="grade_max[]" value="49" min="0" max="100"></td>
-            <td><input type="text" name="grade_remark[]" placeholder="Remark"></td>
-            <td><button type="button" class="btn btn-icon btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-times"></i></button></td>`;
-            tbody.appendChild(tr);
-
-            const pcTbody = document.getElementById('principalCommentsBody');
-            if (pcTbody) {
-                const pcTr = document.createElement('tr');
-                pcTr.innerHTML = `<td style="text-align:center; font-weight:600;">
-                    F+
-                    <input type="hidden" name="principal_grade[]" value="F+">
-                </td>
-                <td>
-                    <textarea name="principal_comment[]" rows="2" 
-                        placeholder="e.g. Excellent performance! Keep up the good work."
-                        style="width:100%;"></textarea>
-                </td>`;
-                pcTbody.appendChild(pcTr);
+        // Grading presets (if needed for other functions)
+        const GRADING_PRESETS = <?php echo json_encode($grading_presets ?? []); ?>;
+        const scoreTypes = <?php echo json_encode($score_types); ?>;
+        
+        // ── MOBILE SUBJECT DROPDOWN TOGGLE (FIXED) ──────────────────────────────
+        function toggleSubjectDropdown() {
+            const dropdown = document.getElementById('subjectDropdownList');
+            const icon = document.getElementById('dropdownIcon');
+            
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+                if (icon) {
+                    icon.classList.toggle('fa-chevron-down');
+                    icon.classList.toggle('fa-chevron-up');
+                }
             }
         }
-
-        // Form submit guard
-        document.getElementById('setupForm').addEventListener('submit', function(e) {
-            const maxInputs = document.querySelectorAll('#scoreBuilder input[name="score_max[]"]');
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.mobile-subject-selector');
+            const dropdown = document.getElementById('subjectDropdownList');
+            
+            if (selector && dropdown && !selector.contains(event.target)) {
+                dropdown.classList.remove('show');
+                const icon = document.getElementById('dropdownIcon');
+                if (icon) {
+                    icon.classList.add('fa-chevron-down');
+                    icon.classList.remove('fa-chevron-up');
+                }
+            }
+        });
+        
+        // ── SCORE INPUT HANDLING ────────────────────────────────────────────────
+        function onScoreInput(input, studentId) {
+            const maxVal = parseFloat(input.getAttribute('data-max') || input.max);
+            let val = parseFloat(input.value) || 0;
+            
+            if (val > maxVal) {
+                input.classList.add('over');
+                input.value = maxVal;
+                val = maxVal;
+            } else {
+                input.classList.remove('over');
+            }
+            
+            // Recalculate total for this student
+            const studentCard = document.getElementById(`studentCard_${studentId}`);
+            const scoreInputs = studentCard.querySelectorAll('.score-input');
             let total = 0;
-            maxInputs.forEach(i => total += parseInt(i.value) || 0);
-            if (total !== 100) {
-                e.preventDefault();
-                document.getElementById('scoreSumError').style.display = 'inline';
-                document.getElementById('scoreSum').scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
+            
+            scoreInputs.forEach(inp => {
+                let v = parseFloat(inp.value) || 0;
+                total += v;
+            });
+            
+            // Update total display
+            const totalSpan = document.getElementById(`total_${studentId}`);
+            if (totalSpan) {
+                totalSpan.textContent = total.toFixed(1);
+            }
+            
+            // Calculate grade based on total
+            const gradeInfo = getGradeInfo(total);
+            const gradeSpan = document.getElementById(`grade_${studentId}`);
+            const remarkSpan = document.getElementById(`remark_${studentId}`);
+            
+            if (gradeSpan) {
+                let gradeClass = 'grade-badge ';
+                const gradeLetter = gradeInfo.grade.charAt(0).toLowerCase();
+                if (gradeLetter === 'a') gradeClass += 'g-a';
+                else if (gradeLetter === 'b') gradeClass += 'g-b';
+                else if (gradeLetter === 'c') gradeClass += 'g-c';
+                else if (gradeLetter === 'd') gradeClass += 'g-d';
+                else gradeClass += 'g-f';
+                
+                gradeSpan.innerHTML = `<span class="${gradeClass}">${gradeInfo.grade}</span>`;
+            }
+            
+            if (remarkSpan) {
+                remarkSpan.textContent = gradeInfo.remark;
+            }
+        }
+        
+        function getGradeInfo(totalScore) {
+            // Use the grading scale from PHP
+            const gradingScale = <?php echo json_encode($grading_scale); ?>;
+            
+            for (const grade of gradingScale) {
+                if (totalScore >= grade.min && totalScore <= grade.max) {
+                    return { grade: grade.grade, remark: grade.remark };
+                }
+            }
+            return { grade: 'F', remark: 'Fail' };
+        }
+        
+        function fillZeros() {
+            const allInputs = document.querySelectorAll('.score-input');
+            allInputs.forEach(input => {
+                if (input.value === '') {
+                    input.value = 0;
+                    const studentId = input.getAttribute('data-student');
+                    if (studentId) onScoreInput(input, parseInt(studentId));
+                }
+            });
+            showToast('All empty scores filled with 0', 'info');
+        }
+        
+        function clearAllInputs() {
+            if (confirm('Clear all scores for this subject? This cannot be undone.')) {
+                const allInputs = document.querySelectorAll('.score-input');
+                allInputs.forEach(input => {
+                    input.value = '';
+                    const studentId = input.getAttribute('data-student');
+                    if (studentId) {
+                        const totalSpan = document.getElementById(`total_${studentId}`);
+                        if (totalSpan) totalSpan.textContent = '—';
+                        const gradeSpan = document.getElementById(`grade_${studentId}`);
+                        if (gradeSpan) gradeSpan.innerHTML = '<span class="grade-badge g-f">—</span>';
+                        const remarkSpan = document.getElementById(`remark_${studentId}`);
+                        if (remarkSpan) remarkSpan.textContent = '';
+                    }
                 });
-                alert(`Score types must add up to exactly 100. Current total: ${total}`);
-            }
-        });
-
-        function autoFillName() {
-            const nameEl = document.getElementById('record_name');
-            const sessionEl = document.getElementById('session');
-            const termEl = document.getElementById('term');
-            const classEl = document.getElementById('class');
-            if (nameEl.value.trim() !== '') return;
-            const parts = [
-                sessionEl.value.trim(),
-                termEl.options[termEl.selectedIndex]?.text || '',
-                classEl.options[classEl.selectedIndex]?.text || '',
-                'Examination'
-            ].filter(Boolean);
-            if (parts.length >= 3) nameEl.value = parts.join(' — ');
-        }
-        document.getElementById('session')?.addEventListener('change', autoFillName);
-        document.getElementById('term')?.addEventListener('change', autoFillName);
-        document.getElementById('class')?.addEventListener('change', autoFillName);
-
-        function showDeleteModal(id, name) {
-            document.getElementById('deleteRecordId').value = id;
-            document.getElementById('deleteRecordName').textContent = name;
-            document.getElementById('deleteModal').style.display = 'flex';
-        }
-
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
-            document.getElementById('deleteRecordId').value = '';
-            document.getElementById('deleteRecordName').textContent = '';
-        }
-
-        function cloneRecord(id) {
-            if (confirm('Clone this exam record? All settings will be copied, and you can edit the cloned version.')) {
-                window.location.href = 'exam_record_clone.php?id=' + id;
+                showToast('All scores cleared', 'warning');
             }
         }
-
-        document.getElementById('deleteModal')?.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeDeleteModal();
-            }
-        });
-
-        recalcTotal();
-
-        // ── Mobile Menu Toggle (SIMPLIFIED FIXED VERSION) ──────────────────────────
+        
+        function saveStaffAssignment(staffId) {
+            const subjectId = <?php echo $active_subject_id; ?>;
+            const recordId = <?php echo $record_id; ?>;
+            
+            fetch('exam_assign_staff.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=assign&subject_id=${subjectId}&staff_id=${staffId}&record_id=${recordId}`
+            })
+            .then(res => res.json())
+            .then(data => {
+                const msgSpan = document.getElementById('assignMsg');
+                if (msgSpan) {
+                    msgSpan.style.display = 'inline';
+                    setTimeout(() => {
+                        msgSpan.style.display = 'none';
+                    }, 2000);
+                }
+            })
+            .catch(err => console.error('Error:', err));
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                background: ${type === 'success' ? '#27ae60' : type === 'warning' ? '#f39c12' : '#3498db'};
+                color: white; padding: 10px 20px; border-radius: 8px; z-index: 10000;
+                font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                white-space: nowrap; max-width: 90%; white-space: normal; text-align: center;
+            `;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i> ${message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 3000);
+        }
+        
+        // ── SAVE CONFIRMATION ───────────────────────────────────────────────────
+        const scoreForm = document.getElementById('scoreForm');
+        if (scoreForm) {
+            scoreForm.addEventListener('submit', function(e) {
+                const saveBtn = document.getElementById('saveBtn');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                }
+            });
+        }
+        
+        // ── MOBILE MENU TOGGLE ─────────────────────────────────────────────────
         document.addEventListener('DOMContentLoaded', function() {
             const toggleBtn = document.getElementById('mobileMenuToggle');
             const overlay = document.getElementById('sidebarOverlay');
-
-            // Try to find sidebar - look for common sidebar selectors
+            
             let sidebar = document.getElementById('sidebar');
             if (!sidebar) {
                 sidebar = document.querySelector('.sidebar');
@@ -1705,88 +1721,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             if (!sidebar) {
                 sidebar = document.querySelector('[class*="sidebar"]');
             }
-
-            if (!sidebar) {
-                console.log('Sidebar not found - check if sidebar.php exists and has correct classes');
-                return;
-            }
-
-            // Make sure sidebar has the right CSS for mobile
-            if (window.innerWidth <= 768) {
-                sidebar.style.position = 'fixed';
-                sidebar.style.top = '0';
-                sidebar.style.left = '0';
-                sidebar.style.width = '260px';
-                sidebar.style.height = '100%';
-                sidebar.style.zIndex = '1000';
-                sidebar.style.transform = 'translateX(-100%)';
-                sidebar.style.transition = 'transform 0.3s ease';
-                sidebar.style.overflowY = 'auto';
-            }
-
-            // Toggle function
-            function toggleSidebar(show) {
+            
+            if (toggleBtn && sidebar) {
                 if (window.innerWidth <= 768) {
-                    if (show === undefined) {
-                        // Toggle
-                        const isVisible = sidebar.style.transform === 'translateX(0)';
-                        show = !isVisible;
-                    }
-
-                    if (show) {
-                        sidebar.style.transform = 'translateX(0)';
-                        if (overlay) overlay.classList.add('active');
-                        document.body.style.overflow = 'hidden';
-                    } else {
-                        sidebar.style.transform = 'translateX(-100%)';
-                        if (overlay) overlay.classList.remove('active');
-                        document.body.style.overflow = '';
+                    sidebar.style.position = 'fixed';
+                    sidebar.style.top = '0';
+                    sidebar.style.left = '0';
+                    sidebar.style.width = '260px';
+                    sidebar.style.height = '100%';
+                    sidebar.style.zIndex = '1000';
+                    sidebar.style.transform = 'translateX(-100%)';
+                    sidebar.style.transition = 'transform 0.3s ease';
+                    sidebar.style.overflowY = 'auto';
+                }
+                
+                function toggleSidebar(show) {
+                    if (window.innerWidth <= 768) {
+                        if (show === undefined) {
+                            const isVisible = sidebar.style.transform === 'translateX(0)';
+                            show = !isVisible;
+                        }
+                        
+                        if (show) {
+                            sidebar.style.transform = 'translateX(0)';
+                            if (overlay) overlay.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        } else {
+                            sidebar.style.transform = 'translateX(-100%)';
+                            if (overlay) overlay.classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
                     }
                 }
-            }
-
-            // Button click handler
-            if (toggleBtn) {
+                
                 toggleBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     toggleSidebar();
                 });
-            }
-
-            // Overlay click handler
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    toggleSidebar(false);
-                });
-            }
-
-            // Handle window resize
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
-                    sidebar.style.transform = '';
-                    sidebar.style.position = '';
-                    if (overlay) overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                } else {
-                    if (sidebar.style.transform !== 'translateX(0)') {
-                        sidebar.style.position = 'fixed';
-                        sidebar.style.transform = 'translateX(-100%)';
-                    }
+                
+                if (overlay) {
+                    overlay.addEventListener('click', function() {
+                        toggleSidebar(false);
+                    });
                 }
-            });
-
-            // Close sidebar when clicking on nav links (mobile only)
-            const navLinks = sidebar.querySelectorAll('a, button, .nav-item, .nav-link');
-            navLinks.forEach(link => {
-                link.addEventListener('click', function() {
-                    if (window.innerWidth <= 768) {
-                        setTimeout(() => toggleSidebar(false), 150);
+                
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth > 768) {
+                        sidebar.style.transform = '';
+                        sidebar.style.position = '';
+                        if (overlay) overlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    } else {
+                        if (sidebar.style.transform !== 'translateX(0)') {
+                            sidebar.style.position = 'fixed';
+                            sidebar.style.transform = 'translateX(-100%)';
+                        }
                     }
                 });
-            });
-
-            console.log('Mobile menu initialized - Sidebar found:', !!sidebar);
+                
+                const navLinks = sidebar.querySelectorAll('a, button, .nav-item, .nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth <= 768) {
+                            setTimeout(() => toggleSidebar(false), 150);
+                        }
+                    });
+                });
+            }
         });
     </script>
 </body>

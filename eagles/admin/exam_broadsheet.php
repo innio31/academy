@@ -1,5 +1,5 @@
 <?php
-// gsa/admin/exam_broadsheet.php - Generate Class and Subject Broadsheets
+// eagles/admin/exam_broadsheet.php - Generate Class and Subject Broadsheets
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -8,7 +8,7 @@ require_once '../includes/config.php';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /gsa/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 

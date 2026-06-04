@@ -2,10 +2,27 @@
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
 
+// Force destroy any existing session on login page load (optional - for debugging)
+if (isset($_GET['force_logout'])) {
+    session_destroy();
+    session_start();
+}
+
 // Redirect if already logged in
 if (isLoggedIn()) {
-    header("Location: " . getDashboardUrl());
-    exit();
+    // Verify user still belongs to school context
+    if (isset($_SESSION['user_id']) && isset($_SESSION['school_id'])) {
+        if (verifyUserSchool($_SESSION['user_id'], $_SESSION['school_id'])) {
+            header("Location: " . getDashboardUrl());
+            exit();
+        } else {
+            // User doesn't belong to this school anymore, logout
+            logout();
+        }
+    } else {
+        header("Location: " . getDashboardUrl());
+        exit();
+    }
 }
 
 $error = '';
@@ -22,7 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Debug: Log what we're trying
         error_log("Attempting login with identifier: " . $identifier);
         
-        if (loginUser($identifier, $password, $pdo)) {
+        // Get current school_id (from subdomain or default)
+        $school_id = getCurrentSchoolId();
+        error_log("Using school_id: " . ($school_id ?? 'default'));
+        
+        if (loginUser($identifier, $password, $pdo, $school_id)) {
             error_log("Login successful for: " . $identifier);
             header("Location: " . getDashboardUrl());
             exit();

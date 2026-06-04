@@ -327,9 +327,8 @@ if ($format === 'csv') {
             // Add summary row
             fputcsv($output, []);
             fputcsv($output, ['Summary']);
-            fputcsv($output, ['Class Average', round(array_sum(array_column($students, function($s) use ($scores, $subject_id) {
-                return $scores[$s['id']][$subject_id]['total_score'] ?? 0;
-            })) / count($students), 1)]);
+            $class_avg = !empty($subject_scores) ? round(array_sum($subject_scores) / count($subject_scores), 1) : 0;
+            fputcsv($output, ['Class Average', $class_avg]);
         }
     }
     
@@ -355,6 +354,8 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
             --primary: <?php echo $primary_color; ?>;
             --secondary: <?php echo $secondary_color; ?>;
             --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
             --light: #ecf0f1;
             --dark: #2c3e50;
             --shadow: 0 2px 8px rgba(0,0,0,.08);
@@ -387,6 +388,8 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
         .btn-secondary { background: white; color: var(--primary); border: 1px solid var(--primary); }
         .btn-success { background: var(--success); color: white; border: none; }
         .btn-warning { background: #f39c12; color: white; border: none; }
+        .btn-recalculate { background: #8e44ad; color: white; border: none; }
+        .btn-recalculate:hover { background: #6c3483; }
         
         /* Broadsheet Table */
         .broadsheet-container { background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; padding: 20px; }
@@ -410,6 +413,28 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
         .grade-C { background: #fff3cd; color: #856404; font-weight: 600; }
         .grade-D { background: #fce4ec; color: #880e4f; font-weight: 600; }
         .grade-F { background: #f8d7da; color: #721c24; font-weight: 600; }
+        
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #27ae60;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+        }
+        .toast-notification.error { background: #e74c3c; }
+        .toast-notification.warning { background: #f39c12; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         
         .footer { text-align: center; padding: 20px; color: #999; font-size: 0.7rem; border-top: 1px solid var(--light); margin-top: 30px; }
         
@@ -446,7 +471,7 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
                 <h1><i class="fas fa-chart-line"></i> Exam Broadsheet</h1>
                 <p><?php echo htmlspecialchars($class); ?> · <?php echo htmlspecialchars($session); ?> · <?php echo htmlspecialchars($term); ?> Term</p>
             </div>
-            <a href="exam_record_setup.php" class="btn-secondary" style="text-decoration:none;padding:8px 16px;border-radius:8px;">← Back</a>
+            <a href="exam_record_setup.php?class=<?php echo urlencode($class); ?>" class="btn-secondary" style="text-decoration:none;padding:8px 16px;border-radius:8px;">← Back</a>
         </div>
 
         <div class="control-bar no-print">
@@ -476,6 +501,9 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
             </div>
             
             <div class="control-group">
+                <button class="btn-recalculate" id="recalculateBtn" onclick="recalculateScores()">
+                    <i class="fas fa-sync-alt"></i> Recalculate
+                </button>
                 <button class="btn-primary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
                 <button class="btn-success" id="exportCsvBtn"><i class="fas fa-file-csv"></i> Export CSV</button>
                 <button class="btn-warning" onclick="downloadPDF()"><i class="fas fa-file-pdf"></i> Export PDF</button>
@@ -764,6 +792,67 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
                 hideEls.forEach((el, i) => { el.style.display = originalDisplays[i]; });
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-pdf"></i> Export PDF'; }
             }
+        }
+        
+        // Recalculate function
+        async function recalculateScores() {
+            const recalcBtn = document.getElementById('recalculateBtn');
+            
+            if (!confirm('⚠️ WARNING: This will recalculate:\n\n• All total scores and percentages\n• All subject grades (A, B, C, etc.)\n• Subject positions (rankings within each subject)\n• Class positions (overall rankings)\n\nThis action cannot be undone. Continue?')) {
+                return;
+            }
+            
+            // Show loading state
+            const originalText = recalcBtn.innerHTML;
+            recalcBtn.disabled = true;
+            recalcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recalculating...';
+            
+            try {
+                const response = await fetch('exam_recalculate.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `record_id=${recordId}&recalc_action=all`
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show success message with stats
+                    let message = data.message + '\n\n';
+                    message += `📊 Class: ${data.class}\n`;
+                    message += `📚 Students: ${data.students_count}\n`;
+                    message += `📖 Subjects: ${data.subjects_count}\n\n`;
+                    message += `✅ Statistics:\n`;
+                    message += `• Scores updated: ${data.stats.scores_updated}\n`;
+                    message += `• Grades updated: ${data.stats.grades_updated}\n`;
+                    message += `• Subject positions updated: ${data.stats.subject_positions_updated}\n`;
+                    message += `• Class positions updated: ${data.stats.class_positions_updated}\n\n`;
+                    message += `The page will now reload to show updated data.`;
+                    
+                    alert(message);
+                    
+                    // Reload the page to show updated data
+                    window.location.reload();
+                } else {
+                    alert('❌ Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Failed to recalculate. Please try again.\nError: ' + error.message);
+            } finally {
+                recalcBtn.disabled = false;
+                recalcBtn.innerHTML = originalText;
+            }
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification' + (type === 'error' ? ' error' : type === 'warning' ? ' warning' : '');
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
     </script>
 </body>

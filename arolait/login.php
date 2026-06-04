@@ -45,12 +45,6 @@ $reset_user_type = null;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
-$logo_path = SCHOOL_LOGO;
-
-// Ensure logo path is correct
-if (!empty($logo_path) && $logo_path[0] !== '/') {
-    $logo_path = '/' . $logo_path;
-}
 
 // Handle forgot password request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['forgot_password'])) {
@@ -155,7 +149,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_identifier']);
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="<?php echo $logo_path; ?>">
+    <link rel="apple-touch-icon" href="assets/logos/logo.png">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -190,27 +184,14 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_identifier']);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         }
 
-        .school-logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            background: <?php echo $primary_color; ?>;
-            border-radius: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+        .logo-container {
+            text-align: center;
+            margin-bottom: 24px;
         }
 
-        .school-logo img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .school-logo .fa-school {
-            font-size: 40px;
-            color: white;
+        .logo-container img {
+            max-width: 100px;
+            height: auto;
         }
 
         h2 {
@@ -458,6 +439,10 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_identifier']);
             .login-card {
                 padding: 32px 24px;
             }
+            
+            .logo-container img {
+                max-width: 80px;
+            }
         }
     </style>
 </head>
@@ -465,15 +450,8 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_identifier']);
 <body>
     <div class="container">
         <div class="login-card">
-            <div class="school-logo">
-                <?php
-                $logo_full_path = $_SERVER['DOCUMENT_ROOT'] . $logo_path;
-                if (!empty($logo_path) && file_exists($logo_full_path)):
-                ?>
-                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
-                <?php else: ?>
-                    <i class="fas fa-school"></i>
-                <?php endif; ?>
+            <div class="logo-container">
+                <img src="assets/logos/logo.png" alt="<?php echo htmlspecialchars($school_name); ?>" onerror="this.onerror=null; this.style.display='none';">
             </div>
             <h2><?php echo htmlspecialchars($school_name); ?></h2>
             <p class="subtitle">Parent, Student & Staff Portal</p>

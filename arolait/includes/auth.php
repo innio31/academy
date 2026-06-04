@@ -188,15 +188,15 @@ function getDashboardUrl() {
     
     switch($_SESSION['role']) {
         case 'super_admin':
-            return 'admin/dashboard.php';
+            return 'admin/index.php';
         case 'admin':
-            return 'admin/dashboard.php';
+            return 'admin/index.php';
         case 'staff':
-            return 'staff/dashboard.php';
+            return 'staff/index.php';
         case 'student':
-            return 'student/dashboard.php';
+            return 'student/index.php';
         case 'parent':
-            return 'parent/dashboard.php';
+            return 'parent/index.php';
         default:
             return 'login.php';
     }

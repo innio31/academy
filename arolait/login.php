@@ -1,27 +1,41 @@
 <?php
+// Force error reporting for debugging (remove in production)
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
 
-// Force destroy any existing session on login page load (optional - for debugging)
-if (isset($_GET['force_logout'])) {
-    session_destroy();
-    session_start();
-}
+// IMPORTANT: Clear any output buffering
+if (ob_get_level()) ob_end_clean();
 
-// Redirect if already logged in
+// Debug - log current state
+error_log("=== LOGIN.PHP LOADED ===");
+error_log("Session before check: " . print_r($_SESSION, true));
+
+// Check if user is already logged in
 if (isLoggedIn()) {
-    // Verify user still belongs to school context
-    if (isset($_SESSION['user_id']) && isset($_SESSION['school_id'])) {
-        if (verifyUserSchool($_SESSION['user_id'], $_SESSION['school_id'])) {
-            header("Location: " . getDashboardUrl());
+    error_log("User is logged in. Role: " . ($_SESSION['role'] ?? 'unknown'));
+    
+    // Get dashboard URL
+    $dashboardUrl = getDashboardUrl();
+    error_log("Dashboard URL: " . $dashboardUrl);
+    
+    // Don't redirect if we're already on a valid dashboard page
+    $currentFile = basename($_SERVER['PHP_SELF']);
+    if ($currentFile != 'dashboard.php' && $currentFile != 'index.php') {
+        // Check if the dashboard file exists
+        $fullPath = __DIR__ . '/../' . $dashboardUrl;
+        if (file_exists($fullPath)) {
+            error_log("Redirecting to: " . $dashboardUrl);
+            header("Location: " . $dashboardUrl);
             exit();
         } else {
-            // User doesn't belong to this school anymore, logout
-            logout();
+            error_log("Dashboard file does not exist: " . $fullPath);
+            // If dashboard doesn't exist, logout and show login
+            session_destroy();
+            session_start();
         }
-    } else {
-        header("Location: " . getDashboardUrl());
-        exit();
     }
 }
 
@@ -36,16 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($identifier) || empty($password)) {
         $error = 'Please enter both login ID/Email and password';
     } else {
-        // Debug: Log what we're trying
         error_log("Attempting login with identifier: " . $identifier);
         
         // Get current school_id (from subdomain or default)
-        $school_id = getCurrentSchoolId();
-        error_log("Using school_id: " . ($school_id ?? 'default'));
+        $school_id = null;
+        if (function_exists('getCurrentSchoolId')) {
+            $school_id = getCurrentSchoolId();
+        }
+        error_log("Using school_id: " . ($school_id ?? 'default (1)'));
         
         if (loginUser($identifier, $password, $pdo, $school_id)) {
             error_log("Login successful for: " . $identifier);
-            header("Location: " . getDashboardUrl());
+            
+            // Get dashboard URL after login
+            $dashboardUrl = getDashboardUrl();
+            error_log("Post-login dashboard URL: " . $dashboardUrl);
+            
+            header("Location: " . $dashboardUrl);
             exit();
         } else {
             error_log("Login failed for: " . $identifier);
@@ -346,8 +367,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Login <i class="fas fa-arrow-right"></i>
             </button>
         </form>
-        
-        
         
         <div class="back-link">
             <a href="/"><i class="fas fa-home"></i> Back to Homepage</a>

@@ -75,7 +75,9 @@ function loginUser($identifier, $password, $pdo, $school_id = null) {
         $_SESSION['school_id'] = $user['school_id'];
         
         // Set school context
-        setSchoolContext($user['school_id']);
+        if (function_exists('setSchoolContext')) {
+            setSchoolContext($user['school_id']);
+        }
         
         // =============================================
         // SET SESSION TIMEOUT ACTIVITY TIMESTAMP
@@ -138,7 +140,7 @@ function loginUser($identifier, $password, $pdo, $school_id = null) {
 
 // Function to check if user is logged in
 function isLoggedIn() {
-    return isset($_SESSION['user_id']);
+    return isset($_SESSION['user_id']) && isset($_SESSION['role']);
 }
 
 // Function to restrict access by role
@@ -149,7 +151,13 @@ function requireRole($allowedRoles) {
     }
     
     if (!in_array($_SESSION['role'], $allowedRoles)) {
-        header("Location: " . getDashboardUrl() . "?error=access_denied");
+        // Redirect to appropriate dashboard instead of login
+        $dashboard = getDashboardUrl();
+        if ($dashboard && $dashboard != 'login.php') {
+            header("Location: " . $dashboard);
+        } else {
+            header("Location: ../login.php?error=access_denied");
+        }
         exit();
     }
 }
@@ -167,25 +175,28 @@ function logout() {
     // Destroy the session
     session_destroy();
     
+    // Redirect to login
     header("Location: ../login.php");
     exit();
 }
 
-// Function to get user dashboard URL based on role
+// Function to get user dashboard URL based on role - FIXED to use correct paths
 function getDashboardUrl() {
-    if (!isLoggedIn()) return 'login.php';
+    if (!isLoggedIn()) {
+        return 'login.php';
+    }
     
     switch($_SESSION['role']) {
         case 'super_admin':
-            return 'admin/index.php';
+            return 'admin/dashboard.php';
         case 'admin':
-            return 'admin/index.php';
+            return 'admin/dashboard.php';
         case 'staff':
-            return 'staff/index.php';
+            return 'staff/dashboard.php';
         case 'student':
-            return 'student/index.php';
+            return 'student/dashboard.php';
         case 'parent':
-            return 'parent/index.php';
+            return 'parent/dashboard.php';
         default:
             return 'login.php';
     }
@@ -219,7 +230,11 @@ function verifyUserSchool($user_id, $school_id = null) {
     global $pdo;
     
     if (!$school_id) {
-        $school_id = getCurrentSchoolId();
+        if (function_exists('getCurrentSchoolId')) {
+            $school_id = getCurrentSchoolId();
+        } else {
+            return true; // Skip verification if function doesn't exist
+        }
     }
     
     $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND school_id = ? AND is_active = 1");

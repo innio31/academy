@@ -444,6 +444,134 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
             .main { margin: 0; padding: 0; }
             .broadsheet-container { box-shadow: none; padding: 0; }
         }
+        /* Button Styles - Modern & Consistent */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn i {
+    font-size: 0.85rem;
+}
+
+/* Recalculate Button */
+.btn-recalculate {
+    background: linear-gradient(135deg, #8e44ad, #6c3483);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-recalculate:hover {
+    background: linear-gradient(135deg, #7d3c98, #5b2c6f);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(142, 68, 173, 0.3);
+}
+
+.btn-recalculate:active {
+    transform: translateY(1px);
+}
+
+/* Print Button */
+.btn-print {
+    background: linear-gradient(135deg, #2c3e50, #1a252f);
+    color: white;
+}
+
+.btn-print:hover {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(44, 62, 80, 0.3);
+}
+
+.btn-print:active {
+    transform: translateY(1px);
+}
+
+/* Export CSV Button */
+.btn-csv {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+    color: white;
+}
+
+.btn-csv:hover {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+.btn-csv:active {
+    transform: translateY(1px);
+}
+
+/* Export PDF Button */
+.btn-pdf {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+.btn-pdf:hover {
+    background: linear-gradient(135deg, #ec7063, #e74c3c);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.btn-pdf:active {
+    transform: translateY(1px);
+}
+
+/* Disabled state for any button */
+.btn:disabled,
+.btn-recalculate:disabled,
+.btn-print:disabled,
+.btn-csv:disabled,
+.btn-pdf:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+    .btn,
+    .btn-recalculate,
+    .btn-print,
+    .btn-csv,
+    .btn-pdf {
+        padding: 6px 12px;
+        font-size: 0.7rem;
+    }
+    
+    .btn i,
+    .btn-recalculate i,
+    .btn-print i,
+    .btn-csv i,
+    .btn-pdf i {
+        font-size: 0.75rem;
+    }
+}
+
+/* Optional: Add a subtle pulse animation for the recalculate button when active */
+.btn-recalculate:active {
+    animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.97); }
+    100% { transform: scale(1); }
+}
     </style>
 </head>
 <body>
@@ -502,11 +630,17 @@ $page_title = "Broadsheet - " . ucfirst($broadsheet_type) . " - " . $class;
             
             <div class="control-group">
                 <button class="btn-recalculate" id="recalculateBtn" onclick="recalculateScores()">
-                    <i class="fas fa-sync-alt"></i> Recalculate
-                </button>
-                <button class="btn-primary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
-                <button class="btn-success" id="exportCsvBtn"><i class="fas fa-file-csv"></i> Export CSV</button>
-                <button class="btn-warning" onclick="downloadPDF()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+    <i class="fas fa-sync-alt"></i> Recalculate
+</button>
+<button class="btn-print" onclick="window.print()">
+    <i class="fas fa-print"></i> Print
+</button>
+<button class="btn-csv" id="exportCsvBtn">
+    <i class="fas fa-file-csv"></i> Export CSV
+</button>
+<button class="btn-pdf" onclick="downloadPDF()">
+    <i class="fas fa-file-pdf"></i> Export PDF
+</button>
             </div>
         </div>
 

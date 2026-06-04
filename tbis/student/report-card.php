@@ -148,13 +148,13 @@ if ($record) {
     // Subjects for this class
     try {
         $stmt = $pdo->prepare(
-            "SELECT s.id, s.subject_name
-             FROM subjects s
-             JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-             WHERE sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-             ORDER BY s.subject_name ASC"
-        );
-        $stmt->execute([$school_id, $student_class, $school_id]);
+    "SELECT s.id, s.subject_name
+     FROM subjects s
+     JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
+     WHERE sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1)
+     ORDER BY s.subject_name ASC"
+);
+$stmt->execute([$school_id, $student_class_id, $school_id]);
         $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
     }

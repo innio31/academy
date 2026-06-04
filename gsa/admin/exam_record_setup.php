@@ -547,6 +547,7 @@ $page_title = "Exam Records Management";
             align-items: center;
             gap: 8px;
             transition: var(--transition);
+            text-decoration: none;
         }
         
         .btn-create:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
@@ -577,22 +578,6 @@ $page_title = "Exam Records Management";
             box-shadow: var(--shadow-md);
         }
         
-        .class-card.selected {
-            border-color: var(--primary-color);
-            background: #f0f7ff;
-        }
-        
-        .class-card.selected::before {
-            content: '\f00c';
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            color: var(--success-color);
-            font-size: 14px;
-        }
-        
         .class-icon {
             width: 60px;
             height: 60px;
@@ -607,7 +592,6 @@ $page_title = "Exam Records Management";
         }
         
         .class-card h3 { font-size: 1rem; margin-bottom: 5px; color: var(--dark-color); }
-        .class-card p { font-size: 0.7rem; color: #888; }
         
         .record-count {
             display: inline-block;
@@ -642,66 +626,267 @@ $page_title = "Exam Records Management";
         .records-header h2 { font-size: 1.2rem; }
         .records-header h2 i { margin-right: 8px; }
         
-        .records-table {
-            width: 100%;
-            border-collapse: collapse;
+        /* Record Cards - Mobile */
+        .records-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
         }
         
-        .records-table th {
-            background: #f8f9fa;
-            padding: 12px 16px;
-            text-align: left;
-            font-size: 0.8rem;
+        .record-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: var(--radius-md);
+            padding: 16px;
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+        }
+        
+        .record-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+        
+        .record-card:active {
+            transform: scale(0.98);
+        }
+        
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .record-name {
+            font-size: 0.95rem;
             font-weight: 600;
-            color: #666;
-            border-bottom: 1px solid #eee;
+            color: var(--primary-color);
         }
         
-        .records-table td {
-            padding: 14px 16px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.85rem;
-        }
-        
-        .records-table tr:hover { background: #fafafa; }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
+        .record-status {
+            font-size: 0.65rem;
+            padding: 3px 8px;
             border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
         }
         
         .status-active { background: #d4edda; color: #155724; }
         .status-draft { background: #e2e3e5; color: #383d41; }
         .status-published { background: #cce5ff; color: #004085; }
         
-        .action-buttons {
+        .record-details {
             display: flex;
-            gap: 6px;
             flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 10px;
+            font-size: 0.7rem;
+            color: #666;
         }
         
-        .action-btn {
-            width: 30px;
-            height: 30px;
-            border-radius: var(--radius-sm);
-            display: inline-flex;
+        .record-details span i {
+            width: 16px;
+            margin-right: 4px;
+            color: var(--primary-color);
+        }
+        
+        .record-footer {
+            display: flex;
+            justify-content: flex-end;
+            font-size: 0.65rem;
+            color: #999;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+        
+        /* Desktop Table View */
+        @media (min-width: 768px) {
+            .records-list { display: none; }
+            
+            .records-table {
+                width: 100%;
+                border-collapse: collapse;
+                display: table;
+            }
+            
+            .records-table th {
+                background: #f8f9fa;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: #666;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .records-table td {
+                padding: 14px 16px;
+                border-bottom: 1px solid #f0f0f0;
+                font-size: 0.85rem;
+            }
+            
+            .records-table tr {
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            
+            .records-table tr:hover {
+                background: #fafafa;
+            }
+            
+            .action-buttons {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+            
+            .action-btn {
+                width: 30px;
+                height: 30px;
+                border-radius: var(--radius-sm);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: var(--transition);
+                border: none;
+                font-size: 12px;
+            }
+            
+            .action-btn.edit { background: #e3f2fd; color: #1976d2; }
+            .action-btn.scores { background: #e8f5e9; color: #388e3c; }
+            .action-btn.results { background: #fff3e0; color: #f57c00; }
+            .action-btn.broadsheet { background: #e0f7fa; color: #0097a7; }
+            .action-btn.clone { background: #f3e5f5; color: #9c27b0; }
+            .action-btn.delete { background: #ffebee; color: #d32f2f; }
+            .action-btn:hover { transform: scale(1.05); }
+        }
+        
+        @media (max-width: 767px) {
+            .records-table { display: none; }
+            .records-list { display: flex; }
+        }
+        
+        /* ── Action Modal (mobile) ─────────────────────────────────────────────── */
+        .action-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: flex-end;   /* slide up from bottom on mobile */
+            justify-content: center;
+        }
+
+        @media (min-width: 480px) {
+            .action-modal { align-items: center; }
+        }
+        
+        .action-modal.active {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .action-modal-container {
+            background: white;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+            /* prevent touches on the container from bubbling to the overlay */
+            touch-action: manipulation;
+        }
+
+        @media (min-width: 480px) {
+            .action-modal-container {
+                border-radius: var(--radius-lg);
+                width: 90%;
+            }
+        }
+        
+        .action-modal-header {
+            padding: 20px;
+            background: var(--primary-color);
+            color: white;
+            text-align: center;
+        }
+        
+        .action-modal-header h3 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        
+        .action-modal-header p {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+        
+        .action-modal-body {
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .action-option {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background 0.15s;
+            border: 1px solid #e0e0e0;
+            /* ensure the entire row is a touch target */
+            -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+            user-select: none;
+        }
+        
+        .action-option:hover  { background: #f5f6fa; border-color: var(--primary-color); }
+        .action-option:active { background: #eef2ff; transform: scale(0.98); }
+        
+        .action-option-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: var(--transition);
-            border: none;
-            font-size: 12px;
+            font-size: 20px;
+            flex-shrink: 0;
+            /* pointer-events: none so clicks always land on the parent .action-option */
+            pointer-events: none;
         }
         
-        .action-btn.edit { background: #e3f2fd; color: #1976d2; }
-        .action-btn.scores { background: #e8f5e9; color: #388e3c; }
-        .action-btn.results { background: #fff3e0; color: #f57c00; }
-        .action-btn.clone { background: #e0f7fa; color: #0097a7; }
-        .action-btn.delete { background: #ffebee; color: #d32f2f; }
-        .action-btn:hover { transform: scale(1.05); }
+        .action-option-info { pointer-events: none; }
+
+        .action-option-info h4 {
+            font-size: 0.9rem;
+            margin-bottom: 3px;
+        }
+        
+        .action-option-info p {
+            font-size: 0.7rem;
+            color: #888;
+        }
+        
+        .action-modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+        }
         
         .alert {
             padding: 14px 18px;
@@ -722,6 +907,19 @@ $page_title = "Exam Records Management";
         }
         
         .empty-state i { font-size: 48px; margin-bottom: 14px; opacity: 0.3; display: block; }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 0.75rem;
+            border-top: 1px solid var(--light-color);
+            margin-top: 30px;
+        }
+        
+        @media (max-width: 767px) {
+            .classes-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         
         /* Modal Styles */
         .modal {
@@ -747,12 +945,17 @@ $page_title = "Exam Records Management";
             max-height: 85vh;
             overflow: hidden;
             box-shadow: var(--shadow-lg);
-            animation: modalSlideIn 0.3s ease;
+            animation: slideUp 0.3s ease;
         }
         
-        @keyframes modalSlideIn {
-            from { opacity: 0; transform: translateY(-30px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
         }
         
         .modal-header {
@@ -999,27 +1202,17 @@ $page_title = "Exam Records Management";
         .btn-sm { padding: 6px 12px; font-size: 0.75rem; }
         .btn-icon { padding: 6px 10px; }
         
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #999;
-            font-size: 0.75rem;
-            border-top: 1px solid var(--light-color);
-            margin-top: 30px;
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
         }
         
-        @media (max-width: 767px) {
-            .form-row, .form-row-3, .template-grid {
-                grid-template-columns: 1fr;
-            }
-            .classes-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .records-table {
-                display: block;
-                overflow-x: auto;
-            }
-        }
+        .status-active { background: #d4edda; color: #155724; }
+        .status-draft { background: #e2e3e5; color: #383d41; }
+        .status-published { background: #cce5ff; color: #004085; }
     </style>
 </head>
 <body>
@@ -1056,14 +1249,9 @@ $page_title = "Exam Records Management";
         <!-- Class Selection View -->
         <div class="classes-grid">
             <?php 
-            // Get record counts per class
             $record_counts = [];
             try {
-                $stmt = $pdo->prepare("
-                    SELECT class, COUNT(*) as count FROM report_card_settings 
-                    WHERE school_id = ? 
-                    GROUP BY class
-                ");
+                $stmt = $pdo->prepare("SELECT class, COUNT(*) as count FROM report_card_settings WHERE school_id = ? GROUP BY class");
                 $stmt->execute([$school_id]);
                 $counts = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($counts as $c) {
@@ -1105,6 +1293,7 @@ $page_title = "Exam Records Management";
                     <p>Click "New Exam Record" to create one.</p>
                 </div>
             <?php else: ?>
+                <!-- Desktop Table View -->
                 <div style="overflow-x: auto;">
                     <table class="records-table">
                         <thead>
@@ -1120,7 +1309,7 @@ $page_title = "Exam Records Management";
                         </thead>
                         <tbody>
                             <?php foreach ($class_records as $r): ?>
-                            <tr data-record-id="<?php echo $r['id']; ?>">
+                            <tr>
                                 <td><strong><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></strong></td>
                                 <td><?php echo htmlspecialchars($r['session']); ?></td>
                                 <td><?php echo htmlspecialchars($r['term']); ?> Term</td>
@@ -1129,17 +1318,38 @@ $page_title = "Exam Records Management";
                                 <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="action-btn edit" onclick="editRecord(<?php echo $r['id']; ?>)" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <button class="action-btn scores" onclick="goToScores(<?php echo $r['id']; ?>)" title="Enter Scores"><i class="fas fa-pencil-alt"></i></button>
-                                        <button class="action-btn results" onclick="goToResults(<?php echo $r['id']; ?>)" title="Generate Results"><i class="fas fa-id-card"></i></button>
-                                        <button class="action-btn clone" onclick="cloneRecord(<?php echo $r['id']; ?>)" title="Clone"><i class="fas fa-copy"></i></button>
-                                        <button class="action-btn delete" onclick="deleteRecord(<?php echo $r['id']; ?>)" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                                        <button class="action-btn edit"       onclick="event.stopPropagation(); editRecord(<?php echo $r['id']; ?>)"      title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="action-btn scores"     onclick="event.stopPropagation(); goToScores(<?php echo $r['id']; ?>)"      title="Enter Scores"><i class="fas fa-pencil-alt"></i></button>
+                                        <button class="action-btn results"    onclick="event.stopPropagation(); goToResults(<?php echo $r['id']; ?>)"     title="Generate Results"><i class="fas fa-id-card"></i></button>
+                                        <button class="action-btn broadsheet" onclick="event.stopPropagation(); goToBroadsheet(<?php echo $r['id']; ?>)" title="Broadsheet"><i class="fas fa-chart-line"></i></button>
+                                        <button class="action-btn clone"      onclick="event.stopPropagation(); cloneRecord(<?php echo $r['id']; ?>)"     title="Clone"><i class="fas fa-copy"></i></button>
+                                        <button class="action-btn delete"     onclick="event.stopPropagation(); deleteRecord(<?php echo $r['id']; ?>)"    title="Delete"><i class="fas fa-trash-alt"></i></button>
                                     </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- Mobile Card View -->
+                <div class="records-list">
+                    <?php foreach ($class_records as $r): ?>
+                        <div class="record-card" onclick="openActionModal(<?php echo $r['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['record_name'])); ?>')">
+                            <div class="record-header">
+                                <span class="record-name"><?php echo htmlspecialchars($r['record_name'] ?? '—'); ?></span>
+                                <span class="record-status status-<?php echo $r['status']; ?>"><?php echo ucfirst($r['status']); ?></span>
+                            </div>
+                            <div class="record-details">
+                                <span><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($r['session']); ?></span>
+                                <span><i class="fas fa-clock"></i> <?php echo htmlspecialchars($r['term']); ?> Term</span>
+                                <span><i class="fas fa-palette"></i> <?php echo ucfirst($r['template']); ?></span>
+                            </div>
+                            <div class="record-footer">
+                                <span><i class="fas fa-calendar-alt"></i> <?php echo date('d M Y', strtotime($r['created_at'])); ?></span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -1150,7 +1360,21 @@ $page_title = "Exam Records Management";
     <?php endif; ?>
 </div>
 
-<!-- Main Create/Edit Modal -->
+<!-- ══ Action Modal (mobile) ══════════════════════════════════════════════════ -->
+<div id="actionModal" class="action-modal">
+    <div class="action-modal-container" id="actionModalContainer">
+        <div class="action-modal-header">
+            <h3 id="actionModalTitle">Exam Record</h3>
+            <p id="actionModalRecordName">Select an action</p>
+        </div>
+        <div class="action-modal-body" id="actionModalBody"></div>
+        <div class="action-modal-footer">
+            <button class="btn btn-secondary" onclick="closeActionModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ Main Create/Edit Modal ═════════════════════════════════════════════════ -->
 <div id="examModal" class="modal">
     <div class="modal-container">
         <div class="modal-header">
@@ -1169,14 +1393,16 @@ $page_title = "Exam Records Management";
     </div>
 </div>
 
-<!-- Hidden form template for storing data -->
+<!-- Hidden form for non-AJAX fallback -->
 <form id="recordForm" method="POST" style="display: none;">
     <input type="hidden" name="action" value="save_exam_record">
     <input type="hidden" name="record_id" id="record_id" value="0">
 </form>
 
 <script>
-// Form data storage
+// ══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════════
 let formData = {
     record_id: 0,
     record_name: '',
@@ -1201,83 +1427,219 @@ let formData = {
     show_affective_traits: true,
     show_psychomotor: true,
     score_types: [
-        { label: 'CA 1 (Test)', max: 20 },
-        { label: 'CA 2 (Assignment)', max: 10 },
-        { label: 'Exam Score', max: 70 }
+        { label: 'CA 1 (Test)',        max: 20 },
+        { label: 'CA 2 (Assignment)',  max: 10 },
+        { label: 'Exam Score',         max: 70 }
     ],
     grading_scale: <?php echo json_encode($grading_presets['simple']); ?>,
     principal_comments: {}
 };
 
-let currentRecordId = 0;
-let isEditMode = false;
+let currentRecordId   = 0;
+let isEditMode        = false;
+
+// ── Action-modal state ────────────────────────────────────────────────────────
+let currentActionRecordId   = null;
+let currentActionRecordName = '';
+let _actionOptionClicked    = false;   // flag: true when an option row was tapped
+
 let completedSections = {
-    template: false,
-    record_details: false,
-    score_settings: false,
-    grading_system: false,
-    comments_setup: false,
-    term_dates: false,
-    display_options: false
+    template: false, record_details: false, score_settings: false,
+    grading_system: false, comments_setup: false, term_dates: false, display_options: false
 };
 
-const gradingPresets = <?php echo json_encode($grading_presets); ?>;
-const classesList = <?php echo json_encode(array_column($classes, 'class_name')); ?>;
-const existingSessions = <?php echo json_encode($existing_sessions); ?>;
+const gradingPresets    = <?php echo json_encode($grading_presets); ?>;
+const classesList       = <?php echo json_encode(array_column($classes, 'class_name')); ?>;
+const existingSessions  = <?php echo json_encode($existing_sessions); ?>;
 
-// Section definitions
 const sections = [
-    { id: 'template', title: 'Report Card Template', icon: 'fa-palette', description: 'Choose a visual style for report cards' },
-    { id: 'record_details', title: 'Exam Record Details', icon: 'fa-info-circle', description: 'Basic information about this exam record' },
-    { id: 'score_settings', title: 'Score Settings', icon: 'fa-sliders-h', description: 'Configure score components (must total 100)' },
-    { id: 'grading_system', title: 'Grading System', icon: 'fa-award', description: 'Set grade boundaries and remarks' },
-    { id: 'comments_setup', title: 'Comments Setup', icon: 'fa-comment-dots', description: 'Default class teacher and principal comments' },
-    { id: 'term_dates', title: 'Term Dates', icon: 'fa-calendar-alt', description: 'Set term resumption and closing dates' },
-    { id: 'display_options', title: 'Display Options', icon: 'fa-cog', description: 'Toggle report card sections' }
+    { id: 'template',        title: 'Report Card Template',  icon: 'fa-palette',      description: 'Choose a visual style for report cards' },
+    { id: 'record_details',  title: 'Exam Record Details',   icon: 'fa-info-circle',  description: 'Basic information about this exam record' },
+    { id: 'score_settings',  title: 'Score Settings',        icon: 'fa-sliders-h',    description: 'Configure score components (must total 100)' },
+    { id: 'grading_system',  title: 'Grading System',        icon: 'fa-award',        description: 'Set grade boundaries and remarks' },
+    { id: 'comments_setup',  title: 'Comments Setup',        icon: 'fa-comment-dots', description: 'Default class teacher and principal comments' },
+    { id: 'term_dates',      title: 'Term Dates',            icon: 'fa-calendar-alt', description: 'Set term resumption and closing dates' },
+    { id: 'display_options', title: 'Display Options',       icon: 'fa-cog',          description: 'Toggle report card sections' }
 ];
 
+// ══════════════════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════════════════
+function showToast(message, type = 'success') {
+    document.querySelectorAll('.custom-toast').forEach(t => t.remove());
+    const toast = document.createElement('div');
+    toast.className = 'custom-toast';
+    toast.style.cssText = `
+        position:fixed; bottom:20px; right:20px;
+        background:${type === 'success' ? '#27ae60' : '#e74c3c'};
+        color:white; padding:12px 20px; border-radius:8px; z-index:10000;
+        font-size:14px; box-shadow:0 4px 12px rgba(0,0,0,0.15);
+        animation:slideIn 0.3s ease;
+    `;
+    toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => { if (toast.remove) toast.remove(); }, 3000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLASS SELECTION
+// ══════════════════════════════════════════════════════════════════════════════
 function selectClass(className) {
     window.location.href = 'exam_record_setup.php?class=' + encodeURIComponent(className);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTION MODAL  — fixed for mobile
+// ══════════════════════════════════════════════════════════════════════════════
+function openActionModal(recordId, recordName) {
+    currentActionRecordId   = recordId;
+    currentActionRecordName = recordName;
+    _actionOptionClicked    = false;
+
+    document.getElementById('actionModalTitle').textContent      = 'Exam Record';
+    document.getElementById('actionModalRecordName').textContent = recordName;
+
+    const actions = [
+        { id: 'edit',       name: 'Edit Record',     icon: 'fas fa-edit',       color: '#1976d2', bg: '#e3f2fd', desc: 'Modify record settings'  },
+        { id: 'scores',     name: 'Enter Scores',    icon: 'fas fa-pencil-alt', color: '#388e3c', bg: '#e8f5e9', desc: 'Add/edit student scores'  },
+        { id: 'results',    name: 'Generate Cards',  icon: 'fas fa-id-card',    color: '#f57c00', bg: '#fff3e0', desc: 'View report cards'        },
+        { id: 'broadsheet', name: 'View Broadsheet', icon: 'fas fa-chart-line', color: '#0097a7', bg: '#e0f7fa', desc: 'Class/subject analysis'   },
+        { id: 'clone',      name: 'Clone Record',    icon: 'fas fa-copy',       color: '#9c27b0', bg: '#f3e5f5', desc: 'Duplicate this record'    },
+        { id: 'delete',     name: 'Delete Record',   icon: 'fas fa-trash-alt',  color: '#d32f2f', bg: '#ffebee', desc: 'Permanently delete'       }
+    ];
+
+    // Build HTML — pointer-events:none on children so the click always lands
+    // on the .action-option element itself (not a child i or div)
+    document.getElementById('actionModalBody').innerHTML = actions.map(a => `
+        <div class="action-option" data-action="${a.id}">
+            <div class="action-option-icon" style="background:${a.bg}; color:${a.color}; pointer-events:none;">
+                <i class="${a.icon}" aria-hidden="true"></i>
+            </div>
+            <div class="action-option-info" style="pointer-events:none;">
+                <h4>${a.name}</h4>
+                <p>${a.desc}</p>
+            </div>
+        </div>
+    `).join('');
+
+    // Attach handlers via onclick property (always wins over addEventListener order)
+    document.querySelectorAll('#actionModalBody .action-option').forEach(opt => {
+        opt.onclick = function() {
+            _actionOptionClicked = true;
+            performAction(this.getAttribute('data-action'));
+        };
+    });
+
+    document.getElementById('actionModal').classList.add('active');
+}
+
+function performAction(action) {
+    // Capture IDs before we clear state in closeActionModal
+    const recordId   = currentActionRecordId;
+    const recordName = currentActionRecordName;
+
+    closeActionModal();   // close first, then act — no setTimeout race
+
+    switch (action) {
+        case 'edit':       editRecord(recordId);       break;
+        case 'scores':     goToScores(recordId);       break;
+        case 'results':    goToResults(recordId);      break;
+        case 'broadsheet': goToBroadsheet(recordId);   break;
+        case 'clone':      cloneRecord(recordId);      break;
+        case 'delete':
+            if (confirm('Delete "' + recordName + '"? This cannot be undone.')) {
+                deleteRecordConfirm(recordId);
+            }
+            break;
+    }
+}
+
+function closeActionModal() {
+    document.getElementById('actionModal').classList.remove('active');
+    currentActionRecordId   = null;
+    currentActionRecordName = '';
+    _actionOptionClicked    = false;
+}
+
+// Close when tapping the dark backdrop — NOT the modal container
+// Use pointerdown on the modal element; check that the container wasn't hit.
+document.getElementById('actionModal').addEventListener('pointerdown', function(e) {
+    if (_actionOptionClicked) return;          // option row was already handled
+    const container = document.getElementById('actionModalContainer');
+    if (container && !container.contains(e.target)) {
+        closeActionModal();
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NAVIGATION HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+function goToScores(id)     { window.location.href = 'exam_score_entry.php?record_id='   + id; }
+function goToResults(id)    { window.location.href = 'exam_generate_cards.php?record_id=' + id; }
+function goToBroadsheet(id) { window.location.href = 'exam_broadsheet.php?record_id='    + id; }
+
+function cloneRecord(id) {
+    if (confirm('Clone this exam record? All settings will be copied.')) {
+        window.location.href = 'exam_record_clone.php?id=' + id;
+    }
+}
+
+function deleteRecord(id) {
+    if (confirm('Are you sure you want to delete this exam record? This action cannot be undone.')) {
+        deleteRecordConfirm(id);
+    }
+}
+
+function deleteRecordConfirm(id) {
+    fetch('exam_record_setup.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: 'action=delete_record&record_id=' + id
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(() => alert('Error deleting record'));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CREATE / EDIT MODAL
+// ══════════════════════════════════════════════════════════════════════════════
 function openCreateModal(className = '') {
     isEditMode = false;
     currentRecordId = 0;
-    formData.record_id = 0;
-    formData.record_name = '';
-    formData.session = '';
-    formData.term = '';
-    formData.class = className || '';
-    formData.template = 'classic';
-    formData.grading_system = 'simple';
-    formData.default_class_teacher_name = '';
-    formData.current_resumption_date = '';
-    formData.current_closing_date = '';
-    formData.next_resumption_date = '';
-    formData.days_school_opened = 62;
-    formData.show_class_position = true;
-    formData.show_subject_position = true;
-    formData.show_promoted_to = true;
-    formData.show_cumulative_avg = true;
-    formData.show_lowest_highest_avg = true;
-    formData.show_lowest_highest_class = false;
-    formData.sequential_positions = false;
-    formData.show_attendance = true;
-    formData.show_affective_traits = true;
-    formData.show_psychomotor = true;
-    formData.score_types = [
-        { label: 'CA 1 (Test)', max: 20 },
-        { label: 'CA 2 (Assignment)', max: 10 },
-        { label: 'Exam Score', max: 70 }
-    ];
-    formData.grading_scale = [...gradingPresets.simple];
-    formData.principal_comments = {};
-    
+
+    formData = {
+        record_id: 0, record_name: '', session: '', term: '',
+        class: className || '', template: 'classic', grading_system: 'simple',
+        default_class_teacher_name: '',
+        current_resumption_date: '', current_closing_date: '',
+        next_resumption_date: '', days_school_opened: 62,
+        show_class_position: true, show_subject_position: true,
+        show_promoted_to: true, show_cumulative_avg: true,
+        show_lowest_highest_avg: true, show_lowest_highest_class: false,
+        sequential_positions: false, show_attendance: true,
+        show_affective_traits: true, show_psychomotor: true,
+        score_types: [
+            { label: 'CA 1 (Test)',       max: 20 },
+            { label: 'CA 2 (Assignment)', max: 10 },
+            { label: 'Exam Score',        max: 70 }
+        ],
+        grading_scale: JSON.parse(JSON.stringify(gradingPresets.simple)),
+        principal_comments: {}
+    };
+
     completedSections = {
         template: false, record_details: false, score_settings: false,
         grading_system: false, comments_setup: false, term_dates: false, display_options: false
     };
-    
+
     document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Create New Exam Record';
     document.getElementById('record_id').value = '0';
     renderSections();
@@ -1288,90 +1650,86 @@ function editRecord(id) {
     isEditMode = true;
     currentRecordId = id;
     document.getElementById('record_id').value = id;
-    
-    // Fetch record data via AJAX
+
     fetch('exam_record_setup.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
         body: 'action=get_record&record_id=' + id
     })
-    .then(res => res.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            const r = data.record;
-            formData.record_id = r.id;
-            formData.record_name = r.record_name || '';
-            formData.session = r.session || '';
-            formData.term = r.term || '';
-            formData.class = r.class || '';
-            formData.template = r.template || 'classic';
-            formData.grading_system = r.grading_system || 'simple';
-            formData.default_class_teacher_name = r.default_class_teacher_name || '';
-            formData.current_resumption_date = r.current_resumption_date || '';
-            formData.current_closing_date = r.current_closing_date || '';
-            formData.next_resumption_date = r.next_resumption_date || '';
-            formData.days_school_opened = r.days_school_opened || 62;
-            formData.show_class_position = r.show_class_position == 1;
-            formData.show_subject_position = r.show_subject_position == 1;
-            formData.show_promoted_to = r.show_promoted_to == 1;
-            formData.show_cumulative_avg = r.show_cumulative_avg == 1;
-            formData.show_lowest_highest_avg = r.show_lowest_highest_avg == 1;
-            formData.show_lowest_highest_class = r.show_lowest_highest_class == 1;
-            formData.sequential_positions = r.sequential_positions == 1;
-            formData.show_attendance = r.show_attendance == 1;
-            formData.show_affective_traits = r.show_affective_traits == 1;
-            formData.show_psychomotor = r.show_psychomotor == 1;
-            formData.score_types = data.score_types.length ? data.score_types : formData.score_types;
-            formData.grading_scale = data.grading_scale;
-            formData.principal_comments = data.principal_comments || {};
-            
-            // Mark all sections as completed for edit mode
-            completedSections = {
-                template: true, record_details: true, score_settings: true,
-                grading_system: true, comments_setup: true, term_dates: true, display_options: true
-            };
-            
-            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Edit Exam Record: ' + r.record_name;
-            renderSections();
-            document.getElementById('examModal').classList.add('active');
-        } else {
-            alert('Error loading record: ' + (data.message || 'Unknown error'));
-        }
+        if (!data.success) { alert('Error loading record: ' + (data.message || 'Unknown error')); return; }
+
+        const r = data.record;
+        formData.record_id                  = r.id;
+        formData.record_name                = r.record_name || '';
+        formData.session                    = r.session || '';
+        formData.term                       = r.term || '';
+        formData.class                      = r.class || '';
+        formData.template                   = r.template || 'classic';
+        formData.grading_system             = r.grading_system || 'simple';
+        formData.default_class_teacher_name = r.default_class_teacher_name || '';
+        formData.current_resumption_date    = r.current_resumption_date || '';
+        formData.current_closing_date       = r.current_closing_date || '';
+        formData.next_resumption_date       = r.next_resumption_date || '';
+        formData.days_school_opened         = r.days_school_opened || 62;
+        formData.show_class_position        = r.show_class_position == 1;
+        formData.show_subject_position      = r.show_subject_position == 1;
+        formData.show_promoted_to           = r.show_promoted_to == 1;
+        formData.show_cumulative_avg        = r.show_cumulative_avg == 1;
+        formData.show_lowest_highest_avg    = r.show_lowest_highest_avg == 1;
+        formData.show_lowest_highest_class  = r.show_lowest_highest_class == 1;
+        formData.sequential_positions       = r.sequential_positions == 1;
+        formData.show_attendance            = r.show_attendance == 1;
+        formData.show_affective_traits      = r.show_affective_traits == 1;
+        formData.show_psychomotor           = r.show_psychomotor == 1;
+        formData.score_types                = data.score_types.length ? data.score_types : formData.score_types;
+        formData.grading_scale              = data.grading_scale;
+        formData.principal_comments         = data.principal_comments || {};
+
+        completedSections = {
+            template: true, record_details: true, score_settings: true,
+            grading_system: true, comments_setup: true, term_dates: true, display_options: true
+        };
+
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Edit Exam Record: ' + r.record_name;
+        renderSections();
+        document.getElementById('examModal').classList.add('active');
     })
-    .catch(err => {
-        console.error('Error:', err);
-        alert('Error loading record data');
-    });
+    .catch(err => { console.error(err); alert('Error loading record data'); });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION RENDERING
+// ══════════════════════════════════════════════════════════════════════════════
 function renderSections() {
     const container = document.getElementById('sectionsList');
+    if (!container) return;
     container.innerHTML = '';
-    
+
     sections.forEach(section => {
-        const isCompleted = completedSections[section.id];
-        const sectionDiv = document.createElement('div');
-        sectionDiv.className = 'section-item' + (isCompleted ? ' completed' : '');
-        sectionDiv.innerHTML = `
+        const done = completedSections[section.id];
+        const div  = document.createElement('div');
+        div.className = 'section-item' + (done ? ' completed' : '');
+        div.innerHTML = `
             <div class="section-header" onclick="toggleSection('${section.id}')">
                 <div class="section-title">
-                    <div class="section-icon ${isCompleted ? 'completed' : ''}"><i class="fas ${section.icon}"></i></div>
+                    <div class="section-icon ${done ? 'completed' : ''}"><i class="fas ${section.icon}"></i></div>
                     <div class="section-info">
                         <h4>${section.title}</h4>
                         <p>${section.description}</p>
                     </div>
                 </div>
                 <div class="section-status">
-                    ${isCompleted ? '<i class="fas fa-check-circle" style="color: #27ae60;"></i>' : '<div class="status-indicator"></div>'}
+                    ${done ? '<i class="fas fa-check-circle" style="color:#27ae60;"></i>' : '<div class="status-indicator"></div>'}
                     <i class="fas fa-chevron-down"></i>
                 </div>
             </div>
             <div class="section-content" id="section-${section.id}"></div>
         `;
-        container.appendChild(sectionDiv);
+        container.appendChild(div);
     });
-    
-    // Render each section's content
+
     renderTemplateSection();
     renderRecordDetailsSection();
     renderScoreSettingsSection();
@@ -1382,358 +1740,321 @@ function renderSections() {
 }
 
 function toggleSection(sectionId) {
-    const content = document.getElementById(`section-${sectionId}`);
-    if (content) {
-        content.classList.toggle('active');
-    }
+    const c = document.getElementById('section-' + sectionId);
+    if (c) c.classList.toggle('active');
 }
 
 function markSectionCompleted(sectionId, value = true) {
     completedSections[sectionId] = value;
-    // Find the section item and update its appearance
-    const sectionsContainer = document.getElementById('sectionsList');
-    const sectionItems = sectionsContainer.querySelectorAll('.section-item');
-    for (let item of sectionItems) {
-        const header = item.querySelector('.section-header h4');
-        if (header && header.innerText.toLowerCase().includes(sectionId.replace('_', ' '))) {
-            if (value) {
-                item.classList.add('completed');
-                const iconDiv = item.querySelector('.section-icon');
-                if (iconDiv) iconDiv.classList.add('completed');
-                const statusSpan = item.querySelector('.section-status');
-                if (statusSpan) statusSpan.innerHTML = '<i class="fas fa-check-circle" style="color: #27ae60;"></i> <i class="fas fa-chevron-down"></i>';
-            }
-            break;
+    const sectionsList = document.getElementById('sectionsList');
+    if (!sectionsList) return;
+    const divs = sectionsList.querySelectorAll('.section-item');
+    sections.forEach((section, idx) => {
+        if (section.id !== sectionId) return;
+        const div = divs[idx];
+        if (!div) return;
+        if (value) {
+            div.classList.add('completed');
+            const iconDiv = div.querySelector('.section-icon');
+            if (iconDiv) iconDiv.classList.add('completed');
+            const statusDiv = div.querySelector('.section-status');
+            if (statusDiv) statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color:#27ae60;"></i><i class="fas fa-chevron-down"></i>';
         }
-    }
+    });
 }
 
+// ── Template ──────────────────────────────────────────────────────────────────
 function renderTemplateSection() {
-    const container = document.getElementById('section-template');
-    if (!container) return;
-    
+    const c = document.getElementById('section-template');
+    if (!c) return;
+
     const templates = [
-        { id: 'classic', name: 'Classic', icon: 'fa-book', color: '#1a3c5e' },
-        { id: 'modern', name: 'Modern', icon: 'fa-chart-line', color: '#2d6a4f' },
-        { id: 'vibrant', name: 'Vibrant', icon: 'fa-palette', color: '#c0392b' },
-        { id: 'minimal', name: 'Minimal', icon: 'fa-square', color: '#2c3e50' },
-        { id: 'elegant', name: 'Elegant', icon: 'fa-crown', color: '#b8860b' }
+        { id: 'classic', name: 'Classic', icon: 'fa-book',       color: '#1a3c5e' },
+        { id: 'modern',  name: 'Modern',  icon: 'fa-chart-line', color: '#2d6a4f' },
+        { id: 'vibrant', name: 'Vibrant', icon: 'fa-palette',    color: '#c0392b' },
+        { id: 'minimal', name: 'Minimal', icon: 'fa-square',     color: '#2c3e50' },
+        { id: 'elegant', name: 'Elegant', icon: 'fa-crown',      color: '#b8860b' }
     ];
-    
-    let html = `<div class="template-grid">`;
-    templates.forEach(tpl => {
-        html += `
-            <div class="tpl-option" onclick="selectTemplate('${tpl.id}')">
-                <input type="radio" name="template_radio" value="${tpl.id}" ${formData.template === tpl.id ? 'checked' : ''}>
-                <div class="tpl-preview">
-                    <i class="fas ${tpl.icon}" style="font-size: 28px; color: ${tpl.color};"></i>
-                    <span>${tpl.name}</span>
+
+    c.innerHTML = `
+        <div class="template-grid">
+            ${templates.map(tpl => `
+                <div class="tpl-option" onclick="selectTemplate('${tpl.id}')">
+                    <input type="radio" name="template_radio" value="${tpl.id}" ${formData.template === tpl.id ? 'checked' : ''}>
+                    <div class="tpl-preview">
+                        <i class="fas ${tpl.icon}" style="font-size:28px; color:${tpl.color};"></i>
+                        <span>${tpl.name}</span>
+                    </div>
                 </div>
-            </div>
-        `;
-    });
-    html += `</div><div style="margin-top: 10px;"><button class="btn btn-primary btn-sm" onclick="saveTemplate()">Save Template</button></div>`;
-    container.innerHTML = html;
+            `).join('')}
+        </div>
+        <div><button class="btn btn-primary btn-sm" onclick="saveTemplate()">Save Template</button></div>
+    `;
 }
 
 function selectTemplate(templateId) {
     formData.template = templateId;
-    document.querySelectorAll('.tpl-option .tpl-preview').forEach(preview => {
-        preview.style.borderColor = '#e0e0e0';
-    });
-    const selected = document.querySelector(`.tpl-option input[value="${templateId}"]`);
-    if (selected && selected.parentElement) {
-        selected.parentElement.querySelector('.tpl-preview').style.borderColor = '#006';
-    }
+    document.querySelectorAll('.tpl-option .tpl-preview').forEach(p => p.style.borderColor = '#e0e0e0');
+    const sel = document.querySelector('.tpl-option input[value="' + templateId + '"]');
+    if (sel) sel.parentElement.querySelector('.tpl-preview').style.borderColor = '#0066cc';
 }
 
 function saveTemplate() {
-    markSectionCompleted('template', true);
+    markSectionCompleted('template');
     toggleSection('template');
-    showToast('Template saved!', 'success');
+    showToast('Template saved!');
 }
 
+// ── Record Details ────────────────────────────────────────────────────────────
 function renderRecordDetailsSection() {
-    const container = document.getElementById('section-record_details');
-    if (!container) return;
-    
-    let sessionOptions = '';
-    existingSessions.forEach(s => { sessionOptions += `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`; });
-    
-    let classOptions = '<option value="">— Select class —</option>';
-    classesList.forEach(c => { classOptions += `<option value="${c.replace(/"/g, '&quot;')}" ${formData.class === c ? 'selected' : ''}>${c}</option>`; });
-    
-    container.innerHTML = `
+    const c = document.getElementById('section-record_details');
+    if (!c) return;
+
+    const sessionOpts  = existingSessions.map(s => `<option value="${s}">${s}</option>`).join('');
+    const classOpts    = '<option value="">— Select class —</option>' +
+                         classesList.map(cl => `<option value="${cl}" ${formData.class === cl ? 'selected' : ''}>${cl}</option>`).join('');
+
+    c.innerHTML = `
         <div class="form-group">
             <label>Record Name <span style="color:red">*</span></label>
-            <input type="text" id="record_name_input" placeholder="e.g. 2024/2025 Second Term Examination — JSS 3" value="${formData.record_name.replace(/"/g, '&quot;')}">
+            <input type="text" id="record_name_input" placeholder="e.g. 2024/2025 Second Term Examination" value="${escHtml(formData.record_name)}">
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label>Academic Year <span style="color:red">*</span></label>
-                <input type="text" id="session_input" list="session_list" placeholder="e.g. 2024/2025" value="${formData.session.replace(/"/g, '&quot;')}">
-                <datalist id="session_list">${sessionOptions}</datalist>
+                <input type="text" id="session_input" list="session_list" placeholder="e.g. 2024/2025" value="${escHtml(formData.session)}">
+                <datalist id="session_list">${sessionOpts}</datalist>
             </div>
             <div class="form-group">
                 <label>Term <span style="color:red">*</span></label>
                 <select id="term_input">
                     <option value="">— Select term —</option>
-                    <option value="First" ${formData.term === 'First' ? 'selected' : ''}>First Term</option>
+                    <option value="First"  ${formData.term === 'First'  ? 'selected' : ''}>First Term</option>
                     <option value="Second" ${formData.term === 'Second' ? 'selected' : ''}>Second Term</option>
-                    <option value="Third" ${formData.term === 'Third' ? 'selected' : ''}>Third Term</option>
+                    <option value="Third"  ${formData.term === 'Third'  ? 'selected' : ''}>Third Term</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Class <span style="color:red">*</span></label>
-                <select id="class_input">${classOptions}</select>
+                <select id="class_input">${classOpts}</select>
             </div>
         </div>
-        <div style="margin-top: 15px;"><button class="btn btn-primary btn-sm" onclick="saveRecordDetails()">Save Details</button></div>
+        <div><button class="btn btn-primary btn-sm" onclick="saveRecordDetails()">Save Details</button></div>
     `;
 }
 
 function saveRecordDetails() {
-    const name = document.getElementById('record_name_input')?.value.trim();
-    const session = document.getElementById('session_input')?.value.trim();
-    const term = document.getElementById('term_input')?.value;
+    const name      = document.getElementById('record_name_input')?.value.trim();
+    const session   = document.getElementById('session_input')?.value.trim();
+    const term      = document.getElementById('term_input')?.value;
     const className = document.getElementById('class_input')?.value;
-    
-    if (!name) { alert('Record name is required'); return; }
-    if (!session) { alert('Academic year is required'); return; }
-    if (!term) { alert('Term is required'); return; }
-    if (!className) { alert('Class is required'); return; }
-    
+
+    if (!name)      { alert('Record name is required');    return; }
+    if (!session)   { alert('Academic year is required');  return; }
+    if (!term)      { alert('Term is required');           return; }
+    if (!className) { alert('Class is required');          return; }
+
     formData.record_name = name;
-    formData.session = session;
-    formData.term = term;
-    formData.class = className;
-    
-    markSectionCompleted('record_details', true);
+    formData.session     = session;
+    formData.term        = term;
+    formData.class       = className;
+
+    markSectionCompleted('record_details');
     toggleSection('record_details');
-    showToast('Record details saved!', 'success');
+    showToast('Record details saved!');
 }
 
+// ── Score Settings ────────────────────────────────────────────────────────────
 function renderScoreSettingsSection() {
-    const container = document.getElementById('section-score_settings');
-    if (!container) return;
-    
-    let scoreRowsHtml = '';
-    formData.score_types.forEach((st, idx) => {
-        scoreRowsHtml += `
-            <div class="score-row">
-                <input type="text" class="score-label" value="${st.label.replace(/"/g, '&quot;')}" placeholder="Score label">
-                <input type="number" class="score-max" value="${st.max}" min="1" max="100">
-                <button class="btn btn-icon btn-sm" onclick="removeScoreRow(this)"><i class="fas fa-trash-alt"></i></button>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = `
-        <div id="scoreBuilderContainer">${scoreRowsHtml}</div>
-        <div style="margin: 10px 0;">
-            <button class="btn btn-secondary btn-sm" onclick="addScoreRowUI()"><i class="fas fa-plus"></i> Add Score Type</button>
+    const c = document.getElementById('section-score_settings');
+    if (!c) return;
+
+    const rows = formData.score_types.map(st => `
+        <div class="score-row">
+            <input type="text"   class="score-label" value="${escHtml(st.label)}" placeholder="Score label">
+            <input type="number" class="score-max"   value="${st.max}" min="1" max="100" oninput="recalcScoreTotalUI()">
+            <button type="button" class="btn btn-icon btn-sm" onclick="removeScoreRow(this)"><i class="fas fa-trash-alt"></i></button>
+        </div>
+    `).join('');
+
+    c.innerHTML = `
+        <div id="scoreBuilderContainer">${rows}</div>
+        <div style="margin:10px 0;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addScoreRowUI()"><i class="fas fa-plus"></i> Add Score Type</button>
         </div>
         <div class="score-total">
             Total: <span id="scoreTotalDisplay">0</span> / 100
-            <span id="scoreTotalError" style="color: red; display: none;"> (Must equal 100)</span>
+            <span id="scoreTotalError" style="color:red; display:none;"> (Must equal 100)</span>
         </div>
-        <div style="margin-top: 15px;"><button class="btn btn-primary btn-sm" onclick="saveScoreSettings()">Save Score Settings</button></div>
+        <div style="margin-top:15px;"><button class="btn btn-primary btn-sm" onclick="saveScoreSettings()">Save Score Settings</button></div>
     `;
     recalcScoreTotalUI();
 }
 
 function addScoreRowUI() {
-    const container = document.getElementById('scoreBuilderContainer');
+    const c = document.getElementById('scoreBuilderContainer');
+    if (!c) return;
     const div = document.createElement('div');
     div.className = 'score-row';
     div.innerHTML = `
-        <input type="text" class="score-label" value="New Score" placeholder="Score label">
-        <input type="number" class="score-max" value="10" min="1" max="100">
-        <button class="btn btn-icon btn-sm" onclick="removeScoreRow(this)"><i class="fas fa-trash-alt"></i></button>
+        <input type="text"   class="score-label" value="New Score" placeholder="Score label">
+        <input type="number" class="score-max"   value="10" min="1" max="100" oninput="recalcScoreTotalUI()">
+        <button type="button" class="btn btn-icon btn-sm" onclick="removeScoreRow(this)"><i class="fas fa-trash-alt"></i></button>
     `;
-    container.appendChild(div);
+    c.appendChild(div);
     recalcScoreTotalUI();
 }
 
 function removeScoreRow(btn) {
-    const rows = document.querySelectorAll('#scoreBuilderContainer .score-row');
-    if (rows.length <= 1) {
-        alert('You must have at least one score type');
-        return;
+    if (document.querySelectorAll('#scoreBuilderContainer .score-row').length <= 1) {
+        alert('You must have at least one score type'); return;
     }
     btn.closest('.score-row').remove();
     recalcScoreTotalUI();
 }
 
 function recalcScoreTotalUI() {
-    const maxInputs = document.querySelectorAll('#scoreBuilderContainer .score-max');
     let total = 0;
-    maxInputs.forEach(input => { total += parseInt(input.value) || 0; });
-    const displaySpan = document.getElementById('scoreTotalDisplay');
-    const errorSpan = document.getElementById('scoreTotalError');
-    if (displaySpan) displaySpan.textContent = total;
-    if (errorSpan) errorSpan.style.display = total === 100 ? 'none' : 'inline';
+    document.querySelectorAll('#scoreBuilderContainer .score-max').forEach(i => { total += parseInt(i.value) || 0; });
+    const disp = document.getElementById('scoreTotalDisplay');
+    const err  = document.getElementById('scoreTotalError');
+    if (disp) disp.textContent = total;
+    if (err)  err.style.display = total === 100 ? 'none' : 'inline';
     return total;
 }
 
 function saveScoreSettings() {
     const labels = document.querySelectorAll('#scoreBuilderContainer .score-label');
-    const maxes = document.querySelectorAll('#scoreBuilderContainer .score-max');
-    const newScoreTypes = [];
+    const maxes  = document.querySelectorAll('#scoreBuilderContainer .score-max');
+    const types  = [];
     for (let i = 0; i < labels.length; i++) {
         const label = labels[i].value.trim();
-        const max = parseInt(maxes[i].value) || 0;
-        if (label && max > 0) newScoreTypes.push({ label, max });
+        const max   = parseInt(maxes[i].value) || 0;
+        if (label && max > 0) types.push({ label, max });
     }
-    const total = newScoreTypes.reduce((sum, st) => sum + st.max, 0);
-    if (total !== 100) {
-        alert(`Score types must total exactly 100. Current total: ${total}`);
-        return;
-    }
-    formData.score_types = newScoreTypes;
-    markSectionCompleted('score_settings', true);
+    const total = types.reduce((s, t) => s + t.max, 0);
+    if (total !== 100) { alert('Score types must total exactly 100. Current total: ' + total); return; }
+    formData.score_types = types;
+    markSectionCompleted('score_settings');
     toggleSection('score_settings');
-    showToast('Score settings saved!', 'success');
+    showToast('Score settings saved!');
 }
 
+// ── Grading System ────────────────────────────────────────────────────────────
 function renderGradingSystemSection() {
-    const container = document.getElementById('section-grading_system');
-    if (!container) return;
-    
-    let gradingRowsHtml = '';
-    formData.grading_scale.forEach((grade, idx) => {
-        gradingRowsHtml += `
-            <tr>
-                <td><input type="text" class="grade-letter" value="${grade.grade}" style="width:70px; text-align:center;"></td>
-                <td><input type="number" class="grade-min" value="${grade.min}" min="0" max="100" style="width:80px;"></td>
-                <td><input type="number" class="grade-max" value="${grade.max}" min="0" max="100" style="width:80px;"></td>
-                <td><input type="text" class="grade-remark" value="${grade.remark.replace(/"/g, '&quot;')}" style="width:100%;"></td>
-                <td><button class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
-            </tr>
-        `;
-    });
-    
-    container.innerHTML = `
+    const c = document.getElementById('section-grading_system');
+    if (!c) return;
+
+    const rows = formData.grading_scale.map(g => `
+        <tr>
+            <td><input type="text"   class="grade-letter" value="${escHtml(g.grade)}"  style="width:70px; text-align:center;"></td>
+            <td><input type="number" class="grade-min"    value="${g.min}"              min="0" max="100" style="width:80px;"></td>
+            <td><input type="number" class="grade-max"    value="${g.max}"              min="0" max="100" style="width:80px;"></td>
+            <td><input type="text"   class="grade-remark" value="${escHtml(g.remark)}"  style="width:100%;"></td>
+            <td><button type="button" class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
+        </tr>
+    `).join('');
+
+    c.innerHTML = `
         <div class="form-group">
             <label>Grading Preset:</label>
             <select id="gradingPresetSelect" onchange="loadGradingPresetUI(this.value)">
-                <option value="simple" ${formData.grading_system === 'simple' ? 'selected' : ''}>Simple letter grading (A – F)</option>
-                <option value="waec" ${formData.grading_system === 'waec' ? 'selected' : ''}>WAEC grading (A1 – F9)</option>
+                <option value="simple"   ${formData.grading_system === 'simple'   ? 'selected' : ''}>Simple letter grading (A – F)</option>
+                <option value="waec"     ${formData.grading_system === 'waec'     ? 'selected' : ''}>WAEC grading (A1 – F9)</option>
                 <option value="american" ${formData.grading_system === 'american' ? 'selected' : ''}>American GPA grading</option>
-                <option value="custom" ${formData.grading_system === 'custom' ? 'selected' : ''}>Custom (edit table below)</option>
+                <option value="custom"   ${formData.grading_system === 'custom'   ? 'selected' : ''}>Custom (edit table below)</option>
             </select>
         </div>
-        <div style="overflow-x: auto;">
-            <table class="records-table" style="width: 100%;">
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
                 <thead><tr><th>Grade</th><th>Min</th><th>Max</th><th>Remark</th><th></th></tr></thead>
-                <tbody id="gradingTableBody">${gradingRowsHtml}</tbody>
+                <tbody id="gradingTableBody">${rows}</tbody>
             </table>
         </div>
-        <div style="margin: 10px 0;"><button class="btn btn-secondary btn-sm" onclick="addGradeRowUI()"><i class="fas fa-plus"></i> Add Grade</button></div>
+        <div style="margin:10px 0;"><button type="button" class="btn btn-secondary btn-sm" onclick="addGradeRowUI()"><i class="fas fa-plus"></i> Add Grade</button></div>
         <div><button class="btn btn-primary btn-sm" onclick="saveGradingSystem()">Save Grading System</button></div>
     `;
 }
 
 function loadGradingPresetUI(preset) {
     formData.grading_system = preset;
-    if (preset !== 'custom') {
-        formData.grading_scale = JSON.parse(JSON.stringify(gradingPresets[preset] || gradingPresets.simple));
-        const tbody = document.getElementById('gradingTableBody');
-        if (tbody) {
-            tbody.innerHTML = '';
-            formData.grading_scale.forEach(grade => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><input type="text" class="grade-letter" value="${grade.grade}" style="width:70px; text-align:center;"></td>
-                    <td><input type="number" class="grade-min" value="${grade.min}" min="0" max="100" style="width:80px;"></td>
-                    <td><input type="number" class="grade-max" value="${grade.max}" min="0" max="100" style="width:80px;"></td>
-                    <td><input type="text" class="grade-remark" value="${grade.remark.replace(/"/g, '&quot;')}" style="width:100%;"></td>
-                    <td><button class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-    }
+    if (preset === 'custom') return;
+    formData.grading_scale = JSON.parse(JSON.stringify(gradingPresets[preset] || gradingPresets.simple));
+    const tbody = document.getElementById('gradingTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = formData.grading_scale.map(g => `
+        <tr>
+            <td><input type="text"   class="grade-letter" value="${escHtml(g.grade)}"  style="width:70px; text-align:center;"></td>
+            <td><input type="number" class="grade-min"    value="${g.min}"              min="0" max="100" style="width:80px;"></td>
+            <td><input type="number" class="grade-max"    value="${g.max}"              min="0" max="100" style="width:80px;"></td>
+            <td><input type="text"   class="grade-remark" value="${escHtml(g.remark)}"  style="width:100%;"></td>
+            <td><button type="button" class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
+        </tr>
+    `).join('');
 }
 
 function addGradeRowUI() {
     const tbody = document.getElementById('gradingTableBody');
-    if (tbody) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><input type="text" class="grade-letter" value="New" style="width:70px; text-align:center;"></td>
-            <td><input type="number" class="grade-min" value="0" min="0" max="100" style="width:80px;"></td>
-            <td><input type="number" class="grade-max" value="0" min="0" max="100" style="width:80px;"></td>
-            <td><input type="text" class="grade-remark" value="" style="width:100%;"></td>
-            <td><button class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
-        `;
-        tbody.appendChild(tr);
-    }
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text"   class="grade-letter" value="New" style="width:70px; text-align:center;"></td>
+        <td><input type="number" class="grade-min"    value="0"   min="0" max="100" style="width:80px;"></td>
+        <td><input type="number" class="grade-max"    value="0"   min="0" max="100" style="width:80px;"></td>
+        <td><input type="text"   class="grade-remark" value=""    style="width:100%;"></td>
+        <td><button type="button" class="btn btn-icon btn-sm" onclick="removeGradeRow(this)"><i class="fas fa-times"></i></button></td>
+    `;
+    tbody.appendChild(tr);
 }
 
 function removeGradeRow(btn) {
-    const rows = document.querySelectorAll('#gradingTableBody tr');
-    if (rows.length <= 1) {
-        alert('You must have at least one grade');
-        return;
-    }
+    if (document.querySelectorAll('#gradingTableBody tr').length <= 1) { alert('You must have at least one grade'); return; }
     btn.closest('tr').remove();
 }
 
 function saveGradingSystem() {
-    const gradeLetters = document.querySelectorAll('#gradingTableBody .grade-letter');
-    const gradeMins = document.querySelectorAll('#gradingTableBody .grade-min');
-    const gradeMaxes = document.querySelectorAll('#gradingTableBody .grade-max');
-    const gradeRemarks = document.querySelectorAll('#gradingTableBody .grade-remark');
-    
-    const newGradingScale = [];
-    for (let i = 0; i < gradeLetters.length; i++) {
-        const letter = gradeLetters[i].value.trim();
-        if (letter) {
-            newGradingScale.push({
-                grade: letter,
-                min: parseInt(gradeMins[i].value) || 0,
-                max: parseInt(gradeMaxes[i].value) || 100,
-                remark: gradeRemarks[i].value.trim()
-            });
-        }
+    const letters  = document.querySelectorAll('#gradingTableBody .grade-letter');
+    const mins     = document.querySelectorAll('#gradingTableBody .grade-min');
+    const maxes    = document.querySelectorAll('#gradingTableBody .grade-max');
+    const remarks  = document.querySelectorAll('#gradingTableBody .grade-remark');
+    const scale    = [];
+    for (let i = 0; i < letters.length; i++) {
+        const letter = letters[i].value.trim();
+        if (letter) scale.push({ grade: letter, min: parseInt(mins[i].value)||0, max: parseInt(maxes[i].value)||100, remark: remarks[i].value.trim() });
     }
-    
-    if (newGradingScale.length === 0) {
-        alert('Grading scale cannot be empty');
-        return;
-    }
-    
-    formData.grading_scale = newGradingScale;
-    markSectionCompleted('grading_system', true);
+    if (!scale.length) { alert('Grading scale cannot be empty'); return; }
+    formData.grading_scale = scale;
+    markSectionCompleted('grading_system');
     toggleSection('grading_system');
-    showToast('Grading system saved!', 'success');
+    showToast('Grading system saved!');
 }
 
+// ── Comments Setup ────────────────────────────────────────────────────────────
 function renderCommentsSetupSection() {
-    const container = document.getElementById('section-comments_setup');
-    if (!container) return;
-    
-    let commentsRowsHtml = '';
-    formData.grading_scale.forEach(grade => {
-        const comment = formData.principal_comments[grade.grade] || '';
-        commentsRowsHtml += `
-            <div class="form-group">
-                <label><strong>${grade.grade}</strong> - ${grade.remark}</label>
-                <textarea class="principal-comment" data-grade="${grade.grade}" rows="2" placeholder="Principal's comment for grade ${grade.grade}..." style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;">${comment.replace(/"/g, '&quot;')}</textarea>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = `
+    const c = document.getElementById('section-comments_setup');
+    if (!c) return;
+
+    const commentRows = formData.grading_scale.map(g => `
+        <div class="form-group">
+            <label><strong>${escHtml(g.grade)}</strong> — ${escHtml(g.remark)}</label>
+            <textarea class="principal-comment" data-grade="${escHtml(g.grade)}" rows="2"
+                placeholder="Principal's comment for grade ${escHtml(g.grade)}..."
+                style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;"
+            >${escHtml(formData.principal_comments[g.grade] || '')}</textarea>
+        </div>
+    `).join('');
+
+    c.innerHTML = `
         <div class="form-group">
             <label>Default Class Teacher Name</label>
-            <input type="text" id="defaultTeacherName" value="${formData.default_class_teacher_name.replace(/"/g, '&quot;')}" placeholder="e.g. Mrs. Oluwaseun Adebayo" style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;">
+            <input type="text" id="defaultTeacherName" value="${escHtml(formData.default_class_teacher_name)}"
+                placeholder="e.g. Mrs. Oluwaseun Adebayo"
+                style="width:100%; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px;">
             <small style="color:#666;">This name will be auto-filled for all students</small>
         </div>
-        <div style="margin: 20px 0;">
-            <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Principal's Comments by Grade</h4>
-            ${commentsRowsHtml}
+        <div style="margin:20px 0;">
+            <h4 style="font-size:0.9rem; margin-bottom:10px;">Principal's Comments by Grade</h4>
+            ${commentRows}
         </div>
         <button class="btn btn-primary btn-sm" onclick="saveCommentsSetup()">Save Comments Setup</button>
     `;
@@ -1741,24 +2062,22 @@ function renderCommentsSetupSection() {
 
 function saveCommentsSetup() {
     formData.default_class_teacher_name = document.getElementById('defaultTeacherName')?.value.trim() || '';
-    
     const comments = {};
-    document.querySelectorAll('.principal-comment').forEach(textarea => {
-        const grade = textarea.getAttribute('data-grade');
-        if (grade) comments[grade] = textarea.value.trim();
+    document.querySelectorAll('.principal-comment').forEach(ta => {
+        const grade = ta.getAttribute('data-grade');
+        if (grade) comments[grade] = ta.value.trim();
     });
     formData.principal_comments = comments;
-    
-    markSectionCompleted('comments_setup', true);
+    markSectionCompleted('comments_setup');
     toggleSection('comments_setup');
-    showToast('Comments setup saved!', 'success');
+    showToast('Comments setup saved!');
 }
 
+// ── Term Dates ────────────────────────────────────────────────────────────────
 function renderTermDatesSection() {
-    const container = document.getElementById('section-term_dates');
-    if (!container) return;
-    
-    container.innerHTML = `
+    const c = document.getElementById('section-term_dates');
+    if (!c) return;
+    c.innerHTML = `
         <div class="form-row">
             <div class="form-group">
                 <label>Term Resumption Date</label>
@@ -1784,254 +2103,199 @@ function renderTermDatesSection() {
 }
 
 function saveTermDates() {
-    formData.current_resumption_date = document.getElementById('resumptionDate')?.value || '';
-    formData.current_closing_date = document.getElementById('closingDate')?.value || '';
-    formData.next_resumption_date = document.getElementById('nextResumptionDate')?.value || '';
-    formData.days_school_opened = parseInt(document.getElementById('daysOpened')?.value) || 62;
-    
-    markSectionCompleted('term_dates', true);
+    formData.current_resumption_date = document.getElementById('resumptionDate')?.value     || '';
+    formData.current_closing_date    = document.getElementById('closingDate')?.value         || '';
+    formData.next_resumption_date    = document.getElementById('nextResumptionDate')?.value  || '';
+    formData.days_school_opened      = parseInt(document.getElementById('daysOpened')?.value) || 62;
+    markSectionCompleted('term_dates');
     toggleSection('term_dates');
-    showToast('Term dates saved!', 'success');
+    showToast('Term dates saved!');
 }
 
+// ── Display Options ───────────────────────────────────────────────────────────
 function renderDisplayOptionsSection() {
-    const container = document.getElementById('section-display_options');
-    if (!container) return;
-    
+    const c = document.getElementById('section-display_options');
+    if (!c) return;
+
     const options = [
-        { id: 'show_class_position', label: 'Show class position' },
-        { id: 'show_subject_position', label: 'Show subject position' },
-        { id: 'show_promoted_to', label: 'Show "promoted to" next class' },
-        { id: 'show_cumulative_avg', label: 'Show cumulative average' },
-        { id: 'show_lowest_highest_avg', label: 'Show lowest & highest average' },
-        { id: 'show_lowest_highest_class', label: 'Show lowest & highest in class' },
-        { id: 'sequential_positions', label: 'Sequential positions (1st, 1st, 2nd)' },
-        { id: 'show_attendance', label: 'Show attendance record' },
-        { id: 'show_affective_traits', label: 'Show affective traits' },
-        { id: 'show_psychomotor', label: 'Show psychomotor skills' }
+        { id: 'show_class_position',        label: 'Show class position' },
+        { id: 'show_subject_position',       label: 'Show subject position' },
+        { id: 'show_promoted_to',            label: 'Show "promoted to" next class' },
+        { id: 'show_cumulative_avg',         label: 'Show cumulative average' },
+        { id: 'show_lowest_highest_avg',     label: 'Show lowest & highest average' },
+        { id: 'show_lowest_highest_class',   label: 'Show lowest & highest in class' },
+        { id: 'sequential_positions',        label: 'Sequential positions (1st, 1st, 2nd)' },
+        { id: 'show_attendance',             label: 'Show attendance record' },
+        { id: 'show_affective_traits',       label: 'Show affective traits' },
+        { id: 'show_psychomotor',            label: 'Show psychomotor skills' }
     ];
-    
-    let optionsHtml = '';
-    options.forEach(opt => {
-        optionsHtml += `
-            <div class="toggle-switch">
-                <label>${opt.label}</label>
-                <label class="switch">
-                    <input type="checkbox" class="display-option" data-option="${opt.id}" ${formData[opt.id] ? 'checked' : ''}>
-                    <span class="slider"></span>
-                </label>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = `
-        ${optionsHtml}
-        <div style="margin-top: 15px;"><button class="btn btn-primary btn-sm" onclick="saveDisplayOptions()">Save Display Options</button></div>
+
+    c.innerHTML = options.map(opt => `
+        <div class="toggle-switch">
+            <label>${opt.label}</label>
+            <label class="switch">
+                <input type="checkbox" class="display-option" data-option="${opt.id}" ${formData[opt.id] ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+    `).join('') + `
+        <div style="margin-top:15px;"><button class="btn btn-primary btn-sm" onclick="saveDisplayOptions()">Save Display Options</button></div>
     `;
 }
 
 function saveDisplayOptions() {
-    const checkboxes = document.querySelectorAll('.display-option');
-    checkboxes.forEach(cb => {
-        const option = cb.getAttribute('data-option');
-        if (option) formData[option] = cb.checked;
+    document.querySelectorAll('.display-option').forEach(cb => {
+        const opt = cb.getAttribute('data-option');
+        if (opt) formData[opt] = cb.checked;
     });
-    
-    markSectionCompleted('display_options', true);
+    markSectionCompleted('display_options');
     toggleSection('display_options');
-    showToast('Display options saved!', 'success');
+    showToast('Display options saved!');
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SAVE ALL & SUBMIT
+// ══════════════════════════════════════════════════════════════════════════════
 function saveAllSections() {
-    // Check if all sections are completed
-    const allCompleted = Object.values(completedSections).every(v => v === true);
-    if (!allCompleted) {
+    const allDone = Object.values(completedSections).every(v => v === true);
+    if (!allDone) {
         alert('Please complete all sections before saving.');
         return;
     }
-    
-    // Submit via AJAX
-    const formDataObj = new FormData();
-    formDataObj.append('action', 'save_exam_record');
-    formDataObj.append('record_id', formData.record_id);
-    formDataObj.append('record_name', formData.record_name);
-    formDataObj.append('session', formData.session);
-    formDataObj.append('term', formData.term);
-    formDataObj.append('class', formData.class);
-    formDataObj.append('template', formData.template);
-    formDataObj.append('grading_system', formData.grading_system);
-    formDataObj.append('default_class_teacher_name', formData.default_class_teacher_name);
-    formDataObj.append('current_resumption_date', formData.current_resumption_date);
-    formDataObj.append('current_closing_date', formData.current_closing_date);
-    formDataObj.append('next_resumption_date', formData.next_resumption_date);
-    formDataObj.append('days_school_opened', formData.days_school_opened);
-    formDataObj.append('show_class_position', formData.show_class_position ? '1' : '0');
-    formDataObj.append('show_subject_position', formData.show_subject_position ? '1' : '0');
-    formDataObj.append('show_promoted_to', formData.show_promoted_to ? '1' : '0');
-    formDataObj.append('show_cumulative_avg', formData.show_cumulative_avg ? '1' : '0');
-    formDataObj.append('show_lowest_highest_avg', formData.show_lowest_highest_avg ? '1' : '0');
-    formDataObj.append('show_lowest_highest_class', formData.show_lowest_highest_class ? '1' : '0');
-    formDataObj.append('sequential_positions', formData.sequential_positions ? '1' : '0');
-    formDataObj.append('show_attendance', formData.show_attendance ? '1' : '0');
-    formDataObj.append('show_affective_traits', formData.show_affective_traits ? '1' : '0');
-    formDataObj.append('show_psychomotor', formData.show_psychomotor ? '1' : '0');
-    formDataObj.append('save_as', 'active');
-    
-    // Add score types
-    formData.score_types.forEach((st) => {
-        formDataObj.append('score_label[]', st.label);
-        formDataObj.append('score_max[]', st.max);
+
+    const fd = new FormData();
+    fd.append('action', 'save_exam_record');
+    fd.append('record_id',                  formData.record_id);
+    fd.append('record_name',                formData.record_name);
+    fd.append('session',                    formData.session);
+    fd.append('term',                       formData.term);
+    fd.append('class',                      formData.class);
+    fd.append('template',                   formData.template);
+    fd.append('grading_system',             formData.grading_system);
+    fd.append('default_class_teacher_name', formData.default_class_teacher_name);
+    fd.append('current_resumption_date',    formData.current_resumption_date);
+    fd.append('current_closing_date',       formData.current_closing_date);
+    fd.append('next_resumption_date',       formData.next_resumption_date);
+    fd.append('days_school_opened',         formData.days_school_opened);
+    fd.append('show_class_position',        formData.show_class_position        ? '1' : '0');
+    fd.append('show_subject_position',      formData.show_subject_position      ? '1' : '0');
+    fd.append('show_promoted_to',           formData.show_promoted_to           ? '1' : '0');
+    fd.append('show_cumulative_avg',        formData.show_cumulative_avg        ? '1' : '0');
+    fd.append('show_lowest_highest_avg',    formData.show_lowest_highest_avg    ? '1' : '0');
+    fd.append('show_lowest_highest_class',  formData.show_lowest_highest_class  ? '1' : '0');
+    fd.append('sequential_positions',       formData.sequential_positions       ? '1' : '0');
+    fd.append('show_attendance',            formData.show_attendance            ? '1' : '0');
+    fd.append('show_affective_traits',      formData.show_affective_traits      ? '1' : '0');
+    fd.append('show_psychomotor',           formData.show_psychomotor           ? '1' : '0');
+    fd.append('save_as', 'active');
+
+    formData.score_types.forEach(st => {
+        fd.append('score_label[]', st.label);
+        fd.append('score_max[]',   st.max);
     });
-    
-    // Add grading scale
-    formData.grading_scale.forEach(grade => {
-        formDataObj.append('grade_letter[]', grade.grade);
-        formDataObj.append('grade_min[]', grade.min);
-        formDataObj.append('grade_max[]', grade.max);
-        formDataObj.append('grade_remark[]', grade.remark);
+
+    formData.grading_scale.forEach(g => {
+        fd.append('grade_letter[]', g.grade);
+        fd.append('grade_min[]',    g.min);
+        fd.append('grade_max[]',    g.max);
+        fd.append('grade_remark[]', g.remark);
     });
-    
-    // Add principal comments
+
     Object.keys(formData.principal_comments).forEach(grade => {
-        formDataObj.append('principal_grade[]', grade);
-        formDataObj.append('principal_comment[]', formData.principal_comments[grade]);
+        fd.append('principal_grade[]',   grade);
+        fd.append('principal_comment[]', formData.principal_comments[grade]);
     });
-    
+
     fetch('exam_record_setup.php', {
         method: 'POST',
-        body: formDataObj,
+        body: fd,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(res => res.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
-            showToast(data.message, 'success');
+            showToast(data.message);
             if (data.redirect) {
-                window.location.href = data.redirect;
+                setTimeout(() => { window.location.href = data.redirect; }, 1000);
             } else {
-                closeModal();
-                window.location.reload();
+                setTimeout(() => { closeModal(); window.location.reload(); }, 1000);
             }
         } else {
             alert('Error: ' + data.message);
         }
     })
-    .catch(err => {
-        console.error('Error:', err);
-        alert('Error saving record: ' + err.message);
-    });
+    .catch(err => { console.error(err); alert('Error saving record: ' + err.message); });
 }
 
 function closeModal() {
     document.getElementById('examModal').classList.remove('active');
 }
 
-function goToScores(id) {
-    window.location.href = `exam_score_entry.php?record_id=${id}`;
+// ══════════════════════════════════════════════════════════════════════════════
+// UTILITY
+// ══════════════════════════════════════════════════════════════════════════════
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
-function goToResults(id) {
-    window.location.href = `exam_generate_cards.php?record_id=${id}`;
-}
-
-function cloneRecord(id) {
-    if (confirm('Clone this exam record? All settings will be copied.')) {
-        window.location.href = `exam_record_clone.php?id=${id}`;
-    }
-}
-
-function deleteRecord(id) {
-    if (confirm('Are you sure you want to delete this exam record? This action cannot be undone.')) {
-        fetch('exam_record_setup.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-            body: `action=delete_record&record_id=${id}`
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                setTimeout(() => window.location.reload(), 1000);
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(err => alert('Error deleting record'));
-    }
-}
-
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed; bottom: 20px; right: 20px; background: ${type === 'success' ? '#27ae60' : '#e74c3c'};
-        color: white; padding: 12px 20px; border-radius: 8px; z-index: 10000;
-        font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        animation: slideIn 0.3s ease;
-    `;
-    toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
-    document.body.appendChild(toast);
-    setTimeout(() => { toast.remove(); }, 3000);
-}
-
-// Add animation styles
+// ══════════════════════════════════════════════════════════════════════════════
+// ANIMATIONS
+// ══════════════════════════════════════════════════════════════════════════════
 const styleAnim = document.createElement('style');
 styleAnim.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
+    @keyframes slideIn  { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+    @keyframes slideUp  { from { transform: translateY(50px);  opacity:0; } to { transform: translateY(0);  opacity:1; } }
+    @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
 `;
 document.head.appendChild(styleAnim);
 
-// Mobile menu toggle
+// ══════════════════════════════════════════════════════════════════════════════
+// MOBILE SIDEBAR TOGGLE
+// ══════════════════════════════════════════════════════════════════════════════
 (function() {
-    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
-    const overlay = document.getElementById('sidebarOverlay');
+    const sidebar   = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay   = document.getElementById('sidebarOverlay');
     const toggleBtn = document.getElementById('mobileMenuToggle');
-    
-    if (toggleBtn && sidebar) {
-        sidebar.style.transition = 'transform 0.3s ease';
-        
-        function setMobileState(show) {
-            if (window.innerWidth <= 768) {
-                sidebar.style.transform = show ? 'translateX(0)' : 'translateX(-100%)';
-                if (overlay) overlay.classList.toggle('active', show);
-                document.body.style.overflow = show ? 'hidden' : '';
-            }
-        }
-        
+    if (!toggleBtn || !sidebar) return;
+
+    sidebar.style.transition = 'transform 0.3s ease';
+
+    function setMobileState(show) {
         if (window.innerWidth <= 768) {
-            sidebar.style.position = 'fixed';
-            sidebar.style.top = '0';
-            sidebar.style.left = '0';
-            sidebar.style.bottom = '0';
-            sidebar.style.zIndex = '1000';
-            sidebar.style.transform = 'translateX(-100%)';
+            sidebar.style.transform = show ? 'translateX(0)' : 'translateX(-100%)';
+            if (overlay) overlay.classList.toggle('active', show);
+            document.body.style.overflow = show ? 'hidden' : '';
         }
-        
-        toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const isVisible = sidebar.style.transform === 'translateX(0)';
-            setMobileState(!isVisible);
-        });
-        
-        if (overlay) {
-            overlay.addEventListener('click', () => setMobileState(false));
-        }
-        
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 768) {
-                sidebar.style.transform = '';
-                sidebar.style.position = '';
-                if (overlay) overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            } else {
-                sidebar.style.position = 'fixed';
-                sidebar.style.transform = 'translateX(-100%)';
-            }
-        });
     }
+
+    if (window.innerWidth <= 768) {
+        Object.assign(sidebar.style, { position: 'fixed', top: '0', left: '0', bottom: '0', zIndex: '1000', transform: 'translateX(-100%)' });
+    }
+
+    toggleBtn.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        setMobileState(sidebar.style.transform !== 'translateX(0)');
+    });
+
+    if (overlay) overlay.addEventListener('click', () => setMobileState(false));
+
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            sidebar.style.transform = ''; sidebar.style.position = '';
+            if (overlay) overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        } else {
+            Object.assign(sidebar.style, { position: 'fixed', transform: 'translateX(-100%)' });
+        }
+    });
 })();
+
+console.log('Exam Record Setup ready');
 </script>
 
 </body>

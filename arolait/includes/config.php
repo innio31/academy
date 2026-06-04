@@ -36,6 +36,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Add these to your config.php after the database constants
+define('SCHOOL_NAME', 'Arolait Global College of Health Technology');
+define('SCHOOL_PRIMARY',   '#1a3a6b');  // deep navy blue (border & text ring)
+define('SCHOOL_SECONDARY', '#cc1f2d');  // red cross
+define('SCHOOL_LOGO', '/assets/images/logo.png'); // Update with actual logo path
+
 // =============================================
 // SCHOOL CONTEXT MANAGEMENT
 // =============================================

@@ -1,0 +1,46 @@
+{
+    "name": "Arolait Global College of Health Portal",
+    "short_name": "Arolait",
+    "description": "Arolait Global College of Health Parent & Student Portal",
+    "start_url": "/arolait/login.php",
+    "display": "standalone",
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
+    "orientation": "portrait",
+    "scope": "/arolait/",
+    "icons": [
+        {
+            "src": "/arolait/assets/logos/arolait-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/arolait/assets/logos/arolait-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/arolait/assets/screenshots/mobile-home.png",
+            "sizes": "1080x1920",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Home Screen"
+        },
+        {
+            "src": "/arolait/assets/screenshots/mobile-dashboard.png",
+            "sizes": "1080x1920",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Student Dashboard"
+        },
+        {
+            "src": "/arolait/assets/screenshots/desktop-home.png",
+            "sizes": "1280x720",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "Desktop View"
+        }
+    ]
+}

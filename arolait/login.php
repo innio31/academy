@@ -1,38 +1,41 @@
 <?php
-// Force error reporting for debugging (remove in production)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
 
-// IMPORTANT: Clear any output buffering
-if (ob_get_level()) ob_end_clean();
+// ============================================
+// CHECK FOR PASSWORD CHANGED MESSAGE
+// ============================================
+if (isset($_GET['message']) && $_GET['message'] === 'password_changed') {
+    $_SESSION['login_message'] = "Your password has been changed successfully. Please login with your new password.";
+    $_SESSION['login_message_type'] = "success";
+}
 
-// Debug - log current state
-error_log("=== LOGIN.PHP LOADED ===");
-error_log("Session before check: " . print_r($_SESSION, true));
+// Check for message in session
+$login_message = isset($_SESSION['login_message']) ? $_SESSION['login_message'] : '';
+$login_message_type = isset($_SESSION['login_message_type']) ? $_SESSION['login_message_type'] : '';
+// Clear session messages after retrieving
+unset($_SESSION['login_message']);
+unset($_SESSION['login_message_type']);
 
 // Check if user is already logged in
 if (isLoggedIn()) {
     error_log("User is logged in. Role: " . ($_SESSION['role'] ?? 'unknown'));
     
-    // Get dashboard URL
     $dashboardUrl = getDashboardUrl();
     error_log("Dashboard URL: " . $dashboardUrl);
     
-    // Don't redirect if we're already on a valid dashboard page
     $currentFile = basename($_SERVER['PHP_SELF']);
     if ($currentFile != 'dashboard.php' && $currentFile != 'index.php') {
-        // Check if the dashboard file exists
-        $fullPath = __DIR__ . '/../' . $dashboardUrl;
+        $fullPath = __DIR__ . '/' . $dashboardUrl;
         if (file_exists($fullPath)) {
             error_log("Redirecting to: " . $dashboardUrl);
             header("Location: " . $dashboardUrl);
             exit();
         } else {
             error_log("Dashboard file does not exist: " . $fullPath);
-            // If dashboard doesn't exist, logout and show login
             session_destroy();
             session_start();
         }
@@ -41,49 +44,169 @@ if (isLoggedIn()) {
 
 $error = '';
 $success = '';
+$reset_whatsapp_url = null;
+$reset_username = null;
+$reset_user_type = null;
+
+// Get school info from database
+$school_name = SCHOOL_NAME;
+$primary_color = SCHOOL_PRIMARY;
+$secondary_color = SCHOOL_SECONDARY;
+$logo_path = SCHOOL_LOGO;
+
+// Ensure logo path is correct
+if (!empty($logo_path) && $logo_path[0] !== '/') {
+    $logo_path = '/' . $logo_path;
+}
+
+// Handle forgot password request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['forgot_password'])) {
+    $username = trim($_POST['username'] ?? '');
+    $user_type = $_POST['user_type'] ?? 'student';
+    $school_id = getCurrentSchoolId();
+
+    if (empty($username)) {
+        $error = "Please enter your Admission Number / Staff ID / Username";
+    } else {
+        $user_data = null;
+        $user_name = '';
+        $school_whatsapp = '';
+
+        // Get school WhatsApp number from settings
+        try {
+            $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE school_id = ? AND setting_key = 'school_whatsapp' LIMIT 1");
+            $stmt->execute([$school_id]);
+            $whatsapp_result = $stmt->fetch();
+            $school_whatsapp = $whatsapp_result ? $whatsapp_result['setting_value'] : '2349035535827';
+        } catch (Exception $e) {
+            $school_whatsapp = '2349035535827';
+        }
+
+        // Find user based on type in multi-tenant structure
+        if ($user_type === 'student') {
+            $stmt = $pdo->prepare("
+                SELECT u.first_name, u.last_name, s.reg_number 
+                FROM users u 
+                JOIN students s ON u.id = s.user_id AND u.school_id = s.school_id
+                WHERE s.reg_number = ? AND u.school_id = ? AND u.is_active = 1
+            ");
+            $stmt->execute([$username, $school_id]);
+            $user_data = $stmt->fetch();
+            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
+        } elseif ($user_type === 'staff') {
+            $stmt = $pdo->prepare("
+                SELECT u.first_name, u.last_name, st.staff_number 
+                FROM users u 
+                JOIN staff st ON u.id = st.user_id AND u.school_id = st.school_id
+                WHERE st.staff_number = ? AND u.school_id = ? AND u.is_active = 1
+            ");
+            $stmt->execute([$username, $school_id]);
+            $user_data = $stmt->fetch();
+            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
+        } elseif ($user_type === 'admin') {
+            $stmt = $pdo->prepare("
+                SELECT first_name, last_name, email 
+                FROM users 
+                WHERE email = ? AND school_id = ? AND role IN ('admin', 'super_admin') AND is_active = 1
+            ");
+            $stmt->execute([$username, $school_id]);
+            $user_data = $stmt->fetch();
+            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
+        }
+
+        if ($user_data) {
+            // Prepare WhatsApp message
+            $school_name_encoded = urlencode($school_name);
+            $username_encoded = urlencode($username);
+            $user_type_encoded = urlencode($user_type);
+            $user_name_encoded = urlencode($user_name);
+
+            $whatsapp_message = "🔐 PASSWORD RESET REQUEST\n\n"
+                . "School: " . $school_name . "\n"
+                . "User Type: " . ucfirst($user_type) . "\n"
+                . "Username: " . $username . "\n"
+                . "User Name: " . $user_name . "\n\n"
+                . "Please help reset the password for this user.\n"
+                . "Generated from login page.";
+
+            $whatsapp_url = "https://wa.me/{$school_whatsapp}?text=" . urlencode($whatsapp_message);
+
+            $success = "Reset request sent! Click the WhatsApp button below to message the school admin.";
+
+            // Store WhatsApp URL in session for display
+            $_SESSION['reset_whatsapp_url'] = $whatsapp_url;
+            $_SESSION['reset_username'] = $username;
+            $_SESSION['reset_user_type'] = $user_type;
+        } else {
+            $error = "No account found with this " . ($user_type === 'student' ? 'admission number' : 'username') . ". Please check and try again.";
+        }
+    }
+}
 
 // Handle login form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $identifier = trim($_POST['identifier'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    $identifier = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    
+    $user_type = $_POST['user_type'] ?? 'student';
+    $school_id = getCurrentSchoolId();
+
     if (empty($identifier) || empty($password)) {
-        $error = 'Please enter both login ID/Email and password';
+        $error = "Please enter your username and password";
     } else {
-        error_log("Attempting login with identifier: " . $identifier);
-        
-        // Get current school_id (from subdomain or default)
-        $school_id = null;
-        if (function_exists('getCurrentSchoolId')) {
-            $school_id = getCurrentSchoolId();
-        }
-        error_log("Using school_id: " . ($school_id ?? 'default (1)'));
+        error_log("Login attempt with identifier: " . $identifier . " as " . $user_type);
         
         if (loginUser($identifier, $password, $pdo, $school_id)) {
             error_log("Login successful for: " . $identifier);
             
-            // Get dashboard URL after login
-            $dashboardUrl = getDashboardUrl();
-            error_log("Post-login dashboard URL: " . $dashboardUrl);
-            
-            header("Location: " . $dashboardUrl);
-            exit();
+            // Verify the user type matches
+            if ($_SESSION['role'] !== $user_type && !($user_type === 'student' && $_SESSION['role'] === 'student')) {
+                if (!($user_type === 'admin' && $_SESSION['role'] === 'super_admin')) {
+                    error_log("Role mismatch: Expected $user_type, got " . $_SESSION['role']);
+                    logout();
+                    $error = "Invalid credentials for selected user type";
+                } else {
+                    $dashboardUrl = getDashboardUrl();
+                    header("Location: " . $dashboardUrl);
+                    exit();
+                }
+            } else {
+                $dashboardUrl = getDashboardUrl();
+                header("Location: " . $dashboardUrl);
+                exit();
+            }
         } else {
             error_log("Login failed for: " . $identifier);
-            $error = 'Invalid login credentials or account is inactive';
+            $error = "Invalid login credentials or account is inactive";
         }
     }
 }
+
+// Clear reset session data after displaying
+$reset_whatsapp_url = $_SESSION['reset_whatsapp_url'] ?? null;
+$reset_username = $_SESSION['reset_username'] ?? null;
+$reset_user_type = $_SESSION['reset_user_type'] ?? null;
+unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['reset_user_type']);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Login | Arolait Global College of Health Technology</title>
-    <!-- Google Fonts & Font Awesome -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <title><?php echo htmlspecialchars($school_name); ?> - Portal</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="<?php echo $primary_color; ?>">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="<?php echo $logo_path; ?>">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
     <style>
         * {
             margin: 0;
@@ -93,305 +216,535 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #fef9ef 0%, #fff6e8 100%);
+            background: linear-gradient(135deg, <?php echo $primary_color; ?> 0%, <?php echo $secondary_color; ?> 100%);
             min-height: 100vh;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             padding: 20px;
         }
 
-        :root {
-            --primary: #915F07;
-            --primary-dark: #6e4505;
-            --secondary: #FFC333;
-            --secondary-light: #ffe2a4;
-            --shadow-sm: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
-            --shadow-md: 0 20px 25px -12px rgba(0, 0, 0, 0.08);
-            --transition: all 0.3s ease;
+        .container {
+            max-width: 450px;
+            width: 100%;
         }
 
-        .login-container {
+        .login-card {
             background: white;
             border-radius: 32px;
-            box-shadow: var(--shadow-md);
-            width: 100%;
-            max-width: 460px;
-            padding: 44px 40px;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .logo {
+            padding: 40px 32px;
             text-align: center;
-            margin-bottom: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         }
 
-        .logo img {
-            height: 70px;
-            object-fit: contain;
-            margin-bottom: 16px;
+        .school-logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: <?php echo $primary_color; ?>;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
         }
 
-        .logo h1 {
-            color: #1f2937;
-            font-size: 1.8rem;
-            font-weight: 700;
+        .school-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .school-logo .fa-school {
+            font-size: 40px;
+            color: white;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            color: #1a1a2e;
             margin-bottom: 8px;
         }
 
-        .logo p {
-            color: #6b7280;
-            font-size: 0.9rem;
+        .subtitle {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 28px;
         }
 
-        .form-group {
-            margin-bottom: 24px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #374151;
-            font-weight: 600;
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 16px;
+            margin-bottom: 20px;
             font-size: 0.85rem;
         }
 
-        .input-wrapper {
+        .success {
+            background: #dcfce7;
+            color: #16a34a;
+            padding: 12px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+        }
+
+        .input-group {
             position: relative;
-            display: flex;
-            align-items: center;
+            margin-bottom: 16px;
         }
 
-        .input-icon {
-            position: absolute;
-            left: 16px;
-            color: #9ca3af;
-            font-size: 1rem;
-            pointer-events: none;
-        }
-
-        input {
+        .input-group input,
+        .input-group select {
             width: 100%;
-            padding: 14px 16px 14px 46px;
-            border: 1.5px solid #e5e7eb;
+            padding: 14px 16px;
+            border: 2px solid #e8e8e8;
             border-radius: 16px;
             font-size: 0.95rem;
-            font-family: 'Inter', sans-serif;
-            transition: var(--transition);
-            background: #f9fafb;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: <?php echo $primary_color; ?>;
+        }
+
+        .password-wrapper {
+            position: relative;
         }
 
         .password-wrapper input {
-            padding-right: 50px;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: white;
-            box-shadow: 0 0 0 3px rgba(145, 95, 7, 0.1);
+            padding-right: 45px;
         }
 
         .toggle-password {
             position: absolute;
-            right: 16px;
-            background: transparent;
-            border: none;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
             cursor: pointer;
+            color: #999;
             font-size: 1.1rem;
-            color: #9ca3af;
-            padding: 0;
-            width: auto;
-            transition: color 0.2s;
         }
 
         .toggle-password:hover {
-            color: var(--primary);
-            background: transparent;
+            color: <?php echo $primary_color; ?>;
         }
 
-        button[type="submit"] {
+        .login-btn {
             width: 100%;
             padding: 14px;
-            background: var(--primary);
+            background: <?php echo $primary_color; ?>;
             color: white;
             border: none;
-            border-radius: 40px;
+            border-radius: 16px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: var(--transition);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 8px;
+            margin-bottom: 16px;
         }
 
-        button[type="submit"]:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(145, 95, 7, 0.25);
+        .login-btn:hover {
+            opacity: 0.9;
         }
 
-        .error {
-            background: #fef2f2;
-            color: #dc2626;
-            padding: 14px 18px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            text-align: center;
-            font-size: 0.85rem;
-            border-left: 4px solid #dc2626;
+        .forgot-link {
+            text-align: right;
+            margin-bottom: 20px;
         }
 
-        .info {
-            text-align: center;
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-            font-size: 0.75rem;
-            color: #9ca3af;
-        }
-
-        .login-hint {
-            background: #fefbf5;
-            padding: 18px;
-            border-radius: 20px;
-            margin-top: 24px;
-            border: 1px solid #f0ede8;
-        }
-
-        .login-hint h4 {
-            color: var(--primary);
-            margin-bottom: 12px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .login-hint p {
-            margin: 6px 0;
-            color: #4b5563;
+        .forgot-link a {
+            color: <?php echo $primary_color; ?>;
             font-size: 0.8rem;
-        }
-
-        .login-hint .role {
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .back-link {
-            text-align: center;
-            margin-top: 16px;
-        }
-
-        .back-link a {
-            color: var(--primary);
             text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: color 0.2s;
         }
 
-        .back-link a:hover {
-            color: var(--primary-dark);
+        .forgot-link a:hover {
             text-decoration: underline;
         }
 
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+            color: #ccc;
+            font-size: 0.8rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e8e8e8;
+        }
+
+        .install-btn,
+        .whatsapp-btn {
+            width: 100%;
+            padding: 14px;
+            background: transparent;
+            border: 2px solid <?php echo $primary_color; ?>;
+            color: <?php echo $primary_color; ?>;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            text-decoration: none;
+        }
+
+        .install-btn:hover,
+        .whatsapp-btn:hover {
+            background: <?php echo $primary_color; ?>;
+            color: white;
+        }
+
+        .whatsapp-btn {
+            background: #25D366;
+            border-color: #25D366;
+            color: white;
+        }
+
+        .whatsapp-btn:hover {
+            background: #128C7E;
+            border-color: #128C7E;
+            color: white;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .feature {
+            background: white;
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature i {
+            font-size: 1.2rem;
+            color: <?php echo $primary_color; ?>;
+            margin-bottom: 6px;
+        }
+
+        .feature span {
+            font-size: 0.7rem;
+            color: #666;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 32px;
+            border-radius: 24px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 16px;
+            color: #1a1a2e;
+        }
+
+        .modal-content p {
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .modal-cancel {
+            background: #e8e8e8;
+            border: none;
+        }
+
+        .modal-confirm {
+            background: <?php echo $primary_color; ?>;
+            color: white;
+            border: none;
+        }
+
         @media (max-width: 480px) {
-            .login-container {
+            .login-card {
                 padding: 32px 24px;
-            }
-            .logo img {
-                height: 55px;
-            }
-            .logo h1 {
-                font-size: 1.5rem;
-            }
-            input {
-                padding: 12px 14px 12px 42px;
             }
         }
     </style>
 </head>
+
 <body>
-    <div class="login-container">
-        <div class="logo">
-            <img src="https://arolait.com.ng/storage/images/1731350187.jpg" alt="Arolait Logo" onerror="this.src='https://placehold.co/400x120?text=AROLAIT+COLLEGE'">
-            <h1>Welcome Back</h1>
-            <p>Login to access your dashboard</p>
-        </div>
-        
-        <?php if ($error): ?>
-            <div class="error">
-                <i class="fas fa-exclamation-circle" style="margin-right: 8px;"></i>
-                <?php echo htmlspecialchars($error); ?>
+    <div class="container">
+        <div class="login-card">
+            <div class="school-logo">
+                <?php
+                $logo_full_path = $_SERVER['DOCUMENT_ROOT'] . $logo_path;
+                if (!empty($logo_path) && file_exists($logo_full_path)):
+                ?>
+                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
+                <?php else: ?>
+                    <i class="fas fa-school"></i>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
-        
-        <form method="POST" action="">
-            <div class="form-group">
-                <label><i class="fas fa-envelope" style="margin-right: 6px;"></i> Email / Staff ID / Student Reg Number</label>
-                <div class="input-wrapper">
-                    <i class="fas fa-user input-icon"></i>
-                    <input type="text" name="identifier" required placeholder="Enter your email, staff ID or registration number" value="<?php echo htmlspecialchars($_POST['identifier'] ?? ''); ?>">
-                </div>
+            <h2><?php echo htmlspecialchars($school_name); ?></h2>
+            <p class="subtitle">Parent, Student & Staff Portal</p>
+
+            <?php if ($login_message): ?>
+                <div class="success"><?php echo htmlspecialchars($login_message); ?></div>
+            <?php endif; ?>
+
+            <?php if ($error): ?>
+                <div class="error"><?php echo $error; ?></div>
+            <?php endif; ?>
+
+            <?php if ($success): ?>
+                <div class="success"><?php echo $success; ?></div>
+            <?php endif; ?>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <form method="POST">
+                    <div class="input-group">
+                        <select name="user_type" id="user_type" required>
+                            <option value="student">🎓 Student Login</option>
+                            <option value="staff">👨‍🏫 Staff Login</option>
+                            <option value="admin">👑 Admin Login</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" name="username" id="username" placeholder="Admission Number / Staff ID / Username" required>
+                    </div>
+                    <div class="input-group">
+                        <div class="password-wrapper">
+                            <input type="password" name="password" id="password" placeholder="Password" required>
+                            <i class="fas fa-eye toggle-password" onclick="togglePasswordVisibility()"></i>
+                        </div>
+                    </div>
+                    <div class="forgot-link">
+                        <a href="#" onclick="showForgotPasswordModal(event)">Forgot Password?</a>
+                    </div>
+                    <input type="hidden" name="login" value="1">
+                    <button type="submit" class="login-btn">Login</button>
+                </form>
             </div>
-            
-            <div class="form-group">
-                <label><i class="fas fa-lock" style="margin-right: 6px;"></i> Password</label>
-                <div class="input-wrapper password-wrapper">
-                    <i class="fas fa-key input-icon"></i>
-                    <input type="password" name="password" id="password" required placeholder="Enter your password">
-                    <button type="button" class="toggle-password" onclick="togglePassword()">
-                        <i class="far fa-eye" id="toggleIcon"></i>
+
+            <!-- Forgot Password Form (hidden by default) -->
+            <div id="forgotForm" style="display: none;">
+                <form method="POST">
+                    <div class="input-group">
+                        <select name="user_type" id="forgot_user_type" required>
+                            <option value="student">🎓 Student</option>
+                            <option value="staff">👨‍🏫 Staff</option>
+                            <option value="admin">👑 Admin</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" name="username" id="forgot_username" placeholder="Admission Number / Staff ID / Username" required>
+                    </div>
+                    <input type="hidden" name="forgot_password" value="1">
+                    <button type="submit" class="login-btn" style="background: #25D366; margin-bottom: 12px;">
+                        <i class="fab fa-whatsapp"></i> Request Reset via WhatsApp
                     </button>
-                </div>
+                    <button type="button" class="install-btn" onclick="showLoginForm()" style="margin-bottom: 0;">
+                        <i class="fas fa-arrow-left"></i> Back to Login
+                    </button>
+                </form>
             </div>
-            
-            <button type="submit">
-                Login <i class="fas fa-arrow-right"></i>
+
+            <?php if ($reset_whatsapp_url): ?>
+                <div style="margin-top: 16px; margin-bottom: 16px;">
+                    <a href="<?php echo $reset_whatsapp_url; ?>" target="_blank" class="whatsapp-btn">
+                        <i class="fab fa-whatsapp"></i> Message Admin on WhatsApp
+                    </a>
+                    <p style="font-size: 0.7rem; color: #666; margin-top: 8px;">
+                        <i class="fas fa-info-circle"></i>
+                        Click the button above to message the school admin. They will help reset your password.
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <div class="divider">
+                <span>Get the App</span>
+            </div>
+
+            <button class="install-btn" id="installBtn" style="display: none;">
+                <i class="fas fa-download"></i> Install App
             </button>
-        </form>
-        
-        <div class="back-link">
-            <a href="/"><i class="fas fa-home"></i> Back to Homepage</a>
         </div>
-        
-        <div class="info">
-            <i class="far fa-copyright"></i> <span id="currentYear"></span> Arolait Global College of Health Technology. All rights reserved.
+
+        <div class="features">
+            <div class="feature">
+                <i class="fas fa-chart-line"></i>
+                <span>Instant Results</span>
+            </div>
+            <div class="feature">
+                <i class="fas fa-tasks"></i>
+                <span>Assignments</span>
+            </div>
+            <div class="feature">
+                <i class="fas fa-file-alt"></i>
+                <span>CBT Exams</span>
+            </div>
+            <div class="feature">
+                <i class="fas fa-bell"></i>
+                <span>Notifications</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #f59e0b; margin-bottom: 16px;"></i>
+            <h3>Reset Password</h3>
+            <p>You will be redirected to WhatsApp to request a password reset from the school administrator.</p>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+                <button class="modal-confirm" onclick="proceedToForgot()">Continue</button>
+            </div>
         </div>
     </div>
 
     <script>
-        function togglePassword() {
+        let deferredPrompt;
+
+        // Toggle password visibility
+        function togglePasswordVisibility() {
             const passwordInput = document.getElementById('password');
-            const toggleIcon = document.getElementById('toggleIcon');
-            
+            const toggleIcon = document.querySelector('.toggle-password');
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
-                toggleIcon.className = 'far fa-eye-slash';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
             } else {
                 passwordInput.type = 'password';
-                toggleIcon.className = 'far fa-eye';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
             }
         }
-        
-        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // Show forgot password modal
+        function showForgotPasswordModal(event) {
+            event.preventDefault();
+            const modal = document.getElementById('confirmModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.style.display = 'none';
+        }
+
+        function proceedToForgot() {
+            closeModal();
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('forgotForm').style.display = 'block';
+        }
+
+        function showLoginForm() {
+            document.getElementById('forgotForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+        }
+
+        // Auto-populate username placeholder based on user type
+        document.getElementById('user_type')?.addEventListener('change', function() {
+            const usernameField = document.getElementById('username');
+            const userType = this.value;
+            if (userType === 'student') {
+                usernameField.placeholder = 'Admission Number (e.g., CSC/2026/0001)';
+            } else if (userType === 'staff') {
+                usernameField.placeholder = 'Staff ID (e.g., CSC/2026/0001)';
+            } else {
+                usernameField.placeholder = 'Email Address';
+            }
+        });
+
+        // Trigger change on load
+        if (document.getElementById('user_type')) {
+            document.getElementById('user_type').dispatchEvent(new Event('change'));
+        }
+
+        // PWA Installation
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('installBtn');
+            if (installBtn) {
+                installBtn.style.display = 'flex';
+                installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
+            }
+            console.log('Install prompt ready');
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+
+        document.getElementById('installBtn')?.addEventListener('click', installPWA);
+
+        // Service Worker registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registered:', reg))
+                .catch(err => console.log('SW error:', err));
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('confirmModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
     </script>
 </body>
+
 </html>

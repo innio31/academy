@@ -204,11 +204,6 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
                         <i class="fas fa-file-pdf"></i> My Report Card
                     </a>
                 </li>
-                <li>
-                    <a href="view-report-card.php" class="<?php echo $current_page == 'view-report-card.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-line"></i> Term Reports
-                    </a>
-                </li>
             </ul>
         </div>
 

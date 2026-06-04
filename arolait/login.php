@@ -16,26 +16,19 @@ if (isset($_GET['message']) && $_GET['message'] === 'password_changed') {
 // Check for message in session
 $login_message = isset($_SESSION['login_message']) ? $_SESSION['login_message'] : '';
 $login_message_type = isset($_SESSION['login_message_type']) ? $_SESSION['login_message_type'] : '';
-// Clear session messages after retrieving
 unset($_SESSION['login_message']);
 unset($_SESSION['login_message_type']);
 
 // Check if user is already logged in
 if (isLoggedIn()) {
-    error_log("User is logged in. Role: " . ($_SESSION['role'] ?? 'unknown'));
-    
     $dashboardUrl = getDashboardUrl();
-    error_log("Dashboard URL: " . $dashboardUrl);
-    
     $currentFile = basename($_SERVER['PHP_SELF']);
     if ($currentFile != 'dashboard.php' && $currentFile != 'index.php') {
         $fullPath = __DIR__ . '/' . $dashboardUrl;
         if (file_exists($fullPath)) {
-            error_log("Redirecting to: " . $dashboardUrl);
             header("Location: " . $dashboardUrl);
             exit();
         } else {
-            error_log("Dashboard file does not exist: " . $fullPath);
             session_destroy();
             session_start();
         }
@@ -61,15 +54,15 @@ if (!empty($logo_path) && $logo_path[0] !== '/') {
 
 // Handle forgot password request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['forgot_password'])) {
-    $username = trim($_POST['username'] ?? '');
-    $user_type = $_POST['user_type'] ?? 'student';
+    $identifier = trim($_POST['identifier'] ?? '');
     $school_id = getCurrentSchoolId();
 
-    if (empty($username)) {
-        $error = "Please enter your Admission Number / Staff ID / Username";
+    if (empty($identifier)) {
+        $error = "Please enter your Email, Staff ID, or Registration Number";
     } else {
         $user_data = null;
         $user_name = '';
+        $user_role = '';
         $school_whatsapp = '';
 
         // Get school WhatsApp number from settings
@@ -82,100 +75,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['forgot_password'])) {
             $school_whatsapp = '2349035535827';
         }
 
-        // Find user based on type in multi-tenant structure
-        if ($user_type === 'student') {
-            $stmt = $pdo->prepare("
-                SELECT u.first_name, u.last_name, s.reg_number 
-                FROM users u 
-                JOIN students s ON u.id = s.user_id AND u.school_id = s.school_id
-                WHERE s.reg_number = ? AND u.school_id = ? AND u.is_active = 1
-            ");
-            $stmt->execute([$username, $school_id]);
-            $user_data = $stmt->fetch();
-            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
-        } elseif ($user_type === 'staff') {
-            $stmt = $pdo->prepare("
-                SELECT u.first_name, u.last_name, st.staff_number 
-                FROM users u 
-                JOIN staff st ON u.id = st.user_id AND u.school_id = st.school_id
-                WHERE st.staff_number = ? AND u.school_id = ? AND u.is_active = 1
-            ");
-            $stmt->execute([$username, $school_id]);
-            $user_data = $stmt->fetch();
-            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
-        } elseif ($user_type === 'admin') {
-            $stmt = $pdo->prepare("
-                SELECT first_name, last_name, email 
-                FROM users 
-                WHERE email = ? AND school_id = ? AND role IN ('admin', 'super_admin') AND is_active = 1
-            ");
-            $stmt->execute([$username, $school_id]);
-            $user_data = $stmt->fetch();
-            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
-        }
+        // Find user by email, reg_number, or staff_number
+        $stmt = $pdo->prepare("
+            SELECT u.first_name, u.last_name, u.email, u.role,
+                   s.reg_number, st.staff_number
+            FROM users u
+            LEFT JOIN students s ON u.id = s.user_id AND u.school_id = s.school_id
+            LEFT JOIN staff st ON u.id = st.user_id AND u.school_id = st.school_id
+            WHERE u.school_id = ? 
+            AND (u.email = ? OR s.reg_number = ? OR st.staff_number = ?)
+            AND u.is_active = 1
+            LIMIT 1
+        ");
+        $stmt->execute([$school_id, $identifier, $identifier, $identifier]);
+        $user_data = $stmt->fetch();
 
         if ($user_data) {
+            $user_name = ($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? '');
+            $user_role = $user_data['role'] ?? 'unknown';
+            
             // Prepare WhatsApp message
-            $school_name_encoded = urlencode($school_name);
-            $username_encoded = urlencode($username);
-            $user_type_encoded = urlencode($user_type);
-            $user_name_encoded = urlencode($user_name);
-
             $whatsapp_message = "🔐 PASSWORD RESET REQUEST\n\n"
                 . "School: " . $school_name . "\n"
-                . "User Type: " . ucfirst($user_type) . "\n"
-                . "Username: " . $username . "\n"
+                . "User Role: " . ucfirst($user_role) . "\n"
+                . "Email: " . ($user_data['email'] ?? 'N/A') . "\n"
+                . "Reg Number: " . ($user_data['reg_number'] ?? 'N/A') . "\n"
+                . "Staff ID: " . ($user_data['staff_number'] ?? 'N/A') . "\n"
                 . "User Name: " . $user_name . "\n\n"
-                . "Please help reset the password for this user.\n"
-                . "Generated from login page.";
+                . "Please help reset the password for this user.";
 
             $whatsapp_url = "https://wa.me/{$school_whatsapp}?text=" . urlencode($whatsapp_message);
 
             $success = "Reset request sent! Click the WhatsApp button below to message the school admin.";
 
-            // Store WhatsApp URL in session for display
             $_SESSION['reset_whatsapp_url'] = $whatsapp_url;
-            $_SESSION['reset_username'] = $username;
-            $_SESSION['reset_user_type'] = $user_type;
+            $_SESSION['reset_identifier'] = $identifier;
         } else {
-            $error = "No account found with this " . ($user_type === 'student' ? 'admission number' : 'username') . ". Please check and try again.";
+            $error = "No account found with this Email, Staff ID, or Registration Number. Please check and try again.";
         }
     }
 }
 
 // Handle login form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    $identifier = trim($_POST['username'] ?? '');
+    $identifier = trim($_POST['identifier'] ?? '');
     $password = $_POST['password'] ?? '';
-    $user_type = $_POST['user_type'] ?? 'student';
     $school_id = getCurrentSchoolId();
 
     if (empty($identifier) || empty($password)) {
-        $error = "Please enter your username and password";
+        $error = "Please enter your login ID/Email and password";
     } else {
-        error_log("Login attempt with identifier: " . $identifier . " as " . $user_type);
-        
         if (loginUser($identifier, $password, $pdo, $school_id)) {
-            error_log("Login successful for: " . $identifier);
-            
-            // Verify the user type matches
-            if ($_SESSION['role'] !== $user_type && !($user_type === 'student' && $_SESSION['role'] === 'student')) {
-                if (!($user_type === 'admin' && $_SESSION['role'] === 'super_admin')) {
-                    error_log("Role mismatch: Expected $user_type, got " . $_SESSION['role']);
-                    logout();
-                    $error = "Invalid credentials for selected user type";
-                } else {
-                    $dashboardUrl = getDashboardUrl();
-                    header("Location: " . $dashboardUrl);
-                    exit();
-                }
-            } else {
-                $dashboardUrl = getDashboardUrl();
-                header("Location: " . $dashboardUrl);
-                exit();
-            }
+            $dashboardUrl = getDashboardUrl();
+            header("Location: " . $dashboardUrl);
+            exit();
         } else {
-            error_log("Login failed for: " . $identifier);
             $error = "Invalid login credentials or account is inactive";
         }
     }
@@ -183,9 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
 // Clear reset session data after displaying
 $reset_whatsapp_url = $_SESSION['reset_whatsapp_url'] ?? null;
-$reset_username = $_SESSION['reset_username'] ?? null;
-$reset_user_type = $_SESSION['reset_user_type'] ?? null;
-unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['reset_user_type']);
+$reset_identifier = $_SESSION['reset_identifier'] ?? null;
+unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_identifier']);
 ?>
 
 <!DOCTYPE html>
@@ -295,8 +248,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             margin-bottom: 16px;
         }
 
-        .input-group input,
-        .input-group select {
+        .input-group input {
             width: 100%;
             padding: 14px 16px;
             border: 2px solid #e8e8e8;
@@ -306,8 +258,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             transition: all 0.3s;
         }
 
-        .input-group input:focus,
-        .input-group select:focus {
+        .input-group input:focus {
             outline: none;
             border-color: <?php echo $primary_color; ?>;
         }
@@ -543,14 +494,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             <div id="loginForm">
                 <form method="POST">
                     <div class="input-group">
-                        <select name="user_type" id="user_type" required>
-                            <option value="student">🎓 Student Login</option>
-                            <option value="staff">👨‍🏫 Staff Login</option>
-                            <option value="admin">👑 Admin Login</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" name="username" id="username" placeholder="Admission Number / Staff ID / Username" required>
+                        <input type="text" name="identifier" id="identifier" placeholder="Email / Staff ID / Registration Number" required>
                     </div>
                     <div class="input-group">
                         <div class="password-wrapper">
@@ -570,14 +514,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             <div id="forgotForm" style="display: none;">
                 <form method="POST">
                     <div class="input-group">
-                        <select name="user_type" id="forgot_user_type" required>
-                            <option value="student">🎓 Student</option>
-                            <option value="staff">👨‍🏫 Staff</option>
-                            <option value="admin">👑 Admin</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" name="username" id="forgot_username" placeholder="Admission Number / Staff ID / Username" required>
+                        <input type="text" name="identifier" id="forgot_identifier" placeholder="Email / Staff ID / Registration Number" required>
                     </div>
                     <input type="hidden" name="forgot_password" value="1">
                     <button type="submit" class="login-btn" style="background: #25D366; margin-bottom: 12px;">
@@ -684,24 +621,6 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
             document.getElementById('loginForm').style.display = 'block';
         }
 
-        // Auto-populate username placeholder based on user type
-        document.getElementById('user_type')?.addEventListener('change', function() {
-            const usernameField = document.getElementById('username');
-            const userType = this.value;
-            if (userType === 'student') {
-                usernameField.placeholder = 'Admission Number (e.g., CSC/2026/0001)';
-            } else if (userType === 'staff') {
-                usernameField.placeholder = 'Staff ID (e.g., CSC/2026/0001)';
-            } else {
-                usernameField.placeholder = 'Email Address';
-            }
-        });
-
-        // Trigger change on load
-        if (document.getElementById('user_type')) {
-            document.getElementById('user_type').dispatchEvent(new Event('change'));
-        }
-
         // PWA Installation
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -711,18 +630,13 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
                 installBtn.style.display = 'flex';
                 installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
             }
-            console.log('Install prompt ready');
         });
 
         function installPWA() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install prompt');
-                    } else {
-                        console.log('User dismissed the install prompt');
-                    }
+                    console.log('User accepted the install prompt');
                     deferredPrompt = null;
                 });
             }
@@ -733,7 +647,7 @@ unset($_SESSION['reset_whatsapp_url'], $_SESSION['reset_username'], $_SESSION['r
         // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('SW registered:', reg))
+                .then(reg => console.log('SW registered'))
                 .catch(err => console.log('SW error:', err));
         }
 

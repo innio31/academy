@@ -22,6 +22,10 @@ function loginUser($identifier, $password, $pdo, $school_id = null) {
     $stmt->execute([$school_id, $identifier]);
     $user = $stmt->fetch();
     
+    if ($user) {
+        error_log("Found user by email: " . $identifier);
+    }
+    
     // SECOND: If not found, try as student registration number
     if (!$user) {
         $stmt = $pdo->prepare("
@@ -36,7 +40,7 @@ function loginUser($identifier, $password, $pdo, $school_id = null) {
         $user = $stmt->fetch();
         
         if ($user) {
-            error_log("Found user by reg_number: " . $identifier . " for school: " . $school_id);
+            error_log("Found user by reg_number: " . $identifier);
         }
     }
     
@@ -54,83 +58,100 @@ function loginUser($identifier, $password, $pdo, $school_id = null) {
         $user = $stmt->fetch();
         
         if ($user) {
-            error_log("Found user by staff_number: " . $identifier . " for school: " . $school_id);
+            error_log("Found user by staff_number: " . $identifier);
         }
     }
     
     // Verify password and complete login
-    if ($user && password_verify($password, $user['password'])) {
-        error_log("Password verified for user: " . $user['email']);
-        
-        // Update last login
-        $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-        $update->execute([$user['id']]);
-        
-        // Set basic session variables
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
-        $_SESSION['role'] = $user['role'];
-        $_SESSION['login_via'] = $identifier;
-        $_SESSION['school_id'] = $user['school_id'];
-        
-        // Set school context
-        if (function_exists('setSchoolContext')) {
-            setSchoolContext($user['school_id']);
-        }
-        
-        // =============================================
-        // SET SESSION TIMEOUT ACTIVITY TIMESTAMP
-        // =============================================
-        $_SESSION['last_activity'] = time();
-        $_SESSION['last_regeneration'] = time();
-        $_SESSION['session_start_time'] = time();
-        
-        // Get role-specific data
-        if ($user['role'] == 'student') {
-            $stmt2 = $pdo->prepare("SELECT id, reg_number, department_id, current_level FROM students WHERE user_id = ? AND school_id = ?");
-            $stmt2->execute([$user['id'], $user['school_id']]);
-            $student = $stmt2->fetch();
-            if ($student) {
-                $_SESSION['student_id'] = $student['id'];
-                $_SESSION['reg_number'] = $student['reg_number'];
-                $_SESSION['department_id'] = $student['department_id'];
-                $_SESSION['level'] = $student['current_level'];
-            } else {
-                error_log("CRITICAL: Student record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
-                return false;
-            }
-        } elseif ($user['role'] == 'staff') {
-            $stmt2 = $pdo->prepare("SELECT id, staff_number, department_id, designation FROM staff WHERE user_id = ? AND school_id = ?");
-            $stmt2->execute([$user['id'], $user['school_id']]);
-            $staff = $stmt2->fetch();
-            if ($staff) {
-                $_SESSION['staff_id'] = $staff['id'];
-                $_SESSION['staff_number'] = $staff['staff_number'];
-                $_SESSION['department_id'] = $staff['department_id'];
-                $_SESSION['designation'] = $staff['designation'];
-            } else {
-                error_log("CRITICAL: Staff record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
-                return false;
-            }
-        } elseif ($user['role'] == 'parent') {
-            $stmt2 = $pdo->prepare("SELECT id, student_id FROM parents WHERE user_id = ? AND school_id = ?");
-            $stmt2->execute([$user['id'], $user['school_id']]);
-            $parent = $stmt2->fetch();
-            if ($parent) {
-                $_SESSION['parent_id'] = $parent['id'];
-                $_SESSION['monitored_student_id'] = $parent['student_id'];
-            } else {
-                error_log("CRITICAL: Parent record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
     if ($user) {
-        error_log("Password verification failed for user: " . $user['email']);
+        error_log("User found. Verifying password...");
+        
+        // Check password (supports both hashed and plain text for migration)
+        $password_valid = false;
+        
+        if (password_verify($password, $user['password'])) {
+            $password_valid = true;
+            error_log("Password verified using password_verify");
+        } elseif ($user['password'] === $password) {
+            // Migrate plain text password to hashed
+            $password_valid = true;
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $updateStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+            $updateStmt->execute([$hashed, $user['id']]);
+            error_log("Migrated plain text password to hashed for user: " . $user['email']);
+        }
+        
+        if ($password_valid) {
+            error_log("Password verified for user: " . $user['email']);
+            
+            // Update last login
+            $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+            $update->execute([$user['id']]);
+            
+            // Set basic session variables
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_email'] = $user['email'];
+            $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['school_id'] = $user['school_id'];
+            
+            // Set school context
+            if (function_exists('setSchoolContext')) {
+                setSchoolContext($user['school_id']);
+            }
+            
+            // Set session timeout activity timestamps
+            $_SESSION['last_activity'] = time();
+            $_SESSION['last_regeneration'] = time();
+            $_SESSION['session_start_time'] = time();
+            
+            // Get role-specific data
+            if ($user['role'] == 'student') {
+                $stmt2 = $pdo->prepare("SELECT id, reg_number, department_id, current_level FROM students WHERE user_id = ? AND school_id = ?");
+                $stmt2->execute([$user['id'], $user['school_id']]);
+                $student = $stmt2->fetch();
+                if ($student) {
+                    $_SESSION['student_id'] = $student['id'];
+                    $_SESSION['reg_number'] = $student['reg_number'];
+                    $_SESSION['department_id'] = $student['department_id'];
+                    $_SESSION['level'] = $student['current_level'];
+                    error_log("Student session data set for: " . $student['reg_number']);
+                } else {
+                    error_log("WARNING: Student record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
+                }
+            } elseif ($user['role'] == 'staff') {
+                $stmt2 = $pdo->prepare("SELECT id, staff_number, department_id, designation FROM staff WHERE user_id = ? AND school_id = ?");
+                $stmt2->execute([$user['id'], $user['school_id']]);
+                $staff = $stmt2->fetch();
+                if ($staff) {
+                    $_SESSION['staff_id'] = $staff['id'];
+                    $_SESSION['staff_number'] = $staff['staff_number'];
+                    $_SESSION['department_id'] = $staff['department_id'];
+                    $_SESSION['designation'] = $staff['designation'];
+                    error_log("Staff session data set for: " . $staff['staff_number']);
+                } else {
+                    error_log("WARNING: Staff record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
+                }
+            } elseif ($user['role'] == 'parent') {
+                $stmt2 = $pdo->prepare("SELECT id, student_id FROM parents WHERE user_id = ? AND school_id = ?");
+                $stmt2->execute([$user['id'], $user['school_id']]);
+                $parent = $stmt2->fetch();
+                if ($parent) {
+                    $_SESSION['parent_id'] = $parent['id'];
+                    $_SESSION['monitored_student_id'] = $parent['student_id'];
+                    error_log("Parent session data set");
+                } else {
+                    error_log("WARNING: Parent record missing for user_id: " . $user['id'] . " in school: " . $user['school_id']);
+                }
+            } elseif ($user['role'] == 'admin' || $user['role'] == 'super_admin') {
+                $_SESSION['admin_role'] = $user['role'];
+                error_log("Admin session data set for role: " . $user['role']);
+            }
+            
+            return true;
+        } else {
+            error_log("Password verification FAILED for user: " . $user['email']);
+        }
     } else {
         error_log("No user found for identifier: " . $identifier . " in school: " . $school_id);
     }
@@ -151,7 +172,6 @@ function requireRole($allowedRoles) {
     }
     
     if (!in_array($_SESSION['role'], $allowedRoles)) {
-        // Redirect to appropriate dashboard instead of login
         $dashboard = getDashboardUrl();
         if ($dashboard && $dashboard != 'login.php') {
             header("Location: " . $dashboard);
@@ -164,23 +184,18 @@ function requireRole($allowedRoles) {
 
 // Function to logout
 function logout() {
-    // Clear all session variables
     $_SESSION = array();
     
-    // Destroy the session cookie
     if (isset($_COOKIE[session_name()])) {
         setcookie(session_name(), '', time() - 3600, '/');
     }
     
-    // Destroy the session
     session_destroy();
-    
-    // Redirect to login
     header("Location: ../login.php");
     exit();
 }
 
-// Function to get user dashboard URL based on role - FIXED to use correct paths
+// Function to get user dashboard URL based on role
 function getDashboardUrl() {
     if (!isLoggedIn()) {
         return 'login.php';
@@ -188,15 +203,15 @@ function getDashboardUrl() {
     
     switch($_SESSION['role']) {
         case 'super_admin':
-            return 'admin/index.php';
+            return 'admin/dashboard.php';
         case 'admin':
-            return 'admin/index.php';
+            return 'admin/dashboard.php';
         case 'staff':
-            return 'staff/index.php';
+            return 'staff/dashboard.php';
         case 'student':
-            return 'student/index.php';
+            return 'student/dashboard.php';
         case 'parent':
-            return 'parent/index.php';
+            return 'parent/dashboard.php';
         default:
             return 'login.php';
     }
@@ -214,7 +229,7 @@ function getSessionRemainingTime() {
     return max(0, round($remaining / 60, 1));
 }
 
-// Function to display session timeout warning (optional)
+// Function to display session timeout warning
 function getSessionTimeoutWarning() {
     $remaining = getSessionRemainingTime();
     if ($remaining <= 5 && $remaining > 0) {
@@ -233,7 +248,7 @@ function verifyUserSchool($user_id, $school_id = null) {
         if (function_exists('getCurrentSchoolId')) {
             $school_id = getCurrentSchoolId();
         } else {
-            return true; // Skip verification if function doesn't exist
+            return true;
         }
     }
     

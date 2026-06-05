@@ -835,7 +835,7 @@ try {
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/gsa/assets/logos/logo.png',
+                    '/msv/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -989,7 +989,7 @@ try {
         </div>
 
         <!-- Logout -->
-        <a href="/gsa/logout.php" class="nav-item standalone logout">
+        <a href="/msv/logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>
@@ -1101,7 +1101,7 @@ try {
     }
 
     function loadNotifications() {
-        fetch('/gsa/admin/attendance_api.php?action=get_notifications', {
+        fetch('/msv/admin/attendance_api.php?action=get_notifications', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(response => response.json())
@@ -1133,7 +1133,7 @@ try {
     }
 
     function loadUnreadCount() {
-        fetch('/gsa/admin/attendance_api.php?action=get_unread_count', {
+        fetch('/msv/admin/attendance_api.php?action=get_unread_count', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(response => response.json())
@@ -1154,7 +1154,7 @@ try {
         formData.append('action', 'mark_read');
         formData.append('notification_id', id);
         
-        fetch('/gsa/admin/attendance_api.php', {
+        fetch('/msv/admin/attendance_api.php', {
             method: 'POST',
             body: formData,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -1170,7 +1170,7 @@ try {
         const formData = new URLSearchParams();
         formData.append('action', 'mark_all_read');
         
-        fetch('/gsa/admin/attendance_api.php', {
+        fetch('/msv/admin/attendance_api.php', {
             method: 'POST',
             body: formData,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -1247,7 +1247,7 @@ try {
     }
     
     async function saveSubscription(subscription) {
-        const response = await fetch('/gsa/admin/attendance_api.php', {
+        const response = await fetch('/msv/admin/attendance_api.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -1261,7 +1261,7 @@ try {
     }
     
     async function removeSubscription(subscription) {
-        await fetch('/gsa/admin/attendance_api.php', {
+        await fetch('/msv/admin/attendance_api.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -1438,7 +1438,7 @@ try {
         }
         
         try {
-            swRegistration = await navigator.serviceWorker.register('/gsa/sw.js');
+            swRegistration = await navigator.serviceWorker.register('/msv/sw.js');
             console.log('Service Worker registered');
             
             addPushSettingsUI();

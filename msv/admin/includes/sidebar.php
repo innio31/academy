@@ -1,5 +1,5 @@
 <?php
-// msv/admin/includes/sidebar.php - Reusable sidebar component
+// admin/includes/sidebar.php - Reusable sidebar component with Notification Bell & Push Notifications
 // Fully dynamic school theme integration – reads constants from config.php
 
 // Make sure required variables are available
@@ -47,10 +47,10 @@ if (!isset($subscription_active)) {
 }
 
 // Determine which nav group is active based on current page
-$portal_pages = ['manage-students.php', 'manage-staff.php', 'manage-classes.php', 'manage-subjects.php', 'attendance.php'];
-$exam_pages   = ['manage-exams.php', 'view-results.php', 'exam_record_setup.php'];
+$portal_pages = ['manage-students.php', 'manage-staff.php', 'manage-classes.php', 'manage-subjects.php', 'manage_attendance.php'];
+$exam_pages   = ['manage-exams.php', 'view-results.php', 'exam_record_setup.php', 'exam_generate_cards.php'];
 $resources_pages = ['ai-tools.php', 'reports.php', 'sync.php'];
-$bills_pages  = ['billing.php', 'invoices.php', 'payments.php'];
+$bills_pages  = ['billing.php', 'invoices.php', 'payments.php', 'finance_dashboard.php', 'finance_bill_types.php', 'finance_bills.php', 'finance_payments.php', 'finance_receipts.php', 'finance_invoices.php', 'finance_income_expenditure.php', 'finance_ledger.php', 'finance_reports.php'];
 
 $portal_active    = in_array($current_page, $portal_pages);
 $exam_active      = in_array($current_page, $exam_pages);
@@ -58,7 +58,6 @@ $resources_active = in_array($current_page, $resources_pages);
 $bills_active     = in_array($current_page, $bills_pages);
 
 // ── School Theme Resolution ──────────────────────────────────────────────────
-// Read school constants (defined in config.php). Falls back to modern defaults.
 $sb_primary   = defined('SCHOOL_PRIMARY')   ? SCHOOL_PRIMARY   : '#1e293b';
 $sb_secondary = defined('SCHOOL_SECONDARY') ? SCHOOL_SECONDARY : '#3b82f6';
 $sb_accent    = defined('SCHOOL_ACCENT')    ? SCHOOL_ACCENT    : '#ffffff';
@@ -76,7 +75,7 @@ function sbHexToRgb(string $hex): string
     return "$r,$g,$b";
 }
 
-// Helper: adjust color brightness (positive = lighter, negative = darker)
+// Helper: adjust color brightness
 function sbAdjustBrightness(string $hex, int $percent): string
 {
     $hex = ltrim($hex, '#');
@@ -95,7 +94,7 @@ function sbAdjustBrightness(string $hex, int $percent): string
     return sprintf('#%02x%02x%02x', $r, $g, $b);
 }
 
-// Helper: get contrast color (black or white) for a given background
+// Helper: get contrast color
 function sbGetContrastColor(string $hex): string
 {
     $rgb = sbHexToRgb($hex);
@@ -104,14 +103,13 @@ function sbGetContrastColor(string $hex): string
     return ($luminance > 128) ? '#1e293b' : '#ffffff';
 }
 
-// ── Derive sidebar styling from school palette ──────────────────────────────
-$sb_bg          = sbAdjustBrightness($sb_primary, -12);        // slightly darker than primary
-$sb_surface     = sbAdjustBrightness($sb_primary, -5);         // subtle elevation
+// ── Derive sidebar styling ──────────────────────────────────────────────
+$sb_bg          = sbAdjustBrightness($sb_primary, -12);
+$sb_surface     = sbAdjustBrightness($sb_primary, -5);
 $sb_hover_bg    = "rgba(" . sbHexToRgb($sb_accent) . ", 0.08)";
 $sb_active_bg   = "rgba(" . sbHexToRgb($sb_secondary) . ", 0.18)";
 $sb_border      = "rgba(" . sbHexToRgb($sb_accent) . ", 0.10)";
 
-// Text colors based on contrast with primary background
 $text_primary   = sbGetContrastColor($sb_primary);
 $text_muted     = (sbGetContrastColor($sb_primary) === '#ffffff')
     ? "rgba(255,255,255,0.65)"
@@ -120,16 +118,716 @@ $text_bright    = (sbGetContrastColor($sb_primary) === '#ffffff')
     ? "rgba(255,255,255,0.95)"
     : "rgba(0,0,0,0.95)";
 
-// Logo gradient uses secondary as highlight
 $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
+
+// Get VAPID public key from database for push notifications
+$vapid_public_key = '';
+try {
+    $stmt = $pdo->prepare("SELECT vapid_public_key FROM attendance_settings WHERE school_id = ?");
+    $stmt->execute([SCHOOL_ID]);
+    $vapid_public_key = $stmt->fetchColumn();
+} catch (Exception $e) {
+    error_log("Failed to get VAPID key: " . $e->getMessage());
+}
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        /* ============================================================
+           SIDEBAR & NOTIFICATION BELL STYLES
+        ============================================================ */
+        
+        /* Theme CSS variables */
+        :root {
+            --sb-primary: <?php echo $sb_primary; ?>;
+            --sb-secondary: <?php echo $sb_secondary; ?>;
+            --sb-accent: <?php echo $sb_accent; ?>;
+            --sb-bg: <?php echo $sb_bg; ?>;
+            --sb-surface: <?php echo $sb_surface; ?>;
+            --sb-border: <?php echo $sb_border; ?>;
+            --sb-text: <?php echo $text_muted; ?>;
+            --sb-text-bright: <?php echo $text_bright; ?>;
+            --sb-accent-clr: <?php echo $sb_secondary; ?>;
+            --sb-accent-glow: rgba(<?php echo sbHexToRgb($sb_secondary); ?>, 0.18);
+            --sb-hover: <?php echo $sb_hover_bg; ?>;
+            --sb-active-bg: <?php echo $sb_active_bg; ?>;
+            --sb-logo-grad: <?php echo $logo_gradient; ?>;
+            --sb-radius: 10px;
+            --sb-width: 280px;
+            --sb-transition: 0.22s ease;
+            
+            /* Notification colors */
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+        }
+
+        /* ---------- Base Sidebar ---------- */
+        .sidebar {
+            width: var(--sb-width);
+            height: 100vh;
+            background: var(--sb-bg);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 1000;
+            border-right: 1px solid var(--sb-border);
+            scrollbar-width: thin;
+            scrollbar-color: var(--sb-surface) transparent;
+            font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
+            transform: translateX(-100%);
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--sb-surface);
+            border-radius: 4px;
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ---------- Sidebar Header ---------- */
+        .sidebar-header {
+            padding: 24px 20px 20px;
+            border-bottom: 1px solid var(--sb-border);
+            flex-shrink: 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 52px;
+            height: 52px;
+            flex-shrink: 0;
+            border-radius: 12px;
+            background: var(--sb-logo-grad);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 4px 12px var(--sb-accent-glow);
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .logo-icon i {
+            font-size: 26px;
+            color: #fff;
+        }
+
+        .logo-text h3.school-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--sb-text-bright);
+            line-height: 1.3;
+            white-space: normal;
+            word-break: break-word;
+            margin: 0 0 4px;
+        }
+
+        .logo-text p {
+            font-size: 0.8rem;
+            color: var(--sb-text);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 0;
+        }
+
+        /* ---------- Admin Info ---------- */
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--sb-border);
+            flex-shrink: 0;
+        }
+
+        .admin-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--sb-logo-grad);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-details h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--sb-text-bright);
+            margin: 0 0 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 170px;
+        }
+
+        .admin-details p {
+            font-size: 0.8rem;
+            color: var(--sb-text);
+            margin: 0;
+            text-transform: capitalize;
+        }
+
+        /* ---------- Subscription Status ---------- */
+        .subscription-status {
+            margin: 16px 16px;
+            padding: 12px 16px;
+            border-radius: var(--sb-radius);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .subscription-status.active {
+            background: rgba(16, 185, 129, 0.12);
+            border-left: 3px solid #10b981;
+        }
+
+        .subscription-status.warning {
+            background: rgba(245, 158, 11, 0.12);
+            border-left: 3px solid #f59e0b;
+        }
+
+        .subscription-status.danger {
+            background: rgba(239, 68, 68, 0.12);
+            border-left: 3px solid #ef4444;
+        }
+
+        .sub-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--sb-text);
+            flex-shrink: 0;
+        }
+
+        .sub-left i {
+            font-size: 0.9rem;
+        }
+
+        .sub-right {
+            text-align: right;
+        }
+
+        .days-badge {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .subscription-status.active .days-badge {
+            color: #10b981;
+        }
+
+        .subscription-status.warning .days-badge {
+            color: #f59e0b;
+        }
+
+        .subscription-status.danger .days-badge,
+        .days-badge.expired {
+            color: #ef4444;
+        }
+
+        .expiry-text {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--sb-text);
+            margin-top: 2px;
+        }
+
+        /* ---------- Navigation ---------- */
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 0 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .nav-item.standalone {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            color: var(--sb-text);
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background var(--sb-transition), color var(--sb-transition);
+            border-radius: 0;
+            position: relative;
+        }
+
+        .nav-item.standalone:hover {
+            background: var(--sb-hover);
+            color: var(--sb-text-bright);
+        }
+
+        .nav-item.standalone.active {
+            background: var(--sb-active-bg);
+            color: var(--sb-accent-clr);
+        }
+
+        .nav-item.standalone.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            bottom: 6px;
+            width: 3px;
+            background: var(--sb-accent-clr);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-item.standalone.logout {
+            margin-top: auto;
+            border-top: 1px solid var(--sb-border);
+        }
+
+        .nav-item.standalone.logout:hover {
+            color: #ef4444;
+        }
+
+        .nav-group {
+            flex-shrink: 0;
+        }
+
+        .nav-group-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--sb-text);
+            font-size: 1rem;
+            font-weight: 500;
+            text-align: left;
+            transition: background var(--sb-transition), color var(--sb-transition);
+            position: relative;
+        }
+
+        .nav-group-toggle:hover {
+            background: var(--sb-hover);
+            color: var(--sb-text-bright);
+        }
+
+        .nav-group.open > .nav-group-toggle {
+            color: var(--sb-text-bright);
+            background: var(--sb-hover);
+        }
+
+        .nav-label {
+            flex: 1;
+        }
+
+        .group-badge {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .chevron {
+            font-size: 0.75rem;
+            color: var(--sb-text);
+            transition: transform 0.25s ease;
+        }
+
+        .nav-group.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        .nav-icon {
+            width: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            flex-shrink: 0;
+        }
+
+        .nav-group-items {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .nav-group-items.expanded {
+            max-height: 500px;
+        }
+
+        .nav-group-items li a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px 10px 52px;
+            color: var(--sb-text);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: background var(--sb-transition), color var(--sb-transition);
+            position: relative;
+        }
+
+        .nav-group-items li a i {
+            font-size: 0.9rem;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .nav-group-items li a:hover {
+            background: var(--sb-hover);
+            color: var(--sb-text-bright);
+        }
+
+        .nav-group-items li a.active {
+            color: var(--sb-accent-clr);
+            background: var(--sb-active-bg);
+        }
+
+        .nav-group-items li a.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 4px;
+            bottom: 4px;
+            width: 3px;
+            background: var(--sb-accent-clr);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-group.open .nav-group-items {
+            border-left: 1px solid var(--sb-border);
+            margin-left: 32px;
+        }
+
+        .nav-group.open .nav-group-items li a {
+            padding-left: 24px;
+        }
+
+        .nav-group.open .nav-group-items li a.active::before {
+            left: -1px;
+        }
+
+        /* ---------- Top Bar with Notification Bell ---------- */
+        .admin-top-bar {
+            background: white;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--sb-border);
+            position: sticky;
+            top: 0;
+            z-index: 99;
+            margin-left: var(--sb-width);
+        }
+
+        .page-title h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        .page-title p {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin: 4px 0 0;
+        }
+
+        /* Notification Bell Styles */
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-bell i {
+            font-size: 1.3rem;
+            color: #4b5563;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 20px;
+            min-width: 18px;
+            text-align: center;
+            display: none;
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 40px;
+            right: 0;
+            width: 340px;
+            max-width: calc(100vw - 20px);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            z-index: 1100;
+            display: none;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        .notification-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+        }
+
+        .notification-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .notification-item:hover {
+            background: #f9fafb;
+        }
+
+        .notification-item.unread {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 3px solid var(--sb-primary);
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .notification-body {
+            font-size: 0.7rem;
+            color: #6b7280;
+        }
+
+        .notification-time {
+            font-size: 0.6rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        /* Push Notifications Settings */
+        .push-settings-section {
+            margin-top: auto;
+            padding: 16px;
+            border-top: 1px solid var(--sb-border);
+            margin-top: 20px;
+        }
+
+        .btn-push {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.7rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-push-primary {
+            background: var(--sb-secondary);
+            color: white;
+        }
+
+        .btn-push-warning {
+            background: #ef4444;
+            color: white;
+        }
+
+        /* ---------- Mobile Menu Button ---------- */
+        .mobile-menu-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
+            background: var(--sb-primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* ---------- Overlay ---------- */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 999;
+            backdrop-filter: blur(2px);
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (min-width: 768px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+            
+            .admin-top-bar {
+                margin-left: var(--sb-width);
+            }
+            
+            .mobile-menu-btn {
+                display: none;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .admin-top-bar {
+                margin-left: 0;
+                padding: 12px 16px;
+            }
+            
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .page-title h1 {
+                font-size: 1rem;
+            }
+            
+            .notification-dropdown {
+                width: 300px;
+                right: -10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Mobile Menu Button -->
+<button class="mobile-menu-btn" id="mobileMenuBtn">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Top Bar with Notification Bell -->
+<div class="admin-top-bar">
+    <div class="page-title">
+        <h1><?php echo htmlspecialchars($page_title ?? 'Dashboard'); ?></h1>
+        <p><?php echo date('l, F j, Y'); ?></p>
+    </div>
+    <div class="notification-bell" id="notificationBell">
+        <i class="fas fa-bell"></i>
+        <span class="notification-badge" id="notificationCount">0</span>
+        <div class="notification-dropdown" id="notificationDropdown">
+            <div class="notification-header">
+                <strong><i class="fas fa-bell"></i> Notifications</strong>
+                <button class="btn-secondary" id="markAllReadBtn">Mark all read</button>
+            </div>
+            <div id="notificationList">
+                <div style="padding: 20px; text-align:center; color: #9ca3af;">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Sidebar Overlay -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
-
     <!-- Header -->
     <div class="sidebar-header">
         <div class="logo">
@@ -137,7 +835,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 <?php
                 $logo_path = null;
                 $logo_locations = [
-                    '/msv/assets/logos/logo.png',
+                    '/gsa/assets/logos/logo.png',
                     '/assets/logos/logo.png',
                     '../assets/logos/logo.png',
                     'assets/logos/logo.png'
@@ -212,8 +910,7 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 
     <!-- Navigation -->
     <nav class="sidebar-nav">
-
-        <!-- Dashboard (standalone) -->
+        <!-- Dashboard -->
         <a href="index.php" class="nav-item standalone <?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
             <span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span>
             <span class="nav-label">Dashboard</span>
@@ -229,31 +926,11 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 </span>
             </button>
             <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-user-graduate"></i> Students
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chalkboard-teacher"></i> Staff
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-layer-group"></i> Classes
-                    </a>
-                </li>
-                <li>
-                    <a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-book"></i> Subjects
-                    </a>
-                </li>
-                <li>
-                    <a href="attendance.php" class="<?php echo $current_page == 'attendance.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar-check"></i> Attendance
-                    </a>
-                </li>
+                <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate"></i> Students</a></li>
+                <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
+                <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>"><i class="fas fa-layer-group"></i> Classes</a></li>
+                <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Subjects</a></li>
+                <li><a href="manage_attendance.php" class="<?php echo $current_page == 'manage_attendance.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-check"></i> Attendance</a></li>
             </ul>
         </div>
 
@@ -267,21 +944,9 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 </span>
             </button>
             <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-pen-alt"></i> Manage Exams
-                    </a>
-                </li>
-                <li>
-                    <a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-bar"></i> View Results
-                    </a>
-                </li>
-                <li>
-                    <a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-invoice"></i> Process Results
-                    </a>
-                </li>
+                <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>"><i class="fas fa-pen-alt"></i> Manage Exams</a></li>
+                <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
+                <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Process Results</a></li>
             </ul>
         </div>
 
@@ -295,25 +960,13 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 </span>
             </button>
             <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-robot"></i> AI Teaching Tools
-                    </a>
-                </li>
-                <li>
-                    <a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-line"></i> Reports
-                    </a>
-                </li>
-                <li>
-                    <a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-sync-alt"></i> Sync to Cloud
-                    </a>
-                </li>
+                <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
+                <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
             </ul>
         </div>
 
-        <!-- Bills Group (Full Finance Module) -->
+        <!-- Finance Group -->
         <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
             <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
                 <span class="nav-icon"><i class="fas fa-receipt"></i></span>
@@ -323,613 +976,495 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
                 </span>
             </button>
             <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-pie"></i> Dashboard
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-tags"></i> Bill Types / Templates
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-invoice"></i> Manage Bills
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-money-bill-wave"></i> Record Payments
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-print"></i> Receipts
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-alt"></i> Invoices
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-exchange-alt"></i> Income/Expenditure
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-book"></i> General Ledger
-                    </a>
-                </li>
-                <li>
-                    <a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-chart-line"></i> Financial Reports
-                    </a>
-                </li>
+                <li><a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
+                <li><a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>"><i class="fas fa-tags"></i> Bill Types</a></li>
+                <li><a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Manage Bills</a></li>
+                <li><a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>"><i class="fas fa-money-bill-wave"></i> Payments</a></li>
+                <li><a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>"><i class="fas fa-print"></i> Receipts</a></li>
+                <li><a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt"></i> Invoices</a></li>
+                <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
+                <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
+                <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
             </ul>
         </div>
 
         <!-- Logout -->
-        <a href="/msv/logout.php" class="nav-item standalone logout">
+        <a href="/gsa/logout.php" class="nav-item standalone logout">
             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
             <span class="nav-label">Logout</span>
         </a>
-
     </nav>
 </div>
 
-<style>
-    /* ============================================================
-   SIDEBAR — Dynamic School Theme Integration
-   Fully respects SCHOOL_PRIMARY, SCHOOL_SECONDARY, SCHOOL_ACCENT
-   ============================================================ */
-
-    /* Theme CSS variables — injected from config.php constants */
-    :root {
-        --sb-primary: <?php echo $sb_primary; ?>;
-        --sb-secondary: <?php echo $sb_secondary; ?>;
-        --sb-accent: <?php echo $sb_accent; ?>;
-
-        /* Derived tokens */
-        --sb-bg: <?php echo $sb_bg; ?>;
-        --sb-surface: <?php echo $sb_surface; ?>;
-        --sb-border: <?php echo $sb_border; ?>;
-        --sb-text: <?php echo $text_muted; ?>;
-        --sb-text-bright: <?php echo $text_bright; ?>;
-        --sb-accent-clr: <?php echo $sb_secondary; ?>;
-        --sb-accent-glow: rgba(<?php echo sbHexToRgb($sb_secondary); ?>, 0.18);
-        --sb-hover: <?php echo $sb_hover_bg; ?>;
-        --sb-active-bg: <?php echo $sb_active_bg; ?>;
-        --sb-logo-grad: <?php echo $logo_gradient; ?>;
-
-        --sb-radius: 10px;
-        --sb-width: 280px;
-        --sb-transition: 0.22s ease;
-    }
-
-    /* ---------- Base ---------- */
-    .sidebar {
-        width: var(--sb-width);
-        height: 100vh;
-        background: var(--sb-bg);
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        top: 0;
-        left: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
-        z-index: 1000;
-        border-right: 1px solid var(--sb-border);
-        scrollbar-width: thin;
-        scrollbar-color: var(--sb-surface) transparent;
-        font-family: 'Segoe UI', system-ui, sans-serif;
-    }
-
-    .sidebar::-webkit-scrollbar {
-        width: 4px;
-    }
-
-    .sidebar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .sidebar::-webkit-scrollbar-thumb {
-        background: var(--sb-surface);
-        border-radius: 4px;
-    }
-
-    /* ---------- Header ---------- */
-    .sidebar-header {
-        padding: 24px 20px 20px;
-        border-bottom: 1px solid var(--sb-border);
-        flex-shrink: 0;
-    }
-
-    .logo {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-
-    .logo-icon {
-        width: 52px;
-        height: 52px;
-        flex-shrink: 0;
-        border-radius: 12px;
-        background: var(--sb-logo-grad);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        box-shadow: 0 4px 12px var(--sb-accent-glow);
-    }
-
-    .logo-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .logo-icon i {
-        font-size: 26px;
-        color: #fff;
-    }
-
-    .logo-text h3.school-name {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--sb-text-bright);
-        line-height: 1.3;
-        white-space: normal;
-        word-break: break-word;
-        margin: 0 0 4px;
-    }
-
-    .logo-text p {
-        font-size: 0.8rem;
-        color: var(--sb-text);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        margin: 0;
-    }
-
-    /* ---------- Admin Info ---------- */
-    .admin-info {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 18px 20px;
-        border-bottom: 1px solid var(--sb-border);
-        flex-shrink: 0;
-    }
-
-    .admin-avatar {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: var(--sb-logo-grad);
-        color: #fff;
-        font-size: 1.1rem;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .admin-details h4 {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--sb-text-bright);
-        margin: 0 0 3px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 170px;
-    }
-
-    .admin-details p {
-        font-size: 0.8rem;
-        color: var(--sb-text);
-        margin: 0;
-        text-transform: capitalize;
-    }
-
-    /* ---------- Subscription ---------- */
-    .subscription-status {
-        margin: 16px 16px;
-        padding: 12px 16px;
-        border-radius: var(--sb-radius);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        flex-shrink: 0;
-    }
-
-    .subscription-status.active {
-        background: rgba(16, 185, 129, 0.12);
-        border-left: 3px solid #10b981;
-    }
-
-    .subscription-status.warning {
-        background: rgba(245, 158, 11, 0.12);
-        border-left: 3px solid #f59e0b;
-    }
-
-    .subscription-status.danger {
-        background: rgba(239, 68, 68, 0.12);
-        border-left: 3px solid #ef4444;
-    }
-
-    .sub-left {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.85rem;
-        color: var(--sb-text);
-        flex-shrink: 0;
-    }
-
-    .sub-left i {
-        font-size: 0.9rem;
-    }
-
-    .sub-right {
-        text-align: right;
-    }
-
-    .days-badge {
-        display: block;
-        font-size: 0.95rem;
-        font-weight: 700;
-        line-height: 1.3;
-    }
-
-    .subscription-status.active .days-badge {
-        color: #10b981;
-    }
-
-    .subscription-status.warning .days-badge {
-        color: #f59e0b;
-    }
-
-    .subscription-status.danger .days-badge,
-    .days-badge.expired {
-        color: #ef4444;
-    }
-
-    .expiry-text {
-        display: block;
-        font-size: 0.72rem;
-        color: var(--sb-text);
-        margin-top: 2px;
-    }
-
-    /* ---------- Nav ---------- */
-    .sidebar-nav {
-        flex: 1;
-        padding: 12px 0 24px;
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* Standalone items (Dashboard, Logout) */
-    .nav-item.standalone {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 12px 20px;
-        color: var(--sb-text);
-        text-decoration: none;
-        font-size: 1rem;
-        font-weight: 500;
-        transition: background var(--sb-transition), color var(--sb-transition);
-        border-radius: 0;
-        position: relative;
-    }
-
-    .nav-item.standalone:hover {
-        background: var(--sb-hover);
-        color: var(--sb-text-bright);
-    }
-
-    .nav-item.standalone.active {
-        background: var(--sb-active-bg);
-        color: var(--sb-accent-clr);
-    }
-
-    .nav-item.standalone.active::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 6px;
-        bottom: 6px;
-        width: 3px;
-        background: var(--sb-accent-clr);
-        border-radius: 0 3px 3px 0;
-    }
-
-    .nav-item.standalone.logout {
-        margin-top: auto;
-        border-top: 1px solid var(--sb-border);
-    }
-
-    .nav-item.standalone.logout:hover {
-        color: #ef4444;
-    }
-
-    /* Nav group wrapper */
-    .nav-group {
-        flex-shrink: 0;
-    }
-
-    /* Group toggle button */
-    .nav-group-toggle {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 12px 20px;
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: var(--sb-text);
-        font-size: 1rem;
-        font-weight: 500;
-        text-align: left;
-        transition: background var(--sb-transition), color var(--sb-transition);
-        position: relative;
-    }
-
-    .nav-group-toggle:hover {
-        background: var(--sb-hover);
-        color: var(--sb-text-bright);
-    }
-
-    .nav-group.open>.nav-group-toggle {
-        color: var(--sb-text-bright);
-        background: var(--sb-hover);
-    }
-
-    .nav-label {
-        flex: 1;
-    }
-
-    .group-badge {
-        display: flex;
-        align-items: center;
-        flex-shrink: 0;
-    }
-
-    .chevron {
-        font-size: 0.75rem;
-        color: var(--sb-text);
-        transition: transform 0.25s ease;
-    }
-
-    .nav-group.open .chevron {
-        transform: rotate(180deg);
-    }
-
-    /* Coming soon badge */
-    .coming-soon-badge {
-        font-size: 0.68rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: #f59e0b;
-        background: rgba(245, 158, 11, 0.15);
-        border: 1px solid rgba(245, 158, 11, 0.3);
-        padding: 3px 8px;
-        border-radius: 20px;
-    }
-
-    /* Icon wrapper */
-    .nav-icon {
-        width: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.05rem;
-        flex-shrink: 0;
-    }
-
-    /* Group item list */
-    .nav-group-items {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease;
-        background: rgba(0, 0, 0, 0.15);
-    }
-
-    .nav-group-items.expanded {
-        max-height: 500px;
-    }
-
-    .nav-group-items li a {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 20px 10px 52px;
-        color: var(--sb-text);
-        text-decoration: none;
-        font-size: 0.95rem;
-        transition: background var(--sb-transition), color var(--sb-transition);
-        position: relative;
-    }
-
-    .nav-group-items li a i {
-        font-size: 0.9rem;
-        width: 20px;
-        text-align: center;
-        flex-shrink: 0;
-    }
-
-    .nav-group-items li a:hover {
-        background: var(--sb-hover);
-        color: var(--sb-text-bright);
-    }
-
-    .nav-group-items li a.active {
-        color: var(--sb-accent-clr);
-        background: var(--sb-active-bg);
-    }
-
-    .nav-group-items li a.active::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 4px;
-        bottom: 4px;
-        width: 3px;
-        background: var(--sb-accent-clr);
-        border-radius: 0 3px 3px 0;
-    }
-
-    /* Vertical connector line for group items */
-    .nav-group.open .nav-group-items {
-        border-left: 1px solid var(--sb-border);
-        margin-left: 32px;
-    }
-
-    .nav-group.open .nav-group-items li a {
-        padding-left: 24px;
-    }
-
-    .nav-group.open .nav-group-items li a.active::before {
-        left: -1px;
-    }
-
-    /* ---------- Overlay ---------- */
-    .sidebar-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.55);
-        z-index: 999;
-        backdrop-filter: blur(2px);
-    }
-
-    .sidebar-overlay.active {
-        display: block;
-    }
-
-    /* ---------- Mobile ---------- */
-    @media (max-width: 767px) {
-        .sidebar {
-            transform: translateX(-100%);
-            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1001;
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
-        }
-    }
-</style>
+<!-- Push Notifications Settings (added dynamically by JS) -->
+<div id="pushSettingsContainer"></div>
 
 <script>
-    (function() {
-        'use strict';
+// ============================================================
+// SIDEBAR ACCORDION & MOBILE
+// ============================================================
 
-        /* ── Accordion groups ── */
-        function initGroups() {
-            document.querySelectorAll('.nav-group').forEach(function(group) {
-                var toggle = group.querySelector('.nav-group-toggle');
-                var items = group.querySelector('.nav-group-items');
+(function() {
+    'use strict';
 
-                if (!toggle || !items) return;
+    // Accordion groups
+    function initGroups() {
+        document.querySelectorAll('.nav-group').forEach(function(group) {
+            var toggle = group.querySelector('.nav-group-toggle');
+            var items = group.querySelector('.nav-group-items');
 
-                toggle.addEventListener('click', function() {
-                    var isOpen = group.classList.contains('open');
+            if (!toggle || !items) return;
 
-                    // Close all sibling groups (accordion behaviour)
-                    document.querySelectorAll('.nav-group.open').forEach(function(g) {
-                        if (g !== group) {
-                            g.classList.remove('open');
-                            g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false');
-                            g.querySelector('.nav-group-items').classList.remove('expanded');
-                        }
-                    });
+            toggle.addEventListener('click', function() {
+                var isOpen = group.classList.contains('open');
 
-                    if (isOpen) {
-                        group.classList.remove('open');
-                        toggle.setAttribute('aria-expanded', 'false');
-                        items.classList.remove('expanded');
-                    } else {
-                        group.classList.add('open');
-                        toggle.setAttribute('aria-expanded', 'true');
-                        items.classList.add('expanded');
+                document.querySelectorAll('.nav-group.open').forEach(function(g) {
+                    if (g !== group) {
+                        g.classList.remove('open');
+                        g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false');
+                        g.querySelector('.nav-group-items').classList.remove('expanded');
                     }
                 });
+
+                if (isOpen) {
+                    group.classList.remove('open');
+                    toggle.setAttribute('aria-expanded', 'false');
+                    items.classList.remove('expanded');
+                } else {
+                    group.classList.add('open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                    items.classList.add('expanded');
+                }
             });
+        });
+    }
+
+    // Mobile sidebar
+    function initMobileSidebar() {
+        var toggle = document.getElementById('mobileMenuBtn');
+        var sidebar = document.getElementById('sidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        var body = document.body;
+
+        if (!sidebar || !overlay) return;
+
+        function open() {
+            sidebar.classList.add('active');
+            overlay.classList.add('active');
+            body.style.overflow = 'hidden';
         }
 
-        /* ── Mobile sidebar ── */
-        function initMobileSidebar() {
-            var toggle = document.getElementById('mobileMenuToggle');
-            var sidebar = document.getElementById('sidebar');
-            var overlay = document.getElementById('sidebarOverlay');
-            var body = document.body;
+        function close() {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            body.style.overflow = '';
+        }
 
-            if (!sidebar || !overlay) return;
-
-            function open() {
-                sidebar.classList.add('active');
-                overlay.classList.add('active');
-                body.style.overflow = 'hidden';
-            }
-
-            function close() {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                body.style.overflow = '';
-            }
-
-            if (toggle) toggle.addEventListener('click', function(e) {
+        if (toggle) {
+            toggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 sidebar.classList.contains('active') ? close() : open();
             });
-
-            overlay.addEventListener('click', close);
-
-            document.querySelectorAll('.nav-links a, .nav-item.standalone, .nav-group-items a').forEach(function(a) {
-                a.addEventListener('click', function() {
-                    if (window.innerWidth <= 767) setTimeout(close, 150);
-                });
-            });
-
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') close();
-            });
-
-            var resizeTimer;
-            window.addEventListener('resize', function() {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(function() {
-                    if (window.innerWidth >= 768) close();
-                }, 250);
-            });
         }
 
-        function init() {
-            initGroups();
-            initMobileSidebar();
-        }
+        overlay.addEventListener('click', close);
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
+        document.querySelectorAll('.nav-item.standalone, .nav-group-items a').forEach(function(link) {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 767) setTimeout(close, 150);
+            });
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') close();
+        });
+
+        var resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                if (window.innerWidth >= 768) close();
+            }, 250);
+        });
+    }
+
+    // ============================================================
+    // NOTIFICATION FUNCTIONS
+    // ============================================================
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function loadNotifications() {
+        fetch('/gsa/admin/attendance_api.php?action=get_notifications', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const list = document.getElementById('notificationList');
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div style="padding: 20px; text-align:center; color: #9ca3af;"><i class="fas fa-bell-slash"></i> No notifications</div>';
+                } else {
+                    list.innerHTML = data.notifications.map(n => `
+                        <div class="notification-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}">
+                            <div class="notification-title">${escapeHtml(n.title)}</div>
+                            <div class="notification-body">${escapeHtml(n.body)}</div>
+                            <div class="notification-time">${n.time_ago}</div>
+                        </div>
+                    `).join('');
+                    
+                    document.querySelectorAll('.notification-item').forEach(item => {
+                        item.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const id = this.dataset.id;
+                            if (id) markNotificationRead(id);
+                        });
+                    });
+                }
+            }
+        })
+        .catch(err => console.error('Error loading notifications:', err));
+    }
+
+    function loadUnreadCount() {
+        fetch('/gsa/admin/attendance_api.php?action=get_unread_count', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const badge = document.getElementById('notificationCount');
+                if (badge) {
+                    badge.textContent = data.count;
+                    badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+                }
+            }
+        })
+        .catch(err => console.error('Error loading unread count:', err));
+    }
+
+    function markNotificationRead(id) {
+        const formData = new URLSearchParams();
+        formData.append('action', 'mark_read');
+        formData.append('notification_id', id);
+        
+        fetch('/gsa/admin/attendance_api.php', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(() => {
+            loadNotifications();
+            loadUnreadCount();
+        })
+        .catch(err => console.error('Error marking notification read:', err));
+    }
+
+    function markAllNotificationsRead() {
+        const formData = new URLSearchParams();
+        formData.append('action', 'mark_all_read');
+        
+        fetch('/gsa/admin/attendance_api.php', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(() => {
+            loadNotifications();
+            loadUnreadCount();
+        })
+        .catch(err => console.error('Error marking all notifications read:', err));
+    }
+
+    function initNotificationBell() {
+        const bell = document.getElementById('notificationBell');
+        const dropdown = document.getElementById('notificationDropdown');
+        
+        if (!bell || !dropdown) return;
+        
+        bell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                loadNotifications();
+            }
+        });
+        
+        document.addEventListener('click', function() {
+            dropdown.classList.remove('show');
+        });
+        
+        dropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        const markAllBtn = document.getElementById('markAllReadBtn');
+        if (markAllBtn) {
+            markAllBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                markAllNotificationsRead();
+            });
+        }
+        
+        loadUnreadCount();
+        setInterval(loadUnreadCount, 30000);
+    }
+
+    // ============================================================
+    // PUSH NOTIFICATIONS
+    // ============================================================
+
+    let isSubscribed = false;
+    let swRegistration = null;
+    
+    // VAPID Public Key - REPLACE THIS WITH YOUR ACTUAL PUBLIC KEY
+    // Get this from admin/generate_vapid_keys.php
+    const VAPID_PUBLIC_KEY = '<?php echo $vapid_public_key; ?>';
+    
+    function isPushSupported() {
+        return 'serviceWorker' in navigator && 'PushManager' in window;
+    }
+    
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding)
+            .replace(/\-/g, '+')
+            .replace(/_/g, '/');
+        
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+    
+    async function saveSubscription(subscription) {
+        const response = await fetch('/gsa/admin/attendance_api.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: `action=save_push_subscription&subscription=${encodeURIComponent(JSON.stringify(subscription))}`
+        });
+        
+        const data = await response.json();
+        return data.success;
+    }
+    
+    async function removeSubscription(subscription) {
+        await fetch('/gsa/admin/attendance_api.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: `action=remove_push_subscription&endpoint=${encodeURIComponent(subscription.endpoint)}`
+        });
+    }
+    
+    async function askPermission() {
+        const result = await Notification.requestPermission();
+        
+        if (result === 'granted') {
+            console.log('Notification permission granted');
+            await subscribeUser();
         } else {
-            init();
+            console.log('Notification permission denied');
+            showPushPrompt('Notifications are blocked. You can enable them in browser settings.');
         }
-    })();
+    }
+    
+    async function subscribeUser() {
+        if (!swRegistration) {
+            console.log('Service worker not ready');
+            return;
+        }
+        
+        try {
+            const subscription = await swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            });
+            
+            console.log('User subscribed:', subscription);
+            const saved = await saveSubscription(subscription);
+            
+            if (saved) {
+                isSubscribed = true;
+                updatePushUI(true);
+            }
+        } catch (err) {
+            console.error('Failed to subscribe:', err);
+            showPushPrompt('Could not subscribe to notifications. Please try again.');
+        }
+    }
+    
+    async function unsubscribeUser() {
+        if (!swRegistration) return;
+        
+        try {
+            const subscription = await swRegistration.pushManager.getSubscription();
+            if (subscription) {
+                await subscription.unsubscribe();
+                await removeSubscription(subscription);
+                console.log('User unsubscribed');
+                isSubscribed = false;
+                updatePushUI(false);
+            }
+        } catch (err) {
+            console.error('Failed to unsubscribe:', err);
+        }
+    }
+    
+    async function checkSubscription() {
+        if (!swRegistration) return;
+        
+        const subscription = await swRegistration.pushManager.getSubscription();
+        isSubscribed = subscription !== null;
+        updatePushUI(isSubscribed);
+    }
+    
+    function updatePushUI(subscribed) {
+        const toggleBtn = document.getElementById('pushToggleBtn');
+        const statusSpan = document.getElementById('pushStatus');
+        
+        if (toggleBtn) {
+            toggleBtn.innerHTML = subscribed ? 
+                '<i class="fas fa-bell-slash"></i> Disable Notifications' : 
+                '<i class="fas fa-bell"></i> Enable Notifications';
+            toggleBtn.className = subscribed ? 'btn-push btn-push-warning' : 'btn-push btn-push-primary';
+        }
+        
+        if (statusSpan) {
+            statusSpan.innerHTML = subscribed ? 
+                '<span style="color: #10b981;"><i class="fas fa-check-circle"></i> Enabled</span>' : 
+                '<span style="color: #6b7280;"><i class="fas fa-bell-slash"></i> Disabled</span>';
+        }
+    }
+    
+    function showPushPrompt(message) {
+        const promptDiv = document.createElement('div');
+        promptDiv.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            left: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+            background: #1f2937;
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            z-index: 10000;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        `;
+        promptDiv.innerHTML = `
+            <span>${message}</span>
+            <button style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">&times;</button>
+        `;
+        
+        const closeBtn = promptDiv.querySelector('button');
+        closeBtn.onclick = () => promptDiv.remove();
+        
+        document.body.appendChild(promptDiv);
+        setTimeout(() => promptDiv.remove(), 5000);
+    }
+    
+    function addPushSettingsUI() {
+        const sidebarNav = document.querySelector('.sidebar-nav');
+        if (!sidebarNav) return;
+        
+        if (document.querySelector('.push-settings-section')) return;
+        
+        const pushSection = document.createElement('div');
+        pushSection.className = 'push-settings-section';
+        pushSection.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.75rem; opacity: 0.7;">
+                    <i class="fas fa-bell"></i> Push Notifications
+                </span>
+                <span id="pushStatus"></span>
+            </div>
+            <button id="pushToggleBtn" class="btn-push btn-push-primary">
+                <i class="fas fa-bell"></i> Enable Notifications
+            </button>
+            <p style="font-size: 0.6rem; opacity: 0.5; margin-top: 8px; text-align: center;">
+                Get real-time alerts when students/staff check in/out
+            </p>
+        `;
+        
+        const logout = sidebarNav.querySelector('.nav-item.logout');
+        if (logout) {
+            sidebarNav.insertBefore(pushSection, logout);
+        } else {
+            sidebarNav.appendChild(pushSection);
+        }
+        
+        const toggleBtn = document.getElementById('pushToggleBtn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                if (isSubscribed) {
+                    unsubscribeUser();
+                } else {
+                    askPermission();
+                }
+            });
+        }
+    }
+    
+    async function initPushNotifications() {
+        if (!isPushSupported()) {
+            console.log('Push notifications not supported');
+            return;
+        }
+        
+        if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY === '') {
+            console.log('VAPID public key not configured. Run admin/generate_vapid_keys.php');
+            return;
+        }
+        
+        try {
+            swRegistration = await navigator.serviceWorker.register('/gsa/sw.js');
+            console.log('Service Worker registered');
+            
+            addPushSettingsUI();
+            await checkSubscription();
+        } catch (err) {
+            console.error('Service Worker registration failed:', err);
+        }
+    }
+
+    // ============================================================
+    // INITIALIZE
+    // ============================================================
+    
+    function init() {
+        initGroups();
+        initMobileSidebar();
+        initNotificationBell();
+        initPushNotifications();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
 </script>
+</body>
+</html>

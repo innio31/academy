@@ -202,36 +202,53 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
 </div>
 
         <!-- Resources Group (Assignments + Library) -->
-        <div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-folder-open"></i></span>
-                <span class="nav-label">Resources</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="assignments.php" class="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php']) ? 'active' : ''; ?>">
-                        <i class="fas fa-tasks"></i> Assignments
-                    </a>
-                </li>
-                <li>
-                    <a href="library.php" class="<?php echo $current_page == 'library.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-book"></i> Library
-                    </a>
-                    <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-robot"></i> AI Teaching Tools
-                    </a>
-                </li>
-            </ul>
-        </div>
+<div class="nav-group <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'open' : ''; ?>" data-group="resources">
+    <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'true' : 'false'; ?>">
+        <span class="nav-icon"><i class="fas fa-folder-open"></i></span>
+        <span class="nav-label">Resources</span>
+        <span class="group-badge">
+            <i class="fas fa-chevron-down chevron"></i>
+        </span>
+    </button>
+    <ul class="nav-group-items <?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php', 'library.php']) ? 'expanded' : ''; ?>">
+        <li>
+            <a href="assignments.php" class="<?php echo in_array($current_page, ['assignments.php', 'view-submissions.php', 'edit-assignment.php']) ? 'active' : ''; ?>">
+                <i class="fas fa-tasks"></i> Assignments
+            </a>
+        </li>
+        <li>
+            <a href="library.php" class="<?php echo $current_page == 'library.php' ? 'active' : ''; ?>">
+                <i class="fas fa-book"></i> Library
+            </a>
+            <a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>">
+                <i class="fas fa-robot"></i> AI Teaching Tools
+            </a>
+        </li>
+    </ul>
+</div>
 
-        <!-- Attendance -->
-        <a href="attendance.php" class="nav-item standalone <?php echo $current_page == 'attendance.php' ? 'active' : ''; ?>">
-            <span class="nav-icon"><i class="fas fa-calendar-check"></i></span>
-            <span class="nav-label">Attendance</span>
-        </a>
+<!-- Attendance Dropdown Group -->
+<div class="nav-group <?php echo in_array($current_page, ['attendance.php', 'student_attendance.php']) ? 'open' : ''; ?>" data-group="attendance">
+    <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['attendance.php', 'student_attendance.php']) ? 'true' : 'false'; ?>">
+        <span class="nav-icon"><i class="fas fa-calendar-check"></i></span>
+        <span class="nav-label">Attendance</span>
+        <span class="group-badge">
+            <i class="fas fa-chevron-down chevron"></i>
+        </span>
+    </button>
+    <ul class="nav-group-items <?php echo in_array($current_page, ['attendance.php', 'student_attendance.php']) ? 'expanded' : ''; ?>">
+        <li>
+            <a href="student_attendance.php" class="<?php echo $current_page == 'student_attendance.php' ? 'active' : ''; ?>">
+                <i class="fas fa-user-check"></i> Take Student Attendance
+            </a>
+        </li>
+        <li>
+            <a href="attendance.php" class="<?php echo $current_page == 'attendance.php' ? 'active' : ''; ?>">
+                <i class="fas fa-calendar-alt"></i> Take Attendance
+            </a>
+        </li>
+    </ul>
+</div>
 
         <!-- Profile -->
         <a href="profile.php" class="nav-item standalone <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">

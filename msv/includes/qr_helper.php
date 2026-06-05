@@ -54,10 +54,9 @@ function generateSchoolQRCode($pdo, $school_id, $generated_by, $expiry_hours = 2
         VALUES (?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? HOUR), 'active', ?, ?)
     ");
 
-    $expires_at = $expiry_hours;
     $ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
 
-    $stmt->execute([$school_id, $qr_token, $qr_url, 'Staff Attendance QR', $expires_at, $generated_by, $ip_address]);
+    $stmt->execute([$school_id, $qr_token, $qr_url, 'Staff Attendance QR', $expiry_hours, $generated_by, $ip_address]);
 
     return [
         'id' => $pdo->lastInsertId(),
@@ -92,16 +91,78 @@ function verifySchoolQRCode($pdo, $school_id, $token)
 }
 
 /**
- * Regenerate School QR Code (revokes old ones)
+ * Regenerate School QR Code with custom duration (revokes old ones)
+ * 
+ * @param PDO $pdo Database connection
+ * @param int $school_id School ID
+ * @param int $generated_by Admin/Staff ID
+ * @param int $expiry_hours Hours until QR expires (default 24, can be 72 for 3 days, 168 for 7 days, 720 for 30 days, or 0 for never expires)
+ * @return array|false
+ */
+function regenerateSchoolQRCode($pdo, $school_id, $generated_by, $expiry_hours = 24)
+{
+    return generateSchoolQRCode($pdo, $school_id, $generated_by, $expiry_hours);
+}
+
+/**
+ * Generate School QR Code that never expires
  * 
  * @param PDO $pdo Database connection
  * @param int $school_id School ID
  * @param int $generated_by Admin/Staff ID
  * @return array|false
  */
-function regenerateSchoolQRCode($pdo, $school_id, $generated_by)
+function generateSchoolQRCodeNeverExpire($pdo, $school_id, $generated_by)
 {
-    return generateSchoolQRCode($pdo, $school_id, $generated_by, 24);
+    // Generate unique token
+    $qr_token = bin2hex(random_bytes(32));
+
+    // QR data payload (no expiry)
+    $qr_data = json_encode([
+        'type' => 'school_attendance',
+        'school_id' => $school_id,
+        'token' => $qr_token,
+        'timestamp' => time(),
+        'never_expires' => true
+    ]);
+
+    // Create QR code image
+    $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/msv/uploads/qr_codes/school/';
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
+
+    $filename = 'school_qr_' . $school_id . '_' . time() . '.png';
+    $filepath = $upload_dir . $filename;
+
+    QRcode::png($qr_data, $filepath, QR_ECLEVEL_L, 10);
+
+    if (!file_exists($filepath)) {
+        return false;
+    }
+
+    $qr_url = '/msv/uploads/qr_codes/school/' . $filename;
+
+    // Deactivate all previous active QR codes for this school
+    $stmt = $pdo->prepare("UPDATE school_qr_codes SET status = 'expired' WHERE school_id = ? AND status = 'active'");
+    $stmt->execute([$school_id]);
+
+    // Insert new QR code with no expiry (NULL)
+    $stmt = $pdo->prepare("
+        INSERT INTO school_qr_codes (school_id, qr_token, qr_image, session_name, generated_at, expires_at, status, generated_by, ip_address) 
+        VALUES (?, ?, ?, ?, NOW(), NULL, 'active', ?, ?)
+    ");
+
+    $ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
+
+    $stmt->execute([$school_id, $qr_token, $qr_url, 'Staff Attendance QR (Never Expires)', $generated_by, $ip_address]);
+
+    return [
+        'id' => $pdo->lastInsertId(),
+        'token' => $qr_token,
+        'qr_url' => $qr_url,
+        'expires_at' => 'never'
+    ];
 }
 
 /**
@@ -154,29 +215,34 @@ function generateClassQRCode($pdo, $school_id, $class_id, $class_name, $generate
 
     if ($existing) {
         // Update existing
-        $expires_sql = $expiry_hours ? "expires_at = DATE_ADD(NOW(), INTERVAL ? HOUR)" : "expires_at = NULL";
-        $stmt = $pdo->prepare("
-            UPDATE class_qr_codes 
-            SET qr_token = ?, qr_image = ?, generated_at = NOW(), $expires_sql, status = 'active', generated_by = ?
-            WHERE school_id = ? AND class_id = ?
-        ");
-
-        if ($expiry_hours) {
+        if ($expiry_hours !== null) {
+            $stmt = $pdo->prepare("
+                UPDATE class_qr_codes 
+                SET qr_token = ?, qr_image = ?, generated_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL ? HOUR), status = 'active', generated_by = ?
+                WHERE school_id = ? AND class_id = ?
+            ");
             $stmt->execute([$qr_token, $qr_url, $expiry_hours, $generated_by, $school_id, $class_id]);
         } else {
+            $stmt = $pdo->prepare("
+                UPDATE class_qr_codes 
+                SET qr_token = ?, qr_image = ?, generated_at = NOW(), expires_at = NULL, status = 'active', generated_by = ?
+                WHERE school_id = ? AND class_id = ?
+            ");
             $stmt->execute([$qr_token, $qr_url, $generated_by, $school_id, $class_id]);
         }
     } else {
         // Insert new
-        $expires_sql = $expiry_hours ? "expires_at = DATE_ADD(NOW(), INTERVAL ? HOUR)" : "expires_at = NULL";
-        $stmt = $pdo->prepare("
-            INSERT INTO class_qr_codes (school_id, class_id, class_name, qr_token, qr_image, generated_at, $expires_sql, status, generated_by)
-            VALUES (?, ?, ?, ?, ?, NOW(), ?, 'active', ?)
-        ");
-
-        if ($expiry_hours) {
+        if ($expiry_hours !== null) {
+            $stmt = $pdo->prepare("
+                INSERT INTO class_qr_codes (school_id, class_id, class_name, qr_token, qr_image, generated_at, expires_at, status, generated_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? HOUR), 'active', ?)
+            ");
             $stmt->execute([$school_id, $class_id, $class_name, $qr_token, $qr_url, $expiry_hours, $generated_by]);
         } else {
+            $stmt = $pdo->prepare("
+                INSERT INTO class_qr_codes (school_id, class_id, class_name, qr_token, qr_image, generated_at, expires_at, status, generated_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), NULL, 'active', ?)
+            ");
             $stmt->execute([$school_id, $class_id, $class_name, $qr_token, $qr_url, $generated_by]);
         }
     }
@@ -248,7 +314,7 @@ function getActiveSchoolQRCode($pdo, $school_id)
 {
     $stmt = $pdo->prepare("
         SELECT * FROM school_qr_codes 
-        WHERE school_id = ? AND status = 'active' AND expires_at > NOW()
+        WHERE school_id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > NOW())
         ORDER BY generated_at DESC LIMIT 1
     ");
     $stmt->execute([$school_id]);

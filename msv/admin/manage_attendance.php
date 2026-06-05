@@ -1506,7 +1506,7 @@ if (!$attendance_settings) {
                 </button>
             </div>
 
-            <!-- Tab 1: School QR -->
+            <!-- Tab 1: School QR - UPDATED with better duration options -->
             <div id="tab-school_qr" class="tab-content active">
                 <div class="card">
                     <div class="card-header">
@@ -1516,7 +1516,15 @@ if (!$attendance_settings) {
                         <?php if ($active_school_qr && file_exists($_SERVER['DOCUMENT_ROOT'] . $active_school_qr['qr_image'])): ?>
                             <img src="<?php echo htmlspecialchars($active_school_qr['qr_image']); ?>" alt="School QR Code" class="qr-image">
                             <div class="qr-info">
-                                <p><i class="fas fa-clock"></i> Expires: <?php echo date('M j, Y g:i A', strtotime($active_school_qr['expires_at'])); ?></p>
+                                <p><i class="fas fa-clock"></i> Expires:
+                                    <?php
+                                    if ($active_school_qr['expires_at'] === null) {
+                                        echo 'Never expires';
+                                    } else {
+                                        echo date('M j, Y g:i A', strtotime($active_school_qr['expires_at']));
+                                    }
+                                    ?>
+                                </p>
                                 <p><i class="fas fa-info-circle"></i> Staff scan this QR to clock in/out</p>
                             </div>
                         <?php else: ?>
@@ -1527,15 +1535,13 @@ if (!$attendance_settings) {
 
                 <div class="card">
                     <div class="card-header">
-                        <h2><i class="fas fa-clock"></i> QR Duration</h2>
+                        <h2><i class="fas fa-clock"></i> Select QR Validity Period</h2>
                     </div>
                     <div class="duration-options" id="qrDurationOptions">
-                        <div class="duration-btn" data-hours="1">1 Hour</div>
-                        <div class="duration-btn" data-hours="6">6 Hours</div>
-                        <div class="duration-btn" data-hours="12">12 Hours</div>
-                        <div class="duration-btn active" data-hours="24">24 Hours</div>
-                        <div class="duration-btn" data-hours="48">48 Hours</div>
-                        <div class="duration-btn" data-hours="72">72 Hours</div>
+                        <div class="duration-btn" data-hours="72" data-label="3 Days">3 Days</div>
+                        <div class="duration-btn" data-hours="168" data-label="7 Days">7 Days</div>
+                        <div class="duration-btn" data-hours="720" data-label="30 Days">30 Days</div>
+                        <div class="duration-btn" data-hours="0" data-label="Never" data-never="true">Never Expires</div>
                     </div>
                     <button class="btn btn-primary btn-block" onclick="regenerateSchoolQRWithDuration()" style="margin-top: 16px;">
                         <i class="fas fa-sync-alt"></i> Generate / Regenerate QR
@@ -1547,7 +1553,7 @@ if (!$attendance_settings) {
                         <h2><i class="fas fa-info-circle"></i> How It Works</h2>
                     </div>
                     <ul style="padding-left: 20px; font-size: 0.8rem; color: var(--gray-600);">
-                        <li>Choose how long the QR code should be valid</li>
+                        <li>Choose how long the QR code should be valid (3 days, 7 days, 1 month, or never expires)</li>
                         <li>Staff scan this QR code using the staff portal to clock in/out</li>
                         <li>You can manually regenerate anytime - old QR becomes invalid</li>
                         <li>Each scan is logged with timestamp for accountability</li>
@@ -1801,10 +1807,14 @@ if (!$attendance_settings) {
         let html5QrScanner = null;
         let isScannerActive = false;
         let attendanceChart = null;
-        let selectedDuration = 24;
         let currentReportData = null;
 
-        // Tab switching
+        // QR Duration Variables
+        let selectedDuration = 72; // Default 3 days
+        let selectedDurationLabel = '3 Days';
+        let neverExpires = false;
+
+        // ==================== TAB SWITCHING ====================
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -1818,16 +1828,24 @@ if (!$attendance_settings) {
             }
         }
 
-        // QR Duration Selection
+        // ==================== QR DURATION SELECTION ====================
         document.querySelectorAll('#qrDurationOptions .duration-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('#qrDurationOptions .duration-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                selectedDuration = parseInt(this.dataset.hours);
+
+                if (this.dataset.never === 'true') {
+                    neverExpires = true;
+                    selectedDuration = 0;
+                } else {
+                    neverExpires = false;
+                    selectedDuration = parseInt(this.dataset.hours);
+                }
+                selectedDurationLabel = this.dataset.label;
             });
         });
 
-        // Report Type Selection
+        // ==================== REPORT TYPE SELECTION ====================
         document.querySelectorAll('#reportTypeOptions .duration-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('#reportTypeOptions .duration-btn').forEach(b => b.classList.remove('active'));
@@ -1844,7 +1862,7 @@ if (!$attendance_settings) {
             });
         });
 
-        // User Type Selection
+        // ==================== USER TYPE SELECTION ====================
         document.querySelectorAll('#userTypeOptions .duration-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('#userTypeOptions .duration-btn').forEach(b => b.classList.remove('active'));
@@ -1859,11 +1877,16 @@ if (!$attendance_settings) {
             });
         });
 
-        // Regenerate School QR with Custom Duration
+        // ==================== SCHOOL QR CODE GENERATION ====================
         function regenerateSchoolQRWithDuration() {
-            const formData = new URLSearchParams();
+            let formData = new URLSearchParams();
             formData.append('action', 'regenerate_school_qr');
-            formData.append('duration_hours', selectedDuration);
+
+            if (neverExpires) {
+                formData.append('never_expires', '1');
+            } else {
+                formData.append('duration_hours', selectedDuration);
+            }
 
             showLoading('Generating QR code...');
 
@@ -1878,29 +1901,31 @@ if (!$attendance_settings) {
                 .then(data => {
                     hideLoading();
                     if (data.success) {
-                        location.reload();
+                        showAlert('QR Code generated successfully!', 'success');
+                        setTimeout(() => location.reload(), 1500);
                     } else {
-                        alert('Failed to regenerate QR code');
+                        showAlert('Failed to regenerate QR code: ' + (data.error || 'Unknown error'), 'error');
                     }
                 })
-                .catch(() => {
+                .catch(error => {
                     hideLoading();
-                    alert('Failed to regenerate QR code');
+                    console.error('Error:', error);
+                    showAlert('Failed to regenerate QR code. Please try again.', 'error');
                 });
         }
 
-        // Original regenerate function (for compatibility)
+        // Legacy function for compatibility
         function regenerateSchoolQR() {
             regenerateSchoolQRWithDuration();
         }
 
-        // Generate Class QR
+        // ==================== CLASS QR CODE GENERATION ====================
         function generateClassQR() {
             const classId = document.getElementById('classSelect').value;
             const expiryHours = document.getElementById('qrExpiry').value;
 
             if (!classId) {
-                alert('Please select a class');
+                showAlert('Please select a class', 'error');
                 return;
             }
 
@@ -1908,6 +1933,8 @@ if (!$attendance_settings) {
             formData.append('action', 'generate_class_qr');
             formData.append('class_id', classId);
             if (expiryHours) formData.append('expiry_hours', expiryHours);
+
+            showLoading('Generating class QR code...');
 
             fetch(window.location.href, {
                     method: 'POST',
@@ -1918,18 +1945,25 @@ if (!$attendance_settings) {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    hideLoading();
                     if (data.success && data.qr) {
                         document.getElementById('classQRImage').src = data.qr.qr_url;
                         const expiryText = data.qr.expires_at !== 'never' ? `Expires: ${data.qr.expires_at}` : 'Never expires';
                         document.getElementById('classQRInfo').innerHTML = `<strong>${data.qr.class_name}</strong><br>${expiryText}`;
                         document.getElementById('classQRResult').style.display = 'block';
+                        showAlert('Class QR Code generated successfully!', 'success');
                     } else {
-                        alert('Failed to generate QR code');
+                        showAlert('Failed to generate QR code', 'error');
                     }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showAlert('Failed to generate QR code', 'error');
                 });
         }
 
-        // Load Attendance Report
+        // ==================== ATTENDANCE REPORT FUNCTIONS ====================
         function loadAttendanceReport() {
             const reportType = document.querySelector('#reportTypeOptions .duration-btn.active').dataset.type;
             const userType = document.querySelector('#userTypeOptions .duration-btn.active').dataset.type;
@@ -1947,17 +1981,13 @@ if (!$attendance_settings) {
                 endDate = document.getElementById('endDate').value;
             }
 
-            // If staff filter is specific, use staff report
             let url;
-            if (userType === 'staff' && staffId) {
+            if (userType === 'staff' && staffId && reportType === 'daily') {
+                url = `${window.location.href}?action=get_attendance_report&report_type=staff&date=${date}&staff_id=${staffId}&user_type=${userType}`;
+            } else if (userType === 'staff' && staffId) {
                 url = `${window.location.href}?action=get_attendance_report&report_type=staff&start_date=${startDate}&end_date=${endDate}&staff_id=${staffId}&user_type=${userType}`;
-            } else if (userType === 'student' && classId && reportType !== 'daily') {
-                url = `${window.location.href}?action=get_attendance_report&report_type=${reportType}&start_date=${startDate}&end_date=${endDate}&class_id=${classId}&user_type=${userType}`;
             } else if (reportType === 'daily') {
                 url = `${window.location.href}?action=get_attendance_report&report_type=daily&date=${date}&class_id=${classId}&user_type=${userType}`;
-                if (userType === 'staff' && staffId) {
-                    url = `${window.location.href}?action=get_attendance_report&report_type=staff&date=${date}&staff_id=${staffId}&user_type=${userType}`;
-                }
             } else {
                 url = `${window.location.href}?action=get_attendance_report&report_type=${reportType}&start_date=${startDate}&end_date=${endDate}&class_id=${classId}&user_type=${userType}`;
             }
@@ -1976,12 +2006,13 @@ if (!$attendance_settings) {
                         currentReportData = data.report;
                         displayReport(data.report, reportType, userType);
                     } else {
-                        alert('Failed to load report');
+                        showAlert('Failed to load report', 'error');
                     }
                 })
-                .catch(() => {
+                .catch(error => {
                     hideLoading();
-                    alert('Failed to load report');
+                    console.error('Error:', error);
+                    showAlert('Failed to load report', 'error');
                 });
         }
 
@@ -1994,11 +2025,12 @@ if (!$attendance_settings) {
             resultsDiv.style.display = 'block';
 
             if (userType === 'student') {
-                if (report.daily_breakdown) {
+                if (report.daily_breakdown && report.daily_breakdown.length > 0) {
                     // Weekly/Monthly report with daily breakdown
                     const totalPresent = report.daily_breakdown.reduce((sum, d) => sum + d.present, 0);
                     const totalStudents = report.daily_breakdown[0]?.total || 0;
-                    const avgAttendance = report.summary?.average_daily_attendance || 0;
+                    const avgAttendance = report.summary?.average_daily_attendance ||
+                        (report.daily_breakdown.reduce((sum, d) => sum + d.percentage, 0) / report.daily_breakdown.length).toFixed(1);
 
                     summaryDiv.innerHTML = `
                         <div class="report-stat">
@@ -2028,14 +2060,21 @@ if (!$attendance_settings) {
                     attendanceChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: report.daily_breakdown.map(d => new Date(d.date).toLocaleDateString()),
+                            labels: report.daily_breakdown.map(d => {
+                                const date = new Date(d.date);
+                                return `${date.getMonth()+1}/${date.getDate()}`;
+                            }),
                             datasets: [{
                                 label: 'Attendance Percentage',
                                 data: report.daily_breakdown.map(d => d.percentage),
-                                borderColor: 'var(--primary-color)',
-                                backgroundColor: 'rgba(var(--primary-color-rgb), 0.1)',
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
                                 fill: true,
-                                tension: 0.4
+                                tension: 0.4,
+                                pointBackgroundColor: '#3b82f6',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4
                             }]
                         },
                         options: {
@@ -2048,6 +2087,15 @@ if (!$attendance_settings) {
                                 tooltip: {
                                     callbacks: {
                                         label: (ctx) => `${ctx.raw}%`
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        callback: (value) => value + '%'
                                     }
                                 }
                             }
@@ -2087,22 +2135,27 @@ if (!$attendance_settings) {
 
                 } else if (report.details && report.details.length > 0) {
                     // Daily report with student details
+                    const presentCount = report.details.filter(s => s.attendance_status === 'present').length;
+                    const absentCount = report.details.filter(s => s.attendance_status === 'absent').length;
+                    const lateCount = report.details.filter(s => s.attendance_status === 'late').length;
+                    const attendancePercent = report.total_students > 0 ? ((presentCount / report.total_students) * 100).toFixed(1) : 0;
+
                     summaryDiv.innerHTML = `
                         <div class="report-stat">
                             <div class="value">${report.total_students || report.details.length}</div>
                             <div class="label">Total Students</div>
                         </div>
                         <div class="report-stat">
-                            <div class="value">${report.total_present || 0}</div>
+                            <div class="value">${presentCount}</div>
                             <div class="label">Present</div>
                         </div>
                         <div class="report-stat">
-                            <div class="value">${report.attendance_percentage || 0}%</div>
-                            <div class="label">Attendance Rate</div>
+                            <div class="value">${absentCount}</div>
+                            <div class="label">Absent</div>
                         </div>
                         <div class="report-stat">
-                            <div class="value">${report.details.length - (report.total_present || 0)}</div>
-                            <div class="label">Absent</div>
+                            <div class="value">${attendancePercent}%</div>
+                            <div class="label">Attendance Rate</div>
                         </div>
                     `;
 
@@ -2122,12 +2175,12 @@ if (!$attendance_settings) {
                             <tbody>
                                 ${report.details.map(s => `
                                     <tr>
-                                        <td>${escapeHtml(s.full_name)}</td>
+                                        <td><strong>${escapeHtml(s.full_name)}</strong></td>
                                         <td>${escapeHtml(s.admission_number)}</td>
                                         <td>${escapeHtml(s.class_name)}</td>
                                         <td>
                                             <span class="status-badge status-${s.attendance_status}">
-                                                ${s.attendance_status.toUpperCase()}
+                                                ${s.attendance_status ? s.attendance_status.toUpperCase() : 'ABSENT'}
                                             </span>
                                         </td>
                                         <td>${s.check_in_time || '-'}</td>
@@ -2136,32 +2189,37 @@ if (!$attendance_settings) {
                             </tbody>
                         </table>
                     `;
+                } else {
+                    tableBody.innerHTML = '<p style="text-align:center; padding:20px;">No data available for the selected criteria</p>';
                 }
             } else if (userType === 'staff') {
-                // Staff report
-                const staffData = report.staff || {};
-                summaryDiv.innerHTML = `
-                    <div class="report-stat">
-                        <div class="value">${staffData.full_name || 'All Staff'}</div>
-                        <div class="label">Staff Member</div>
-                    </div>
-                    <div class="report-stat">
-                        <div class="value">${staffData.days_present || report.details?.length || 0}</div>
-                        <div class="label">Days Present</div>
-                    </div>
-                    <div class="report-stat">
-                        <div class="value">${staffData.total_late_minutes || 0}</div>
-                        <div class="label">Late Minutes</div>
-                    </div>
-                    <div class="report-stat">
-                        <div class="value">${report.total_days || 0}</div>
-                        <div class="label">Total Days</div>
-                    </div>
-                `;
-
-                chartDiv.innerHTML = '';
-
                 if (report.daily_logs && report.daily_logs.length > 0) {
+                    const staffData = report.staff || {};
+                    const presentDays = report.daily_logs.filter(l => l.status === 'present').length;
+                    const absentDays = report.daily_logs.filter(l => l.status === 'absent').length;
+                    const lateDays = report.daily_logs.filter(l => l.status === 'late').length;
+
+                    summaryDiv.innerHTML = `
+                        <div class="report-stat">
+                            <div class="value">${escapeHtml(staffData.full_name || 'Staff Member')}</div>
+                            <div class="label">Staff Name</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${presentDays}</div>
+                            <div class="label">Days Present</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${lateDays}</div>
+                            <div class="label">Days Late</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${absentDays}</div>
+                            <div class="label">Days Absent</div>
+                        </div>
+                    `;
+
+                    chartDiv.innerHTML = '';
+
                     tableBody.innerHTML = `
                         <table class="data-table">
                             <thead>
@@ -2171,6 +2229,7 @@ if (!$attendance_settings) {
                                     <th>Clock Out</th>
                                     <th>Status</th>
                                     <th>Late (mins)</th>
+                                    <th>Source</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2181,16 +2240,42 @@ if (!$attendance_settings) {
                                         <td>${log.clock_out_time || '-'}</td>
                                         <td>
                                             <span class="status-badge status-${log.status}">
-                                                ${log.status.toUpperCase()}
+                                                ${log.status ? log.status.toUpperCase() : 'ABSENT'}
                                             </span>
                                         </td>
                                         <td>${log.late_minutes || 0}</td>
+                                        <td>${log.attendance_source || 'self_scan'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     `;
                 } else if (report.details && report.details.length > 0) {
+                    const presentCount = report.details.filter(s => s.attendance_status === 'present').length;
+                    const absentCount = report.details.filter(s => s.attendance_status === 'absent').length;
+                    const lateCount = report.details.filter(s => s.attendance_status === 'late').length;
+
+                    summaryDiv.innerHTML = `
+                        <div class="report-stat">
+                            <div class="value">${report.details.length}</div>
+                            <div class="label">Total Staff</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${presentCount}</div>
+                            <div class="label">Present</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${lateCount}</div>
+                            <div class="label">Late</div>
+                        </div>
+                        <div class="report-stat">
+                            <div class="value">${absentCount}</div>
+                            <div class="label">Absent</div>
+                        </div>
+                    `;
+
+                    chartDiv.innerHTML = '';
+
                     tableBody.innerHTML = `
                         <table class="data-table">
                             <thead>
@@ -2201,40 +2286,45 @@ if (!$attendance_settings) {
                                     <th>Status</th>
                                     <th>Clock In</th>
                                     <th>Clock Out</th>
+                                    <th>Assigned Classes</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${report.details.map(s => `
                                     <tr>
-                                        <td>${escapeHtml(s.full_name)}</td>
+                                        <td><strong>${escapeHtml(s.full_name)}</strong></td>
                                         <td>${escapeHtml(s.staff_id)}</td>
                                         <td>${escapeHtml(s.role)}</td>
                                         <td>
                                             <span class="status-badge status-${s.attendance_status}">
-                                                ${s.attendance_status.toUpperCase()}
+                                                ${s.attendance_status ? s.attendance_status.toUpperCase() : 'ABSENT'}
                                             </span>
                                         </td>
                                         <td>${s.clock_in_time || '-'}</td>
                                         <td>${s.clock_out_time || '-'}</td>
+                                        <td>${escapeHtml(s.assigned_classes) || '-'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     `;
+                } else {
+                    tableBody.innerHTML = '<p style="text-align:center; padding:20px;">No staff data available for the selected criteria</p>';
                 }
             }
         }
 
-        // Export Report
+        // ==================== EXPORT REPORT ====================
         function exportReport(format) {
             if (!currentReportData) {
-                alert('Please generate a report first');
+                showAlert('Please generate a report first', 'error');
                 return;
             }
 
             const reportType = document.querySelector('#reportTypeOptions .duration-btn.active').dataset.type;
             const userType = document.querySelector('#userTypeOptions .duration-btn.active').dataset.type;
             const classId = document.getElementById('reportClassFilter').value;
+            const staffId = document.getElementById('reportStaffFilter').value;
 
             let date = null;
             let startDate = null;
@@ -2247,22 +2337,21 @@ if (!$attendance_settings) {
                 endDate = document.getElementById('endDate').value;
             }
 
-            const formData = new URLSearchParams();
-            formData.append('action', 'export_attendance_report');
-            formData.append('report_type', reportType);
-            formData.append('user_type', userType);
-            formData.append('format', format);
-            if (date) formData.append('date', date);
-            if (startDate) formData.append('start_date', startDate);
-            if (endDate) formData.append('end_date', endDate);
-            if (classId) formData.append('class_id', classId);
+            let url = `${window.location.href}?action=export_attendance_report&report_type=${reportType}&user_type=${userType}&format=${format}`;
+            if (date) url += `&date=${date}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+            if (classId) url += `&class_id=${classId}`;
+            if (staffId && userType === 'staff') url += `&staff_id=${staffId}`;
 
-            window.location.href = window.location.href + '?' + formData.toString();
+            window.open(url, '_blank');
         }
 
-        // Load Absent Stats
+        // ==================== ABSENT STUDENT FUNCTIONS ====================
         function loadAbsentStats() {
             const date = document.getElementById('absentDate').value;
+
+            showLoading('Loading absent statistics...');
 
             fetch(`${window.location.href}?action=get_absent_stats&date=${date}`, {
                     headers: {
@@ -2271,6 +2360,7 @@ if (!$attendance_settings) {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    hideLoading();
                     if (data.success) {
                         const container = document.getElementById('classStatsList');
                         const statsContainer = document.getElementById('absentStatsContainer');
@@ -2290,11 +2380,20 @@ if (!$attendance_settings) {
                         }
 
                         statsContainer.style.display = 'block';
+                    } else {
+                        showAlert('Failed to load statistics', 'error');
                     }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showAlert('Failed to load statistics', 'error');
                 });
         }
 
         function showAbsentStudents(classId, className, date) {
+            showLoading('Loading absent students...');
+
             fetch(`${window.location.href}?action=get_absent_students&date=${date}&class_id=${classId}`, {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
@@ -2302,6 +2401,7 @@ if (!$attendance_settings) {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    hideLoading();
                     if (data.success) {
                         const modal = document.getElementById('absentModal');
                         const title = document.getElementById('absentModalTitle');
@@ -2316,7 +2416,11 @@ if (!$attendance_settings) {
                             <div class="table-container">
                                 <table class="data-table">
                                     <thead>
-                                        <tr><th>Name</th><th>Admission No</th><th>Parent Contact</th></tr>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Admission No</th>
+                                            <th>Parent Contact</th>
+                                        </tr>
                                     </thead>
                                     <tbody>
                                         ${data.students.map(s => `
@@ -2338,6 +2442,11 @@ if (!$attendance_settings) {
 
                         modal.classList.add('show');
                     }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showAlert('Failed to load absent students', 'error');
                 });
         }
 
@@ -2345,12 +2454,14 @@ if (!$attendance_settings) {
             document.getElementById('absentModal').classList.remove('show');
         }
 
-        // Email Settings
+        // ==================== EMAIL SETTINGS ====================
         document.getElementById('emailSettingsForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
             const formData = new FormData(this);
             formData.append('action', 'save_email_settings');
+
+            showLoading('Saving email settings...');
 
             fetch(window.location.href, {
                     method: 'POST',
@@ -2361,18 +2472,24 @@ if (!$attendance_settings) {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    hideLoading();
                     if (data.success) {
-                        alert('Email settings saved successfully');
+                        showAlert('Email settings saved successfully', 'success');
                     } else {
-                        alert('Failed to save settings');
+                        showAlert('Failed to save settings', 'error');
                     }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showAlert('Failed to save settings', 'error');
                 });
         });
 
         function testEmailConfig() {
             const testEmail = document.getElementById('testEmail').value;
             if (!testEmail) {
-                alert('Please enter a test email address');
+                showAlert('Please enter a test email address', 'error');
                 return;
             }
 
@@ -2380,6 +2497,8 @@ if (!$attendance_settings) {
             formData.append('action', 'test_email');
             formData.append('test_email', testEmail);
 
+            showLoading('Sending test email...');
+
             fetch(window.location.href, {
                     method: 'POST',
                     body: formData,
@@ -2389,15 +2508,21 @@ if (!$attendance_settings) {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    hideLoading();
                     if (data.success) {
-                        alert('Test email sent successfully! Check your inbox.');
+                        showAlert('Test email sent successfully! Check your inbox.', 'success');
                     } else {
-                        alert('Failed to send test email: ' + (data.error || 'Unknown error'));
+                        showAlert('Failed to send test email: ' + (data.error || 'Unknown error'), 'error');
                     }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showAlert('Failed to send test email', 'error');
                 });
         }
 
-        // Notification functions
+        // ==================== NOTIFICATION FUNCTIONS ====================
         function loadNotifications() {
             fetch(`${window.location.href}?action=get_notifications`, {
                     headers: {
@@ -2420,7 +2545,8 @@ if (!$attendance_settings) {
                         `).join('');
                         }
                     }
-                });
+                })
+                .catch(error => console.error('Error loading notifications:', error));
         }
 
         function loadUnreadCount() {
@@ -2436,7 +2562,8 @@ if (!$attendance_settings) {
                         badge.textContent = data.count;
                         badge.style.display = data.count > 0 ? 'inline-block' : 'none';
                     }
-                });
+                })
+                .catch(error => console.error('Error loading unread count:', error));
         }
 
         function markNotificationRead(id) {
@@ -2454,9 +2581,68 @@ if (!$attendance_settings) {
                 .then(() => {
                     loadNotifications();
                     loadUnreadCount();
-                });
+                })
+                .catch(error => console.error('Error marking notification read:', error));
         }
 
+        // ==================== UI HELPER FUNCTIONS ====================
+        function showLoading(message) {
+            let loader = document.getElementById('globalLoader');
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'globalLoader';
+                loader.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-family:sans-serif;';
+                loader.innerHTML = '<div class="spinner"></div><div id="loaderMessage" style="margin-top:16px;">Loading...</div>';
+                document.body.appendChild(loader);
+
+                // Add spinner styles if not present
+                if (!document.querySelector('#spinnerStyles')) {
+                    const style = document.createElement('style');
+                    style.id = 'spinnerStyles';
+                    style.textContent = `.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}`;
+                    document.head.appendChild(style);
+                }
+            }
+            document.getElementById('loaderMessage').textContent = message;
+            loader.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            const loader = document.getElementById('globalLoader');
+            if (loader) loader.style.display = 'none';
+        }
+
+        function showAlert(message, type = 'info') {
+            // Create alert element
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;max-width:300px;animation:slideIn 0.3s ease;';
+            alertDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
+            document.body.appendChild(alertDiv);
+
+            // Add animation styles
+            if (!document.querySelector('#alertStyles')) {
+                const style = document.createElement('style');
+                style.id = 'alertStyles';
+                style.textContent = `@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`;
+                document.head.appendChild(style);
+            }
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                alertDiv.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => alertDiv.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== EVENT LISTENERS ====================
         document.getElementById('markAllReadBtn').addEventListener('click', function() {
             const formData = new URLSearchParams();
             formData.append('action', 'mark_all_read');
@@ -2471,7 +2657,8 @@ if (!$attendance_settings) {
                 .then(() => {
                     loadNotifications();
                     loadUnreadCount();
-                });
+                })
+                .catch(error => console.error('Error marking all read:', error));
         });
 
         // Notification dropdown toggle
@@ -2494,32 +2681,15 @@ if (!$attendance_settings) {
             e.stopPropagation();
         });
 
-        // Loading indicator
-        function showLoading(message) {
-            let loader = document.getElementById('globalLoader');
-            if (!loader) {
-                loader = document.createElement('div');
-                loader.id = 'globalLoader';
-                loader.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;';
-                loader.innerHTML = '<div class="spinner"></div><div id="loaderMessage">Loading...</div>';
-                document.body.appendChild(loader);
+        // Modal close on outside click
+        const modal = document.getElementById('absentModal');
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeAbsentModal();
             }
-            document.getElementById('loaderMessage').textContent = message;
-            loader.style.display = 'flex';
-        }
+        });
 
-        function hideLoading() {
-            const loader = document.getElementById('globalLoader');
-            if (loader) loader.style.display = 'none';
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
+        // ==================== INITIALIZATION ====================
         // Auto-refresh unread count every 30 seconds
         loadUnreadCount();
         setInterval(loadUnreadCount, 30000);
@@ -2527,6 +2697,14 @@ if (!$attendance_settings) {
         // Load initial report if on reports tab
         if (document.getElementById('tab-attendance_report').classList.contains('active')) {
             loadAttendanceReport();
+        }
+
+        // Set default duration button as active
+        const defaultDurationBtn = document.querySelector('#qrDurationOptions .duration-btn[data-hours="72"]');
+        if (defaultDurationBtn) {
+            defaultDurationBtn.classList.add('active');
+            selectedDuration = 72;
+            neverExpires = false;
         }
     </script>
 </body>

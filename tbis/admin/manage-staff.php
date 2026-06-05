@@ -1,6 +1,6 @@
 <?php
 // admin/manage-staff.php - Complete Staff Management with Attendance, Performance, and QR Tracking
-// MODIFIED: Mobile-friendly with card layout, click-to-view modal, and assigned classes/subjects in details
+// CLEANED: Removed duplicate sidebar, uses shared sidebar.php
 
 session_start();
 
@@ -32,6 +32,7 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+$page_title = "Manage Staff";
 
 // ============================================
 // ADD MISSING TABLES IF NOT EXISTS
@@ -336,7 +337,7 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
         $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        
+
         // Get subject names
         if (!empty($assigned_subject_ids)) {
             $placeholders = str_repeat('?,', count($assigned_subject_ids) - 1) . '?';
@@ -348,7 +349,7 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
         $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        
+
         if (!empty($assigned_class_ids)) {
             $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
             $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
@@ -395,6 +396,9 @@ $query .= " ORDER BY created_at DESC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $staff_list = $stmt->fetchAll();
+
+// Include sidebar
+require_once 'includes/sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -436,7 +440,6 @@ $staff_list = $stmt->fetchAll();
             --gray-300: #d1d5db;
             --gray-600: #6b7280;
             --gray-800: #1f2937;
-            --sidebar-width: 280px;
             --radius-sm: 6px;
             --radius-md: 10px;
             --radius-lg: 16px;
@@ -458,141 +461,12 @@ $staff_list = $stmt->fetchAll();
             min-height: 100vh;
         }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(165deg, var(--primary-color), #1a3a5c);
-            backdrop-filter: blur(10px);
-            color: white;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            padding: 24px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary-color);
-            border-radius: var(--radius-md);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-
-        .logo-text p {
-            font-size: 0.7rem;
-            opacity: 0.8;
-        }
-
-        .admin-info {
-            background: rgba(255, 255, 255, 0.08);
-            margin: 16px;
-            padding: 16px;
-            border-radius: var(--radius-lg);
-            text-align: center;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 12px;
-        }
-
-        .nav-links li {
-            margin-bottom: 4px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-            border-radius: var(--radius-md);
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.15);
-            color: white;
-        }
-
-        .nav-links i {
-            width: 22px;
-            font-size: 1rem;
-        }
-
-        /* Main Content */
+        /* Main Content - pushed by sidebar */
         .main-content {
-            min-height: 100vh;
+            margin-left: 280px;
             padding: 20px;
-            transition: margin-left 0.3s;
-        }
-
-        /* Mobile Menu Button */
-        .mobile-menu-btn {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            z-index: 1001;
-            width: 44px;
-            height: 44px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 20px;
-            cursor: pointer;
-            box-shadow: var(--shadow-md);
-        }
-
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s;
-        }
-
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
         }
 
         /* Top Header */
@@ -715,33 +589,37 @@ $staff_list = $stmt->fetchAll();
             color: var(--gray-800);
         }
 
-        /* Filter Form - Mobile Responsive */
+        /* Filter Form */
         .filter-form {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
             align-items: flex-end;
         }
-        
+
         .filter-group {
             flex: 1;
             min-width: 140px;
         }
-        
+
         @media (max-width: 768px) {
             .filter-form {
                 flex-direction: column;
             }
+
             .filter-group {
                 width: 100%;
             }
+
             .filter-group .btn {
                 width: 100%;
                 justify-content: center;
             }
+
             .action-buttons-group {
                 width: 100%;
             }
+
             .action-buttons-group .btn {
                 flex: 1;
                 justify-content: center;
@@ -770,13 +648,13 @@ $staff_list = $stmt->fetchAll();
             transition: all 0.2s;
         }
 
-        /* Staff Cards - Mobile Friendly (No Horizontal Scroll) */
+        /* Staff Cards */
         .staff-cards {
             display: flex;
             flex-direction: column;
             gap: 16px;
         }
-        
+
         .staff-card {
             background: white;
             border-radius: var(--radius-lg);
@@ -786,20 +664,20 @@ $staff_list = $stmt->fetchAll();
             transition: all 0.2s;
             border: 1px solid var(--gray-200);
         }
-        
+
         .staff-card:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
             border-color: var(--primary-color);
         }
-        
+
         .staff-card-header {
             display: flex;
             align-items: center;
             gap: 12px;
             margin-bottom: 12px;
         }
-        
+
         .staff-avatar {
             width: 50px;
             height: 50px;
@@ -812,23 +690,23 @@ $staff_list = $stmt->fetchAll();
             font-weight: 600;
             color: white;
         }
-        
+
         .staff-card-info {
             flex: 1;
         }
-        
+
         .staff-card-name {
             font-size: 1rem;
             font-weight: 700;
             color: var(--gray-800);
         }
-        
+
         .staff-card-id {
             font-size: 0.7rem;
             color: var(--gray-600);
             font-family: monospace;
         }
-        
+
         .staff-card-details {
             display: flex;
             flex-wrap: wrap;
@@ -837,7 +715,7 @@ $staff_list = $stmt->fetchAll();
             padding-top: 8px;
             border-top: 1px solid var(--gray-200);
         }
-        
+
         .staff-card-detail {
             display: flex;
             align-items: center;
@@ -845,12 +723,12 @@ $staff_list = $stmt->fetchAll();
             font-size: 0.7rem;
             color: var(--gray-600);
         }
-        
+
         .staff-card-detail i {
             width: 16px;
             color: var(--primary-color);
         }
-        
+
         .status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -868,26 +746,27 @@ $staff_list = $stmt->fetchAll();
             background: var(--danger-light);
             color: var(--danger);
         }
-        
-        /* Hide table on mobile, show cards */
+
         .table-container {
             display: block;
             overflow-x: auto;
         }
-        
+
         @media (max-width: 768px) {
             .desktop-table {
                 display: none;
             }
+
             .mobile-cards {
                 display: block;
             }
         }
-        
+
         @media (min-width: 769px) {
             .desktop-table {
                 display: block;
             }
+
             .mobile-cards {
                 display: none;
             }
@@ -982,33 +861,33 @@ $staff_list = $stmt->fetchAll();
             background: white;
         }
 
-        /* Info rows for modal */
+        /* Info rows */
         .info-row {
             display: flex;
             padding: 12px 0;
             border-bottom: 1px solid var(--gray-200);
         }
-        
+
         .info-label {
             width: 120px;
             font-weight: 600;
             color: var(--gray-600);
             font-size: 0.8rem;
         }
-        
+
         .info-value {
             flex: 1;
             color: var(--gray-800);
             font-size: 0.85rem;
         }
-        
+
         .assigned-items {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             margin-top: 8px;
         }
-        
+
         .assigned-tag {
             background: var(--primary-light);
             color: var(--primary-color);
@@ -1018,7 +897,6 @@ $staff_list = $stmt->fetchAll();
             font-weight: 500;
         }
 
-        /* Alert Messages */
         .alert {
             padding: 14px 18px;
             border-radius: var(--radius-md);
@@ -1041,7 +919,6 @@ $staff_list = $stmt->fetchAll();
             border-left: 4px solid var(--danger);
         }
 
-        /* Form Grid */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1072,7 +949,6 @@ $staff_list = $stmt->fetchAll();
             cursor: pointer;
         }
 
-        /* Password Group */
         .password-group {
             position: relative;
         }
@@ -1088,7 +964,6 @@ $staff_list = $stmt->fetchAll();
             padding: 0 5px;
         }
 
-        /* Split Layout */
         .split-layout {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1099,38 +974,25 @@ $staff_list = $stmt->fetchAll();
             .split-layout {
                 grid-template-columns: 1fr;
             }
+
             .main-content {
-                padding-top: 70px;
+                margin-left: 0;
+                padding: 20px 15px;
             }
+
             .info-row {
                 flex-direction: column;
             }
+
             .info-label {
                 width: 100%;
                 margin-bottom: 5px;
-            }
-        }
-
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-            .mobile-menu-btn {
-                display: none;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-
-    <?php require_once 'includes/sidebar.php'; ?>
-
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -1239,7 +1101,7 @@ $staff_list = $stmt->fetchAll();
                 </div>
             </div>
 
-            <!-- Mobile Card View (Click to view actions in modal) -->
+            <!-- Mobile Card View -->
             <div class="mobile-cards">
                 <div class="staff-cards">
                     <?php foreach ($staff_list as $s): ?>
@@ -1282,9 +1144,7 @@ $staff_list = $stmt->fetchAll();
                         <h3 id="modalStaffName">Staff Actions</h3>
                         <button class="close-modal" onclick="closeStaffActionModal()">&times;</button>
                     </div>
-                    <div class="modal-body" id="staffActionBody">
-                        <!-- Dynamic content loaded via JS -->
-                    </div>
+                    <div class="modal-body" id="staffActionBody"></div>
                 </div>
             </div>
 
@@ -1311,7 +1171,7 @@ $staff_list = $stmt->fetchAll();
                 </div>
             </div>
 
-        <!-- ADD/EDIT STAFF -->
+            <!-- ADD/EDIT STAFF -->
         <?php elseif ($action === 'add' || $action === 'edit'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1476,7 +1336,7 @@ $staff_list = $stmt->fetchAll();
                 });
             </script>
 
-        <!-- ASSIGN SUBJECTS -->
+            <!-- ASSIGN SUBJECTS -->
         <?php elseif ($action === 'assign_subjects' && $staff): ?>
             <div class="card">
                 <div class="card-header">
@@ -1500,7 +1360,7 @@ $staff_list = $stmt->fetchAll();
                 </form>
             </div>
 
-        <!-- ASSIGN CLASSES -->
+            <!-- ASSIGN CLASSES -->
         <?php elseif ($action === 'assign_classes' && $staff): ?>
             <div class="card">
                 <div class="card-header">
@@ -1530,7 +1390,7 @@ $staff_list = $stmt->fetchAll();
                 </form>
             </div>
 
-        <!-- STAFF ATTENDANCE VIEW -->
+            <!-- STAFF ATTENDANCE VIEW -->
         <?php elseif ($action === 'attendance'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1587,11 +1447,11 @@ $staff_list = $stmt->fetchAll();
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
-                    </table>
+                        <table>
                 </div>
             </div>
 
-        <!-- CLASS ATTENDANCE QR -->
+            <!-- CLASS ATTENDANCE QR -->
         <?php elseif ($action === 'class_attendance'): ?>
             <div class="split-layout">
                 <div class="card">
@@ -1649,7 +1509,7 @@ $staff_list = $stmt->fetchAll();
                 </div>
             </div>
 
-        <!-- PERFORMANCE RATING -->
+            <!-- PERFORMANCE RATING -->
         <?php elseif ($action === 'performance'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1693,7 +1553,7 @@ $staff_list = $stmt->fetchAll();
                 </div>
             </div>
 
-        <!-- VIEW STAFF DETAILS (Enhanced with assigned classes/subjects) -->
+            <!-- VIEW STAFF DETAILS -->
         <?php elseif ($action === 'view' && $staff): ?>
             <div class="card">
                 <div class="card-header">
@@ -1708,7 +1568,7 @@ $staff_list = $stmt->fetchAll();
                     <div><strong>Status:</strong><br><span class="status-badge <?php echo $staff['is_active'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $staff['is_active'] ? 'Active' : 'Inactive'; ?></span></div>
                     <div><strong>Joined:</strong><br><?php echo date('F j, Y', strtotime($staff['created_at'])); ?></div>
                 </div>
-                
+
                 <!-- Assigned Subjects -->
                 <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--gray-200);">
                     <h3 style="font-size: 1rem; margin-bottom: 12px;"><i class="fas fa-book" style="color: var(--primary-color);"></i> Assigned Subjects</h3>
@@ -1722,7 +1582,7 @@ $staff_list = $stmt->fetchAll();
                         <?php endif; ?>
                     </div>
                 </div>
-                
+
                 <!-- Assigned Classes -->
                 <div style="margin-top: 20px;">
                     <h3 style="font-size: 1rem; margin-bottom: 12px;"><i class="fas fa-chalkboard" style="color: var(--primary-color);"></i> Assigned Classes</h3>
@@ -1736,7 +1596,7 @@ $staff_list = $stmt->fetchAll();
                         <?php endif; ?>
                     </div>
                 </div>
-                
+
                 <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
                     <a href="manage-staff.php?action=assign_subjects&id=<?php echo $staff['id']; ?>" class="btn btn-primary"><i class="fas fa-book"></i> Assign Subjects</a>
                     <a href="manage-staff.php?action=assign_classes&id=<?php echo $staff['id']; ?>" class="btn btn-purple"><i class="fas fa-chalkboard"></i> Assign Classes</a>
@@ -1773,45 +1633,6 @@ $staff_list = $stmt->fetchAll();
     </div>
 
     <script>
-        // Mobile menu
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-
-        function toggleSidebar() {
-            sidebar.classList.toggle('active');
-            overlay.classList.toggle('active');
-            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-        }
-
-        if (mobileBtn) mobileBtn.onclick = toggleSidebar;
-        if (overlay) overlay.onclick = toggleSidebar;
-
-        window.addEventListener('resize', function() {
-            if (window.innerWidth > 768) {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
-
-        // Password toggle
-        function togglePasswordVisibility(fieldId) {
-            const field = document.getElementById(fieldId);
-            const icon = document.getElementById(fieldId + '-icon');
-            if (field && icon) {
-                if (field.type === 'password') {
-                    field.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                } else {
-                    field.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                }
-            }
-        }
-
         // Mark late
         function markLate(staffId) {
             let minutes = prompt('Enter late minutes:', '5');
@@ -1829,7 +1650,7 @@ $staff_list = $stmt->fetchAll();
             const modal = document.getElementById('staffActionModal');
             const modalName = document.getElementById('modalStaffName');
             const modalBody = document.getElementById('staffActionBody');
-            
+
             modalName.innerHTML = staff.full_name;
             modalBody.innerHTML = `
                 <div class="info-row"><div class="info-label">Staff ID:</div><div class="info-value">${escapeHtml(staff.staff_id)}</div></div>
@@ -1850,12 +1671,12 @@ $staff_list = $stmt->fetchAll();
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
         }
-        
+
         function closeStaffActionModal() {
             document.getElementById('staffActionModal').style.display = 'none';
             document.body.style.overflow = '';
         }
-        
+
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -1937,6 +1758,22 @@ $staff_list = $stmt->fetchAll();
             if (event.target === rateModal) closeRateModal();
             const actionModal = document.getElementById('staffActionModal');
             if (event.target === actionModal) closeStaffActionModal();
+        }
+
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            if (field && icon) {
+                if (field.type === 'password') {
+                    field.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    field.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            }
         }
     </script>
 </body>

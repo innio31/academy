@@ -28,6 +28,7 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+$page_title = "Manage Classes";
 
 // Handle CRUD operations
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -100,13 +101,16 @@ $classes = $classes->fetchAll();
 $message = $_SESSION['message'] ?? '';
 $message_type = $_SESSION['message_type'] ?? '';
 unset($_SESSION['message'], $_SESSION['message_type']);
+
+// Include sidebar
+require_once 'includes/sidebar.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title><?php echo $school_name; ?> - Manage Classes</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -119,7 +123,6 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             --warning-color: #f39c12;
             --light-color: #ecf0f1;
             --dark-color: #2c3e50;
-            --sidebar-width: 260px;
         }
 
         * {
@@ -135,83 +138,15 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             min-height: 100vh;
         }
 
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
-            color: white;
-            padding: 20px 0;
-            transition: all 0.3s ease;
-            z-index: 100;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        /* Main Content - pushed by sidebar */
         .main-content {
-            margin-left: 0;
+            margin-left: 280px;
             padding: 20px;
             min-height: 100vh;
-            transition: all 0.3s ease;
+            transition: margin-left 0.3s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
             padding: 15px 25px;
@@ -222,8 +157,21 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
+        .top-header h1 {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .top-header p {
+            color: #666;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        /* Buttons */
         .btn {
             padding: 10px 20px;
             border-radius: 8px;
@@ -234,11 +182,17 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             align-items: center;
             gap: 8px;
             text-decoration: none;
+            transition: all 0.2s;
         }
 
         .btn-primary {
             background: var(--primary-color);
             color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1a5a8a;
+            transform: translateY(-2px);
         }
 
         .btn-success {
@@ -257,10 +211,11 @@ unset($_SESSION['message'], $_SESSION['message_type']);
         }
 
         .btn-small {
-            padding: 5px 10px;
-            font-size: 0.8rem;
+            padding: 5px 12px;
+            font-size: 0.75rem;
         }
 
+        /* Classes Grid */
         .classes-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -270,10 +225,10 @@ unset($_SESSION['message'], $_SESSION['message_type']);
 
         .class-card {
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
         .class-card:hover {
@@ -300,7 +255,8 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             background: var(--light-color);
             padding: 3px 10px;
             border-radius: 20px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
 
         .class-details {
@@ -310,14 +266,41 @@ unset($_SESSION['message'], $_SESSION['message_type']);
         .class-details p {
             margin: 8px 0;
             color: #666;
+            font-size: 0.85rem;
+        }
+
+        .class-details i {
+            width: 20px;
+            color: var(--primary-color);
         }
 
         .class-actions {
             display: flex;
             gap: 10px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
 
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #d5f4e6;
+            color: var(--success-color);
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: var(--danger-color);
+        }
+
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -326,7 +309,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+            z-index: 2000;
             align-items: center;
             justify-content: center;
         }
@@ -348,6 +331,22 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             align-items: center;
         }
 
+        .modal-header h3 {
+            font-size: 1.2rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
         .modal-body {
             padding: 20px;
         }
@@ -360,6 +359,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             gap: 10px;
         }
 
+        /* Form */
         .form-group {
             margin-bottom: 15px;
         }
@@ -368,20 +368,36 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             display: block;
             margin-bottom: 5px;
             font-weight: 500;
+            font-size: 0.85rem;
         }
 
         .form-control {
             width: 100%;
-            padding: 10px;
+            padding: 10px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-family: inherit;
+            font-size: 0.85rem;
+            transition: border-color 0.2s;
         }
 
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        select.form-control {
+            cursor: pointer;
+        }
+
+        /* Alert */
         .alert {
             padding: 12px 20px;
             border-radius: 8px;
             margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .alert-success {
@@ -396,61 +412,33 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             border-left: 4px solid var(--danger-color);
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
-            }
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 20px 15px;
+            }
+
             .classes-grid {
                 grid-template-columns: 1fr;
             }
-        }
 
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .status-active {
-            background: #d5f4e6;
-            color: var(--success-color);
-        }
-
-        .status-inactive {
-            background: #f8d7da;
-            color: var(--danger-color);
+            .top-header {
+                flex-direction: column;
+                text-align: center;
+            }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn">
-        <i class="fas fa-bars"></i>
-    </button>
 
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
-
-    <div class="main-content" id="mainContent">
+    <!-- Main Content -->
+    <div class="main-content">
         <div class="top-header">
             <div>
-                <h1>Manage Classes</h1>
-                <p>Add, edit, or delete classes</p>
+                <h1><i class="fas fa-chalkboard"></i> Manage Classes</h1>
+                <p>Add, edit, or delete classes for your school</p>
             </div>
             <button class="btn btn-primary" onclick="openAddModal()">
                 <i class="fas fa-plus"></i> Add Class
@@ -464,33 +452,40 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             </div>
         <?php endif; ?>
 
-        <div class="classes-grid">
-            <?php foreach ($classes as $class): ?>
-                <div class="class-card">
-                    <div class="class-header">
-                        <span class="class-name"><?php echo htmlspecialchars($class['class_name']); ?></span>
-                        <span class="class-code"><?php echo htmlspecialchars($class['class_code']); ?></span>
+        <?php if (empty($classes)): ?>
+            <div class="alert alert-info" style="background: #eaf6ff; color: #0c5460; border-left-color: #3498db;">
+                <i class="fas fa-info-circle"></i>
+                No classes found. Click "Add Class" to create your first class.
+            </div>
+        <?php else: ?>
+            <div class="classes-grid">
+                <?php foreach ($classes as $class): ?>
+                    <div class="class-card">
+                        <div class="class-header">
+                            <span class="class-name"><?php echo htmlspecialchars($class['class_name']); ?></span>
+                            <span class="class-code"><?php echo htmlspecialchars($class['class_code']); ?></span>
+                        </div>
+                        <div class="class-details">
+                            <p><i class="fas fa-tag"></i> Category: <?php echo htmlspecialchars($class['class_category']); ?></p>
+                            <p><i class="fas fa-sort-numeric-down"></i> Sort Order: <?php echo $class['sort_order']; ?></p>
+                            <p>
+                                <span class="status-badge status-<?php echo $class['status']; ?>">
+                                    <?php echo ucfirst($class['status']); ?>
+                                </span>
+                            </p>
+                        </div>
+                        <div class="class-actions">
+                            <button class="btn btn-warning btn-small" onclick="editClass(<?php echo htmlspecialchars(json_encode($class)); ?>)">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-danger btn-small" onclick="deleteClass(<?php echo $class['id']; ?>, '<?php echo htmlspecialchars($class['class_name']); ?>')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
                     </div>
-                    <div class="class-details">
-                        <p><i class="fas fa-tag"></i> Category: <?php echo $class['class_category']; ?></p>
-                        <p><i class="fas fa-sort-numeric-down"></i> Sort Order: <?php echo $class['sort_order']; ?></p>
-                        <p>
-                            <span class="status-badge status-<?php echo $class['status']; ?>">
-                                <?php echo ucfirst($class['status']); ?>
-                            </span>
-                        </p>
-                    </div>
-                    <div class="class-actions">
-                        <button class="btn btn-warning btn-small" onclick="editClass(<?php echo htmlspecialchars(json_encode($class)); ?>)">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="deleteClass(<?php echo $class['id']; ?>, '<?php echo htmlspecialchars($class['class_name']); ?>')">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Add/Edit Modal -->
@@ -506,11 +501,12 @@ unset($_SESSION['message'], $_SESSION['message_type']);
                 <div class="modal-body">
                     <div class="form-group">
                         <label>Class Name *</label>
-                        <input type="text" name="class_name" id="className" class="form-control" required>
+                        <input type="text" name="class_name" id="className" class="form-control" required placeholder="e.g., Grade 10A, JSS 1">
                     </div>
                     <div class="form-group">
                         <label>Class Code</label>
-                        <input type="text" name="class_code" id="classCode" class="form-control" placeholder="e.g., JSS1, SS2">
+                        <input type="text" name="class_code" id="classCode" class="form-control" placeholder="e.g., JSS1, SS2, 10A">
+                        <small style="color: #666; font-size: 0.7rem;">Optional short identifier for the class</small>
                     </div>
                     <div class="form-group">
                         <label>Category</label>
@@ -525,6 +521,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
                     <div class="form-group">
                         <label>Sort Order</label>
                         <input type="number" name="sort_order" id="sortOrder" class="form-control" value="0">
+                        <small style="color: #666; font-size: 0.7rem;">Lower numbers appear first</small>
                     </div>
                     <div class="form-group" id="statusField" style="display:none;">
                         <label>Status</label>
@@ -536,7 +533,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-warning" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="submit" class="btn btn-primary">Save Class</button>
                 </div>
             </form>
         </div>
@@ -549,6 +546,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             document.getElementById('classId').value = '0';
             document.getElementById('className').value = '';
             document.getElementById('classCode').value = '';
+            document.getElementById('classCategory').value = 'Primary';
             document.getElementById('sortOrder').value = '0';
             document.getElementById('statusField').style.display = 'none';
             document.getElementById('classModal').style.display = 'flex';
@@ -568,7 +566,7 @@ unset($_SESSION['message'], $_SESSION['message_type']);
         }
 
         function deleteClass(id, name) {
-            if (confirm(`Delete class "${name}"? This cannot be undone if no students are assigned.`)) {
+            if (confirm(`Delete class "${name}"? This cannot be undone if students are assigned to this class.`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
@@ -584,11 +582,6 @@ unset($_SESSION['message'], $_SESSION['message_type']);
             document.getElementById('classModal').style.display = 'none';
         }
 
-        // Sidebar toggle
-        document.getElementById('mobileMenuBtn').onclick = () => {
-            document.getElementById('sidebar').classList.toggle('active');
-        };
-
         // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('classModal');
@@ -596,6 +589,14 @@ unset($_SESSION['message'], $_SESSION['message_type']);
                 closeModal();
             }
         };
+
+        // Enter key submits form
+        document.getElementById('classForm')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                this.submit();
+            }
+        });
     </script>
 </body>
 

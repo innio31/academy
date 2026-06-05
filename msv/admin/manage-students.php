@@ -25,11 +25,11 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 
 require_once '../includes/config.php';
 require_once '../includes/qr_functions.php';
-require_once 'includes/sidebar.php';
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+$page_title = "Manage Students";
 
 // ============================================
 // ENSURE FIRST_NAME, MIDDLE_NAME & LAST_NAME COLUMNS EXIST
@@ -349,6 +349,9 @@ if (isset($_GET['get_student'])) {
     echo json_encode($student);
     exit();
 }
+
+// Include sidebar
+require_once 'includes/sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -383,7 +386,6 @@ if (isset($_GET['get_student'])) {
             --gray-400: #9ca3af;
             --gray-600: #6b7280;
             --gray-800: #1f2937;
-            --sidebar-width: 260px;
             --radius-sm: 6px;
             --radius-md: 10px;
             --radius-lg: 14px;
@@ -404,93 +406,7 @@ if (isset($_GET['get_student'])) {
             min-height: 100vh;
         }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
-            color: white;
-            padding: 20px 0;
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0 20px;
-            margin-bottom: 20px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary-color);
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .logo-text p {
-            font-size: 0.7rem;
-            opacity: 0.8;
-        }
-
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .nav-links i {
-            width: 20px;
-        }
-
-        /* Replace the existing .main-content styles with this */
+        /* Main Content - pushed by sidebar */
         .main-content {
             margin-left: 280px;
             padding: 20px;
@@ -498,60 +414,29 @@ if (isset($_GET['get_student'])) {
             transition: margin-left 0.3s ease;
         }
 
-        @media (max-width: 768px) {
-            .main-content {
-                margin-left: 0;
-                padding: 70px 15px 20px 15px;
-            }
-        }
-
-        /* Global Search Bar */
-        .global-search-bar {
+        /* Top Header */
+        .top-header {
             background: white;
+            padding: 15px 25px;
             border-radius: var(--radius-lg);
-            padding: 15px 20px;
             margin-bottom: 25px;
             display: flex;
-            gap: 12px;
+            justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 15px;
             box-shadow: var(--shadow-sm);
-            border: 2px solid var(--gray-200);
         }
 
-        .global-search-bar .search-icon {
+        .header-title h1 {
             color: var(--primary-color);
-            font-size: 1.2rem;
+            font-size: 1.4rem;
+            margin-bottom: 4px;
         }
 
-        .global-search-bar input {
-            flex: 1;
-            min-width: 250px;
-            padding: 12px 15px;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            font-family: inherit;
-            font-size: 0.9rem;
-            transition: border-color 0.2s;
-        }
-
-        .global-search-bar input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        .global-search-bar .search-btn {
-            padding: 12px 24px;
-            font-size: 0.9rem;
-        }
-
-        .global-search-bar .clear-btn {
-            background: var(--gray-200);
-            color: var(--gray-800);
-        }
-
-        .global-search-bar .clear-btn:hover {
-            background: var(--gray-400);
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.75rem;
         }
 
         /* Buttons */
@@ -614,7 +499,56 @@ if (isset($_GET['get_student'])) {
             font-size: 0.7rem;
         }
 
-        /* Class List - Compact View */
+        /* Global Search Bar */
+        .global-search-bar {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow-sm);
+            border: 2px solid var(--gray-200);
+        }
+
+        .global-search-bar .search-icon {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+
+        .global-search-bar input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        .global-search-bar input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .global-search-bar .search-btn {
+            padding: 12px 24px;
+            font-size: 0.9rem;
+        }
+
+        .global-search-bar .clear-btn {
+            background: var(--gray-200);
+            color: var(--gray-800);
+        }
+
+        .global-search-bar .clear-btn:hover {
+            background: var(--gray-400);
+        }
+
+        /* Class List */
         .class-list {
             background: white;
             border-radius: var(--radius-lg);
@@ -654,7 +588,7 @@ if (isset($_GET['get_student'])) {
             font-size: 0.75rem;
         }
 
-        /* Back Navigation Bar */
+        /* Back Navigation */
         .back-nav {
             background: white;
             border-radius: var(--radius-lg);
@@ -678,21 +612,6 @@ if (isset($_GET['get_student'])) {
             font-weight: 500;
             cursor: pointer;
             font-size: 0.85rem;
-        }
-
-        .back-btn:hover {
-            text-decoration: underline;
-        }
-
-        .class-dropdown {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .class-dropdown span {
-            font-size: 0.8rem;
-            color: var(--gray-600);
         }
 
         .class-dropdown select {
@@ -876,10 +795,6 @@ if (isset($_GET['get_student'])) {
             background: white;
         }
 
-        .modal-header h3 {
-            font-size: 1rem;
-        }
-
         .modal-body {
             padding: 20px;
         }
@@ -1025,23 +940,11 @@ if (isset($_GET['get_student'])) {
             margin-top: 5px;
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
-            }
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
             .main-content {
-                padding-top: 70px;
+                margin-left: 0;
+                padding: 20px 15px;
             }
 
             .back-nav {
@@ -1069,7 +972,7 @@ if (isset($_GET['get_student'])) {
 
 <body>
 
-    <div class="main-content" id="mainContent">
+    <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1>Manage Students</h1>
@@ -1095,7 +998,7 @@ if (isset($_GET['get_student'])) {
             </div>
         </div>
 
-        <!-- GLOBAL SEARCH BAR - Visible on all views -->
+        <!-- GLOBAL SEARCH BAR -->
         <div class="global-search-bar">
             <i class="fas fa-search search-icon"></i>
             <form method="GET" style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -1152,7 +1055,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- CLASSES VIEW (when no class selected and no global search) -->
+            <!-- CLASSES VIEW -->
         <?php elseif ($view_mode === 'classes'): ?>
             <div class="class-list">
                 <?php foreach ($all_classes as $class): ?>
@@ -1177,10 +1080,9 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- STUDENTS VIEW (when class selected) -->
+            <!-- STUDENTS VIEW -->
         <?php elseif ($view_mode === 'students' && $current_class): ?>
 
-            <!-- Back Navigation Bar -->
             <div class="back-nav">
                 <div>
                     <button class="back-btn" onclick="window.location.href='manage-students.php'">
@@ -1199,7 +1101,6 @@ if (isset($_GET['get_student'])) {
                 </div>
             </div>
 
-            <!-- Per-Class Search Bar (preserved for individual class filtering) -->
             <div class="search-bar">
                 <input type="text" id="searchInput" placeholder="Search students in this class by name or admission number..." value="<?php echo htmlspecialchars($search_query); ?>">
                 <button class="btn btn-primary" onclick="searchStudents()"><i class="fas fa-search"></i> Search in Class</button>
@@ -1208,7 +1109,6 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-            <!-- Bulk Actions Bar -->
             <div class="bulk-bar">
                 <div>
                     <label style="font-size: 0.85rem;">
@@ -1243,7 +1143,6 @@ if (isset($_GET['get_student'])) {
                 </div>
             </div>
 
-            <!-- Students List -->
             <div class="students-list">
                 <?php if (empty($students)): ?>
                     <div class="empty-state">
@@ -1284,6 +1183,7 @@ if (isset($_GET['get_student'])) {
         <?php endif; ?>
     </div>
 
+    <!-- All Modal HTML remains the same as your original -->
     <!-- Student Detail Modal -->
     <div class="modal" id="studentModal">
         <div class="modal-content">
@@ -1547,11 +1447,6 @@ if (isset($_GET['get_student'])) {
         let currentStudentData = null;
         let scannedStudentData = null;
 
-        // Sidebar toggle
-        document.getElementById('mobileMenuBtn').onclick = () => {
-            document.getElementById('sidebar').classList.toggle('active');
-        };
-
         // Image preview
         function previewImage(input, previewId) {
             if (input.files && input.files[0]) {
@@ -1568,7 +1463,7 @@ if (isset($_GET['get_student'])) {
             window.location.href = '?class_id=' + classId;
         }
 
-        // Per-class search function (preserved)
+        // Per-class search function
         function searchStudents() {
             const searchTerm = document.getElementById('searchInput').value;
             window.location.href = '?class_id=<?php echo $selected_class_id; ?>&search=' + encodeURIComponent(searchTerm);
@@ -1640,7 +1535,6 @@ if (isset($_GET['get_student'])) {
                 profilePicHtml = `<div class="student-avatar" style="width:80px;height:80px;margin:0 auto;font-size:1.5rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
             }
 
-            // Build full name with middle name if exists
             let fullNameDisplay = student.full_name;
             if (student.first_name) {
                 let nameParts = [student.first_name];
@@ -1699,15 +1593,6 @@ if (isset($_GET['get_student'])) {
 
         function closeAddModal() {
             document.getElementById('addStudentModal').style.display = 'none';
-            // Reset form fields
-            document.querySelector('#addStudentModal input[name="first_name"]').value = '';
-            document.querySelector('#addStudentModal input[name="middle_name"]').value = '';
-            document.querySelector('#addStudentModal input[name="last_name"]').value = '';
-            document.querySelector('#addStudentModal input[name="admission_number"]').value = '';
-            document.querySelector('#addStudentModal input[name="password"]').value = '';
-            document.querySelector('#addStudentModal input[name="parent_phone"]').value = '';
-            document.querySelector('#addStudentModal input[name="parent_email"]').value = '';
-            document.getElementById('addImagePreview').src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="50" fill="%23ddd"/%3E%3Ctext x="50" y="67" text-anchor="middle" fill="%23999" font-size="40"%3E📷%3C/text%3E%3C/svg%3E';
         }
 
         function openEditModal(student) {
@@ -1865,7 +1750,6 @@ if (isset($_GET['get_student'])) {
             const scanStudentInfo = document.getElementById('scanStudentInfo');
             let avatarHtml = student.profile_picture ? `<img src="${student.profile_picture}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;">` : `<div style="width:50px;height:50px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2rem;">${(student.first_name ? student.first_name.charAt(0) : student.full_name.charAt(0))}</div>`;
 
-            // Build full name with middle name if exists
             let fullNameDisplay = student.full_name;
             if (student.first_name) {
                 let nameParts = [student.first_name];
@@ -1899,7 +1783,6 @@ if (isset($_GET['get_student'])) {
         function openAttendanceModal(student) {
             document.getElementById('attendanceStudentId').value = student.id;
 
-            // Build full name with middle name if exists
             let fullNameDisplay = student.full_name;
             if (student.first_name) {
                 let nameParts = [student.first_name];

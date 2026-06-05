@@ -67,25 +67,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
             $end_date = $_GET['end_date'] ?? date('Y-m-d');
             $class_id = $_GET['class_id'] ?? '';
+            $staff_id = $_GET['staff_id'] ?? '';
             $user_type = $_GET['user_type'] ?? 'student';
 
-            if ($report_type === 'daily') {
-                $report = getDailyAttendanceReport($pdo, $school_id, $date, $class_id, $user_type);
-            } elseif ($report_type === 'weekly') {
-                $report = getWeeklyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-            } elseif ($report_type === 'monthly') {
-                $report = getMonthlyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-            } elseif ($report_type === 'student') {
-                $student_id = $_GET['student_id'] ?? 0;
-                $report = getStudentAttendanceReport($pdo, $school_id, $student_id, $start_date, $end_date);
-            } elseif ($report_type === 'staff') {
-                $staff_id = $_GET['staff_id'] ?? 0;
-                $report = getStaffAttendanceReport($pdo, $school_id, $staff_id, $start_date, $end_date);
-            } else {
-                $report = getAttendanceSummary($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-            }
+            try {
+                if ($report_type === 'daily') {
+                    if ($user_type === 'student') {
+                        $report = getStudentDailyReport($pdo, $school_id, $date, $class_id);
+                    } elseif ($user_type === 'staff_attendance') {
+                        $report = getStaffDailyReport($pdo, $school_id, $date, $staff_id);
+                    } elseif ($user_type === 'staff_class') {
+                        $report = getStaffClassReport($pdo, $school_id, $date, $staff_id, $class_id);
+                    } else {
+                        $report = getStaffDailyReport($pdo, $school_id, $date, $staff_id);
+                    }
+                } elseif ($report_type === 'weekly' || $report_type === 'monthly') {
+                    if ($user_type === 'student') {
+                        $report = getStudentDateRangeReport($pdo, $school_id, $start_date, $end_date, $class_id);
+                    } elseif ($user_type === 'staff_attendance') {
+                        $report = getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id);
+                    } elseif ($user_type === 'staff_class') {
+                        $report = getStaffClassDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id, $class_id);
+                    } else {
+                        $report = getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id);
+                    }
+                } else {
+                    $report = ['error' => 'Invalid report type'];
+                }
 
-            echo json_encode(['success' => true, 'report' => $report]);
+                echo json_encode(['success' => true, 'report' => $report]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
             break;
 
         case 'export_attendance_report':
@@ -642,6 +655,384 @@ function exportToPDF($data, $filename, $school_name)
 
     echo '</body></html>';
     exit();
+}
+
+// ==================== ATTENDANCE REPORT FUNCTIONS ====================
+
+/**
+ * Get Student Daily Attendance Report
+ */
+function getStudentDailyReport($pdo, $school_id, $date, $class_id = '')
+{
+    $classCondition = $class_id ? "AND s.class_id = ?" : "";
+    $params = [$school_id, $date, $date, $school_id];
+    if ($class_id) $params[] = $class_id;
+
+    // Get summary by class
+    $stmt = $pdo->prepare("
+        SELECT 
+            c.id as class_id,
+            c.class_name,
+            COUNT(DISTINCT s.id) as total_students,
+            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' THEN s.id END) as present_count,
+            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' AND al.status = 'late' THEN s.id END) as late_count
+        FROM classes c
+        JOIN students s ON s.class_id = c.id
+        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
+        WHERE c.school_id = ? AND c.status = 'active' AND s.status = 'active'
+        {$classCondition}
+        GROUP BY c.id, c.class_name
+        ORDER BY c.class_name
+    ");
+    $stmt->execute($params);
+    $summary = $stmt->fetchAll();
+
+    // Get detailed student list
+    $detailParams = [$school_id, $date, $date, $school_id];
+    if ($class_id) $detailParams[] = $class_id;
+
+    $stmt = $pdo->prepare("
+        SELECT 
+            s.id, s.full_name, s.admission_number, c.class_name,
+            CASE 
+                WHEN DATE(al.scan_time) = ? THEN 
+                    CASE WHEN al.status = 'late' THEN 'late' ELSE 'present' END
+                ELSE 'absent' 
+            END as attendance_status,
+            TIME(al.scan_time) as check_in_time,
+            al.latitude, al.longitude,
+            TIMESTAMPDIFF(MINUTE, CONCAT(DATE(al.scan_time), ' ', '08:00:00'), al.scan_time) as late_minutes
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
+        WHERE s.school_id = ? AND s.status = 'active'
+        {$classCondition}
+        ORDER BY c.class_name, s.full_name
+    ");
+    $stmt->execute($detailParams);
+    $details = $stmt->fetchAll();
+
+    $total_present = count(array_filter($details, fn($d) => $d['attendance_status'] === 'present'));
+    $total_late = count(array_filter($details, fn($d) => $d['attendance_status'] === 'late'));
+    $total_absent = count(array_filter($details, fn($d) => $d['attendance_status'] === 'absent'));
+
+    return [
+        'report_name' => 'Student Daily Attendance Report',
+        'date' => $date,
+        'summary_by_class' => $summary,
+        'details' => $details,
+        'total_students' => count($details),
+        'total_present' => $total_present,
+        'total_late' => $total_late,
+        'total_absent' => $total_absent,
+        'attendance_percentage' => count($details) > 0 ? round(($total_present / count($details)) * 100, 2) : 0
+    ];
+}
+
+/**
+ * Get Staff Daily Attendance Report (Clock In/Out)
+ */
+function getStaffDailyReport($pdo, $school_id, $date, $staff_id = '')
+{
+    $staffCondition = $staff_id ? "AND st.id = ?" : "";
+    $params = [$date, $school_id];
+    if ($staff_id) $params[] = $staff_id;
+
+    $stmt = $pdo->prepare("
+        SELECT 
+            st.id, st.full_name, st.staff_id, st.role,
+            sa.status as attendance_status,
+            TIME(sa.clock_in) as clock_in_time,
+            TIME(sa.clock_out) as clock_out_time,
+            sa.late_minutes,
+            sa.attendance_source,
+            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as assigned_classes
+        FROM staff st
+        LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) = ?
+        LEFT JOIN staff_classes sc ON sc.staff_id = st.staff_id
+        LEFT JOIN classes c ON c.id = sc.class_id
+        WHERE st.school_id = ? AND st.is_active = 1
+        {$staffCondition}
+        GROUP BY st.id
+        ORDER BY st.full_name
+    ");
+    $stmt->execute($params);
+    $details = $stmt->fetchAll();
+
+    foreach ($details as &$staff) {
+        if (!$staff['attendance_status']) {
+            $staff['attendance_status'] = 'absent';
+        }
+    }
+
+    $total_present = count(array_filter($details, fn($s) => $s['attendance_status'] === 'present'));
+    $total_late = count(array_filter($details, fn($s) => $s['attendance_status'] === 'late'));
+    $total_absent = count(array_filter($details, fn($s) => $s['attendance_status'] === 'absent'));
+
+    return [
+        'report_name' => 'Staff Daily Attendance Report (Clock In/Out)',
+        'date' => $date,
+        'details' => $details,
+        'total_staff' => count($details),
+        'total_present' => $total_present,
+        'total_late' => $total_late,
+        'total_absent' => $total_absent,
+        'attendance_percentage' => count($details) > 0 ? round(($total_present / count($details)) * 100, 2) : 0
+    ];
+}
+
+/**
+ * Get Staff Class Report (When they scanned class QR codes)
+ */
+function getStaffClassReport($pdo, $school_id, $date, $staff_id = '', $class_id = '')
+{
+    $staffCondition = $staff_id ? "AND sa.staff_id = ?" : "";
+    $classCondition = $class_id ? "AND sa.class_id = ?" : "";
+    $params = [$date, $school_id];
+    if ($staff_id) $params[] = $staff_id;
+    if ($class_id) $params[] = $class_id;
+
+    $stmt = $pdo->prepare("
+        SELECT 
+            sa.id,
+            st.id as staff_db_id,
+            st.full_name,
+            st.staff_id,
+            c.class_name,
+            TIME(sa.scan_time) as scan_time,
+            sa.status,
+            sa.attendance_source,
+            sa.latitude,
+            sa.longitude,
+            sa.ip_address
+        FROM class_attendance sa
+        JOIN staff st ON sa.staff_id = st.staff_id
+        JOIN classes c ON sa.class_name = c.class_name
+        WHERE DATE(sa.scan_time) = ? AND st.school_id = ?
+        {$staffCondition}
+        {$classCondition}
+        ORDER BY st.full_name, sa.scan_time
+    ");
+    $stmt->execute($params);
+    $details = $stmt->fetchAll();
+
+    // Get summary by staff
+    $summaryStmt = $pdo->prepare("
+        SELECT 
+            st.id, st.full_name, st.staff_id,
+            COUNT(sa.id) as classes_taught,
+            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as classes_list
+        FROM staff st
+        LEFT JOIN class_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.scan_time) = ?
+        LEFT JOIN classes c ON sa.class_name = c.class_name
+        WHERE st.school_id = ? AND st.is_active = 1
+        {$staffCondition}
+        GROUP BY st.id
+        ORDER BY st.full_name
+    ");
+    $summaryParams = [$date, $school_id];
+    if ($staff_id) $summaryParams[] = $staff_id;
+    $summaryStmt->execute($summaryParams);
+    $summary = $summaryStmt->fetchAll();
+
+    return [
+        'report_name' => 'Staff Class Attendance Report (Class QR Scan)',
+        'date' => $date,
+        'summary' => $summary,
+        'details' => $details,
+        'total_scans' => count($details),
+        'total_staff_with_scans' => count(array_filter($summary, fn($s) => $s['classes_taught'] > 0))
+    ];
+}
+
+/**
+ * Get Student Date Range Report
+ */
+function getStudentDateRangeReport($pdo, $school_id, $start_date, $end_date, $class_id = '')
+{
+    $classCondition = $class_id ? "AND s.class_id = ?" : "";
+    $params = [$start_date, $end_date, $school_id];
+    if ($class_id) $params[] = $class_id;
+
+    // Get daily breakdown
+    $stmt = $pdo->prepare("
+        SELECT 
+            DATE(al.scan_time) as date,
+            COUNT(DISTINCT s.id) as total_students,
+            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = DATE(al.scan_time) AND al.scan_type = 'check_in' THEN s.id END) as present_count
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) BETWEEN ? AND ? AND al.scan_type = 'check_in'
+        WHERE s.school_id = ? AND s.status = 'active'
+        {$classCondition}
+        GROUP BY DATE(al.scan_time)
+        ORDER BY date
+    ");
+    $stmt->execute($params);
+    $daily_breakdown = $stmt->fetchAll();
+
+    // Calculate total students
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT s.id) as total
+        FROM students s
+        WHERE s.school_id = ? AND s.status = 'active'
+        {$classCondition}
+    ");
+    $totalParams = [$school_id];
+    if ($class_id) $totalParams[] = $class_id;
+    $stmt->execute($totalParams);
+    $total_students = $stmt->fetch()['total'];
+
+    // Process daily breakdown
+    $date_range = new DatePeriod(
+        new DateTime($start_date),
+        new DateInterval('P1D'),
+        (new DateTime($end_date))->modify('+1 day')
+    );
+
+    $complete_breakdown = [];
+    foreach ($date_range as $date) {
+        $date_str = $date->format('Y-m-d');
+        $found = false;
+        foreach ($daily_breakdown as $day) {
+            if ($day['date'] == $date_str) {
+                $complete_breakdown[] = [
+                    'date' => $date_str,
+                    'total' => $total_students,
+                    'present' => $day['present_count'],
+                    'absent' => $total_students - $day['present_count'],
+                    'percentage' => $total_students > 0 ? round(($day['present_count'] / $total_students) * 100, 2) : 0
+                ];
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            $complete_breakdown[] = [
+                'date' => $date_str,
+                'total' => $total_students,
+                'present' => 0,
+                'absent' => $total_students,
+                'percentage' => 0
+            ];
+        }
+    }
+
+    $total_present = array_sum(array_column($complete_breakdown, 'present'));
+    $avg_percentage = $total_students > 0 ? round(($total_present / ($total_students * count($complete_breakdown))) * 100, 2) : 0;
+
+    return [
+        'report_name' => 'Student Attendance Report',
+        'start_date' => $start_date,
+        'end_date' => $end_date,
+        'daily_breakdown' => $complete_breakdown,
+        'summary' => [
+            'total_students' => $total_students,
+            'total_days' => count($complete_breakdown),
+            'total_present_days' => $total_present,
+            'average_daily_attendance' => $avg_percentage
+        ]
+    ];
+}
+
+/**
+ * Get Staff Date Range Report
+ */
+function getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id = '')
+{
+    $staffCondition = $staff_id ? "AND st.id = ?" : "";
+    $params = [$start_date, $end_date, $school_id];
+    if ($staff_id) $params[] = $staff_id;
+
+    $stmt = $pdo->prepare("
+        SELECT 
+            st.id, st.full_name, st.staff_id, st.role,
+            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'present' THEN DATE(sa.date) END) as days_present,
+            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'late' THEN DATE(sa.date) END) as days_late,
+            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'absent' THEN DATE(sa.date) END) as days_absent,
+            SUM(sa.late_minutes) as total_late_minutes,
+            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as assigned_classes
+        FROM staff st
+        LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) BETWEEN ? AND ?
+        LEFT JOIN staff_classes sc ON sc.staff_id = st.staff_id
+        LEFT JOIN classes c ON c.id = sc.class_id
+        WHERE st.school_id = ? AND st.is_active = 1
+        {$staffCondition}
+        GROUP BY st.id
+        ORDER BY st.full_name
+    ");
+    $stmt->execute([$start_date, $end_date, $start_date, $end_date, $start_date, $end_date, $start_date, $end_date, $school_id]);
+    $details = $stmt->fetchAll();
+
+    return [
+        'report_name' => 'Staff Attendance Report (Date Range)',
+        'start_date' => $start_date,
+        'end_date' => $end_date,
+        'details' => $details,
+        'total_staff' => count($details)
+    ];
+}
+
+/**
+ * Get Staff Class Date Range Report
+ */
+function getStaffClassDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id = '', $class_id = '')
+{
+    $staffCondition = $staff_id ? "AND sa.staff_id = ?" : "";
+    $classCondition = $class_id ? "AND sa.class_name = (SELECT class_name FROM classes WHERE id = ?)" : "";
+    $params = [$start_date, $end_date, $school_id];
+    if ($staff_id) $params[] = $staff_id;
+    if ($class_id) $params[] = $class_id;
+
+    $stmt = $pdo->prepare("
+        SELECT 
+            DATE(sa.scan_time) as scan_date,
+            st.id as staff_db_id,
+            st.full_name,
+            st.staff_id,
+            sa.class_name,
+            COUNT(sa.id) as scans_count,
+            MIN(TIME(sa.scan_time)) as first_scan,
+            MAX(TIME(sa.scan_time)) as last_scan,
+            GROUP_CONCAT(DISTINCT sa.status) as statuses
+        FROM class_attendance sa
+        JOIN staff st ON sa.staff_id = st.staff_id
+        WHERE DATE(sa.scan_time) BETWEEN ? AND ? AND st.school_id = ?
+        {$staffCondition}
+        {$classCondition}
+        GROUP BY DATE(sa.scan_time), st.id, sa.class_name
+        ORDER BY sa.scan_date DESC, st.full_name
+    ");
+    $stmt->execute($params);
+    $details = $stmt->fetchAll();
+
+    // Get summary by staff
+    $summaryStmt = $pdo->prepare("
+        SELECT 
+            st.id, st.full_name, st.staff_id,
+            COUNT(DISTINCT DATE(sa.scan_time)) as days_with_classes,
+            COUNT(DISTINCT sa.class_name) as distinct_classes,
+            COUNT(sa.id) as total_scans
+        FROM staff st
+        LEFT JOIN class_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.scan_time) BETWEEN ? AND ?
+        WHERE st.school_id = ? AND st.is_active = 1
+        {$staffCondition}
+        GROUP BY st.id
+        ORDER BY st.full_name
+    ");
+    $summaryParams = [$start_date, $end_date, $school_id];
+    if ($staff_id) $summaryParams[] = $staff_id;
+    $summaryStmt->execute($summaryParams);
+    $summary = $summaryStmt->fetchAll();
+
+    return [
+        'report_name' => 'Staff Class Attendance Report (Class QR Scans)',
+        'start_date' => $start_date,
+        'end_date' => $end_date,
+        'summary' => $summary,
+        'details' => $details,
+        'total_scans' => count($details)
+    ];
 }
 
 // Get current active school QR
@@ -1620,16 +2011,16 @@ if (!$attendance_settings) {
                             <div class="duration-btn active" data-type="daily">Daily</div>
                             <div class="duration-btn" data-type="weekly">Weekly</div>
                             <div class="duration-btn" data-type="monthly">Monthly</div>
-                            <div class="duration-btn" data-type="custom">Custom</div>
                         </div>
                     </div>
 
-                    <!-- User Type Selection -->
+                    <!-- Report Category (What kind of report) -->
                     <div class="form-group">
-                        <label>View</label>
-                        <div class="duration-options" id="userTypeOptions">
-                            <div class="duration-btn active" data-type="student">Students</div>
-                            <div class="duration-btn" data-type="staff">Staff</div>
+                        <label>Report Category</label>
+                        <div class="duration-options" id="reportCategoryOptions">
+                            <div class="duration-btn active" data-category="student">Student Attendance (Check In/Out)</div>
+                            <div class="duration-btn" data-category="staff_attendance">Staff Attendance (Check In/Out)</div>
+                            <div class="duration-btn" data-category="staff_class">Staff Class Report (Class QR Scan)</div>
                         </div>
                     </div>
 
@@ -1650,8 +2041,8 @@ if (!$attendance_settings) {
                         </div>
                     </div>
 
-                    <!-- Class Filter -->
-                    <div class="form-group">
+                    <!-- Class Filter (for student and staff class reports) -->
+                    <div id="classFilterGroup" class="form-group">
                         <label>Filter by Class (Optional)</label>
                         <select id="reportClassFilter" class="form-select">
                             <option value="">All Classes</option>
@@ -1661,13 +2052,13 @@ if (!$attendance_settings) {
                         </select>
                     </div>
 
-                    <!-- Staff Filter (shown when staff view is selected) -->
-                    <div id="staffFilter" style="display: none;" class="form-group">
+                    <!-- Staff Filter (for staff reports) -->
+                    <div id="staffFilterGroup" style="display: none;" class="form-group">
                         <label>Filter by Staff (Optional)</label>
                         <select id="reportStaffFilter" class="form-select">
                             <option value="">All Staff</option>
                             <?php foreach ($all_staff as $staff_member): ?>
-                                <option value="<?php echo $staff_member['id']; ?>"><?php echo htmlspecialchars($staff_member['full_name']); ?></option>
+                                <option value="<?php echo $staff_member['id']; ?>"><?php echo htmlspecialchars($staff_member['full_name']); ?> (<?php echo $staff_member['staff_id']; ?>)</option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -1692,7 +2083,7 @@ if (!$attendance_settings) {
                     <div id="reportChart" class="chart-container"></div>
                     <div id="reportTable" class="card">
                         <div class="card-header">
-                            <h2><i class="fas fa-table"></i> Detailed Report</h2>
+                            <h2><i class="fas fa-table"></i> <span id="reportTableTitle">Detailed Report</span></h2>
                         </div>
                         <div class="table-container" id="reportTableBody"></div>
                     </div>

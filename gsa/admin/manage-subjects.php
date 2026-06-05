@@ -1,5 +1,5 @@
 <?php
-// admin/manage-subjects.php - Complete Subject Management with Modal Selection & Modal Editing
+// admin/manage-subjects.php - Complete Subject Management with Card Layout & Modal Actions
 session_start();
 
 // Check if admin is logged in
@@ -30,6 +30,7 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+$page_title = "Manage Subjects";
 
 // ============================================
 // AJAX HANDLER FOR GETTING SUBJECT DETAILS
@@ -60,7 +61,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])
                     'subject_name' => $subject['subject_name'],
                     'description' => $subject['description'],
                     'assigned_class_ids' => $subject['assigned_class_ids'],
-                    'assigned_class_names' => $subject['assigned_class_names']
+                    'assigned_class_names' => $subject['assigned_class_names'],
+                    'objective_count' => $subject['objective_count'] ?? 0,
+                    'subjective_count' => $subject['subjective_count'] ?? 0,
+                    'theory_count' => $subject['theory_count'] ?? 0,
+                    'exam_count' => $subject['exam_count'] ?? 0
                 ]
             ]);
         } else {
@@ -139,7 +144,7 @@ $message_type = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
     try {
         $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
-        $selected_class_ids = $_POST['class_ids'] ?? []; // Now using class_ids instead of class names
+        $selected_class_ids = $_POST['class_ids'] ?? [];
 
         if (empty($selected_subject_ids)) {
             throw new Exception("Please select at least one subject to add");
@@ -306,7 +311,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $available_subjects = $stmt->fetchAll();
 
-// Fetch all subjects for this school with class names (joined with classes table)
+// Fetch all subjects for this school with class names
 $stmt = $pdo->prepare("
     SELECT s.*, 
            GROUP_CONCAT(DISTINCT c.class_name ORDER BY c.class_name) as assigned_classes,
@@ -326,30 +331,30 @@ $stmt = $pdo->prepare("
 $stmt->execute([$school_id]);
 $subjects = $stmt->fetchAll();
 
-// Fetch available classes from the classes table
+// Fetch available classes
 $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
 $stmt->execute([$school_id]);
 $available_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fallback if no classes exist in the classes table
+// Fallback if no classes exist
 if (empty($available_classes)) {
-    // Try to get distinct classes from students as fallback
     $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class IS NOT NULL AND class != '' ORDER BY class");
     $stmt->execute([$school_id]);
     $student_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
+
     if (!empty($student_classes)) {
-        // Create temporary class entries
         foreach ($student_classes as $class_name) {
             $stmt = $pdo->prepare("INSERT IGNORE INTO classes (school_id, class_name, status) VALUES (?, ?, 'active')");
             $stmt->execute([$school_id, $class_name]);
         }
-        // Refetch
         $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
         $stmt->execute([$school_id]);
         $available_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
+
+// Include sidebar
+require_once 'includes/sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -357,7 +362,7 @@ if (empty($available_classes)) {
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title><?php echo htmlspecialchars($school_name); ?> - Manage Subjects</title>
 
     <!-- Font Awesome -->
@@ -386,13 +391,11 @@ if (empty($available_classes)) {
             --gray-300: #d1d5db;
             --gray-600: #6b7280;
             --gray-800: #1f2937;
-            --sidebar-width: 280px;
             --radius-sm: 6px;
             --radius-md: 10px;
             --radius-lg: 16px;
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
         }
 
         * {
@@ -408,148 +411,12 @@ if (empty($available_classes)) {
             min-height: 100vh;
         }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(165deg, var(--primary-color), #1a3a5c);
-            color: white;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            padding: 24px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary-color);
-            border-radius: var(--radius-md);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-
-        .logo-text p {
-            font-size: 0.7rem;
-            opacity: 0.8;
-        }
-
-        .admin-info {
-            background: rgba(255, 255, 255, 0.08);
-            margin: 16px;
-            padding: 16px;
-            border-radius: var(--radius-lg);
-            text-align: center;
-        }
-
-        .admin-info h4 {
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-
-        .admin-info p {
-            font-size: 0.7rem;
-            opacity: 0.8;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 12px;
-        }
-
-        .nav-links li {
-            margin-bottom: 4px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-            border-radius: var(--radius-md);
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.15);
-            color: white;
-        }
-
-        .nav-links i {
-            width: 22px;
-        }
-
-        /* Main Content */
+        /* Main Content - pushed by sidebar */
         .main-content {
-            min-height: 100vh;
+            margin-left: 280px;
             padding: 20px;
-            transition: margin-left 0.3s;
-        }
-
-        .mobile-menu-btn {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            z-index: 1001;
-            width: 44px;
-            height: 44px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 20px;
-            cursor: pointer;
-            box-shadow: var(--shadow-md);
-        }
-
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s;
-        }
-
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
         }
 
         /* Top Header */
@@ -642,205 +509,147 @@ if (empty($available_classes)) {
             color: var(--gray-800);
         }
 
-        .btn-outline:hover {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        /* Cards */
-        .card {
+        /* Search Bar */
+        .search-bar {
             background: white;
             border-radius: var(--radius-lg);
-            padding: 20px;
-            margin-bottom: 24px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
             box-shadow: var(--shadow-sm);
         }
 
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid var(--gray-200);
-        }
-
-        .card-header h2 {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--gray-800);
-        }
-
-        /* Filter Form */
-        .filter-form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            align-items: flex-end;
-        }
-
-        .filter-group {
-            flex: 1;
-            min-width: 160px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .search-bar i {
             color: var(--gray-600);
-            margin-bottom: 6px;
         }
 
-        .form-control,
-        .form-select {
-            width: 100%;
-            padding: 10px 14px;
+        .search-bar input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
             border: 2px solid var(--gray-200);
             border-radius: var(--radius-md);
+            font-family: inherit;
             font-size: 0.85rem;
-            transition: all 0.2s;
         }
 
-        .form-control:focus,
-        .form-select:focus {
+        .search-bar input:focus {
             outline: none;
             border-color: var(--primary-color);
         }
 
-        .form-control[readonly] {
-            background: var(--gray-50);
-            cursor: not-allowed;
+        /* Subject Cards - Mobile First, No Horizontal Scroll */
+        .subjects-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
-        /* Table */
-        .table-container {
-            overflow-x: auto;
+        .subject-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--gray-200);
         }
 
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 700px;
+        .subject-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
         }
 
-        .data-table th {
-            text-align: left;
-            padding: 12px 16px;
-            background: var(--gray-50);
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-600);
-            border-bottom: 2px solid var(--gray-200);
+        .subject-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
-        .data-table td {
-            padding: 14px 16px;
-            font-size: 0.8rem;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .data-table tr:hover {
-            background: var(--gray-50);
-        }
-
-        /* Status Badges */
-        .status-badge {
-            display: inline-block;
+        .subject-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            background: var(--info-light);
             padding: 4px 12px;
             border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
+            display: inline-block;
+        }
+
+        .subject-name i {
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+
+        .subject-description {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .subject-classes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
         }
 
         .class-tag {
-            display: inline-block;
-            background: var(--info-light);
-            color: var(--info);
+            background: var(--gray-100);
+            color: var(--gray-600);
             padding: 3px 10px;
             border-radius: 15px;
             font-size: 0.7rem;
-            margin: 2px;
         }
 
-        .count-badge {
+        .stats-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .stat-badge {
             display: inline-flex;
             align-items: center;
-            padding: 3px 8px;
+            gap: 5px;
+            padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.7rem;
-            font-weight: 600;
-            margin: 2px;
+            font-weight: 500;
         }
 
-        .count-badge.objective {
+        .stat-badge.objective {
             background: #e3f2fd;
             color: #1976d2;
         }
 
-        .count-badge.subjective {
+        .stat-badge.subjective {
             background: #f3e5f5;
             color: #7b1fa2;
         }
 
-        .count-badge.theory {
+        .stat-badge.theory {
             background: #e8f5e9;
             color: #388e3c;
         }
 
-        .count-badge.exam {
+        .stat-badge.exam {
             background: #fff3e0;
             color: #f57c00;
         }
 
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 6px 10px;
-            border-radius: var(--radius-sm);
-            font-size: 0.75rem;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .edit-btn {
-            background: var(--info);
-            color: white;
-        }
-
-        .topics-btn {
-            background: var(--purple);
-            color: white;
-        }
-
-        .questions-btn {
-            background: var(--success);
-            color: white;
-        }
-
-        .delete-btn {
-            background: var(--danger);
-            color: white;
-        }
-
-        .disabled-btn {
-            background: var(--gray-300);
-            cursor: not-allowed;
-        }
-
-        /* Modal */
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -849,7 +658,7 @@ if (empty($available_classes)) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1100;
+            z-index: 2000;
             align-items: center;
             justify-content: center;
         }
@@ -862,7 +671,7 @@ if (empty($available_classes)) {
             background: white;
             border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 700px;
+            max-width: 550px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -876,7 +685,6 @@ if (empty($available_classes)) {
             position: sticky;
             top: 0;
             background: white;
-            z-index: 10;
         }
 
         .modal-header h3 {
@@ -901,82 +709,51 @@ if (empty($available_classes)) {
             display: flex;
             justify-content: flex-end;
             gap: 12px;
+            position: sticky;
+            bottom: 0;
+            background: white;
         }
 
-        /* Subject Selection List */
-        .subjects-list {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
-        }
-
-        .subject-item {
+        /* Info rows in modal */
+        .info-row {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
+            padding: 10px 0;
             border-bottom: 1px solid var(--gray-200);
-            cursor: pointer;
-            transition: background 0.2s;
         }
 
-        .subject-item:hover {
-            background: var(--gray-50);
-        }
-
-        .subject-item.selected {
-            background: var(--info-light);
-        }
-
-        .subject-item input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            accent-color: var(--primary-color);
-        }
-
-        .subject-info {
-            flex: 1;
-        }
-
-        .subject-name {
+        .info-label {
+            width: 110px;
             font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .subject-desc {
-            font-size: 0.7rem;
             color: var(--gray-600);
-            margin-top: 2px;
+            font-size: 0.8rem;
         }
 
-        /* Search Box */
-        .search-box {
-            position: relative;
-            margin-bottom: 16px;
-        }
-
-        .search-box i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--gray-600);
-        }
-
-        .search-box input {
-            width: 100%;
-            padding: 12px 12px 12px 40px;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
+        .info-value {
+            flex: 1;
+            color: var(--gray-800);
             font-size: 0.85rem;
+        }
+
+        /* Action Buttons in Modal */
+        .modal-action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid var(--gray-200);
+        }
+
+        .modal-action-btn {
+            flex: 1;
+            min-width: 100px;
+            justify-content: center;
         }
 
         /* Checkbox Group */
         .checkbox-group {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 12px;
             margin-top: 10px;
             max-height: 200px;
@@ -1022,87 +799,77 @@ if (empty($available_classes)) {
             border-left: 4px solid var(--danger);
         }
 
-        /* Selected Count Badge */
-        .selected-count {
-            background: var(--primary-color);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            margin-left: 12px;
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: var(--radius-lg);
         }
 
-        /* Loading Spinner */
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 0.6s linear infinite;
-            margin-left: 8px;
+        .empty-state i {
+            font-size: 48px;
+            color: var(--gray-300);
+            margin-bottom: 16px;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+        .empty-state h3 {
+            margin-bottom: 8px;
         }
 
-        .btn-loading {
-            opacity: 0.7;
-            pointer-events: none;
+        .empty-state p {
+            color: var(--gray-600);
+            margin-bottom: 20px;
         }
 
-        @media (min-width: 768px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-
+        /* Responsive */
+        @media (max-width: 768px) {
             .main-content {
-                margin-left: var(--sidebar-width);
+                margin-left: 0;
+                padding: 20px 15px;
             }
 
-            .mobile-menu-btn {
-                display: none;
+            .top-header {
+                flex-direction: column;
+                text-align: center;
             }
-        }
 
-        @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
+            .info-row {
+                flex-direction: column;
+            }
+
+            .info-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .modal-action-buttons {
+                flex-direction: column;
+            }
+
+            .modal-action-btn {
+                width: 100%;
             }
 
             .checkbox-group {
-                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            }
-
-            .action-buttons {
-                flex-wrap: wrap;
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-
-    <?php
-    // Include sidebar
-    require_once 'includes/sidebar.php';
-    ?>
-
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
-                <h1>Manage Subjects</h1>
-                <p>Add subjects from the national curriculum or manage existing ones</p>
+                <h1><i class="fas fa-book"></i> Manage Subjects</h1>
+                <p>Click any subject to view details and actions</p>
             </div>
-            <button class="btn btn-primary" id="openSubjectModalBtn"><i class="fas fa-plus-circle"></i> Add Subjects</button>
+            <button class="btn btn-primary" id="openSubjectModalBtn">
+                <i class="fas fa-plus-circle"></i> Add Subjects
+            </button>
         </div>
 
         <?php if ($message): ?>
@@ -1112,75 +879,70 @@ if (empty($available_classes)) {
             </div>
         <?php endif; ?>
 
-        <!-- Subjects List -->
-        <div class="card">
-            <div class="card-header">
-                <h2><i class="fas fa-book"></i> Your School Subjects (<?php echo count($subjects); ?>)</h2>
-                <div class="search-box" style="width: 250px; margin: 0;">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="Search subjects...">
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search subjects by name, description, or class...">
+        </div>
+
+        <!-- Subjects Grid -->
+        <?php if (empty($subjects)): ?>
+            <div class="empty-state">
+                <i class="fas fa-book-open"></i>
+                <h3>No Subjects Found</h3>
+                <p>Click "Add Subjects" to add subjects from the national curriculum.</p>
+                <button class="btn btn-primary" onclick="document.getElementById('openSubjectModalBtn').click()">
+                    <i class="fas fa-plus-circle"></i> Add Subjects
+                </button>
+            </div>
+        <?php else: ?>
+            <div class="subjects-grid" id="subjectsGrid">
+                <?php foreach ($subjects as $subject): ?>
+                    <div class="subject-card" data-subject-id="<?php echo $subject['id']; ?>" data-subject-name="<?php echo htmlspecialchars(strtolower($subject['subject_name'])); ?>" data-subject-desc="<?php echo htmlspecialchars(strtolower($subject['description'] ?? '')); ?>" data-subject-classes="<?php echo htmlspecialchars(strtolower($subject['assigned_classes'] ?? '')); ?>">
+                        <div class="subject-card-header">
+                            <span class="subject-name">
+                                <i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($subject['subject_name']); ?>
+                            </span>
+                        </div>
+                        <?php if ($subject['description']): ?>
+                            <div class="subject-description">
+                                <?php echo htmlspecialchars(substr($subject['description'], 0, 100)) . (strlen($subject['description'] ?? '') > 100 ? '...' : ''); ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="subject-classes">
+                            <?php if ($subject['assigned_classes']): ?>
+                                <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
+                                    <span class="class-tag"><i class="fas fa-chalkboard"></i> <?php echo htmlspecialchars($class); ?></span>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <span class="class-tag" style="background: var(--warning-light); color: var(--warning);">Not assigned to any class</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stat-badge objective" title="Objective Questions"><i class="fas fa-check-circle"></i> O: <?php echo $subject['objective_count']; ?></span>
+                            <span class="stat-badge subjective" title="Subjective Questions"><i class="fas fa-pencil-alt"></i> S: <?php echo $subject['subjective_count']; ?></span>
+                            <span class="stat-badge theory" title="Theory Questions"><i class="fas fa-file-alt"></i> T: <?php echo $subject['theory_count']; ?></span>
+                            <span class="stat-badge exam" title="Exams"><i class="fas fa-calendar-alt"></i> E: <?php echo $subject['exam_count']; ?></span>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Subject Detail Modal -->
+    <div class="modal" id="subjectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalSubjectTitle">Subject Details</h3>
+                <button class="close-modal" onclick="closeModal('subjectModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="subjectModalBody">
+                <div style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                    <p>Loading subject details...</p>
                 </div>
             </div>
-
-            <?php if (empty($subjects)): ?>
-                <div style="text-align: center; padding: 50px; color: var(--gray-600);">
-                    <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 15px; color: var(--gray-300);"></i>
-                    <h3>No Subjects Found</h3>
-                    <p>Click "Add Subjects" to add subjects from the national curriculum.</p>
-                </div>
-            <?php else: ?>
-                <div class="table-container">
-                    <table class="data-table" id="subjectsTable">
-                        <thead>
-                            <tr>
-                                <th>Subject Name</th>
-                                <th>Description</th>
-                                <th>Assigned Classes</th>
-                                <th>Usage Stats</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($subjects as $subject): ?>
-                                <tr data-subject-id="<?php echo $subject['id']; ?>">
-                                    <td><strong><?php echo htmlspecialchars($subject['subject_name']); ?></strong></td>
-                                    <td class="subject-desc-cell"><?php echo $subject['description'] ? htmlspecialchars(substr($subject['description'], 0, 60)) . (strlen($subject['description']) > 60 ? '...' : '') : '<span style="color: #999;">—</span>'; ?></td>
-                                    <td class="subject-classes-cell">
-                                        <?php if ($subject['assigned_classes']): ?>
-                                            <?php foreach (explode(',', $subject['assigned_classes']) as $class): ?>
-                                                <span class="class-tag"><?php echo htmlspecialchars($class); ?></span>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <span style="color: #999;">Not assigned</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                            <span class="count-badge objective" title="Objective Questions">📝 O: <?php echo $subject['objective_count']; ?></span>
-                                            <span class="count-badge subjective" title="Subjective Questions">✍️ S: <?php echo $subject['subjective_count']; ?></span>
-                                            <span class="count-badge theory" title="Theory Questions">📄 T: <?php echo $subject['theory_count']; ?></span>
-                                            <span class="count-badge exam" title="Exams">📚 E: <?php echo $subject['exam_count']; ?></span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <button class="action-btn edit-btn" onclick="openEditModal(<?php echo $subject['id']; ?>)" title="Edit"><i class="fas fa-edit"></i></button>
-                                            <a href="manage-topics.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn topics-btn" title="Topics"><i class="fas fa-tags"></i></a>
-                                            <a href="manage-questions.php?subject_id=<?php echo $subject['id']; ?>" class="action-btn questions-btn" title="Questions"><i class="fas fa-question-circle"></i></a>
-                                            <?php $has_deps = ($subject['objective_count'] + $subject['subjective_count'] + $subject['theory_count'] + $subject['exam_count']) > 0; ?>
-                                            <?php if ($has_deps): ?>
-                                                <button class="action-btn delete-btn disabled-btn" disabled title="Has dependencies"><i class="fas fa-trash"></i></button>
-                                            <?php else: ?>
-                                                <button class="action-btn delete-btn" onclick="confirmDelete(<?php echo $subject['id']; ?>, '<?php echo addslashes($subject['subject_name']); ?>')" title="Delete"><i class="fas fa-trash"></i></button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -1193,18 +955,18 @@ if (empty($available_classes)) {
             </div>
             <form method="POST" id="addSubjectsForm">
                 <div class="modal-body">
-                    <div class="search-box">
+                    <div class="search-bar" style="margin-bottom: 16px; padding: 0;">
                         <i class="fas fa-search"></i>
                         <input type="text" id="subjectSearchInput" placeholder="Search subjects...">
                     </div>
-                    <div class="subjects-list" id="subjectsList">
+                    <div class="subjects-list" id="subjectsList" style="max-height: 300px; overflow-y: auto; border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
                         <?php foreach ($available_subjects as $subject): ?>
-                            <div class="subject-item" data-subject-id="<?php echo $subject['id']; ?>" data-subject-name="<?php echo htmlspecialchars(strtolower($subject['subject_name'])); ?>">
+                            <div class="subject-item" data-subject-name="<?php echo htmlspecialchars(strtolower($subject['subject_name'])); ?>" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--gray-200);">
                                 <input type="checkbox" name="central_subject_ids[]" value="<?php echo $subject['id']; ?>" id="subj_<?php echo $subject['id']; ?>" class="subject-checkbox" onchange="updateSelectedCount()">
                                 <div class="subject-info">
                                     <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
                                     <?php if ($subject['description']): ?>
-                                        <div class="subject-desc"><?php echo htmlspecialchars(substr($subject['description'], 0, 100)); ?></div>
+                                        <div class="subject-desc" style="font-size: 0.7rem; color: var(--gray-600);"><?php echo htmlspecialchars(substr($subject['description'], 0, 80)); ?></div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1219,11 +981,11 @@ if (empty($available_classes)) {
                     <div style="margin: 16px 0; display: flex; gap: 10px; flex-wrap: wrap;">
                         <button type="button" class="btn btn-sm btn-primary" onclick="selectAllModalSubjects()"><i class="fas fa-check-double"></i> Select All</button>
                         <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllModalSubjects()"><i class="fas fa-times"></i> Deselect All</button>
-                        <span id="modalSelectedCount" class="selected-count">0 selected</span>
+                        <span id="modalSelectedCount" class="selected-count" style="background: var(--primary-color); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem;">0 selected</span>
                     </div>
 
                     <div class="form-group" style="margin-top: 20px;">
-                        <label class="form-label">Assign to Classes <span style="font-weight: normal; color: var(--gray-600);">(Select which classes will offer these subjects)</span></label>
+                        <label class="form-label" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">Assign to Classes</label>
                         <div class="checkbox-group" id="modalClassCheckboxGroup">
                             <?php if (!empty($available_classes)): ?>
                                 <?php foreach ($available_classes as $class): ?>
@@ -1244,13 +1006,13 @@ if (empty($available_classes)) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline" onclick="closeModal('addSubjectsModal')">Cancel</button>
-                    <button type="submit" name="add_multiple_subjects" class="btn btn-primary" id="addSubjectsBtn"><i class="fas fa-plus-circle"></i> Add Selected Subjects</button>
+                    <button type="submit" name="add_multiple_subjects" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Add Selected Subjects</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Edit Subject Modal -->
+    <!-- Edit Subject Modal (inside main modal) -->
     <div class="modal" id="editSubjectModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1262,12 +1024,12 @@ if (empty($available_classes)) {
                 <div class="modal-body" id="editModalBody">
                     <div style="text-align: center; padding: 40px;">
                         <i class="fas fa-spinner fa-pulse fa-2x"></i>
-                        <p>Loading subject details...</p>
+                        <p>Loading...</p>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline" onclick="closeModal('editSubjectModal')">Cancel</button>
-                    <button type="submit" name="update_subject" class="btn btn-primary" id="updateSubjectBtn"><i class="fas fa-save"></i> Update Subject</button>
+                    <button type="submit" name="update_subject" class="btn btn-primary"><i class="fas fa-save"></i> Update Subject</button>
                 </div>
             </form>
         </div>
@@ -1275,7 +1037,7 @@ if (empty($available_classes)) {
 
     <!-- Delete Confirmation Modal -->
     <div class="modal" id="deleteModal">
-        <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
                 <h3>Confirm Delete</h3>
                 <button class="close-modal" onclick="closeDeleteModal()">&times;</button>
@@ -1292,79 +1054,234 @@ if (empty($available_classes)) {
     </div>
 
     <script>
-        // Available classes from PHP
+        // Available classes
         const availableClasses = <?php echo json_encode($available_classes); ?>;
 
-        // Mobile menu
-        const mobileBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-
-        function toggleSidebar() {
-            sidebar.classList.toggle('active');
-            overlay.classList.toggle('active');
-            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-        }
-        if (mobileBtn) mobileBtn.onclick = toggleSidebar;
-        if (overlay) overlay.onclick = toggleSidebar;
-
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 768) {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
-
-        // Table search
+        // Search functionality
         const searchInput = document.getElementById('searchInput');
-        const subjectsTable = document.getElementById('subjectsTable');
-        if (searchInput && subjectsTable) {
+        const subjectCards = document.querySelectorAll('.subject-card');
+
+        if (searchInput) {
             searchInput.addEventListener('keyup', function() {
                 const term = this.value.toLowerCase();
-                const rows = subjectsTable.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+                subjectCards.forEach(card => {
+                    const name = card.getAttribute('data-subject-name') || '';
+                    const desc = card.getAttribute('data-subject-desc') || '';
+                    const classes = card.getAttribute('data-subject-classes') || '';
+                    const matches = name.includes(term) || desc.includes(term) || classes.includes(term);
+                    card.style.display = matches ? 'block' : 'none';
                 });
             });
         }
 
-        // Modal handling
+        // Modal functions
         function openModal(modalId) {
             document.getElementById(modalId).classList.add('active');
+            document.body.style.overflow = 'hidden';
         }
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+            document.body.style.overflow = '';
         }
 
-        const openAddBtn = document.getElementById('openSubjectModalBtn');
-        if (openAddBtn) {
-            openAddBtn.onclick = () => openModal('addSubjectsModal');
-        }
+        // Open subject detail modal when clicking a card
+        const cards = document.querySelectorAll('.subject-card');
+        cards.forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Don't open if clicking on a link inside
+                if (e.target.closest('a')) return;
+                const subjectId = this.getAttribute('data-subject-id');
+                openSubjectModal(subjectId);
+            });
+        });
 
-        // Close on outside click
-        window.onclick = (e) => {
-            if (e.target.classList && e.target.classList.contains('modal')) {
-                e.target.classList.remove('active');
-            }
-        };
+        function openSubjectModal(subjectId) {
+            const modal = document.getElementById('subjectModal');
+            const modalBody = document.getElementById('subjectModalBody');
+            const modalTitle = document.getElementById('modalSubjectTitle');
 
-        // Subject search in modal
-        const subjectSearch = document.getElementById('subjectSearchInput');
-        const subjectItems = document.querySelectorAll('.subject-item');
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
+            openModal('subjectModal');
 
-        if (subjectSearch) {
-            subjectSearch.addEventListener('keyup', function() {
-                const term = this.value.toLowerCase();
-                subjectItems.forEach(item => {
-                    const name = item.getAttribute('data-subject-name') || '';
-                    item.style.display = name.includes(term) ? 'flex' : 'none';
+            fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const subject = data.subject;
+                        modalTitle.innerHTML = `<i class="fas fa-book"></i> ${escapeHtml(subject.subject_name)}`;
+
+                        let assignedClassesHtml = '';
+                        if (subject.assigned_class_names) {
+                            const classNames = subject.assigned_class_names.split(',');
+                            classNames.forEach(className => {
+                                assignedClassesHtml += `<span class="class-tag" style="background: var(--info-light);"><i class="fas fa-chalkboard"></i> ${escapeHtml(className)}</span>`;
+                            });
+                        } else {
+                            assignedClassesHtml = '<span class="class-tag" style="background: var(--warning-light);">Not assigned to any class</span>';
+                        }
+
+                        const hasDependencies = (parseInt(subject.objective_count) + parseInt(subject.subjective_count) + parseInt(subject.theory_count) + parseInt(subject.exam_count)) > 0;
+
+                        modalBody.innerHTML = `
+                            <div class="info-row">
+                                <div class="info-label">Subject Name:</div>
+                                <div class="info-value"><strong>${escapeHtml(subject.subject_name)}</strong></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Description:</div>
+                                <div class="info-value">${escapeHtml(subject.description) || '<span style="color: #999;">No description</span>'}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Assigned Classes:</div>
+                                <div class="info-value"><div style="display: flex; flex-wrap: wrap; gap: 6px;">${assignedClassesHtml}</div></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Usage Stats:</div>
+                                <div class="info-value">
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        <span class="stat-badge objective"><i class="fas fa-check-circle"></i> Objective: ${subject.objective_count}</span>
+                                        <span class="stat-badge subjective"><i class="fas fa-pencil-alt"></i> Subjective: ${subject.subjective_count}</span>
+                                        <span class="stat-badge theory"><i class="fas fa-file-alt"></i> Theory: ${subject.theory_count}</span>
+                                        <span class="stat-badge exam"><i class="fas fa-calendar-alt"></i> Exams: ${subject.exam_count}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-action-buttons">
+                                <button class="btn btn-info modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-topics.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-tags"></i> Topics
+                                </button>
+                                <button class="btn btn-success modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-questions.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-question-circle"></i> Questions
+                                </button>
+                                <button class="btn btn-warning modal-action-btn" onclick="closeModal('subjectModal'); openEditModal(${subject.id})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                ${!hasDependencies ? `
+                                    <button class="btn btn-danger modal-action-btn" onclick="closeModal('subjectModal'); confirmDelete(${subject.id}, '${escapeHtml(subject.subject_name)}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-danger modal-action-btn" disabled style="opacity:0.5; cursor:not-allowed;" title="Cannot delete - has dependencies">
+                                        <i class="fas fa-trash"></i> Delete (Has Dependencies)
+                                    </button>
+                                `}
+                            </div>
+                        `;
+                    } else {
+                        modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline" onclick="closeModal('subjectModal')">Close</button></div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load subject details. Please try again.</p><button class="btn btn-outline" onclick="closeModal('subjectModal')">Close</button></div>`;
                 });
+        }
+
+        function openEditModal(subjectId) {
+            const modal = document.getElementById('editSubjectModal');
+            const modalBody = document.getElementById('editModalBody');
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading...</p></div>';
+            openModal('editSubjectModal');
+
+            fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const subject = data.subject;
+                        const assignedClassIds = subject.assigned_class_ids ? subject.assigned_class_ids.split(',') : [];
+                        let classesHtml = '';
+
+                        if (availableClasses.length > 0) {
+                            availableClasses.forEach(classObj => {
+                                const isChecked = assignedClassIds.includes(String(classObj.id));
+                                classesHtml += `
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" name="class_ids[]" value="${classObj.id}" id="edit_class_${classObj.id}" ${isChecked ? 'checked' : ''}>
+                                        <label for="edit_class_${classObj.id}">${escapeHtml(classObj.class_name)}</label>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available.</p>';
+                        }
+
+                        modalBody.innerHTML = `
+                            <input type="hidden" name="subject_id" id="edit_subject_id" value="${subject.id}">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label class="form-label">Subject Name</label>
+                                <input type="text" class="form-control" value="${escapeHtml(subject.subject_name)}" readonly disabled style="background: var(--gray-50);">
+                                <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" class="form-control" rows="3" placeholder="Optional subject description">${escapeHtml(subject.description || '')}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Assign to Classes</label>
+                                <div class="checkbox-group" id="editClassCheckboxGroup">
+                                    ${classesHtml}
+                                </div>
+                                <div style="margin-top: 12px;">
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
+                                </div>
+                            </div>
+                        `;
+                        document.getElementById('edit_subject_id').value = subject.id;
+                    } else {
+                        modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load. Please try again.</p><button class="btn btn-outline" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+                });
+        }
+
+        function selectAllEditClasses() {
+            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+
+        function deselectAllEditClasses() {
+            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        // Edit form submission
+        const editForm = document.getElementById('editSubjectForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                formData.append('update_subject', '1');
+
+                fetch('manage-subjects.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showAlert(data.message, 'success');
+                            closeModal('editSubjectModal');
+                            setTimeout(() => window.location.reload(), 1000);
+                        } else {
+                            showAlert(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('An error occurred while updating.', 'error');
+                    });
             });
         }
 
-        // Selection functions for add modal
+        // Add subject modal functions
         function updateSelectedCount() {
             const checkboxes = document.querySelectorAll('#subjectsList .subject-checkbox:checked');
             const count = checkboxes.length;
@@ -1397,125 +1314,42 @@ if (empty($available_classes)) {
             checkboxes.forEach(cb => cb.checked = false);
         }
 
-        // Edit modal functions
-        function selectAllEditClasses() {
-            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = true);
-        }
+        // Subject search in add modal
+        const subjectSearch = document.getElementById('subjectSearchInput');
+        const subjectItems = document.querySelectorAll('#subjectsList .subject-item');
 
-        function deselectAllEditClasses() {
-            const checkboxes = document.querySelectorAll('#editClassCheckboxGroup input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = false);
-        }
-
-        function openEditModal(subjectId) {
-            const modal = document.getElementById('editSubjectModal');
-            const modalBody = document.getElementById('editModalBody');
-            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading subject details...</p></div>';
-            openModal('editSubjectModal');
-
-            fetch(`manage-subjects.php?ajax=get_subject&id=${subjectId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const assignedClassIds = data.subject.assigned_class_ids ? data.subject.assigned_class_ids.split(',') : [];
-                        let classesHtml = '';
-
-                        if (availableClasses.length > 0) {
-                            availableClasses.forEach(classObj => {
-                                const isChecked = assignedClassIds.includes(String(classObj.id));
-                                const safeId = 'edit_class_' + classObj.id;
-                                classesHtml += `
-                                    <div class="checkbox-item">
-                                        <input type="checkbox" name="class_ids[]" value="${classObj.id}" id="${safeId}" ${isChecked ? 'checked' : ''}>
-                                        <label for="${safeId}">${escapeHtml(classObj.class_name)}</label>
-                                    </div>
-                                `;
-                            });
-                        } else {
-                            classesHtml = '<p style="color: var(--gray-600); grid-column: span 2;">No classes available. Please add classes first.</p>';
-                        }
-
-                        const formHtml = `
-                            <input type="hidden" name="subject_id" id="edit_subject_id" value="${data.subject.id}">
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label class="form-label">Subject Name</label>
-                                <input type="text" id="edit_subject_name" class="form-control" value="${escapeHtml(data.subject.subject_name)}" readonly disabled>
-                                <small style="color: var(--gray-600);">Subject names are fixed from the national curriculum.</small>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label class="form-label">Description</label>
-                                <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Optional subject description">${escapeHtml(data.subject.description || '')}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Assign to Classes</label>
-                                <div class="checkbox-group" id="editClassCheckboxGroup">
-                                    ${classesHtml}
-                                </div>
-                                <div style="margin-top: 12px;">
-                                    <button type="button" class="btn btn-sm btn-outline" onclick="selectAllEditClasses()"><i class="fas fa-check-double"></i> Select All</button>
-                                    <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllEditClasses()"><i class="fas fa-times"></i> Deselect All</button>
-                                </div>
-                            </div>
-                        `;
-
-                        modalBody.innerHTML = formHtml;
-                        document.getElementById('edit_subject_id').value = data.subject.id;
-                    } else {
-                        modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    modalBody.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger);"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to load subject details. Please try again.</p><button class="btn btn-outline mt-3" onclick="closeModal('editSubjectModal')">Close</button></div>`;
+        if (subjectSearch) {
+            subjectSearch.addEventListener('keyup', function() {
+                const term = this.value.toLowerCase();
+                subjectItems.forEach(item => {
+                    const name = item.getAttribute('data-subject-name') || '';
+                    item.style.display = name.includes(term) ? 'flex' : 'none';
                 });
-        }
-
-        // Handle edit form submission
-        const editForm = document.getElementById('editSubjectForm');
-        if (editForm) {
-            editForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-
-                const submitBtn = document.getElementById('updateSubjectBtn');
-                const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Updating...';
-                submitBtn.disabled = true;
-
-                const formData = new FormData(this);
-                formData.append('update_subject', '1');
-
-                fetch('manage-subjects.php', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showAlert(data.message, 'success');
-                            closeModal('editSubjectModal');
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 1000);
-                        } else {
-                            showAlert(data.message, 'error');
-                            submitBtn.innerHTML = originalText;
-                            submitBtn.disabled = false;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        showAlert('An error occurred while updating the subject.', 'error');
-                        submitBtn.innerHTML = originalText;
-                        submitBtn.disabled = false;
-                    });
             });
         }
 
-        // Helper function to show alerts
+        // Delete modal
+        let deleteId = null;
+
+        function confirmDelete(id, name) {
+            deleteId = id;
+            document.getElementById('deleteSubjectName').textContent = name;
+            openModal('deleteModal');
+        }
+
+        function closeDeleteModal() {
+            closeModal('deleteModal');
+            deleteId = null;
+        }
+
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                if (deleteId) window.location.href = `manage-subjects.php?delete=${deleteId}`;
+            });
+        }
+
+        // Helper functions
         function showAlert(message, type) {
             const existingAlerts = document.querySelectorAll('.alert');
             existingAlerts.forEach(alert => alert.remove());
@@ -1546,30 +1380,11 @@ if (empty($available_classes)) {
             return div.innerHTML;
         }
 
-        // Delete modal
-        let deleteId = null;
-        const deleteModal = document.getElementById('deleteModal');
-
-        function confirmDelete(id, name) {
-            deleteId = id;
-            document.getElementById('deleteSubjectName').textContent = name;
-            deleteModal.classList.add('active');
+        // Open add modal
+        const openAddBtn = document.getElementById('openSubjectModalBtn');
+        if (openAddBtn) {
+            openAddBtn.onclick = () => openModal('addSubjectsModal');
         }
-
-        function closeDeleteModal() {
-            deleteModal.classList.remove('active');
-            deleteId = null;
-        }
-
-        const confirmBtn = document.getElementById('confirmDeleteBtn');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-                if (deleteId) window.location.href = `manage-subjects.php?delete=${deleteId}`;
-            });
-        }
-
-        // Initialize selected count for add modal
-        updateSelectedCount();
 
         // Auto-hide alerts
         setTimeout(() => {
@@ -1579,6 +1394,17 @@ if (empty($available_classes)) {
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
+
+        // Initialize selected count
+        updateSelectedCount();
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList && event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        };
     </script>
 </body>
 

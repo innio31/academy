@@ -1397,13 +1397,19 @@ require_once 'includes/sidebar.php';
 
         // Modal functions
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('active');
-            document.body.style.overflow = 'hidden';
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
-            document.body.style.overflow = '';
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         }
 
         // Update class_id when class is selected
@@ -1483,6 +1489,7 @@ require_once 'includes/sidebar.php';
 
         // Open add exam modal
         function openAddExamModal() {
+            console.log('Opening add exam modal');
             resetForm();
             document.getElementById('modalTitle').textContent = 'Add New Exam';
             document.getElementById('submitBtn').name = 'add_exam';
@@ -1621,7 +1628,7 @@ require_once 'includes/sidebar.php';
                                         <td>${s.score != null ? `${s.correct_answers || 0}/${s.total_questions || 0}` : '—'}</td>
                                         <td>${s.percentage != null ? parseFloat(s.percentage).toFixed(1) + '%' : '—'}</td>
                                         <td><button class="reset-btn" onclick="resetSession(${s.id}, '${escapeHtml(s.student_name || 'this student')}')"><i class="fas fa-undo"></i> Reset</button></td>
-                                    </tr>
+                                    </table>
                                 `).join('')
                             }
                         </tbody>
@@ -1670,16 +1677,6 @@ require_once 'includes/sidebar.php';
             }
         }
 
-        // Exam card click handler
-        document.querySelectorAll('.exam-card').forEach(card => {
-            card.addEventListener('click', function(e) {
-                if (e.target.closest('.btn') || e.target.closest('a')) return;
-                const examId = this.getAttribute('data-exam-id');
-                const examName = this.getAttribute('data-exam-name');
-                viewExamDetails(examId, examName);
-            });
-        });
-
         // Helper functions
         function escapeHtml(text) {
             if (!text) return '';
@@ -1700,9 +1697,41 @@ require_once 'includes/sidebar.php';
             });
         }
 
-        // Event listeners
-        document.getElementById('openAddExamBtn')?.addEventListener('click', openAddExamModal);
-        document.getElementById('subject_id')?.addEventListener('change', filterTopicsBySubject);
+        // Event listeners - FIXED: Make sure the button works
+        document.addEventListener('DOMContentLoaded', function() {
+            updateQuestionCounts();
+            console.log('Page loaded - exam cards clickable');
+
+            // FIX: Ensure the Add New Exam button works
+            const addBtn = document.getElementById('openAddExamBtn');
+            if (addBtn) {
+                // Remove any existing listeners to prevent duplicates
+                const newBtn = addBtn.cloneNode(true);
+                addBtn.parentNode.replaceChild(newBtn, addBtn);
+                newBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openAddExamModal();
+                });
+                console.log('Add button listener attached');
+            } else {
+                console.log('Add button not found!');
+            }
+        });
+
+        // Also add fallback for exam cards
+        setTimeout(function() {
+            const examCards = document.querySelectorAll('.exam-card');
+            console.log('Found exam cards:', examCards.length);
+            examCards.forEach(card => {
+                card.addEventListener('click', function(e) {
+                    if (e.target.closest('.btn') || e.target.closest('a')) return;
+                    const examId = this.getAttribute('data-exam-id');
+                    const examName = this.getAttribute('data-exam-name');
+                    viewExamDetails(examId, examName);
+                });
+            });
+        }, 100);
 
         // Form submission
         document.getElementById('examForm')?.addEventListener('submit', function(e) {
@@ -1719,12 +1748,6 @@ require_once 'includes/sidebar.php';
                 return false;
             }
             updateClassId();
-        });
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            updateQuestionCounts();
-            console.log('Page loaded - exam cards clickable');
         });
 
         // Close modals on outside click

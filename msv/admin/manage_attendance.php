@@ -1,6 +1,5 @@
 <?php
-// admin/manage_attendance.php - Complete Attendance Management with Custom QR Duration & Reports
-// Enhanced version with attendance reports and mobile-friendly design
+// admin/manage_attendance.php - Main UI file (no AJAX handlers)
 
 session_start();
 
@@ -26,1014 +25,11 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 }
 
 require_once '../includes/config.php';
-require_once '../includes/qr_helper.php';
-require_once '../includes/notification_helper.php';
-require_once '../includes/email_helper.php';
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
-
-// Handle AJAX requests
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-    header('Content-Type: application/json');
-
-    $action = $_POST['action'] ?? $_GET['action'] ?? '';
-    $input = json_decode(file_get_contents('php://input'), true);
-    if ($input) {
-        $action = $input['action'] ?? $action;
-    }
-
-    switch ($action) {
-        case 'regenerate_school_qr':
-            $duration_hours = $_POST['duration_hours'] ?? $input['duration_hours'] ?? 24;
-            $result = regenerateSchoolQRCode($pdo, $school_id, $admin_id, $duration_hours);
-            echo json_encode(['success' => true, 'qr' => $result]);
-            break;
-
-        case 'generate_class_qr':
-            $class_id = $_POST['class_id'] ?? $input['class_id'] ?? 0;
-            $class_name = $_POST['class_name'] ?? $input['class_name'] ?? '';
-            $expiry_hours = $_POST['expiry_hours'] ?? $input['expiry_hours'] ?? null;
-
-            $result = generateClassQRCode($pdo, $school_id, $class_id, $class_name, $admin_id, $expiry_hours);
-            echo json_encode(['success' => true, 'qr' => $result]);
-            break;
-
-        case 'get_attendance_report':
-            $report_type = $_GET['report_type'] ?? 'daily';
-            $date = $_GET['date'] ?? date('Y-m-d');
-            $start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
-            $end_date = $_GET['end_date'] ?? date('Y-m-d');
-            $class_id = $_GET['class_id'] ?? '';
-            $staff_id = $_GET['staff_id'] ?? '';
-            $user_type = $_GET['user_type'] ?? 'student';
-
-            try {
-                if ($report_type === 'daily') {
-                    if ($user_type === 'student') {
-                        $report = getStudentDailyReport($pdo, $school_id, $date, $class_id);
-                    } elseif ($user_type === 'staff_attendance') {
-                        $report = getStaffDailyReport($pdo, $school_id, $date, $staff_id);
-                    } elseif ($user_type === 'staff_class') {
-                        $report = getStaffClassReport($pdo, $school_id, $date, $staff_id, $class_id);
-                    } else {
-                        $report = getStaffDailyReport($pdo, $school_id, $date, $staff_id);
-                    }
-                } elseif ($report_type === 'weekly' || $report_type === 'monthly') {
-                    if ($user_type === 'student') {
-                        $report = getStudentDateRangeReport($pdo, $school_id, $start_date, $end_date, $class_id);
-                    } elseif ($user_type === 'staff_attendance') {
-                        $report = getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id);
-                    } elseif ($user_type === 'staff_class') {
-                        $report = getStaffClassDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id, $class_id);
-                    } else {
-                        $report = getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id);
-                    }
-                } else {
-                    $report = ['error' => 'Invalid report type'];
-                }
-
-                echo json_encode(['success' => true, 'report' => $report]);
-            } catch (Exception $e) {
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            }
-            break;
-
-        case 'export_attendance_report':
-            $report_type = $_POST['report_type'] ?? 'daily';
-            $date = $_POST['date'] ?? date('Y-m-d');
-            $start_date = $_POST['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
-            $end_date = $_POST['end_date'] ?? date('Y-m-d');
-            $class_id = $_POST['class_id'] ?? '';
-            $user_type = $_POST['user_type'] ?? 'student';
-            $format = $_POST['format'] ?? 'csv';
-
-            $report = getAttendanceReportData($pdo, $school_id, $report_type, $date, $start_date, $end_date, $class_id, $user_type);
-            $filename = "attendance_report_{$report_type}_{$start_date}_to_{$end_date}.{$format}";
-
-            if ($format === 'csv') {
-                exportToCSV($report, $filename);
-            } elseif ($format === 'pdf') {
-                exportToPDF($report, $filename, $school_name);
-            }
-            break;
-
-        case 'get_unread_count':
-            $count = getUnreadNotificationCount($pdo, $school_id, $admin_id, 'admin');
-            echo json_encode(['success' => true, 'count' => $count]);
-            break;
-
-        case 'get_notifications':
-            $notifications = getUserNotifications($pdo, $school_id, $admin_id, 'admin', 20);
-            echo json_encode(['success' => true, 'notifications' => $notifications]);
-            break;
-
-        case 'mark_read':
-            $notification_id = $_POST['notification_id'] ?? $input['notification_id'] ?? 0;
-            markNotificationRead($pdo, $notification_id, $admin_id);
-            echo json_encode(['success' => true]);
-            break;
-
-        case 'mark_all_read':
-            markAllNotificationsRead($pdo, $school_id, $admin_id, 'admin');
-            echo json_encode(['success' => true]);
-            break;
-
-        case 'test_email':
-            $test_email = $_POST['test_email'] ?? $input['test_email'] ?? '';
-            $result = testEmailConfiguration($pdo, $school_id, $test_email);
-            echo json_encode($result);
-            break;
-
-        case 'save_email_settings':
-            $settings = [
-                'email_notifications_enabled' => $_POST['email_notifications_enabled'] ?? 0,
-                'email_from_name' => $_POST['email_from_name'] ?? $school_name,
-                'email_from_address' => $_POST['email_from_address'] ?? '',
-                'smtp_host' => $_POST['smtp_host'] ?? '',
-                'smtp_port' => $_POST['smtp_port'] ?? 587,
-                'smtp_encryption' => $_POST['smtp_encryption'] ?? 'tls',
-                'smtp_username' => $_POST['smtp_username'] ?? '',
-                'smtp_password' => $_POST['smtp_password'] ?? ''
-            ];
-
-            $stmt = $pdo->prepare("
-                UPDATE attendance_settings 
-                SET email_notifications_enabled = ?, email_from_name = ?, email_from_address = ?,
-                    smtp_host = ?, smtp_port = ?, smtp_encryption = ?, smtp_username = ?, smtp_password = ?
-                WHERE school_id = ?
-            ");
-            $stmt->execute([
-                $settings['email_notifications_enabled'],
-                $settings['email_from_name'],
-                $settings['email_from_address'],
-                $settings['smtp_host'],
-                $settings['smtp_port'],
-                $settings['smtp_encryption'],
-                $settings['smtp_username'],
-                $settings['smtp_password'],
-                $school_id
-            ]);
-            echo json_encode(['success' => true, 'message' => 'Email settings saved']);
-            break;
-
-        case 'get_absent_stats':
-            $date = $_GET['date'] ?? date('Y-m-d');
-            $stmt = $pdo->prepare("
-                SELECT c.id, c.class_name, 
-                    (SELECT COUNT(*) FROM students WHERE class_id = c.id AND school_id = ? AND status = 'active') as total,
-                    (SELECT COUNT(*) FROM attendance_logs al 
-                     JOIN students s ON al.student_id = s.id 
-                     WHERE s.class_id = c.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in') as present
-                FROM classes c
-                WHERE c.school_id = ? AND c.status = 'active'
-                ORDER BY c.class_name
-            ");
-            $stmt->execute([$school_id, $date, $school_id]);
-            $stats = $stmt->fetchAll();
-
-            foreach ($stats as &$stat) {
-                $stat['absent'] = max(0, $stat['total'] - $stat['present']);
-            }
-
-            echo json_encode(['success' => true, 'stats' => $stats, 'date' => $date]);
-            break;
-
-        case 'get_absent_students':
-            $date = $_GET['date'] ?? date('Y-m-d');
-            $class_id = $_GET['class_id'] ?? 0;
-
-            if ($class_id) {
-                $stmt = $pdo->prepare("
-                    SELECT s.id, s.full_name, s.admission_number, s.parent_phone, s.parent_email
-                    FROM students s
-                    WHERE s.class_id = ? AND s.school_id = ? AND s.status = 'active'
-                    AND NOT EXISTS (
-                        SELECT 1 FROM attendance_logs al 
-                        WHERE al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-                    )
-                    ORDER BY s.full_name
-                ");
-                $stmt->execute([$class_id, $school_id, $date]);
-            } else {
-                $stmt = $pdo->prepare("
-                    SELECT s.id, s.full_name, s.admission_number, s.parent_phone, s.parent_email, c.class_name
-                    FROM students s
-                    LEFT JOIN classes c ON s.class_id = c.id
-                    WHERE s.school_id = ? AND s.status = 'active'
-                    AND NOT EXISTS (
-                        SELECT 1 FROM attendance_logs al 
-                        WHERE al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-                    )
-                    ORDER BY c.class_name, s.full_name
-                ");
-                $stmt->execute([$school_id, $date]);
-            }
-            $students = $stmt->fetchAll();
-
-            echo json_encode(['success' => true, 'students' => $students, 'count' => count($students)]);
-            break;
-
-        default:
-            echo json_encode(['success' => false, 'error' => 'Invalid action']);
-    }
-    exit();
-}
-
-// Helper function: Get Daily Attendance Report
-function getDailyAttendanceReport($pdo, $school_id, $date, $class_id = '', $user_type = 'student')
-{
-    $report = [
-        'date' => $date,
-        'user_type' => $user_type,
-        'summary' => [],
-        'details' => []
-    ];
-
-    if ($user_type === 'student') {
-        // Student attendance summary by class
-        $classCondition = $class_id ? "AND c.id = ?" : "";
-        $params = [$school_id, $date, $school_id];
-        if ($class_id) $params[] = $class_id;
-
-        $stmt = $pdo->prepare("
-            SELECT 
-                c.id as class_id,
-                c.class_name,
-                COUNT(DISTINCT s.id) as total_students,
-                COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' THEN s.id END) as present_count,
-                COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' AND al.status = 'late' THEN s.id END) as late_count
-            FROM classes c
-            JOIN students s ON s.class_id = c.id
-            LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ?
-            WHERE c.school_id = ? AND c.status = 'active' AND s.status = 'active'
-            {$classCondition}
-            GROUP BY c.id, c.class_name
-            ORDER BY c.class_name
-        ");
-        $stmt->execute($params);
-        $summary = $stmt->fetchAll();
-
-        $report['summary'] = $summary;
-        $report['total_present'] = array_sum(array_column($summary, 'present_count'));
-        $report['total_students'] = array_sum(array_column($summary, 'total_students'));
-        $report['attendance_percentage'] = $report['total_students'] > 0 ?
-            round(($report['total_present'] / $report['total_students']) * 100, 2) : 0;
-
-        // Get detailed student attendance
-        $detailCondition = $class_id ? "AND s.class_id = ?" : "";
-        $detailParams = [$school_id, $date, $date, $school_id];
-        if ($class_id) $detailParams[] = $class_id;
-
-        $stmt = $pdo->prepare("
-            SELECT 
-                s.id, s.full_name, s.admission_number, c.class_name,
-                CASE WHEN DATE(al.scan_time) = ? THEN 'present' 
-                     WHEN DATE(al.scan_time) = ? AND al.status = 'late' THEN 'late'
-                     ELSE 'absent' END as attendance_status,
-                TIME(al.scan_time) as check_in_time,
-                al.latitude, al.longitude
-            FROM students s
-            JOIN classes c ON s.class_id = c.id
-            LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-            WHERE s.school_id = ? AND s.status = 'active'
-            {$detailCondition}
-            ORDER BY c.class_name, s.full_name
-        ");
-        $stmt->execute($detailParams);
-        $report['details'] = $stmt->fetchAll();
-    } else {
-        // Staff attendance report
-        $stmt = $pdo->prepare("
-            SELECT 
-                COUNT(*) as total_staff,
-                SUM(CASE WHEN DATE(sa.date) = ? AND sa.status = 'present' THEN 1 ELSE 0 END) as present_count,
-                SUM(CASE WHEN DATE(sa.date) = ? AND sa.status = 'late' THEN 1 ELSE 0 END) as late_count,
-                SUM(CASE WHEN DATE(sa.date) = ? AND sa.status = 'absent' THEN 1 ELSE 0 END) as absent_count
-            FROM staff st
-            LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) = ?
-            WHERE st.school_id = ? AND st.is_active = 1
-        ");
-        $stmt->execute([$date, $date, $date, $date, $school_id]);
-        $report['summary'] = $stmt->fetch();
-
-        $detailParams = [$date, $school_id];
-        if ($class_id) $detailParams[] = $class_id;
-
-        $classConditionStaff = $class_id ? "AND sc.class_id = ?" : "";
-        $stmt = $pdo->prepare("
-            SELECT 
-                st.id, st.full_name, st.staff_id, st.role,
-                COALESCE(sa.status, 'absent') as attendance_status,
-                TIME(sa.clock_in) as clock_in_time,
-                TIME(sa.clock_out) as clock_out_time,
-                sa.late_minutes,
-                GROUP_CONCAT(DISTINCT c.class_name) as assigned_classes
-            FROM staff st
-            LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) = ?
-            LEFT JOIN staff_classes sc ON sc.staff_id = st.staff_id
-            LEFT JOIN classes c ON c.id = sc.class_id
-            WHERE st.school_id = ? AND st.is_active = 1
-            {$classConditionStaff}
-            GROUP BY st.id
-            ORDER BY st.full_name
-        ");
-        $stmt->execute($detailParams);
-        $report['details'] = $stmt->fetchAll();
-    }
-
-    return $report;
-}
-
-function getWeeklyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id = '', $user_type = 'student')
-{
-    $report = [
-        'start_date' => $start_date,
-        'end_date' => $end_date,
-        'user_type' => $user_type,
-        'daily_breakdown' => [],
-        'summary' => []
-    ];
-
-    $dates = [];
-    $current = strtotime($start_date);
-    $end = strtotime($end_date);
-    while ($current <= $end) {
-        $dates[] = date('Y-m-d', $current);
-        $current = strtotime('+1 day', $current);
-    }
-
-    if ($user_type === 'student') {
-        $classCondition = $class_id ? "AND s.class_id = ?" : "";
-        $params = [$school_id, $school_id];
-        if ($class_id) $params[] = $class_id;
-
-        $stmt = $pdo->prepare("
-            SELECT s.id, s.full_name, c.class_name
-            FROM students s
-            JOIN classes c ON s.class_id = c.id
-            WHERE s.school_id = ? AND s.status = 'active'
-            {$classCondition}
-            ORDER BY c.class_name, s.full_name
-        ");
-        $stmt->execute($params);
-        $students = $stmt->fetchAll();
-
-        foreach ($dates as $date) {
-            $stmt = $pdo->prepare("
-                SELECT 
-                    COUNT(DISTINCT s.id) as total,
-                    COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' THEN s.id END) as present
-                FROM students s
-                JOIN classes c ON s.class_id = c.id
-                LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ?
-                WHERE s.school_id = ? AND s.status = 'active'
-                {$classCondition}
-            ");
-            $params2 = [$date, $date, $school_id];
-            if ($class_id) $params2[] = $class_id;
-            $stmt->execute($params2);
-            $daily = $stmt->fetch();
-
-            $report['daily_breakdown'][] = [
-                'date' => $date,
-                'total' => $daily['total'],
-                'present' => $daily['present'],
-                'absent' => $daily['total'] - $daily['present'],
-                'percentage' => $daily['total'] > 0 ? round(($daily['present'] / $daily['total']) * 100, 2) : 0
-            ];
-        }
-
-        // Weekly summary
-        $total_present = array_sum(array_column($report['daily_breakdown'], 'present'));
-        $total_days = count($dates);
-        $avg_students = count($students);
-
-        $report['summary'] = [
-            'total_students' => $avg_students,
-            'total_present_days' => $total_present,
-            'average_daily_attendance' => $avg_students > 0 ? round(($total_present / ($avg_students * $total_days)) * 100, 2) : 0,
-            'best_day' => !empty($report['daily_breakdown']) ?
-                array_reduce($report['daily_breakdown'], function ($carry, $item) {
-                    return (!$carry || $item['percentage'] > $carry['percentage']) ? $item : $carry;
-                }) : null
-        ];
-    }
-
-    return $report;
-}
-
-function getMonthlyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id = '', $user_type = 'student')
-{
-    $report = getWeeklyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-    $report['report_type'] = 'monthly';
-
-    // Calculate monthly totals
-    $total_present = array_sum(array_column($report['daily_breakdown'], 'present'));
-    $total_days = count($report['daily_breakdown']);
-    $total_students = $report['summary']['total_students'] ?? 0;
-
-    $report['monthly_summary'] = [
-        'total_school_days' => $total_days,
-        'total_attendance_records' => $total_present,
-        'overall_attendance_percentage' => ($total_students * $total_days) > 0 ?
-            round(($total_present / ($total_students * $total_days)) * 100, 2) : 0
-    ];
-
-    return $report;
-}
-
-function getStudentAttendanceReport($pdo, $school_id, $student_id, $start_date, $end_date)
-{
-    $stmt = $pdo->prepare("
-        SELECT s.id, s.full_name, s.admission_number, c.class_name,
-            COUNT(DISTINCT DATE(al.scan_time)) as days_present,
-            COUNT(DISTINCT CASE WHEN al.status = 'late' THEN DATE(al.scan_time) END) as days_late,
-            GROUP_CONCAT(DISTINCT DATE(al.scan_time) ORDER BY al.scan_time SEPARATOR ', ') as present_dates
-        FROM students s
-        JOIN classes c ON s.class_id = c.id
-        LEFT JOIN attendance_logs al ON al.student_id = s.id 
-            AND DATE(al.scan_time) BETWEEN ? AND ?
-            AND al.scan_type = 'check_in'
-        WHERE s.id = ? AND s.school_id = ?
-        GROUP BY s.id
-    ");
-    $stmt->execute([$start_date, $end_date, $student_id, $school_id]);
-    $student = $stmt->fetch();
-
-    // Get daily breakdown
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE(al.scan_time) as date,
-            TIME(al.scan_time) as check_in_time,
-            al.status,
-            al.latitude, al.longitude
-        FROM attendance_logs al
-        WHERE al.student_id = ? AND DATE(al.scan_time) BETWEEN ? AND ? AND al.scan_type = 'check_in'
-        ORDER BY al.scan_time DESC
-    ");
-    $stmt->execute([$student_id, $start_date, $end_date]);
-    $daily_logs = $stmt->fetchAll();
-
-    return [
-        'student' => $student,
-        'daily_logs' => $daily_logs,
-        'total_days' => count($daily_logs),
-        'date_range' => ['start' => $start_date, 'end' => $end_date]
-    ];
-}
-
-function getStaffAttendanceReport($pdo, $school_id, $staff_id, $start_date, $end_date)
-{
-    $stmt = $pdo->prepare("
-        SELECT st.id, st.full_name, st.staff_id, st.role,
-            COUNT(DISTINCT DATE(sa.date)) as days_present,
-            SUM(sa.late_minutes) as total_late_minutes,
-            AVG(CASE WHEN sa.late_minutes > 0 THEN sa.late_minutes END) as avg_late_minutes
-        FROM staff st
-        LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id 
-            AND DATE(sa.date) BETWEEN ? AND ?
-            AND sa.status = 'present'
-        WHERE st.id = ? AND st.school_id = ?
-        GROUP BY st.id
-    ");
-    $stmt->execute([$start_date, $end_date, $staff_id, $school_id]);
-    $staff = $stmt->fetch();
-
-    // Get daily breakdown
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE(sa.date) as date,
-            TIME(sa.clock_in) as clock_in_time,
-            TIME(sa.clock_out) as clock_out_time,
-            sa.status,
-            sa.late_minutes,
-            sa.attendance_source
-        FROM staff_attendance sa
-        WHERE sa.staff_id = ? AND DATE(sa.date) BETWEEN ? AND ?
-        ORDER BY sa.date DESC
-    ");
-    $stmt->execute([$staff_id, $start_date, $end_date]);
-    $daily_logs = $stmt->fetchAll();
-
-    return [
-        'staff' => $staff,
-        'daily_logs' => $daily_logs,
-        'total_days' => count($daily_logs),
-        'date_range' => ['start' => $start_date, 'end' => $end_date]
-    ];
-}
-
-function getAttendanceSummary($pdo, $school_id, $start_date, $end_date, $class_id = '', $user_type = 'student')
-{
-    if ($user_type === 'student') {
-        $classCondition = $class_id ? "AND s.class_id = ?" : "";
-        $params = [$school_id, $start_date, $end_date, $school_id];
-        if ($class_id) $params[] = $class_id;
-
-        $stmt = $pdo->prepare("
-            SELECT 
-                c.class_name,
-                COUNT(DISTINCT s.id) as total_students,
-                COUNT(DISTINCT CASE WHEN DATE(al.scan_time) BETWEEN ? AND ? THEN s.id END) as students_with_attendance,
-                COUNT(DISTINCT al.id) as total_scans
-            FROM classes c
-            JOIN students s ON s.class_id = c.id
-            LEFT JOIN attendance_logs al ON al.student_id = s.id 
-                AND DATE(al.scan_time) BETWEEN ? AND ?
-                AND al.scan_type = 'check_in'
-            WHERE c.school_id = ? AND c.status = 'active' AND s.status = 'active'
-            {$classCondition}
-            GROUP BY c.id, c.class_name
-            ORDER BY c.class_name
-        ");
-        $stmt->execute($params);
-        $summary = $stmt->fetchAll();
-
-        return [
-            'summary_by_class' => $summary,
-            'total_students' => array_sum(array_column($summary, 'total_students')),
-            'date_range' => ['start' => $start_date, 'end' => $end_date]
-        ];
-    }
-
-    return [];
-}
-
-function getAttendanceReportData($pdo, $school_id, $report_type, $date, $start_date, $end_date, $class_id, $user_type)
-{
-    if ($report_type === 'daily') {
-        return getDailyAttendanceReport($pdo, $school_id, $date, $class_id, $user_type);
-    } elseif ($report_type === 'weekly') {
-        return getWeeklyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-    } elseif ($report_type === 'monthly') {
-        return getMonthlyAttendanceReport($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-    } else {
-        return getAttendanceSummary($pdo, $school_id, $start_date, $end_date, $class_id, $user_type);
-    }
-}
-
-function exportToCSV($data, $filename)
-{
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-    $output = fopen('php://output', 'w');
-
-    // Write headers based on data structure
-    if (isset($data['details']) && !empty($data['details'])) {
-        $headers = array_keys((array)$data['details'][0]);
-        fputcsv($output, $headers);
-
-        foreach ($data['details'] as $row) {
-            fputcsv($output, (array)$row);
-        }
-    } elseif (isset($data['daily_breakdown'])) {
-        $headers = ['Date', 'Total Students', 'Present', 'Absent', 'Percentage'];
-        fputcsv($output, $headers);
-
-        foreach ($data['daily_breakdown'] as $row) {
-            fputcsv($output, [
-                $row['date'],
-                $row['total'],
-                $row['present'],
-                $row['absent'],
-                $row['percentage'] . '%'
-            ]);
-        }
-    }
-
-    fclose($output);
-    exit();
-}
-
-function exportToPDF($data, $filename, $school_name)
-{
-    // Simple HTML-based PDF export (can be enhanced with DOMPDF or similar)
-    header('Content-Type: text/html');
-    header('Content-Disposition: attachment; filename="' . str_replace('.pdf', '.html', $filename) . '"');
-
-    echo '<!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Attendance Report - ' . htmlspecialchars($school_name) . '</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { color: #333; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .summary { margin: 20px 0; padding: 10px; background: #f9f9f9; }
-        </style>
-    </head>
-    <body>
-        <h1>' . htmlspecialchars($school_name) . ' - Attendance Report</h1>';
-
-    if (isset($data['details'])) {
-        echo '<table>';
-        if (!empty($data['details'])) {
-            $headers = array_keys((array)$data['details'][0]);
-            echo '<tr>';
-            foreach ($headers as $header) {
-                echo '<th>' . htmlspecialchars($header) . '</th>';
-            }
-            echo '</tr>';
-
-            foreach ($data['details'] as $row) {
-                echo '<tr>';
-                foreach ((array)$row as $cell) {
-                    echo '<td>' . htmlspecialchars($cell ?? '') . '</td>';
-                }
-                echo '</tr>';
-            }
-        }
-        echo '</table>';
-    }
-
-    echo '</body></html>';
-    exit();
-}
-
-// ==================== ATTENDANCE REPORT FUNCTIONS ====================
-
-/**
- * Get Student Daily Attendance Report
- */
-function getStudentDailyReport($pdo, $school_id, $date, $class_id = '')
-{
-    $classCondition = $class_id ? "AND s.class_id = ?" : "";
-    $params = [$school_id, $date, $date, $school_id];
-    if ($class_id) $params[] = $class_id;
-
-    // Get summary by class
-    $stmt = $pdo->prepare("
-        SELECT 
-            c.id as class_id,
-            c.class_name,
-            COUNT(DISTINCT s.id) as total_students,
-            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' THEN s.id END) as present_count,
-            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = ? AND al.scan_type = 'check_in' AND al.status = 'late' THEN s.id END) as late_count
-        FROM classes c
-        JOIN students s ON s.class_id = c.id
-        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-        WHERE c.school_id = ? AND c.status = 'active' AND s.status = 'active'
-        {$classCondition}
-        GROUP BY c.id, c.class_name
-        ORDER BY c.class_name
-    ");
-    $stmt->execute($params);
-    $summary = $stmt->fetchAll();
-
-    // Get detailed student list
-    $detailParams = [$school_id, $date, $date, $school_id];
-    if ($class_id) $detailParams[] = $class_id;
-
-    $stmt = $pdo->prepare("
-        SELECT 
-            s.id, s.full_name, s.admission_number, c.class_name,
-            CASE 
-                WHEN DATE(al.scan_time) = ? THEN 
-                    CASE WHEN al.status = 'late' THEN 'late' ELSE 'present' END
-                ELSE 'absent' 
-            END as attendance_status,
-            TIME(al.scan_time) as check_in_time,
-            al.latitude, al.longitude,
-            TIMESTAMPDIFF(MINUTE, CONCAT(DATE(al.scan_time), ' ', '08:00:00'), al.scan_time) as late_minutes
-        FROM students s
-        JOIN classes c ON s.class_id = c.id
-        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-        WHERE s.school_id = ? AND s.status = 'active'
-        {$classCondition}
-        ORDER BY c.class_name, s.full_name
-    ");
-    $stmt->execute($detailParams);
-    $details = $stmt->fetchAll();
-
-    $total_present = count(array_filter($details, fn($d) => $d['attendance_status'] === 'present'));
-    $total_late = count(array_filter($details, fn($d) => $d['attendance_status'] === 'late'));
-    $total_absent = count(array_filter($details, fn($d) => $d['attendance_status'] === 'absent'));
-
-    return [
-        'report_name' => 'Student Daily Attendance Report',
-        'date' => $date,
-        'summary_by_class' => $summary,
-        'details' => $details,
-        'total_students' => count($details),
-        'total_present' => $total_present,
-        'total_late' => $total_late,
-        'total_absent' => $total_absent,
-        'attendance_percentage' => count($details) > 0 ? round(($total_present / count($details)) * 100, 2) : 0
-    ];
-}
-
-/**
- * Get Staff Daily Attendance Report (Clock In/Out)
- */
-function getStaffDailyReport($pdo, $school_id, $date, $staff_id = '')
-{
-    $staffCondition = $staff_id ? "AND st.id = ?" : "";
-    $params = [$date, $school_id];
-    if ($staff_id) $params[] = $staff_id;
-
-    $stmt = $pdo->prepare("
-        SELECT 
-            st.id, st.full_name, st.staff_id, st.role,
-            sa.status as attendance_status,
-            TIME(sa.clock_in) as clock_in_time,
-            TIME(sa.clock_out) as clock_out_time,
-            sa.late_minutes,
-            sa.attendance_source,
-            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as assigned_classes
-        FROM staff st
-        LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) = ?
-        LEFT JOIN staff_classes sc ON sc.staff_id = st.staff_id
-        LEFT JOIN classes c ON c.id = sc.class_id
-        WHERE st.school_id = ? AND st.is_active = 1
-        {$staffCondition}
-        GROUP BY st.id
-        ORDER BY st.full_name
-    ");
-    $stmt->execute($params);
-    $details = $stmt->fetchAll();
-
-    foreach ($details as &$staff) {
-        if (!$staff['attendance_status']) {
-            $staff['attendance_status'] = 'absent';
-        }
-    }
-
-    $total_present = count(array_filter($details, fn($s) => $s['attendance_status'] === 'present'));
-    $total_late = count(array_filter($details, fn($s) => $s['attendance_status'] === 'late'));
-    $total_absent = count(array_filter($details, fn($s) => $s['attendance_status'] === 'absent'));
-
-    return [
-        'report_name' => 'Staff Daily Attendance Report (Clock In/Out)',
-        'date' => $date,
-        'details' => $details,
-        'total_staff' => count($details),
-        'total_present' => $total_present,
-        'total_late' => $total_late,
-        'total_absent' => $total_absent,
-        'attendance_percentage' => count($details) > 0 ? round(($total_present / count($details)) * 100, 2) : 0
-    ];
-}
-
-/**
- * Get Staff Class Report (When they scanned class QR codes)
- */
-function getStaffClassReport($pdo, $school_id, $date, $staff_id = '', $class_id = '')
-{
-    $staffCondition = $staff_id ? "AND sa.staff_id = ?" : "";
-    $classCondition = $class_id ? "AND sa.class_id = ?" : "";
-    $params = [$date, $school_id];
-    if ($staff_id) $params[] = $staff_id;
-    if ($class_id) $params[] = $class_id;
-
-    $stmt = $pdo->prepare("
-        SELECT 
-            sa.id,
-            st.id as staff_db_id,
-            st.full_name,
-            st.staff_id,
-            c.class_name,
-            TIME(sa.scan_time) as scan_time,
-            sa.status,
-            sa.attendance_source,
-            sa.latitude,
-            sa.longitude,
-            sa.ip_address
-        FROM class_attendance sa
-        JOIN staff st ON sa.staff_id = st.staff_id
-        JOIN classes c ON sa.class_name = c.class_name
-        WHERE DATE(sa.scan_time) = ? AND st.school_id = ?
-        {$staffCondition}
-        {$classCondition}
-        ORDER BY st.full_name, sa.scan_time
-    ");
-    $stmt->execute($params);
-    $details = $stmt->fetchAll();
-
-    // Get summary by staff
-    $summaryStmt = $pdo->prepare("
-        SELECT 
-            st.id, st.full_name, st.staff_id,
-            COUNT(sa.id) as classes_taught,
-            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as classes_list
-        FROM staff st
-        LEFT JOIN class_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.scan_time) = ?
-        LEFT JOIN classes c ON sa.class_name = c.class_name
-        WHERE st.school_id = ? AND st.is_active = 1
-        {$staffCondition}
-        GROUP BY st.id
-        ORDER BY st.full_name
-    ");
-    $summaryParams = [$date, $school_id];
-    if ($staff_id) $summaryParams[] = $staff_id;
-    $summaryStmt->execute($summaryParams);
-    $summary = $summaryStmt->fetchAll();
-
-    return [
-        'report_name' => 'Staff Class Attendance Report (Class QR Scan)',
-        'date' => $date,
-        'summary' => $summary,
-        'details' => $details,
-        'total_scans' => count($details),
-        'total_staff_with_scans' => count(array_filter($summary, fn($s) => $s['classes_taught'] > 0))
-    ];
-}
-
-/**
- * Get Student Date Range Report
- */
-function getStudentDateRangeReport($pdo, $school_id, $start_date, $end_date, $class_id = '')
-{
-    $classCondition = $class_id ? "AND s.class_id = ?" : "";
-    $params = [$start_date, $end_date, $school_id];
-    if ($class_id) $params[] = $class_id;
-
-    // Get daily breakdown
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE(al.scan_time) as date,
-            COUNT(DISTINCT s.id) as total_students,
-            COUNT(DISTINCT CASE WHEN DATE(al.scan_time) = DATE(al.scan_time) AND al.scan_type = 'check_in' THEN s.id END) as present_count
-        FROM students s
-        JOIN classes c ON s.class_id = c.id
-        LEFT JOIN attendance_logs al ON al.student_id = s.id AND DATE(al.scan_time) BETWEEN ? AND ? AND al.scan_type = 'check_in'
-        WHERE s.school_id = ? AND s.status = 'active'
-        {$classCondition}
-        GROUP BY DATE(al.scan_time)
-        ORDER BY date
-    ");
-    $stmt->execute($params);
-    $daily_breakdown = $stmt->fetchAll();
-
-    // Calculate total students
-    $stmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT s.id) as total
-        FROM students s
-        WHERE s.school_id = ? AND s.status = 'active'
-        {$classCondition}
-    ");
-    $totalParams = [$school_id];
-    if ($class_id) $totalParams[] = $class_id;
-    $stmt->execute($totalParams);
-    $total_students = $stmt->fetch()['total'];
-
-    // Process daily breakdown
-    $date_range = new DatePeriod(
-        new DateTime($start_date),
-        new DateInterval('P1D'),
-        (new DateTime($end_date))->modify('+1 day')
-    );
-
-    $complete_breakdown = [];
-    foreach ($date_range as $date) {
-        $date_str = $date->format('Y-m-d');
-        $found = false;
-        foreach ($daily_breakdown as $day) {
-            if ($day['date'] == $date_str) {
-                $complete_breakdown[] = [
-                    'date' => $date_str,
-                    'total' => $total_students,
-                    'present' => $day['present_count'],
-                    'absent' => $total_students - $day['present_count'],
-                    'percentage' => $total_students > 0 ? round(($day['present_count'] / $total_students) * 100, 2) : 0
-                ];
-                $found = true;
-                break;
-            }
-        }
-        if (!$found) {
-            $complete_breakdown[] = [
-                'date' => $date_str,
-                'total' => $total_students,
-                'present' => 0,
-                'absent' => $total_students,
-                'percentage' => 0
-            ];
-        }
-    }
-
-    $total_present = array_sum(array_column($complete_breakdown, 'present'));
-    $avg_percentage = $total_students > 0 ? round(($total_present / ($total_students * count($complete_breakdown))) * 100, 2) : 0;
-
-    return [
-        'report_name' => 'Student Attendance Report',
-        'start_date' => $start_date,
-        'end_date' => $end_date,
-        'daily_breakdown' => $complete_breakdown,
-        'summary' => [
-            'total_students' => $total_students,
-            'total_days' => count($complete_breakdown),
-            'total_present_days' => $total_present,
-            'average_daily_attendance' => $avg_percentage
-        ]
-    ];
-}
-
-/**
- * Get Staff Date Range Report
- */
-function getStaffDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id = '')
-{
-    $staffCondition = $staff_id ? "AND st.id = ?" : "";
-    $params = [$start_date, $end_date, $school_id];
-    if ($staff_id) $params[] = $staff_id;
-
-    $stmt = $pdo->prepare("
-        SELECT 
-            st.id, st.full_name, st.staff_id, st.role,
-            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'present' THEN DATE(sa.date) END) as days_present,
-            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'late' THEN DATE(sa.date) END) as days_late,
-            COUNT(DISTINCT CASE WHEN DATE(sa.date) BETWEEN ? AND ? AND sa.status = 'absent' THEN DATE(sa.date) END) as days_absent,
-            SUM(sa.late_minutes) as total_late_minutes,
-            GROUP_CONCAT(DISTINCT c.class_name SEPARATOR ', ') as assigned_classes
-        FROM staff st
-        LEFT JOIN staff_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.date) BETWEEN ? AND ?
-        LEFT JOIN staff_classes sc ON sc.staff_id = st.staff_id
-        LEFT JOIN classes c ON c.id = sc.class_id
-        WHERE st.school_id = ? AND st.is_active = 1
-        {$staffCondition}
-        GROUP BY st.id
-        ORDER BY st.full_name
-    ");
-    $stmt->execute([$start_date, $end_date, $start_date, $end_date, $start_date, $end_date, $start_date, $end_date, $school_id]);
-    $details = $stmt->fetchAll();
-
-    return [
-        'report_name' => 'Staff Attendance Report (Date Range)',
-        'start_date' => $start_date,
-        'end_date' => $end_date,
-        'details' => $details,
-        'total_staff' => count($details)
-    ];
-}
-
-/**
- * Get Staff Class Date Range Report
- */
-function getStaffClassDateRangeReport($pdo, $school_id, $start_date, $end_date, $staff_id = '', $class_id = '')
-{
-    $staffCondition = $staff_id ? "AND sa.staff_id = ?" : "";
-    $classCondition = $class_id ? "AND sa.class_name = (SELECT class_name FROM classes WHERE id = ?)" : "";
-    $params = [$start_date, $end_date, $school_id];
-    if ($staff_id) $params[] = $staff_id;
-    if ($class_id) $params[] = $class_id;
-
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE(sa.scan_time) as scan_date,
-            st.id as staff_db_id,
-            st.full_name,
-            st.staff_id,
-            sa.class_name,
-            COUNT(sa.id) as scans_count,
-            MIN(TIME(sa.scan_time)) as first_scan,
-            MAX(TIME(sa.scan_time)) as last_scan,
-            GROUP_CONCAT(DISTINCT sa.status) as statuses
-        FROM class_attendance sa
-        JOIN staff st ON sa.staff_id = st.staff_id
-        WHERE DATE(sa.scan_time) BETWEEN ? AND ? AND st.school_id = ?
-        {$staffCondition}
-        {$classCondition}
-        GROUP BY DATE(sa.scan_time), st.id, sa.class_name
-        ORDER BY sa.scan_date DESC, st.full_name
-    ");
-    $stmt->execute($params);
-    $details = $stmt->fetchAll();
-
-    // Get summary by staff
-    $summaryStmt = $pdo->prepare("
-        SELECT 
-            st.id, st.full_name, st.staff_id,
-            COUNT(DISTINCT DATE(sa.scan_time)) as days_with_classes,
-            COUNT(DISTINCT sa.class_name) as distinct_classes,
-            COUNT(sa.id) as total_scans
-        FROM staff st
-        LEFT JOIN class_attendance sa ON sa.staff_id = st.staff_id AND DATE(sa.scan_time) BETWEEN ? AND ?
-        WHERE st.school_id = ? AND st.is_active = 1
-        {$staffCondition}
-        GROUP BY st.id
-        ORDER BY st.full_name
-    ");
-    $summaryParams = [$start_date, $end_date, $school_id];
-    if ($staff_id) $summaryParams[] = $staff_id;
-    $summaryStmt->execute($summaryParams);
-    $summary = $summaryStmt->fetchAll();
-
-    return [
-        'report_name' => 'Staff Class Attendance Report (Class QR Scans)',
-        'start_date' => $start_date,
-        'end_date' => $end_date,
-        'summary' => $summary,
-        'details' => $details,
-        'total_scans' => count($details)
-    ];
-}
 
 // Get current active school QR
 $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
@@ -1056,6 +52,19 @@ if (!$attendance_settings) {
     $stmt = $pdo->prepare("INSERT INTO attendance_settings (school_id) VALUES (?)");
     $stmt->execute([$school_id]);
     $attendance_settings = ['email_notifications_enabled' => 1, 'email_from_name' => $school_name];
+}
+
+// Helper function to get active school QR
+function getActiveSchoolQRCode($pdo, $school_id)
+{
+    $stmt = $pdo->prepare("
+        SELECT * FROM school_qr_codes 
+        WHERE school_id = ? AND status = 'active' 
+        AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY generated_at DESC LIMIT 1
+    ");
+    $stmt->execute([$school_id]);
+    return $stmt->fetch();
 }
 ?>
 <!DOCTYPE html>
@@ -1081,7 +90,6 @@ if (!$attendance_settings) {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
         }
 
         :root {
@@ -1116,14 +124,12 @@ if (!$attendance_settings) {
             min-height: 100vh;
         }
 
-        /* Main Content */
         .main-content {
             min-height: 100vh;
             padding: 16px;
             transition: margin-left 0.3s ease;
         }
 
-        /* Top Bar */
         .top-bar {
             background: white;
             border-radius: var(--radius-lg);
@@ -1154,7 +160,6 @@ if (!$attendance_settings) {
             color: var(--gray-500);
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
             cursor: pointer;
@@ -1179,7 +184,6 @@ if (!$attendance_settings) {
             text-align: center;
         }
 
-        /* Notification Dropdown */
         .notification-dropdown {
             position: absolute;
             top: 50px;
@@ -1226,30 +230,11 @@ if (!$attendance_settings) {
             border-left: 3px solid var(--primary-color);
         }
 
-        .notification-title {
-            font-weight: 600;
-            font-size: 0.8rem;
-            margin-bottom: 4px;
-        }
-
-        .notification-body {
-            font-size: 0.7rem;
-            color: var(--gray-600);
-        }
-
-        .notification-time {
-            font-size: 0.6rem;
-            color: var(--gray-400);
-            margin-top: 4px;
-        }
-
-        /* Container */
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
 
-        /* Tabs - Mobile Friendly Scrollable */
         .tabs {
             display: flex;
             flex-wrap: wrap;
@@ -1260,7 +245,6 @@ if (!$attendance_settings) {
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-sm);
             overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -1280,7 +264,6 @@ if (!$attendance_settings) {
 
         .tab-btn i {
             margin-right: 6px;
-            font-size: 0.9rem;
         }
 
         .tab-btn.active {
@@ -1296,7 +279,6 @@ if (!$attendance_settings) {
             display: block;
         }
 
-        /* Cards */
         .card {
             background: white;
             border-radius: var(--radius-lg);
@@ -1327,7 +309,6 @@ if (!$attendance_settings) {
             margin-right: 8px;
         }
 
-        /* QR Display */
         .qr-display {
             text-align: center;
             padding: 20px;
@@ -1351,7 +332,14 @@ if (!$attendance_settings) {
             color: var(--gray-500);
         }
 
-        /* Stats Grid */
+        .qr-actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -1365,34 +353,6 @@ if (!$attendance_settings) {
             }
         }
 
-        .stat-card {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 16px;
-            text-align: center;
-            box-shadow: var(--shadow-sm);
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .stat-card:active {
-            transform: scale(0.98);
-        }
-
-        .stat-number {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--primary-color);
-            line-height: 1;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: var(--gray-500);
-            margin-top: 4px;
-        }
-
-        /* Report Cards */
         .report-summary {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -1418,189 +378,31 @@ if (!$attendance_settings) {
             opacity: 0.9;
         }
 
-        /* Filter Bar */
-        .filter-bar {
+        .duration-options {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-bottom: 20px;
-            background: var(--gray-50);
-            padding: 12px;
-            border-radius: var(--radius-lg);
+            margin-top: 8px;
         }
 
-        .filter-group {
+        .duration-btn {
             flex: 1;
-            min-width: 120px;
-        }
-
-        .filter-group label {
-            display: block;
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: var(--gray-600);
-        }
-
-        /* Class Stats List */
-        .class-stats-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .class-stat-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            background: var(--gray-50);
+            padding: 8px;
+            background: var(--gray-100);
+            border: 2px solid var(--gray-200);
             border-radius: var(--radius-md);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .class-stat-item:active {
-            background: var(--gray-200);
-        }
-
-        .class-name {
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-
-        .class-absent {
-            background: #fee2e2;
-            color: var(--danger);
-            padding: 4px 10px;
-            border-radius: 20px;
             font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        /* Table - Mobile Friendly Scrollable */
-        .table-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.75rem;
-            min-width: 500px;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 10px 8px;
-            text-align: left;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .data-table th {
-            background: var(--gray-50);
-            font-weight: 600;
-            color: var(--gray-600);
-            font-size: 0.7rem;
-            position: sticky;
-            top: 0;
-        }
-
-        /* Attendance Status Badges */
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            font-weight: 600;
-        }
-
-        .status-present {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-absent {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .status-late {
-            background: #fed7aa;
-            color: #92400e;
-        }
-
-        /* Progress Bar */
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--gray-200);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--primary-color);
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 10px 16px;
-            border-radius: var(--radius-md);
-            border: none;
             font-weight: 500;
-            font-size: 0.8rem;
             cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            font-family: inherit;
+            text-align: center;
         }
 
-        .btn-primary {
+        .duration-btn.active {
             background: var(--primary-color);
             color: white;
+            border-color: var(--primary-color);
         }
 
-        .btn-primary:active {
-            transform: scale(0.97);
-        }
-
-        .btn-success {
-            background: var(--success);
-            color: white;
-        }
-
-        .btn-warning {
-            background: var(--warning);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: var(--gray-200);
-            color: var(--gray-700);
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.7rem;
-        }
-
-        .btn-block {
-            width: 100%;
-        }
-
-        /* Form Elements */
         .form-group {
             margin-bottom: 16px;
         }
@@ -1631,41 +433,141 @@ if (!$attendance_settings) {
             border-color: var(--primary-color);
         }
 
-        /* Duration Options */
-        .duration-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 8px;
-        }
-
-        .duration-btn {
-            flex: 1;
-            padding: 8px;
-            background: var(--gray-100);
-            border: 2px solid var(--gray-200);
+        .btn {
+            padding: 10px 16px;
             border-radius: var(--radius-md);
-            font-size: 0.7rem;
+            border: none;
             font-weight: 500;
+            font-size: 0.8rem;
             cursor: pointer;
-            text-align: center;
-        }
-
-        .duration-btn.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        /* Checkbox */
-        .checkbox-item {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.7rem;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            min-width: 500px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-600);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .status-present {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-absent {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-late {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--gray-200);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .class-stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .class-stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
             cursor: pointer;
         }
 
-        /* Modal */
+        .class-absent {
+            background: #fee2e2;
+            color: var(--danger);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            margin: 20px 0;
+            height: 250px;
+            position: relative;
+        }
+
+        canvas {
+            max-height: 250px;
+            width: 100%;
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -1699,25 +601,6 @@ if (!$attendance_settings) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: sticky;
-            top: 0;
-            background: white;
-        }
-
-        .modal-header h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .modal-body {
-            padding: 16px;
-        }
-
-        .modal-footer {
-            padding: 16px;
-            border-top: 1px solid var(--gray-200);
-            display: flex;
-            gap: 12px;
         }
 
         .close-modal {
@@ -1725,73 +608,54 @@ if (!$attendance_settings) {
             border: none;
             font-size: 24px;
             cursor: pointer;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
+        }
+
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            background: white;
+            box-shadow: var(--shadow-lg);
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-
-        .close-modal:active {
-            background: var(--gray-100);
-        }
-
-        /* Alert */
-        .alert {
-            padding: 12px;
-            border-radius: var(--radius-md);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.75rem;
-        }
-
-        .alert-success {
-            background: #d1fae5;
-            color: #065f46;
-            border-left: 3px solid var(--success);
-        }
-
-        .alert-danger {
-            background: #fee2e2;
-            color: #991b1b;
-            border-left: 3px solid var(--danger);
-        }
-
-        .alert-warning {
-            background: #fed7aa;
-            color: #92400e;
-            border-left: 3px solid var(--warning);
-        }
-
-        /* Chart Container */
-        .chart-container {
-            margin: 20px 0;
-            height: 250px;
-            position: relative;
-        }
-
-        canvas {
-            max-height: 250px;
-            width: 100%;
-        }
-
-        /* Loading Spinner */
-        .loading {
-            text-align: center;
-            padding: 40px;
+            flex-direction: column;
+            color: white;
         }
 
         .spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid var(--gray-200);
-            border-top-color: var(--primary-color);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
         }
 
         @keyframes spin {
@@ -1800,57 +664,15 @@ if (!$attendance_settings) {
             }
         }
 
-        /* Responsive */
-        @media (max-width: 767px) {
-            .main-content {
-                padding: 12px;
-            }
-
-            .tab-btn {
-                font-size: 0.7rem;
-                padding: 8px 12px;
-            }
-
-            .tab-btn i {
-                margin-right: 4px;
-            }
-
-            .card {
-                padding: 14px;
-            }
-
-            .stats-grid {
-                gap: 10px;
-            }
-
-            .stat-number {
-                font-size: 1.4rem;
-            }
-
-            .report-stat .value {
-                font-size: 1.4rem;
-            }
-
-            .filter-group {
-                min-width: 100%;
-            }
-        }
-
         @media (min-width: 768px) {
             .main-content {
                 margin-left: 280px;
             }
+        }
 
-            .stats-grid {
-                gap: 16px;
-            }
-
-            .stat-number {
-                font-size: 2rem;
-            }
-
-            .filter-group {
-                min-width: 160px;
+        @media (max-width: 767px) {
+            .main-content {
+                padding: 12px;
             }
         }
     </style>
@@ -1870,7 +692,7 @@ if (!$attendance_settings) {
                 <div class="notification-dropdown" id="notificationDropdown">
                     <div class="notification-header">
                         <strong>Notifications</strong>
-                        <button class="btn btn-secondary btn-sm" id="markAllReadBtn" style="padding: 4px 8px; font-size: 0.65rem;">Mark all read</button>
+                        <button class="btn btn-secondary btn-sm" id="markAllReadBtn">Mark all read</button>
                     </div>
                     <div id="notificationList"></div>
                 </div>
@@ -1880,46 +702,46 @@ if (!$attendance_settings) {
         <div class="container">
             <!-- Tabs -->
             <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('school_qr')">
-                    <i class="fas fa-qrcode"></i> <span>School QR</span>
+                <button class="tab-btn active" data-tab="school_qr">
+                    <i class="fas fa-qrcode"></i> School QR
                 </button>
-                <button class="tab-btn" onclick="switchTab('class_qr')">
-                    <i class="fas fa-chalkboard"></i> <span>Class QR</span>
+                <button class="tab-btn" data-tab="class_qr">
+                    <i class="fas fa-chalkboard"></i> Class QR
                 </button>
-                <button class="tab-btn" onclick="switchTab('attendance_report')">
-                    <i class="fas fa-chart-line"></i> <span>Reports</span>
+                <button class="tab-btn" data-tab="attendance_report">
+                    <i class="fas fa-chart-line"></i> Reports
                 </button>
-                <button class="tab-btn" onclick="switchTab('absent_alert')">
-                    <i class="fas fa-bell"></i> <span>Absent Alert</span>
+                <button class="tab-btn" data-tab="absent_alert">
+                    <i class="fas fa-bell"></i> Absent Alert
                 </button>
-                <button class="tab-btn" onclick="switchTab('email_settings')">
-                    <i class="fas fa-envelope"></i> <span>Email</span>
+                <button class="tab-btn" data-tab="email_settings">
+                    <i class="fas fa-envelope"></i> Email
                 </button>
             </div>
 
-            <!-- Tab 1: School QR - UPDATED with better duration options -->
+            <!-- Tab 1: School QR -->
             <div id="tab-school_qr" class="tab-content active">
                 <div class="card">
                     <div class="card-header">
                         <h2><i class="fas fa-qrcode"></i> School QR Code</h2>
                     </div>
-                    <div class="qr-display" id="schoolQRDisplay">
-                        <?php if ($active_school_qr && file_exists($_SERVER['DOCUMENT_ROOT'] . $active_school_qr['qr_image'])): ?>
-                            <img src="<?php echo htmlspecialchars($active_school_qr['qr_image']); ?>" alt="School QR Code" class="qr-image">
+                    <div class="qr-display">
+                        <?php if ($active_school_qr && !empty($active_school_qr['qr_image']) && file_exists($_SERVER['DOCUMENT_ROOT'] . $active_school_qr['qr_image'])): ?>
+                            <img src="<?php echo htmlspecialchars($active_school_qr['qr_image']); ?>" alt="School QR Code" class="qr-image" id="schoolQRImg">
                             <div class="qr-info">
-                                <p><i class="fas fa-clock"></i> Expires:
-                                    <?php
-                                    if ($active_school_qr['expires_at'] === null) {
-                                        echo 'Never expires';
-                                    } else {
-                                        echo date('M j, Y g:i A', strtotime($active_school_qr['expires_at']));
-                                    }
-                                    ?>
-                                </p>
+                                <p><i class="fas fa-clock"></i> Expires: <?php echo $active_school_qr['expires_at'] ? date('M j, Y g:i A', strtotime($active_school_qr['expires_at'])) : 'Never expires'; ?></p>
                                 <p><i class="fas fa-info-circle"></i> Staff scan this QR to clock in/out</p>
                             </div>
+                            <div class="qr-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="downloadQR('schoolQRImg', 'school_qr')">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="printQR('schoolQRImg', 'School QR Code')">
+                                    <i class="fas fa-print"></i> Print
+                                </button>
+                            </div>
                         <?php else: ?>
-                            <p style="margin-bottom: 16px;">No active school QR code. Generate one for staff attendance.</p>
+                            <p>No active school QR code. Generate one below.</p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1929,26 +751,14 @@ if (!$attendance_settings) {
                         <h2><i class="fas fa-clock"></i> Select QR Validity Period</h2>
                     </div>
                     <div class="duration-options" id="qrDurationOptions">
-                        <div class="duration-btn" data-hours="72" data-label="3 Days">3 Days</div>
-                        <div class="duration-btn" data-hours="168" data-label="7 Days">7 Days</div>
-                        <div class="duration-btn" data-hours="720" data-label="30 Days">30 Days</div>
-                        <div class="duration-btn" data-hours="0" data-label="Never" data-never="true">Never Expires</div>
+                        <div class="duration-btn" data-hours="72">3 Days</div>
+                        <div class="duration-btn" data-hours="168">7 Days</div>
+                        <div class="duration-btn" data-hours="720">30 Days</div>
+                        <div class="duration-btn" data-hours="0" data-never="true">Never Expires</div>
                     </div>
-                    <button class="btn btn-primary btn-block" onclick="regenerateSchoolQRWithDuration()" style="margin-top: 16px;">
+                    <button class="btn btn-primary btn-block" onclick="regenerateSchoolQR()" style="margin-top: 16px;">
                         <i class="fas fa-sync-alt"></i> Generate / Regenerate QR
                     </button>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-info-circle"></i> How It Works</h2>
-                    </div>
-                    <ul style="padding-left: 20px; font-size: 0.8rem; color: var(--gray-600);">
-                        <li>Choose how long the QR code should be valid (3 days, 7 days, 1 month, or never expires)</li>
-                        <li>Staff scan this QR code using the staff portal to clock in/out</li>
-                        <li>You can manually regenerate anytime - old QR becomes invalid</li>
-                        <li>Each scan is logged with timestamp for accountability</li>
-                    </ul>
                 </div>
             </div>
 
@@ -1991,7 +801,14 @@ if (!$attendance_settings) {
                         <img id="classQRImage" src="" alt="Class QR Code" class="qr-image">
                         <div class="qr-info">
                             <p id="classQRInfo"></p>
-                            <p><i class="fas fa-info-circle"></i> Teachers scan this QR to mark their attendance for this class</p>
+                        </div>
+                        <div class="qr-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="downloadQR('classQRImage', 'class_qr')">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="printQR('classQRImage', 'Class QR Code')">
+                                <i class="fas fa-print"></i> Print
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2004,9 +821,8 @@ if (!$attendance_settings) {
                         <h2><i class="fas fa-chart-bar"></i> Attendance Report</h2>
                     </div>
 
-                    <!-- Report Type Selection -->
                     <div class="form-group">
-                        <label>Report Type</label>
+                        <label>Report Period</label>
                         <div class="duration-options" id="reportTypeOptions">
                             <div class="duration-btn active" data-type="daily">Daily</div>
                             <div class="duration-btn" data-type="weekly">Weekly</div>
@@ -2014,17 +830,15 @@ if (!$attendance_settings) {
                         </div>
                     </div>
 
-                    <!-- Report Category (What kind of report) -->
                     <div class="form-group">
                         <label>Report Category</label>
                         <div class="duration-options" id="reportCategoryOptions">
-                            <div class="duration-btn active" data-category="student">Student Attendance (Check In/Out)</div>
-                            <div class="duration-btn" data-category="staff_attendance">Staff Attendance (Check In/Out)</div>
-                            <div class="duration-btn" data-category="staff_class">Staff Class Report (Class QR Scan)</div>
+                            <div class="duration-btn active" data-category="student">Student Attendance</div>
+                            <div class="duration-btn" data-category="staff_attendance">Staff Attendance (Clock)</div>
+                            <div class="duration-btn" data-category="staff_class">Staff Class Scan</div>
                         </div>
                     </div>
 
-                    <!-- Date Filters -->
                     <div id="dailyFilter" class="form-group">
                         <label>Date</label>
                         <input type="date" id="reportDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
@@ -2041,7 +855,6 @@ if (!$attendance_settings) {
                         </div>
                     </div>
 
-                    <!-- Class Filter (for student and staff class reports) -->
                     <div id="classFilterGroup" class="form-group">
                         <label>Filter by Class (Optional)</label>
                         <select id="reportClassFilter" class="form-select">
@@ -2052,13 +865,12 @@ if (!$attendance_settings) {
                         </select>
                     </div>
 
-                    <!-- Staff Filter (for staff reports) -->
                     <div id="staffFilterGroup" style="display: none;" class="form-group">
                         <label>Filter by Staff (Optional)</label>
                         <select id="reportStaffFilter" class="form-select">
                             <option value="">All Staff</option>
                             <?php foreach ($all_staff as $staff_member): ?>
-                                <option value="<?php echo $staff_member['id']; ?>"><?php echo htmlspecialchars($staff_member['full_name']); ?> (<?php echo $staff_member['staff_id']; ?>)</option>
+                                <option value="<?php echo $staff_member['id']; ?>"><?php echo htmlspecialchars($staff_member['full_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -2068,22 +880,21 @@ if (!$attendance_settings) {
                     </button>
 
                     <div style="margin-top: 12px; display: flex; gap: 10px;">
-                        <button class="btn btn-secondary btn-block" onclick="exportReport('csv')">
+                        <button class="btn btn-secondary" onclick="exportReport('csv')">
                             <i class="fas fa-file-csv"></i> Export CSV
                         </button>
-                        <button class="btn btn-secondary btn-block" onclick="exportReport('pdf')">
+                        <button class="btn btn-secondary" onclick="exportReport('pdf')">
                             <i class="fas fa-file-pdf"></i> Export PDF
                         </button>
                     </div>
                 </div>
 
-                <!-- Report Results Container -->
                 <div id="reportResults" style="display: none;">
                     <div id="reportSummary" class="report-summary"></div>
                     <div id="reportChart" class="chart-container"></div>
                     <div id="reportTable" class="card">
                         <div class="card-header">
-                            <h2><i class="fas fa-table"></i> <span id="reportTableTitle">Detailed Report</span></h2>
+                            <h2><i class="fas fa-table"></i> Detailed Report</h2>
                         </div>
                         <div class="table-container" id="reportTableBody"></div>
                     </div>
@@ -2132,11 +943,11 @@ if (!$attendance_settings) {
                         </div>
                         <div class="form-group">
                             <label>From Email</label>
-                            <input type="email" name="email_from_address" class="form-control" value="<?php echo htmlspecialchars($attendance_settings['email_from_address'] ?? 'noreply@' . $_SERVER['HTTP_HOST']); ?>">
+                            <input type="email" name="email_from_address" class="form-control" value="<?php echo htmlspecialchars($attendance_settings['email_from_address'] ?? ''); ?>">
                         </div>
                         <div class="form-group">
                             <label>SMTP Host</label>
-                            <input type="text" name="smtp_host" class="form-control" value="<?php echo htmlspecialchars($attendance_settings['smtp_host'] ?? ''); ?>" placeholder="smtp.gmail.com">
+                            <input type="text" name="smtp_host" class="form-control" value="<?php echo htmlspecialchars($attendance_settings['smtp_host'] ?? ''); ?>">
                         </div>
                         <div class="form-group">
                             <label>SMTP Port</label>
@@ -2195,29 +1006,29 @@ if (!$attendance_settings) {
     <?php require_once 'includes/sidebar.php'; ?>
 
     <script>
-        let html5QrScanner = null;
-        let isScannerActive = false;
+        // API URL
+        const API_URL = 'manage_attendance_api.php';
+
         let attendanceChart = null;
         let currentReportData = null;
-
-        // QR Duration Variables
-        let selectedDuration = 72; // Default 3 days
-        let selectedDurationLabel = '3 Days';
+        let currentUserType = 'student';
+        let selectedDuration = 72;
         let neverExpires = false;
 
         // ==================== TAB SWITCHING ====================
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById(`tab-${tabName}`).classList.add('active');
 
-            event.target.closest('.tab-btn').classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-
-            // If switching to reports tab, load initial report
-            if (tabName === 'attendance_report') {
-                loadAttendanceReport();
-            }
-        }
+                if (tabName === 'attendance_report') {
+                    loadAttendanceReport();
+                }
+            });
+        });
 
         // ==================== QR DURATION SELECTION ====================
         document.querySelectorAll('#qrDurationOptions .duration-btn').forEach(btn => {
@@ -2232,7 +1043,6 @@ if (!$attendance_settings) {
                     neverExpires = false;
                     selectedDuration = parseInt(this.dataset.hours);
                 }
-                selectedDurationLabel = this.dataset.label;
             });
         });
 
@@ -2241,8 +1051,8 @@ if (!$attendance_settings) {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('#reportTypeOptions .duration-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                const type = this.dataset.type;
 
+                const type = this.dataset.type;
                 if (type === 'daily') {
                     document.getElementById('dailyFilter').style.display = 'block';
                     document.getElementById('rangeFilter').style.display = 'none';
@@ -2253,65 +1063,83 @@ if (!$attendance_settings) {
             });
         });
 
-        // ==================== USER TYPE SELECTION ====================
-        document.querySelectorAll('#userTypeOptions .duration-btn').forEach(btn => {
+        document.querySelectorAll('#reportCategoryOptions .duration-btn').forEach(btn => {
             btn.addEventListener('click', function() {
-                document.querySelectorAll('#userTypeOptions .duration-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#reportCategoryOptions .duration-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
 
-                const staffFilter = document.getElementById('staffFilter');
-                if (this.dataset.type === 'staff') {
-                    staffFilter.style.display = 'block';
-                } else {
+                currentUserType = this.dataset.category;
+
+                const classFilter = document.getElementById('classFilterGroup');
+                const staffFilter = document.getElementById('staffFilterGroup');
+
+                if (currentUserType === 'student') {
+                    classFilter.style.display = 'block';
                     staffFilter.style.display = 'none';
+                } else if (currentUserType === 'staff_attendance') {
+                    classFilter.style.display = 'none';
+                    staffFilter.style.display = 'block';
+                } else if (currentUserType === 'staff_class') {
+                    classFilter.style.display = 'block';
+                    staffFilter.style.display = 'block';
                 }
             });
         });
 
-        // ==================== SCHOOL QR CODE GENERATION ====================
-        function regenerateSchoolQRWithDuration() {
-            let formData = new URLSearchParams();
-            formData.append('action', 'regenerate_school_qr');
+        // ==================== API CALLS ====================
+        async function apiCall(action, data = {}, method = 'GET') {
+            const url = new URL(API_URL, window.location.href);
+            url.searchParams.append('action', action);
 
-            if (neverExpires) {
-                formData.append('never_expires', '1');
+            const options = {
+                method: method,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            };
+
+            if (method === 'POST') {
+                const formData = new URLSearchParams();
+                for (const [key, value] of Object.entries(data)) {
+                    formData.append(key, value);
+                }
+                options.body = formData;
             } else {
-                formData.append('duration_hours', selectedDuration);
+                for (const [key, value] of Object.entries(data)) {
+                    url.searchParams.append(key, value);
+                }
             }
 
+            const response = await fetch(url, options);
+            return await response.json();
+        }
+
+        // ==================== SCHOOL QR ====================
+        async function regenerateSchoolQR() {
             showLoading('Generating QR code...');
 
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        showAlert('QR Code generated successfully!', 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showAlert('Failed to regenerate QR code: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to regenerate QR code. Please try again.', 'error');
-                });
+            const data = {
+                action: 'regenerate_school_qr'
+            };
+            if (neverExpires) {
+                data.never_expires = '1';
+            } else {
+                data.duration_hours = selectedDuration;
+            }
+
+            const result = await apiCall('regenerate_school_qr', data, 'POST');
+            hideLoading();
+
+            if (result.success) {
+                showAlert('QR Code generated successfully!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('Failed: ' + (result.error || 'Unknown error'), 'error');
+            }
         }
 
-        // Legacy function for compatibility
-        function regenerateSchoolQR() {
-            regenerateSchoolQRWithDuration();
-        }
-
-        // ==================== CLASS QR CODE GENERATION ====================
-        function generateClassQR() {
+        // ==================== CLASS QR ====================
+        async function generateClassQR() {
             const classId = document.getElementById('classSelect').value;
             const expiryHours = document.getElementById('qrExpiry').value;
 
@@ -2320,91 +1148,62 @@ if (!$attendance_settings) {
                 return;
             }
 
-            const formData = new URLSearchParams();
-            formData.append('action', 'generate_class_qr');
-            formData.append('class_id', classId);
-            if (expiryHours) formData.append('expiry_hours', expiryHours);
-
             showLoading('Generating class QR code...');
 
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success && data.qr) {
-                        document.getElementById('classQRImage').src = data.qr.qr_url;
-                        const expiryText = data.qr.expires_at !== 'never' ? `Expires: ${data.qr.expires_at}` : 'Never expires';
-                        document.getElementById('classQRInfo').innerHTML = `<strong>${data.qr.class_name}</strong><br>${expiryText}`;
-                        document.getElementById('classQRResult').style.display = 'block';
-                        showAlert('Class QR Code generated successfully!', 'success');
-                    } else {
-                        showAlert('Failed to generate QR code', 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to generate QR code', 'error');
-                });
+            const data = {
+                action: 'generate_class_qr',
+                class_id: classId
+            };
+            if (expiryHours) data.expiry_hours = expiryHours;
+
+            const result = await apiCall('generate_class_qr', data, 'POST');
+            hideLoading();
+
+            if (result.success && result.qr) {
+                document.getElementById('classQRImage').src = result.qr.qr_url;
+                const expiryText = result.qr.expires_at !== 'never' ? `Expires: ${result.qr.expires_at}` : 'Never expires';
+                document.getElementById('classQRInfo').innerHTML = `<strong>${escapeHtml(result.qr.class_name)}</strong><br>${expiryText}`;
+                document.getElementById('classQRResult').style.display = 'block';
+                showAlert('Class QR Code generated successfully!', 'success');
+            } else {
+                showAlert('Failed to generate QR code', 'error');
+            }
         }
 
-        // ==================== ATTENDANCE REPORT FUNCTIONS ====================
-        function loadAttendanceReport() {
+        // ==================== ATTENDANCE REPORT ====================
+        async function loadAttendanceReport() {
             const reportType = document.querySelector('#reportTypeOptions .duration-btn.active').dataset.type;
-            const userType = document.querySelector('#userTypeOptions .duration-btn.active').dataset.type;
             const classId = document.getElementById('reportClassFilter').value;
             const staffId = document.getElementById('reportStaffFilter').value;
 
-            let date = null;
-            let startDate = null;
-            let endDate = null;
+            let params = {
+                action: 'get_attendance_report',
+                report_type: reportType,
+                user_type: currentUserType
+            };
 
             if (reportType === 'daily') {
-                date = document.getElementById('reportDate').value;
+                params.date = document.getElementById('reportDate').value;
             } else {
-                startDate = document.getElementById('startDate').value;
-                endDate = document.getElementById('endDate').value;
+                params.start_date = document.getElementById('startDate').value;
+                params.end_date = document.getElementById('endDate').value;
             }
 
-            let url;
-            if (userType === 'staff' && staffId && reportType === 'daily') {
-                url = `${window.location.href}?action=get_attendance_report&report_type=staff&date=${date}&staff_id=${staffId}&user_type=${userType}`;
-            } else if (userType === 'staff' && staffId) {
-                url = `${window.location.href}?action=get_attendance_report&report_type=staff&start_date=${startDate}&end_date=${endDate}&staff_id=${staffId}&user_type=${userType}`;
-            } else if (reportType === 'daily') {
-                url = `${window.location.href}?action=get_attendance_report&report_type=daily&date=${date}&class_id=${classId}&user_type=${userType}`;
-            } else {
-                url = `${window.location.href}?action=get_attendance_report&report_type=${reportType}&start_date=${startDate}&end_date=${endDate}&class_id=${classId}&user_type=${userType}`;
+            if (classId) params.class_id = classId;
+            if (staffId && (currentUserType === 'staff_attendance' || currentUserType === 'staff_class')) {
+                params.staff_id = staffId;
             }
 
             showLoading('Loading report...');
+            const result = await apiCall('get_attendance_report', params);
+            hideLoading();
 
-            fetch(url, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        currentReportData = data.report;
-                        displayReport(data.report, reportType, userType);
-                    } else {
-                        showAlert('Failed to load report', 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to load report', 'error');
-                });
+            if (result.success) {
+                currentReportData = result.report;
+                displayReport(result.report, reportType, currentUserType);
+            } else {
+                showAlert('Failed to load report: ' + (result.error || 'Unknown error'), 'error');
+            }
         }
 
         function displayReport(report, reportType, userType) {
@@ -2417,32 +1216,18 @@ if (!$attendance_settings) {
 
             if (userType === 'student') {
                 if (report.daily_breakdown && report.daily_breakdown.length > 0) {
-                    // Weekly/Monthly report with daily breakdown
                     const totalPresent = report.daily_breakdown.reduce((sum, d) => sum + d.present, 0);
                     const totalStudents = report.daily_breakdown[0]?.total || 0;
                     const avgAttendance = report.summary?.average_daily_attendance ||
                         (report.daily_breakdown.reduce((sum, d) => sum + d.percentage, 0) / report.daily_breakdown.length).toFixed(1);
 
                     summaryDiv.innerHTML = `
-                        <div class="report-stat">
-                            <div class="value">${totalStudents}</div>
-                            <div class="label">Total Students</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${totalPresent}</div>
-                            <div class="label">Total Present Days</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${avgAttendance}%</div>
-                            <div class="label">Avg Attendance</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${report.daily_breakdown.length}</div>
-                            <div class="label">School Days</div>
-                        </div>
+                        <div class="report-stat"><div class="value">${totalStudents}</div><div class="label">Total Students</div></div>
+                        <div class="report-stat"><div class="value">${totalPresent}</div><div class="label">Total Present Days</div></div>
+                        <div class="report-stat"><div class="value">${avgAttendance}%</div><div class="label">Avg Attendance</div></div>
+                        <div class="report-stat"><div class="value">${report.daily_breakdown.length}</div><div class="label">School Days</div></div>
                     `;
 
-                    // Create chart
                     const ctx = document.createElement('canvas');
                     chartDiv.innerHTML = '';
                     chartDiv.appendChild(ctx);
@@ -2451,261 +1236,91 @@ if (!$attendance_settings) {
                     attendanceChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: report.daily_breakdown.map(d => {
-                                const date = new Date(d.date);
-                                return `${date.getMonth()+1}/${date.getDate()}`;
-                            }),
+                            labels: report.daily_breakdown.map(d => d.date.substring(5)),
                             datasets: [{
-                                label: 'Attendance Percentage',
+                                label: 'Attendance %',
                                 data: report.daily_breakdown.map(d => d.percentage),
                                 borderColor: '#3b82f6',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                                 fill: true,
-                                tension: 0.4,
-                                pointBackgroundColor: '#3b82f6',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                pointRadius: 4
+                                tension: 0.4
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    position: 'top'
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: (ctx) => `${ctx.raw}%`
-                                    }
-                                }
-                            },
                             scales: {
                                 y: {
                                     beginAtZero: true,
                                     max: 100,
                                     ticks: {
-                                        callback: (value) => value + '%'
+                                        callback: v => v + '%'
                                     }
                                 }
                             }
                         }
                     });
 
-                    // Display table
-                    tableBody.innerHTML = `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Total Students</th>
-                                    <th>Present</th>
-                                    <th>Absent</th>
-                                    <th>Percentage</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.daily_breakdown.map(d => `
-                                    <tr>
-                                        <td>${new Date(d.date).toLocaleDateString()}</td>
-                                        <td>${d.total}</td>
-                                        <td>${d.present}</td>
-                                        <td>${d.absent}</td>
-                                        <td>
-                                            <div class="progress-bar">
-                                                <div class="progress-fill" style="width: ${d.percentage}%"></div>
-                                            </div>
-                                            <small>${d.percentage}%</small>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
+                    tableBody.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Total</th><th>Present</th><th>Absent</th><th>%</th></tr></thead><tbody>
+                        ${report.daily_breakdown.map(d => `<tr><td>${d.date}</td><td>${d.total}</td><td>${d.present}</td><td>${d.absent}</td><td>${d.percentage}%</td></tr>`).join('')}
+                    </tbody></table>`;
 
-                } else if (report.details && report.details.length > 0) {
-                    // Daily report with student details
-                    const presentCount = report.details.filter(s => s.attendance_status === 'present').length;
-                    const absentCount = report.details.filter(s => s.attendance_status === 'absent').length;
-                    const lateCount = report.details.filter(s => s.attendance_status === 'late').length;
-                    const attendancePercent = report.total_students > 0 ? ((presentCount / report.total_students) * 100).toFixed(1) : 0;
-
-                    summaryDiv.innerHTML = `
-                        <div class="report-stat">
-                            <div class="value">${report.total_students || report.details.length}</div>
-                            <div class="label">Total Students</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${presentCount}</div>
-                            <div class="label">Present</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${absentCount}</div>
-                            <div class="label">Absent</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${attendancePercent}%</div>
-                            <div class="label">Attendance Rate</div>
-                        </div>
-                    `;
-
-                    chartDiv.innerHTML = '';
-
-                    tableBody.innerHTML = `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Admission No</th>
-                                    <th>Class</th>
-                                    <th>Status</th>
-                                    <th>Check-in Time</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.details.map(s => `
-                                    <tr>
-                                        <td><strong>${escapeHtml(s.full_name)}</strong></td>
-                                        <td>${escapeHtml(s.admission_number)}</td>
-                                        <td>${escapeHtml(s.class_name)}</td>
-                                        <td>
-                                            <span class="status-badge status-${s.attendance_status}">
-                                                ${s.attendance_status ? s.attendance_status.toUpperCase() : 'ABSENT'}
-                                            </span>
-                                        </td>
-                                        <td>${s.check_in_time || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    tableBody.innerHTML = '<p style="text-align:center; padding:20px;">No data available for the selected criteria</p>';
-                }
-            } else if (userType === 'staff') {
-                if (report.daily_logs && report.daily_logs.length > 0) {
-                    const staffData = report.staff || {};
-                    const presentDays = report.daily_logs.filter(l => l.status === 'present').length;
-                    const absentDays = report.daily_logs.filter(l => l.status === 'absent').length;
-                    const lateDays = report.daily_logs.filter(l => l.status === 'late').length;
-
-                    summaryDiv.innerHTML = `
-                        <div class="report-stat">
-                            <div class="value">${escapeHtml(staffData.full_name || 'Staff Member')}</div>
-                            <div class="label">Staff Name</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${presentDays}</div>
-                            <div class="label">Days Present</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${lateDays}</div>
-                            <div class="label">Days Late</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${absentDays}</div>
-                            <div class="label">Days Absent</div>
-                        </div>
-                    `;
-
-                    chartDiv.innerHTML = '';
-
-                    tableBody.innerHTML = `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Clock In</th>
-                                    <th>Clock Out</th>
-                                    <th>Status</th>
-                                    <th>Late (mins)</th>
-                                    <th>Source</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.daily_logs.map(log => `
-                                    <tr>
-                                        <td>${new Date(log.date).toLocaleDateString()}</td>
-                                        <td>${log.clock_in_time || '-'}</td>
-                                        <td>${log.clock_out_time || '-'}</td>
-                                        <td>
-                                            <span class="status-badge status-${log.status}">
-                                                ${log.status ? log.status.toUpperCase() : 'ABSENT'}
-                                            </span>
-                                        </td>
-                                        <td>${log.late_minutes || 0}</td>
-                                        <td>${log.attendance_source || 'self_scan'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
                 } else if (report.details && report.details.length > 0) {
                     const presentCount = report.details.filter(s => s.attendance_status === 'present').length;
                     const absentCount = report.details.filter(s => s.attendance_status === 'absent').length;
-                    const lateCount = report.details.filter(s => s.attendance_status === 'late').length;
 
                     summaryDiv.innerHTML = `
-                        <div class="report-stat">
-                            <div class="value">${report.details.length}</div>
-                            <div class="label">Total Staff</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${presentCount}</div>
-                            <div class="label">Present</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${lateCount}</div>
-                            <div class="label">Late</div>
-                        </div>
-                        <div class="report-stat">
-                            <div class="value">${absentCount}</div>
-                            <div class="label">Absent</div>
-                        </div>
+                        <div class="report-stat"><div class="value">${report.details.length}</div><div class="label">Total Students</div></div>
+                        <div class="report-stat"><div class="value">${presentCount}</div><div class="label">Present</div></div>
+                        <div class="report-stat"><div class="value">${absentCount}</div><div class="label">Absent</div></div>
+                        <div class="report-stat"><div class="value">${report.attendance_percentage}%</div><div class="label">Attendance</div></div>
                     `;
 
                     chartDiv.innerHTML = '';
-
-                    tableBody.innerHTML = `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Staff Name</th>
-                                    <th>Staff ID</th>
-                                    <th>Role</th>
-                                    <th>Status</th>
-                                    <th>Clock In</th>
-                                    <th>Clock Out</th>
-                                    <th>Assigned Classes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.details.map(s => `
-                                    <tr>
-                                        <td><strong>${escapeHtml(s.full_name)}</strong></td>
-                                        <td>${escapeHtml(s.staff_id)}</td>
-                                        <td>${escapeHtml(s.role)}</td>
-                                        <td>
-                                            <span class="status-badge status-${s.attendance_status}">
-                                                ${s.attendance_status ? s.attendance_status.toUpperCase() : 'ABSENT'}
-                                            </span>
-                                        </td>
-                                        <td>${s.clock_in_time || '-'}</td>
-                                        <td>${s.clock_out_time || '-'}</td>
-                                        <td>${escapeHtml(s.assigned_classes) || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
+                    tableBody.innerHTML = `<table class="data-table"><thead><tr><th>Name</th><th>Admission</th><th>Class</th><th>Status</th><th>Check-in</th></tr></thead><tbody>
+                        ${report.details.map(s => `<tr>
+                            <td>${escapeHtml(s.full_name)}</td>
+                            <td>${escapeHtml(s.admission_number)}</td>
+                            <td>${escapeHtml(s.class_name)}</td>
+                            <td><span class="status-badge status-${s.attendance_status}">${s.attendance_status.toUpperCase()}</span></td>
+                            <td>${s.check_in_time || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody></table>`;
                 } else {
-                    tableBody.innerHTML = '<p style="text-align:center; padding:20px;">No staff data available for the selected criteria</p>';
+                    tableBody.innerHTML = '<p style="padding:20px;text-align:center;">No data available</p>';
                 }
+            } else if (userType === 'staff_attendance' && report.details) {
+                const presentCount = report.details.filter(s => s.attendance_status === 'present').length;
+                summaryDiv.innerHTML = `
+                    <div class="report-stat"><div class="value">${report.details.length}</div><div class="label">Total Staff</div></div>
+                    <div class="report-stat"><div class="value">${presentCount}</div><div class="label">Present</div></div>
+                    <div class="report-stat"><div class="value">${report.attendance_percentage}%</div><div class="label">Attendance</div></div>
+                `;
+                chartDiv.innerHTML = '';
+                tableBody.innerHTML = `<table class="data-table"><thead><tr><th>Staff Name</th><th>Staff ID</th><th>Status</th><th>Clock In</th><th>Clock Out</th></tr></thead><tbody>
+                    ${report.details.map(s => `<tr>
+                        <td>${escapeHtml(s.full_name)}</td>
+                        <td>${escapeHtml(s.staff_id)}</td>
+                        <td><span class="status-badge status-${s.attendance_status}">${s.attendance_status.toUpperCase()}</span></td>
+                        <td>${s.clock_in_time || '-'}</td>
+                        <td>${s.clock_out_time || '-'}</td>
+                    </tr>`).join('')}
+                </tbody></table>`;
+            } else if (userType === 'staff_class' && report.details) {
+                summaryDiv.innerHTML = `<div class="report-stat"><div class="value">${report.total_scans || report.details.length}</div><div class="label">Total Scans</div></div>`;
+                chartDiv.innerHTML = '';
+                tableBody.innerHTML = `<table class="data-table"><thead><tr><th>Staff</th><th>Class</th><th>Scan Time</th><th>Duration</th></tr></thead><tbody>
+                    ${report.details.map(s => `<tr>
+                        <td>${escapeHtml(s.full_name)}</td>
+                        <td>${escapeHtml(s.class_name)}</td>
+                        <td>${s.scan_time || '-'}</td>
+                        <td>${s.duration_minutes || 0} min</td>
+                    </tr>`).join('')}
+                </tbody></table>`;
             }
         }
 
-        // ==================== EXPORT REPORT ====================
+        // ==================== EXPORT ====================
         function exportReport(format) {
             if (!currentReportData) {
                 showAlert('Please generate a report first', 'error');
@@ -2713,132 +1328,129 @@ if (!$attendance_settings) {
             }
 
             const reportType = document.querySelector('#reportTypeOptions .duration-btn.active').dataset.type;
-            const userType = document.querySelector('#userTypeOptions .duration-btn.active').dataset.type;
             const classId = document.getElementById('reportClassFilter').value;
             const staffId = document.getElementById('reportStaffFilter').value;
 
-            let date = null;
-            let startDate = null;
-            let endDate = null;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = API_URL;
+            form.target = '_blank';
+
+            const fields = {
+                action: 'export_attendance_report',
+                report_type: reportType,
+                user_type: currentUserType,
+                format: format
+            };
 
             if (reportType === 'daily') {
-                date = document.getElementById('reportDate').value;
+                fields.date = document.getElementById('reportDate').value;
             } else {
-                startDate = document.getElementById('startDate').value;
-                endDate = document.getElementById('endDate').value;
+                fields.start_date = document.getElementById('startDate').value;
+                fields.end_date = document.getElementById('endDate').value;
             }
 
-            let url = `${window.location.href}?action=export_attendance_report&report_type=${reportType}&user_type=${userType}&format=${format}`;
-            if (date) url += `&date=${date}`;
-            if (startDate) url += `&start_date=${startDate}`;
-            if (endDate) url += `&end_date=${endDate}`;
-            if (classId) url += `&class_id=${classId}`;
-            if (staffId && userType === 'staff') url += `&staff_id=${staffId}`;
+            if (classId) fields.class_id = classId;
+            if (staffId && (currentUserType === 'staff_attendance' || currentUserType === 'staff_class')) {
+                fields.staff_id = staffId;
+            }
 
-            window.open(url, '_blank');
+            for (const [key, value] of Object.entries(fields)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
         }
 
-        // ==================== ABSENT STUDENT FUNCTIONS ====================
-        function loadAbsentStats() {
+        // ==================== QR DOWNLOAD/PRINT ====================
+        function downloadQR(imgId, filename) {
+            const img = document.getElementById(imgId);
+            if (!img || !img.src) {
+                showAlert('No QR code to download', 'error');
+                return;
+            }
+            const link = document.createElement('a');
+            link.download = `${filename}_${Date.now()}.png`;
+            link.href = img.src;
+            link.click();
+            showAlert('QR code downloaded!', 'success');
+        }
+
+        function printQR(imgId, title) {
+            const img = document.getElementById(imgId);
+            if (!img || !img.src) {
+                showAlert('No QR code to print', 'error');
+                return;
+            }
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <!DOCTYPE html>
+                <html><head><title>Print QR Code</title>
+                <style>body{text-align:center;padding:40px;} img{max-width:300px;}</style>
+                </head><body>
+                <h2>${escapeHtml(title)}</h2>
+                <img src="${img.src}" alt="QR Code">
+                <p>School: <?php echo htmlspecialchars($school_name); ?></p>
+                <p>Generated: ${new Date().toLocaleString()}</p>
+                <button onclick="window.print();window.close();">Print</button>
+                </body></html>
+            `);
+            win.document.close();
+        }
+
+        // ==================== ABSENT STUDENTS ====================
+        async function loadAbsentStats() {
             const date = document.getElementById('absentDate').value;
+            showLoading('Loading statistics...');
+            const result = await apiCall('get_absent_stats', {
+                date
+            });
+            hideLoading();
 
-            showLoading('Loading absent statistics...');
+            if (result.success) {
+                const container = document.getElementById('classStatsList');
+                document.getElementById('absentStatsContainer').style.display = 'block';
 
-            fetch(`${window.location.href}?action=get_absent_stats&date=${date}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        const container = document.getElementById('classStatsList');
-                        const statsContainer = document.getElementById('absentStatsContainer');
-
-                        if (data.stats.length === 0) {
-                            container.innerHTML = '<p style="text-align:center; padding:20px;">No classes found</p>';
-                        } else {
-                            container.innerHTML = data.stats.map(stat => `
-                            <div class="class-stat-item" onclick="showAbsentStudents(${stat.id}, '${escapeHtml(stat.class_name)}', '${date}')">
-                                <div>
-                                    <div class="class-name">${escapeHtml(stat.class_name)}</div>
-                                    <small>Total: ${stat.total} students</small>
-                                </div>
-                                <div class="class-absent">${stat.absent} absent</div>
-                            </div>
-                        `).join('');
-                        }
-
-                        statsContainer.style.display = 'block';
-                    } else {
-                        showAlert('Failed to load statistics', 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to load statistics', 'error');
-                });
+                if (result.stats.length === 0) {
+                    container.innerHTML = '<p>No classes found</p>';
+                } else {
+                    container.innerHTML = result.stats.map(stat => `
+                        <div class="class-stat-item" onclick="showAbsentStudents(${stat.id}, '${escapeHtml(stat.class_name)}', '${date}')">
+                            <div><div class="class-name">${escapeHtml(stat.class_name)}</div><small>Total: ${stat.total}</small></div>
+                            <div class="class-absent">${stat.absent} absent</div>
+                        </div>
+                    `).join('');
+                }
+            }
         }
 
-        function showAbsentStudents(classId, className, date) {
+        async function showAbsentStudents(classId, className, date) {
             showLoading('Loading absent students...');
+            const result = await apiCall('get_absent_students', {
+                class_id: classId,
+                date
+            });
+            hideLoading();
 
-            fetch(`${window.location.href}?action=get_absent_students&date=${date}&class_id=${classId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        const modal = document.getElementById('absentModal');
-                        const title = document.getElementById('absentModalTitle');
-                        const body = document.getElementById('absentModalBody');
-
-                        title.innerHTML = `${escapeHtml(className)} - Absent Students (${data.count})`;
-
-                        if (data.students.length === 0) {
-                            body.innerHTML = '<p style="text-align:center; padding:20px;">No absent students</p>';
-                        } else {
-                            body.innerHTML = `
-                            <div class="table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Admission No</th>
-                                            <th>Parent Contact</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.students.map(s => `
-                                            <tr>
-                                                <td><strong>${escapeHtml(s.full_name)}</strong></td>
-                                                <td>${escapeHtml(s.admission_number)}</td>
-                                                <td>
-                                                    ${s.parent_phone ? `<i class="fas fa-phone"></i> ${escapeHtml(s.parent_phone)}<br>` : ''}
-                                                    ${s.parent_email ? `<i class="fas fa-envelope"></i> ${escapeHtml(s.parent_email)}` : ''}
-                                                    ${!s.parent_phone && !s.parent_email ? '—' : ''}
-                                                </td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                        }
-
-                        modal.classList.add('show');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to load absent students', 'error');
-                });
+            if (result.success) {
+                document.getElementById('absentModalTitle').innerHTML = `${className} - Absent (${result.count})`;
+                document.getElementById('absentModalBody').innerHTML = result.students.length ? `
+                    <table class="data-table"><thead><tr><th>Name</th><th>Admission</th><th>Parent Contact</th></tr></thead><tbody>
+                    ${result.students.map(s => `<tr>
+                        <td>${escapeHtml(s.full_name)}</td>
+                        <td>${escapeHtml(s.admission_number)}</td>
+                        <td>${s.parent_phone || s.parent_email || '-'}</td>
+                    </tr>`).join('')}
+                    </tbody></table>
+                ` : '<p>No absent students</p>';
+                document.getElementById('absentModal').classList.add('show');
+            }
         }
 
         function closeAbsentModal() {
@@ -2846,153 +1458,84 @@ if (!$attendance_settings) {
         }
 
         // ==================== EMAIL SETTINGS ====================
-        document.getElementById('emailSettingsForm').addEventListener('submit', function(e) {
+        document.getElementById('emailSettingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {};
+            for (let [key, value] of formData.entries()) data[key] = value;
+            data.action = 'save_email_settings';
 
-            const formData = new FormData(this);
-            formData.append('action', 'save_email_settings');
-
-            showLoading('Saving email settings...');
-
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        showAlert('Email settings saved successfully', 'success');
-                    } else {
-                        showAlert('Failed to save settings', 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to save settings', 'error');
-                });
+            showLoading('Saving settings...');
+            const result = await apiCall('save_email_settings', data, 'POST');
+            hideLoading();
+            showAlert(result.success ? 'Settings saved!' : 'Failed to save', result.success ? 'success' : 'error');
         });
 
-        function testEmailConfig() {
+        async function testEmailConfig() {
             const testEmail = document.getElementById('testEmail').value;
             if (!testEmail) {
-                showAlert('Please enter a test email address', 'error');
+                showAlert('Enter an email address', 'error');
                 return;
             }
-
-            const formData = new URLSearchParams();
-            formData.append('action', 'test_email');
-            formData.append('test_email', testEmail);
-
             showLoading('Sending test email...');
-
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.success) {
-                        showAlert('Test email sent successfully! Check your inbox.', 'success');
-                    } else {
-                        showAlert('Failed to send test email: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    console.error('Error:', error);
-                    showAlert('Failed to send test email', 'error');
-                });
+            const result = await apiCall('test_email', {
+                test_email: testEmail
+            }, 'POST');
+            hideLoading();
+            showAlert(result.success ? 'Test email sent!' : 'Failed: ' + (result.error || 'Unknown'), result.success ? 'success' : 'error');
         }
 
-        // ==================== NOTIFICATION FUNCTIONS ====================
-        function loadNotifications() {
-            fetch(`${window.location.href}?action=get_notifications`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const list = document.getElementById('notificationList');
-                        if (data.notifications.length === 0) {
-                            list.innerHTML = '<div style="padding: 20px; text-align:center; color: var(--gray-500);">No notifications</div>';
-                        } else {
-                            list.innerHTML = data.notifications.map(n => `
-                            <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="markNotificationRead(${n.id})">
-                                <div class="notification-title">${escapeHtml(n.title)}</div>
-                                <div class="notification-body">${escapeHtml(n.body)}</div>
-                                <div class="notification-time">${n.time_ago}</div>
-                            </div>
-                        `).join('');
-                        }
-                    }
-                })
-                .catch(error => console.error('Error loading notifications:', error));
+        // ==================== NOTIFICATIONS ====================
+        async function loadNotifications() {
+            const result = await apiCall('get_notifications');
+            if (result.success) {
+                const list = document.getElementById('notificationList');
+                if (!result.notifications.length) {
+                    list.innerHTML = '<div style="padding:20px;text-align:center;">No notifications</div>';
+                } else {
+                    list.innerHTML = result.notifications.map(n => `
+                        <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="markNotificationRead(${n.id})">
+                            <div class="notification-title">${escapeHtml(n.title)}</div>
+                            <div class="notification-body">${escapeHtml(n.body)}</div>
+                            <div class="notification-time">${n.time_ago}</div>
+                        </div>
+                    `).join('');
+                }
+            }
         }
 
-        function loadUnreadCount() {
-            fetch(`${window.location.href}?action=get_unread_count`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const badge = document.getElementById('notificationCount');
-                        badge.textContent = data.count;
-                        badge.style.display = data.count > 0 ? 'inline-block' : 'none';
-                    }
-                })
-                .catch(error => console.error('Error loading unread count:', error));
+        async function loadUnreadCount() {
+            const result = await apiCall('get_unread_count');
+            if (result.success) {
+                const badge = document.getElementById('notificationCount');
+                badge.textContent = result.count;
+                badge.style.display = result.count > 0 ? 'inline-block' : 'none';
+            }
         }
 
-        function markNotificationRead(id) {
-            const formData = new URLSearchParams();
-            formData.append('action', 'mark_read');
-            formData.append('notification_id', id);
-
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(() => {
-                    loadNotifications();
-                    loadUnreadCount();
-                })
-                .catch(error => console.error('Error marking notification read:', error));
+        async function markNotificationRead(id) {
+            await apiCall('mark_read', {
+                notification_id: id
+            }, 'POST');
+            loadNotifications();
+            loadUnreadCount();
         }
 
-        // ==================== UI HELPER FUNCTIONS ====================
+        document.getElementById('markAllReadBtn').addEventListener('click', async () => {
+            await apiCall('mark_all_read', {}, 'POST');
+            loadNotifications();
+            loadUnreadCount();
+        });
+
+        // ==================== UI HELPERS ====================
         function showLoading(message) {
             let loader = document.getElementById('globalLoader');
             if (!loader) {
                 loader = document.createElement('div');
                 loader.id = 'globalLoader';
-                loader.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-family:sans-serif;';
+                loader.className = 'loading-overlay';
                 loader.innerHTML = '<div class="spinner"></div><div id="loaderMessage" style="margin-top:16px;">Loading...</div>';
                 document.body.appendChild(loader);
-
-                // Add spinner styles if not present
-                if (!document.querySelector('#spinnerStyles')) {
-                    const style = document.createElement('style');
-                    style.id = 'spinnerStyles';
-                    style.textContent = `.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}`;
-                    document.head.appendChild(style);
-                }
             }
             document.getElementById('loaderMessage').textContent = message;
             loader.style.display = 'flex';
@@ -3003,27 +1546,12 @@ if (!$attendance_settings) {
             if (loader) loader.style.display = 'none';
         }
 
-        function showAlert(message, type = 'info') {
-            // Create alert element
+        function showAlert(message, type) {
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;max-width:300px;animation:slideIn 0.3s ease;';
-            alertDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
+            alertDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
             document.body.appendChild(alertDiv);
-
-            // Add animation styles
-            if (!document.querySelector('#alertStyles')) {
-                const style = document.createElement('style');
-                style.id = 'alertStyles';
-                style.textContent = `@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`;
-                document.head.appendChild(style);
-            }
-
-            // Remove after 3 seconds
-            setTimeout(() => {
-                alertDiv.style.animation = 'slideIn 0.3s ease reverse';
-                setTimeout(() => alertDiv.remove(), 300);
-            }, 3000);
+            setTimeout(() => alertDiv.remove(), 3000);
         }
 
         function escapeHtml(text) {
@@ -3034,69 +1562,27 @@ if (!$attendance_settings) {
         }
 
         // ==================== EVENT LISTENERS ====================
-        document.getElementById('markAllReadBtn').addEventListener('click', function() {
-            const formData = new URLSearchParams();
-            formData.append('action', 'mark_all_read');
-
-            fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(() => {
-                    loadNotifications();
-                    loadUnreadCount();
-                })
-                .catch(error => console.error('Error marking all read:', error));
-        });
-
-        // Notification dropdown toggle
-        const bell = document.getElementById('notificationBell');
-        const dropdown = document.getElementById('notificationDropdown');
-
-        bell.addEventListener('click', function(e) {
+        document.getElementById('notificationBell').addEventListener('click', (e) => {
             e.stopPropagation();
-            dropdown.classList.toggle('show');
-            if (dropdown.classList.contains('show')) {
-                loadNotifications();
-            }
+            document.getElementById('notificationDropdown').classList.toggle('show');
+            loadNotifications();
         });
 
-        document.addEventListener('click', function() {
-            dropdown.classList.remove('show');
+        document.addEventListener('click', () => {
+            document.getElementById('notificationDropdown').classList.remove('show');
         });
 
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
+        document.getElementById('absentModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeAbsentModal();
         });
 
-        // Modal close on outside click
-        const modal = document.getElementById('absentModal');
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                closeAbsentModal();
-            }
-        });
-
-        // ==================== INITIALIZATION ====================
-        // Auto-refresh unread count every 30 seconds
+        // ==================== INIT ====================
         loadUnreadCount();
         setInterval(loadUnreadCount, 30000);
 
-        // Load initial report if on reports tab
-        if (document.getElementById('tab-attendance_report').classList.contains('active')) {
-            loadAttendanceReport();
-        }
-
-        // Set default duration button as active
-        const defaultDurationBtn = document.querySelector('#qrDurationOptions .duration-btn[data-hours="72"]');
-        if (defaultDurationBtn) {
-            defaultDurationBtn.classList.add('active');
-            selectedDuration = 72;
-            neverExpires = false;
-        }
+        // Set default duration
+        const defaultBtn = document.querySelector('#qrDurationOptions .duration-btn[data-hours="72"]');
+        if (defaultBtn) defaultBtn.classList.add('active');
     </script>
 </body>
 

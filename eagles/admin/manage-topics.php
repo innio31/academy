@@ -1,10 +1,10 @@
 <?php
-// admin/manage-topics.php - Manage Topics with Card Layout & Modal Actions
+// admin/manage-topics.php - Manage Topics with Manual Addition Support
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /eagles/login.php");
     exit();
 }
 
@@ -36,56 +36,6 @@ $message = '';
 $message_type = '';
 
 // ============================================
-// AJAX HANDLER FOR GETTING TOPIC DETAILS
-// ============================================
-if (isset($_GET['action']) && $_GET['action'] === 'get_topic' && isset($_GET['topic_id'])) {
-    header('Content-Type: application/json');
-    try {
-        $topic_id = (int)$_GET['topic_id'];
-
-        $stmt = $pdo->prepare("
-            SELECT 
-                t.id,
-                t.topic_name,
-                t.term,
-                t.description,
-                t.subject_id,
-                s.subject_name,
-                (SELECT COUNT(*) FROM objective_questions WHERE topic_id = t.id AND school_id = t.school_id) as objective_count,
-                (SELECT COUNT(*) FROM subjective_questions WHERE topic_id = t.id AND school_id = t.school_id) as subjective_count,
-                (SELECT COUNT(*) FROM theory_questions WHERE topic_id = t.id AND school_id = t.school_id) as theory_count
-            FROM topics t
-            LEFT JOIN subjects s ON t.subject_id = s.id
-            WHERE t.id = ? AND t.school_id = ?
-        ");
-        $stmt->execute([$topic_id, $school_id]);
-        $topic = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($topic) {
-            echo json_encode([
-                'success' => true,
-                'topic' => [
-                    'id' => $topic['id'],
-                    'topic_name' => $topic['topic_name'],
-                    'term' => $topic['term'],
-                    'description' => $topic['description'],
-                    'subject_id' => $topic['subject_id'],
-                    'subject_name' => $topic['subject_name'],
-                    'objective_count' => (int)$topic['objective_count'],
-                    'subjective_count' => (int)$topic['subjective_count'],
-                    'theory_count' => (int)$topic['theory_count']
-                ]
-            ]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Topic not found']);
-        }
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-    }
-    exit();
-}
-
-// ============================================
 // ENSURE TOPICS TABLE HAS CENTRAL SUPPORT
 // ============================================
 
@@ -109,62 +59,53 @@ try {
     error_log("Table check error: " . $e->getMessage());
 }
 
-// Get parameters
-$subject_id = isset($_GET['subject_id']) ? (int)$_GET['subject_id'] : 0;
-$view_topic_id = isset($_GET['view_topic']) ? (int)$_GET['view_topic'] : 0;
-$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-// Get selected subject details
-$selected_subject = null;
-if ($subject_id) {
-    try {
-        $stmt = $pdo->prepare("SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) as assigned_classes FROM subjects s LEFT JOIN subject_classes sc ON s.id = sc.subject_id LEFT JOIN classes c ON sc.class_id = c.id WHERE s.id = ? AND s.school_id = ? GROUP BY s.id");
-        $stmt->execute([$subject_id, $school_id]);
-        $selected_subject = $stmt->fetch();
-    } catch (Exception $e) {
-        error_log("Error loading subject: " . $e->getMessage());
-    }
-}
-
-// Get topic details and questions if viewing
-$view_topic = null;
-$objective_questions = [];
-$subjective_questions = [];
-$theory_questions = [];
-
-if ($view_topic_id) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT t.*, s.subject_name 
-            FROM topics t 
-            JOIN subjects s ON t.subject_id = s.id 
-            WHERE t.id = ? AND t.school_id = ?
-        ");
-        $stmt->execute([$view_topic_id, $school_id]);
-        $view_topic = $stmt->fetch();
-
-        if ($view_topic) {
-            $obj_stmt = $pdo->prepare("SELECT * FROM objective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
-            $obj_stmt->execute([$view_topic_id, $school_id]);
-            $objective_questions = $obj_stmt->fetchAll();
-
-            $sub_stmt = $pdo->prepare("SELECT * FROM subjective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
-            $sub_stmt->execute([$view_topic_id, $school_id]);
-            $subjective_questions = $sub_stmt->fetchAll();
-
-            $theory_stmt = $pdo->prepare("SELECT * FROM theory_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
-            $theory_stmt->execute([$view_topic_id, $school_id]);
-            $theory_questions = $theory_stmt->fetchAll();
-        }
-    } catch (Exception $e) {
-        $message = "Error loading topic: " . $e->getMessage();
-        $message_type = "error";
-    }
-}
-
 // ============================================
 // HANDLE FORM SUBMISSIONS
 // ============================================
+
+// Add manual topic (NEW)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_topic'])) {
+    try {
+        $subject_id_post = (int)$_POST['subject_id'];
+        $topic_name = trim($_POST['topic_name']);
+        $term = $_POST['term'] ?? 'First';
+        $description = trim($_POST['description'] ?? '');
+
+        if (empty($subject_id_post)) {
+            throw new Exception("Please select a subject");
+        }
+
+        if (empty($topic_name)) {
+            throw new Exception("Please enter a topic name");
+        }
+
+        // Verify subject belongs to this school
+        $stmt = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE id = ? AND school_id = ?");
+        $stmt->execute([$subject_id_post, $school_id]);
+        $school_subject = $stmt->fetch();
+
+        if (!$school_subject) {
+            throw new Exception("Invalid subject selected");
+        }
+
+        // Check if topic already exists for this subject
+        $stmt = $pdo->prepare("SELECT id FROM topics WHERE topic_name = ? AND subject_id = ? AND school_id = ?");
+        $stmt->execute([$topic_name, $subject_id_post, $school_id]);
+        if ($stmt->fetch()) {
+            throw new Exception("Topic '{$topic_name}' already exists for this subject");
+        }
+
+        // Insert manual topic
+        $stmt = $pdo->prepare("INSERT INTO topics (topic_name, term, subject_id, description, school_id, is_central) VALUES (?, ?, ?, ?, ?, 0)");
+        $stmt->execute([$topic_name, $term, $subject_id_post, $description, $school_id]);
+
+        $message = "Topic '{$topic_name}' added successfully!";
+        $message_type = "success";
+    } catch (Exception $e) {
+        $message = $e->getMessage();
+        $message_type = "error";
+    }
+}
 
 // Add multiple topics from central list
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_topics'])) {
@@ -291,11 +232,6 @@ if (isset($_POST['delete_topic'])) {
 
         $message = "Topic deleted successfully!";
         $message_type = "success";
-
-        if ($view_topic_id == $topic_id_del) {
-            header("Location: manage-topics.php?subject_id=$subject_id&message=Topic+deleted");
-            exit();
-        }
     } catch (Exception $e) {
         $message = $e->getMessage();
         $message_type = "error";
@@ -330,10 +266,63 @@ if (isset($_POST['delete_question'])) {
         $message = "Question deleted successfully!";
         $message_type = "success";
 
-        header("Location: manage-topics.php?view_topic=$topic_id_q&subject_id=$subject_id");
+        header("Location: manage-topics.php?view_topic=$topic_id_q");
         exit();
     } catch (Exception $e) {
         $message = $e->getMessage();
+        $message_type = "error";
+    }
+}
+
+// Get parameters
+$subject_id = isset($_GET['subject_id']) ? (int)$_GET['subject_id'] : 0;
+$view_topic_id = isset($_GET['view_topic']) ? (int)$_GET['view_topic'] : 0;
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// Get selected subject details
+$selected_subject = null;
+if ($subject_id) {
+    try {
+        $stmt = $pdo->prepare("SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) as assigned_classes FROM subjects s LEFT JOIN subject_classes sc ON s.id = sc.subject_id LEFT JOIN classes c ON sc.class_id = c.id WHERE s.id = ? AND s.school_id = ? GROUP BY s.id");
+        $stmt->execute([$subject_id, $school_id]);
+        $selected_subject = $stmt->fetch();
+    } catch (Exception $e) {
+        error_log("Error loading subject: " . $e->getMessage());
+    }
+}
+
+// Get topic details and questions if viewing
+$view_topic = null;
+$objective_questions = [];
+$subjective_questions = [];
+$theory_questions = [];
+
+if ($view_topic_id) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT t.*, s.subject_name 
+            FROM topics t 
+            JOIN subjects s ON t.subject_id = s.id 
+            WHERE t.id = ? AND t.school_id = ?
+        ");
+        $stmt->execute([$view_topic_id, $school_id]);
+        $view_topic = $stmt->fetch();
+
+        if ($view_topic) {
+            $obj_stmt = $pdo->prepare("SELECT * FROM objective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
+            $obj_stmt->execute([$view_topic_id, $school_id]);
+            $objective_questions = $obj_stmt->fetchAll();
+
+            $sub_stmt = $pdo->prepare("SELECT * FROM subjective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
+            $sub_stmt->execute([$view_topic_id, $school_id]);
+            $subjective_questions = $sub_stmt->fetchAll();
+
+            $theory_stmt = $pdo->prepare("SELECT * FROM theory_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
+            $theory_stmt->execute([$view_topic_id, $school_id]);
+            $theory_questions = $theory_stmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        $message = "Error loading topic: " . $e->getMessage();
         $message_type = "error";
     }
 }
@@ -474,7 +463,6 @@ require_once 'includes/sidebar.php';
             min-height: 100vh;
         }
 
-        /* Main Content */
         .main-content {
             margin-left: 280px;
             padding: 20px;
@@ -482,7 +470,6 @@ require_once 'includes/sidebar.php';
             transition: margin-left 0.3s ease;
         }
 
-        /* Top Header */
         .top-header {
             background: white;
             border-radius: var(--radius-lg);
@@ -511,7 +498,6 @@ require_once 'includes/sidebar.php';
             font-size: 0.8rem;
         }
 
-        /* Buttons */
         .btn {
             padding: 10px 18px;
             border-radius: var(--radius-md);
@@ -567,7 +553,6 @@ require_once 'includes/sidebar.php';
             color: var(--gray-800);
         }
 
-        /* Search & Filter */
         .filter-bar {
             background: white;
             border-radius: var(--radius-lg);
@@ -618,7 +603,6 @@ require_once 'includes/sidebar.php';
             color: var(--gray-600);
         }
 
-        /* Subject Info Card */
         .subject-info-card {
             background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
             color: white;
@@ -645,7 +629,6 @@ require_once 'includes/sidebar.php';
             font-size: 0.75rem;
         }
 
-        /* Warning Note */
         .warning-note {
             background: var(--warning-light);
             border-left: 4px solid var(--warning);
@@ -659,8 +642,7 @@ require_once 'includes/sidebar.php';
             color: #856404;
         }
 
-        /* Add Topics Section */
-        .add-topics-section {
+        .add-section {
             background: white;
             border-radius: var(--radius-lg);
             padding: 20px;
@@ -684,66 +666,88 @@ require_once 'includes/sidebar.php';
             font-weight: 600;
         }
 
-        .selected-count {
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: var(--gray-100);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .tab-btn.active {
             background: var(--primary-color);
             color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
         }
 
-        .term-category {
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .form-group {
             margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
             border: 2px solid var(--gray-200);
             border-radius: var(--radius-md);
-            overflow: hidden;
+            font-family: inherit;
+            font-size: 0.85rem;
         }
 
-        .term-header {
-            background: var(--gray-100);
-            padding: 12px 16px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
         }
 
-        .term-header:hover {
-            background: var(--gray-200);
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
         }
 
-        .topic-list {
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 300px;
+        .topics-list {
+            max-height: 400px;
             overflow-y: auto;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
         }
 
-        .topic-checkbox-item {
+        .topic-item {
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            padding: 8px;
-            border-radius: var(--radius-sm);
-            transition: background 0.2s;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-200);
         }
 
-        .topic-checkbox-item:hover {
-            background: var(--gray-50);
-        }
-
-        .topic-checkbox-item input {
+        .topic-item input {
+            margin-top: 2px;
             width: 18px;
             height: 18px;
-            margin-top: 2px;
             cursor: pointer;
             accent-color: var(--primary-color);
         }
 
-        .topic-checkbox-item label {
+        .topic-item label {
             flex: 1;
             cursor: pointer;
             font-size: 0.85rem;
@@ -756,7 +760,14 @@ require_once 'includes/sidebar.php';
             margin-top: 2px;
         }
 
-        /* Topics Grid - Mobile First */
+        .selected-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
         .topics-grid {
             display: flex;
             flex-direction: column;
@@ -869,7 +880,6 @@ require_once 'includes/sidebar.php';
             color: #388e3c;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -965,35 +975,6 @@ require_once 'includes/sidebar.php';
             justify-content: center;
         }
 
-        .question-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            padding: 8px 16px;
-            background: var(--gray-100);
-            border: none;
-            cursor: pointer;
-            border-radius: var(--radius-md);
-            font-weight: 500;
-        }
-
-        .tab-btn.active {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .question-panel {
-            display: none;
-        }
-
-        .question-panel.active {
-            display: block;
-        }
-
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -1038,10 +1019,6 @@ require_once 'includes/sidebar.php';
                 align-items: stretch;
             }
 
-            .filter-group {
-                justify-content: space-between;
-            }
-
             .search-box input {
                 width: 100%;
             }
@@ -1068,12 +1045,11 @@ require_once 'includes/sidebar.php';
 
 <body>
 
-    <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-tags"></i> Manage Topics</h1>
-                <p><?php echo $selected_subject ? 'Subject: ' . htmlspecialchars($selected_subject['subject_name']) : 'Click a topic to view questions and actions'; ?></p>
+                <p><?php echo $selected_subject ? 'Subject: ' . htmlspecialchars($selected_subject['subject_name']) : 'Select a subject to manage topics'; ?></p>
             </div>
             <?php if (!$view_topic && $selected_subject): ?>
                 <button class="btn btn-primary" id="openAddTopicsBtn">
@@ -1095,7 +1071,7 @@ require_once 'includes/sidebar.php';
                 <i class="fas fa-arrow-left"></i> Back to Topics
             </a>
 
-            <div class="subject-info-card" style="background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));">
+            <div class="subject-info-card">
                 <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($view_topic['topic_name']); ?></h2>
                 <p><i class="fas fa-book"></i> Subject: <?php echo htmlspecialchars($view_topic['subject_name']); ?></p>
                 <?php if ($view_topic['description']): ?>
@@ -1108,21 +1084,14 @@ require_once 'includes/sidebar.php';
                 </div>
             </div>
 
-            <div class="add-topics-section">
-                <div class="question-tabs">
-                    <button class="tab-btn active" onclick="showQuestionPanel('objective')">
-                        <i class="fas fa-check-circle"></i> Objective (<?php echo count($objective_questions); ?>)
-                    </button>
-                    <button class="tab-btn" onclick="showQuestionPanel('subjective')">
-                        <i class="fas fa-edit"></i> Subjective (<?php echo count($subjective_questions); ?>)
-                    </button>
-                    <button class="tab-btn" onclick="showQuestionPanel('theory')">
-                        <i class="fas fa-file-alt"></i> Theory (<?php echo count($theory_questions); ?>)
-                    </button>
+            <div class="add-section">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="showQuestionType('objective')">Objective (<?php echo count($objective_questions); ?>)</button>
+                    <button class="tab-btn" onclick="showQuestionType('subjective')">Subjective (<?php echo count($subjective_questions); ?>)</button>
+                    <button class="tab-btn" onclick="showQuestionType('theory')">Theory (<?php echo count($theory_questions); ?>)</button>
                 </div>
 
-                <!-- Objective Panel -->
-                <div id="objective-panel" class="question-panel active">
+                <div id="objective-panel" class="tab-pane active">
                     <?php if (empty($objective_questions)): ?>
                         <div class="empty-state"><i class="fas fa-check-circle" style="font-size: 48px; color: var(--gray-300);"></i>
                             <h3>No Objective Questions</h3>
@@ -1131,13 +1100,10 @@ require_once 'includes/sidebar.php';
                     <?php else: ?>
                         <?php foreach ($objective_questions as $q): ?>
                             <div class="topic-card" style="cursor: default;">
-                                <div class="topic-card-header">
-                                    <span class="topic-name"><i class="fas fa-question-circle"></i> Q<?php echo $q['id']; ?></span>
-                                </div>
+                                <div class="topic-card-header"><span class="topic-name"><i class="fas fa-question-circle"></i> Q<?php echo $q['id']; ?></span></div>
                                 <div class="topic-description"><?php echo htmlspecialchars(substr($q['question_text'], 0, 150)); ?></div>
                                 <div class="stats-row">
                                     <span class="stat-badge objective">A: <?php echo htmlspecialchars(substr($q['option_a'], 0, 30)); ?></span>
-                                    <span class="stat-badge subjective">B: <?php echo htmlspecialchars(substr($q['option_b'], 0, 30)); ?></span>
                                     <span class="stat-badge">✓ Correct: <?php echo $q['correct_answer']; ?></span>
                                 </div>
                                 <div class="modal-action-buttons" style="margin-top: 12px; border-top: none; padding-top: 0;">
@@ -1153,8 +1119,7 @@ require_once 'includes/sidebar.php';
                     <?php endif; ?>
                 </div>
 
-                <!-- Subjective Panel -->
-                <div id="subjective-panel" class="question-panel">
+                <div id="subjective-panel" class="tab-pane">
                     <?php if (empty($subjective_questions)): ?>
                         <div class="empty-state"><i class="fas fa-edit" style="font-size: 48px; color: var(--gray-300);"></i>
                             <h3>No Subjective Questions</h3>
@@ -1162,9 +1127,7 @@ require_once 'includes/sidebar.php';
                     <?php else: ?>
                         <?php foreach ($subjective_questions as $q): ?>
                             <div class="topic-card" style="cursor: default;">
-                                <div class="topic-card-header">
-                                    <span class="topic-name"><i class="fas fa-pencil-alt"></i> Q<?php echo $q['id']; ?></span>
-                                </div>
+                                <div class="topic-card-header"><span class="topic-name"><i class="fas fa-pencil-alt"></i> Q<?php echo $q['id']; ?></span></div>
                                 <div class="topic-description"><?php echo htmlspecialchars(substr($q['question_text'], 0, 150)); ?></div>
                                 <div class="modal-action-buttons" style="margin-top: 12px; border-top: none; padding-top: 0;">
                                     <form method="POST" onsubmit="return confirm('Delete this question?')" style="width: 100%;">
@@ -1179,8 +1142,7 @@ require_once 'includes/sidebar.php';
                     <?php endif; ?>
                 </div>
 
-                <!-- Theory Panel -->
-                <div id="theory-panel" class="question-panel">
+                <div id="theory-panel" class="tab-pane">
                     <?php if (empty($theory_questions)): ?>
                         <div class="empty-state"><i class="fas fa-file-alt" style="font-size: 48px; color: var(--gray-300);"></i>
                             <h3>No Theory Questions</h3>
@@ -1188,9 +1150,7 @@ require_once 'includes/sidebar.php';
                     <?php else: ?>
                         <?php foreach ($theory_questions as $q): ?>
                             <div class="topic-card" style="cursor: default;">
-                                <div class="topic-card-header">
-                                    <span class="topic-name"><i class="fas fa-file-alt"></i> Q<?php echo $q['id']; ?></span>
-                                </div>
+                                <div class="topic-card-header"><span class="topic-name"><i class="fas fa-file-alt"></i> Q<?php echo $q['id']; ?></span></div>
                                 <div class="topic-description"><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 150)); ?></div>
                                 <div class="modal-action-buttons" style="margin-top: 12px; border-top: none; padding-top: 0;">
                                     <form method="POST" onsubmit="return confirm('Delete this question?')" style="width: 100%;">
@@ -1267,16 +1227,14 @@ require_once 'includes/sidebar.php';
                 <div class="empty-state">
                     <i class="fas fa-list" style="font-size: 48px; color: var(--gray-300);"></i>
                     <h3>No Topics Found</h3>
-                    <p><?php echo $search_query ? "No topics match '$search_query'" : ($selected_subject ? "Click 'Add Topics' to add from the national curriculum" : "Select a subject to view topics"); ?></p>
+                    <p><?php echo $search_query ? "No topics match '$search_query'" : ($selected_subject ? "Click 'Add Topics' to add topics" : "Select a subject to view topics"); ?></p>
                 </div>
             <?php else: ?>
                 <div class="topics-grid" id="topicsGrid">
                     <?php foreach ($topics as $topic): ?>
-                        <div class="topic-card" data-topic-id="<?php echo $topic['id']; ?>" data-topic-name="<?php echo htmlspecialchars(strtolower($topic['topic_name'])); ?>" data-subject-name="<?php echo htmlspecialchars(strtolower($topic['subject_name'])); ?>">
+                        <div class="topic-card" data-topic-id="<?php echo $topic['id']; ?>">
                             <div class="topic-card-header">
-                                <span class="topic-name">
-                                    <i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($topic['topic_name']); ?>
-                                </span>
+                                <span class="topic-name"><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($topic['topic_name']); ?></span>
                                 <?php
                                 $term_class = '';
                                 $term_icon = '';
@@ -1298,17 +1256,13 @@ require_once 'includes/sidebar.php';
                                         $term_icon = 'fa-bookmark';
                                 }
                                 ?>
-                                <span class="term-badge <?php echo $term_class; ?>">
-                                    <i class="fas <?php echo $term_icon; ?>"></i> <?php echo $topic['term'] ?? 'General'; ?>
-                                </span>
+                                <span class="term-badge <?php echo $term_class; ?>"><i class="fas <?php echo $term_icon; ?>"></i> <?php echo $topic['term'] ?? 'General'; ?></span>
                             </div>
                             <?php if (!$subject_id): ?>
                                 <div style="margin-bottom: 8px;"><span class="stat-badge" style="background: var(--info-light); color: var(--info);"><i class="fas fa-book"></i> <?php echo htmlspecialchars($topic['subject_name']); ?></span></div>
                             <?php endif; ?>
                             <?php if ($topic['description']): ?>
-                                <div class="topic-description">
-                                    <?php echo htmlspecialchars(substr($topic['description'], 0, 100)) . (strlen($topic['description'] ?? '') > 100 ? '...' : ''); ?>
-                                </div>
+                                <div class="topic-description"><?php echo htmlspecialchars(substr($topic['description'], 0, 100)) . (strlen($topic['description'] ?? '') > 100 ? '...' : ''); ?></div>
                             <?php endif; ?>
                             <div class="stats-row">
                                 <span class="stat-badge objective"><i class="fas fa-check-circle"></i> Objective: <?php echo $topic['objective_count']; ?></span>
@@ -1322,38 +1276,67 @@ require_once 'includes/sidebar.php';
         <?php endif; ?>
     </div>
 
-    <!-- Add Topics Modal -->
+    <!-- Add Topics Modal (with Manual & Central tabs) -->
     <div class="modal" id="addTopicsModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-plus-circle"></i> Add Topics from National Curriculum</h3>
+                <h3><i class="fas fa-plus-circle"></i> Add Topics</h3>
                 <button class="close-modal" onclick="closeModal('addTopicsModal')">&times;</button>
             </div>
-            <form method="POST" id="addTopicsForm">
-                <input type="hidden" name="subject_id" value="<?php echo $subject_id; ?>">
-                <div class="modal-body">
-                    <?php if (empty($available_central_topics)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle" style="font-size: 48px; color: var(--success);"></i>
-                            <h3>All Topics Added!</h3>
-                            <p>All curriculum topics have been added to this subject.</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="select-all-buttons" style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
-                            <button type="button" class="btn btn-sm btn-primary" onclick="selectAllTopics()"><i class="fas fa-check-double"></i> Select All</button>
-                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllTopics()"><i class="fas fa-times"></i> Deselect All</button>
-                        </div>
+            <div class="modal-body">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="switchAddTab('manual')">Manual Entry</button>
+                    <button class="tab-btn" onclick="switchAddTab('central')">From Curriculum</button>
+                </div>
 
-                        <?php foreach (['First', 'Second', 'Third'] as $term): ?>
-                            <?php if (!empty($topics_by_term[$term])): ?>
-                                <div class="term-category">
-                                    <div class="term-header" onclick="toggleTerm('<?php echo strtolower($term); ?>')">
-                                        <span><i class="fas <?php echo $term == 'First' ? 'fa-leaf' : ($term == 'Second' ? 'fa-sun' : 'fa-snowflake'); ?>"></i> <?php echo $term; ?> Term Topics</span>
-                                        <i id="<?php echo strtolower($term); ?>-icon" class="fas fa-chevron-down"></i>
-                                    </div>
-                                    <div id="<?php echo strtolower($term); ?>-list" class="topic-list">
+                <!-- Manual Entry Tab -->
+                <div id="manual-tab" class="tab-pane active">
+                    <form method="POST">
+                        <input type="hidden" name="subject_id" value="<?php echo $subject_id; ?>">
+                        <div class="form-group">
+                            <label>Topic Name *</label>
+                            <input type="text" name="topic_name" class="form-control" required placeholder="e.g., Introduction to Algebra">
+                        </div>
+                        <div class="form-group">
+                            <label>Term</label>
+                            <select name="term" class="form-control">
+                                <option value="First">First Term</option>
+                                <option value="Second">Second Term</option>
+                                <option value="Third">Third Term</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description <span class="optional">(optional)</span></label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Brief description of the topic"></textarea>
+                        </div>
+                        <div class="modal-footer" style="padding: 0; margin-top: 20px;">
+                            <button type="button" class="btn btn-outline" onclick="closeModal('addTopicsModal')">Cancel</button>
+                            <button type="submit" name="add_manual_topic" class="btn btn-primary"><i class="fas fa-plus"></i> Add Topic</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Central Curriculum Tab -->
+                <div id="central-tab" class="tab-pane">
+                    <form method="POST" id="addTopicsForm">
+                        <input type="hidden" name="subject_id" value="<?php echo $subject_id; ?>">
+                        <?php if (empty($available_central_topics)): ?>
+                            <div class="empty-state">
+                                <i class="fas fa-check-circle" style="font-size: 48px; color: var(--success);"></i>
+                                <h3>All Topics Added!</h3>
+                                <p>All curriculum topics have been added to this subject.</p>
+                            </div>
+                        <?php else: ?>
+                            <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-sm btn-primary" onclick="selectAllTopics()"><i class="fas fa-check-double"></i> Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllTopics()"><i class="fas fa-times"></i> Deselect All</button>
+                            </div>
+                            <div class="topics-list">
+                                <?php foreach (['First', 'Second', 'Third'] as $term): ?>
+                                    <?php if (!empty($topics_by_term[$term])): ?>
+                                        <div style="background: var(--gray-100); padding: 8px 12px; font-weight: 600;"><?php echo $term; ?> Term</div>
                                         <?php foreach ($topics_by_term[$term] as $topic): ?>
-                                            <div class="topic-checkbox-item">
+                                            <div class="topic-item">
                                                 <input type="checkbox" name="central_topic_ids[]" value="<?php echo $topic['id']; ?>" id="topic_<?php echo $topic['id']; ?>" class="topic-checkbox" onchange="updateTopicCount()">
                                                 <label for="topic_<?php echo $topic['id']; ?>">
                                                     <?php echo htmlspecialchars($topic['topic_name']); ?>
@@ -1363,18 +1346,20 @@ require_once 'includes/sidebar.php';
                                                 </label>
                                             </div>
                                         <?php endforeach; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <span id="selectedTopicsCount" class="selected-count">0 selected</span>
+                            </div>
+                            <div class="modal-footer" style="padding: 0; margin-top: 20px;">
+                                <button type="button" class="btn btn-outline" onclick="closeModal('addTopicsModal')">Cancel</button>
+                                <button type="submit" name="add_multiple_topics" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Add Selected</button>
+                            </div>
+                        <?php endif; ?>
+                    </form>
                 </div>
-                <div class="modal-footer">
-                    <span id="selectedTopicsCount" class="selected-count" style="margin-right: auto;">0 selected</span>
-                    <button type="button" class="btn btn-outline" onclick="closeModal('addTopicsModal')">Cancel</button>
-                    <button type="submit" name="add_multiple_topics" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Add Selected</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -1386,8 +1371,7 @@ require_once 'includes/sidebar.php';
                 <button class="close-modal" onclick="closeModal('topicModal')">&times;</button>
             </div>
             <div class="modal-body" id="topicModalBody">
-                <div style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                <div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i>
                     <p>Loading...</p>
                 </div>
             </div>
@@ -1404,14 +1388,13 @@ require_once 'includes/sidebar.php';
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" id="edit_topic_id" name="edit_topic_id">
-                    <div class="form-group" style="margin-bottom: 15px;">
-                        <label class="form-label" style="display: block; margin-bottom: 5px; font-weight: 500;">Topic Name</label>
-                        <input type="text" id="edit_topic_name" class="form-control" style="width: 100%; padding: 10px; border: 2px solid var(--gray-200); border-radius: 8px;" readonly disabled>
-                        <small style="color: var(--gray-600);">Topic names are fixed from the national curriculum.</small>
+                    <div class="form-group">
+                        <label>Topic Name</label>
+                        <input type="text" id="edit_topic_name" class="form-control" readonly disabled>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" style="display: block; margin-bottom: 5px; font-weight: 500;">Description</label>
-                        <textarea id="edit_description" name="edit_description" class="form-control" rows="3" style="width: 100%; padding: 10px; border: 2px solid var(--gray-200); border-radius: 8px;"></textarea>
+                        <label>Description</label>
+                        <textarea id="edit_description" name="edit_description" class="form-control" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1443,7 +1426,6 @@ require_once 'includes/sidebar.php';
     <script>
         let deleteId = null;
 
-        // Filter functions
         function filterBySubject() {
             const subjectId = document.getElementById('subjectFilter').value;
             const searchVal = document.getElementById('searchInput')?.value || '';
@@ -1474,7 +1456,6 @@ require_once 'includes/sidebar.php';
             form.submit();
         }
 
-        // Modal functions
         function openModal(modalId) {
             document.getElementById(modalId).classList.add('active');
             document.body.style.overflow = 'hidden';
@@ -1485,10 +1466,28 @@ require_once 'includes/sidebar.php';
             document.body.style.overflow = '';
         }
 
-        // Open add topics modal
+        // Add topics modal
         const openAddBtn = document.getElementById('openAddTopicsBtn');
-        if (openAddBtn) {
-            openAddBtn.onclick = () => openModal('addTopicsModal');
+        if (openAddBtn) openAddBtn.onclick = () => openModal('addTopicsModal');
+
+        function switchAddTab(tab) {
+            document.getElementById('manual-tab').classList.remove('active');
+            document.getElementById('central-tab').classList.remove('active');
+            document.querySelectorAll('#addTopicsModal .tab-btn').forEach(btn => btn.classList.remove('active'));
+            if (tab === 'manual') {
+                document.getElementById('manual-tab').classList.add('active');
+                event.target.classList.add('active');
+            } else {
+                document.getElementById('central-tab').classList.add('active');
+                event.target.classList.add('active');
+            }
+        }
+
+        function showQuestionType(type) {
+            document.querySelectorAll('#objective-panel, #subjective-panel, #theory-panel').forEach(panel => panel.classList.remove('active'));
+            document.querySelectorAll('.tab-buttons .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(type + '-panel').classList.add('active');
+            event.target.classList.add('active');
         }
 
         // Topic card click - open detail modal
@@ -1507,71 +1506,33 @@ require_once 'includes/sidebar.php';
             modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-pulse fa-2x"></i><p>Loading...</p></div>';
             openModal('topicModal');
 
-            // Use a fetch to the same page with a different action
-            fetch(`manage-topics.php?action=get_topic&topic_id=${topicId}`)
+            fetch(`manage-topics_ajax.php?topic_id=${topicId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         const topic = data.topic;
                         modalTitle.innerHTML = `<i class="fas fa-bookmark"></i> ${escapeHtml(topic.topic_name)}`;
-
-                        const hasQuestions = (parseInt(topic.objective_count) + parseInt(topic.subjective_count) + parseInt(topic.theory_count)) > 0;
-
+                        const hasQuestions = (topic.objective_count + topic.subjective_count + topic.theory_count) > 0;
                         modalBody.innerHTML = `
-                    <div class="info-row">
-                        <div class="info-label">Topic Name:</div>
-                        <div class="info-value"><strong>${escapeHtml(topic.topic_name)}</strong></div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Subject:</div>
-                        <div class="info-value">${escapeHtml(topic.subject_name)}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Term:</div>
-                        <div class="info-value">${escapeHtml(topic.term || 'General')}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Description:</div>
-                        <div class="info-value">${escapeHtml(topic.description) || '<span style="color: #999;">No description</span>'}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Questions:</div>
-                        <div class="info-value">
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                                <span class="stat-badge objective"><i class="fas fa-check-circle"></i> Objective: ${topic.objective_count}</span>
-                                <span class="stat-badge subjective"><i class="fas fa-pencil-alt"></i> Subjective: ${topic.subjective_count}</span>
-                                <span class="stat-badge theory"><i class="fas fa-file-alt"></i> Theory: ${topic.theory_count}</span>
+                            <div class="info-row"><div class="info-label">Topic Name:</div><div class="info-value"><strong>${escapeHtml(topic.topic_name)}</strong></div></div>
+                            <div class="info-row"><div class="info-label">Subject:</div><div class="info-value">${escapeHtml(topic.subject_name)}</div></div>
+                            <div class="info-row"><div class="info-label">Term:</div><div class="info-value">${escapeHtml(topic.term || 'General')}</div></div>
+                            <div class="info-row"><div class="info-label">Description:</div><div class="info-value">${escapeHtml(topic.description) || '<span style="color: #999;">No description</span>'}</div></div>
+                            <div class="info-row"><div class="info-label">Questions:</div><div class="info-value"><div style="display: flex; flex-wrap: wrap; gap: 8px;"><span class="stat-badge objective">Objective: ${topic.objective_count}</span><span class="stat-badge subjective">Subjective: ${topic.subjective_count}</span><span class="stat-badge theory">Theory: ${topic.theory_count}</span></div></div></div>
+                            <div class="modal-action-buttons">
+                                <a href="manage-topics.php?view_topic=${topic.id}&subject_id=${topic.subject_id}" class="btn btn-info modal-action-btn"><i class="fas fa-eye"></i> View Questions</a>
+                                <button class="btn btn-warning modal-action-btn" onclick="closeModal('topicModal'); editTopic(${topic.id}, '${escapeHtml(topic.topic_name)}', '${escapeHtml(topic.description || '')}')"><i class="fas fa-edit"></i> Edit</button>
+                                <a href="manage-questions.php?topic_id=${topic.id}" class="btn btn-success modal-action-btn"><i class="fas fa-plus-circle"></i> Add Questions</a>
+                                ${!hasQuestions ? `<button class="btn btn-danger modal-action-btn" onclick="closeModal('topicModal'); confirmDeleteTopic(${topic.id}, '${escapeHtml(topic.topic_name)}')"><i class="fas fa-trash"></i> Delete</button>` : `<button class="btn btn-danger modal-action-btn" disabled style="opacity:0.5;"><i class="fas fa-lock"></i> Delete (Has Qs)</button>`}
                             </div>
-                        </div>
-                    </div>
-                    <div class="modal-action-buttons">
-                        <a href="manage-topics.php?view_topic=${topic.id}&subject_id=${topic.subject_id}" class="btn btn-info modal-action-btn">
-                            <i class="fas fa-eye"></i> View Questions
-                        </a>
-                        <button class="btn btn-warning modal-action-btn" onclick="closeModal('topicModal'); editTopic(${topic.id}, '${escapeHtml(topic.topic_name)}', '${escapeHtml(topic.description || '')}')">
-                            <i class="fas fa-edit"></i> Edit Description
-                        </button>
-                        <a href="manage-questions.php?topic_id=${topic.id}" class="btn btn-success modal-action-btn">
-                            <i class="fas fa-plus-circle"></i> Add Questions
-                        </a>
-                        ${!hasQuestions ? `
-                            <button class="btn btn-danger modal-action-btn" onclick="closeModal('topicModal'); confirmDeleteTopic(${topic.id}, '${escapeHtml(topic.topic_name)}')">
-                                <i class="fas fa-trash"></i> Delete Topic
-                            </button>
-                        ` : `
-                            <button class="btn btn-danger modal-action-btn" disabled style="opacity:0.5; cursor:not-allowed;" title="Cannot delete - has questions">
-                                <i class="fas fa-lock"></i> Delete (Has Questions)
-                            </button>
-                        `}
-                    </div>
-                `;
+                        `;
                     } else {
                         modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger);"></i><p>${escapeHtml(data.message)}</p><button class="btn btn-outline" onclick="closeModal('topicModal')">Close</button></div>`;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger);"></i><p>Failed to load topic details. Please try again.</p><button class="btn btn-outline" onclick="closeModal('topicModal')">Close</button></div>`;
+                    modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger);"></i><p>Failed to load topic details.</p><button class="btn btn-outline" onclick="closeModal('topicModal')">Close</button></div>`;
                 });
         }
 
@@ -1601,9 +1562,8 @@ require_once 'includes/sidebar.php';
             });
         }
 
-        // Topic multi-select functions
         function updateTopicCount() {
-            const checkboxes = document.querySelectorAll('#addTopicsModal .topic-checkbox:checked');
+            const checkboxes = document.querySelectorAll('#central-tab .topic-checkbox:checked');
             const count = checkboxes.length;
             const countSpan = document.getElementById('selectedTopicsCount');
             if (countSpan) {
@@ -1613,35 +1573,13 @@ require_once 'includes/sidebar.php';
         }
 
         function selectAllTopics() {
-            const checkboxes = document.querySelectorAll('#addTopicsModal .topic-checkbox');
-            checkboxes.forEach(cb => cb.checked = true);
+            document.querySelectorAll('#central-tab .topic-checkbox').forEach(cb => cb.checked = true);
             updateTopicCount();
         }
 
         function deselectAllTopics() {
-            const checkboxes = document.querySelectorAll('#addTopicsModal .topic-checkbox');
-            checkboxes.forEach(cb => cb.checked = false);
+            document.querySelectorAll('#central-tab .topic-checkbox').forEach(cb => cb.checked = false);
             updateTopicCount();
-        }
-
-        function toggleTerm(term) {
-            const list = document.getElementById(term + '-list');
-            const icon = document.getElementById(term + '-icon');
-            if (list.style.display === 'none') {
-                list.style.display = 'flex';
-                icon.className = 'fas fa-chevron-down';
-            } else {
-                list.style.display = 'none';
-                icon.className = 'fas fa-chevron-right';
-            }
-        }
-
-        // Question panel tabs
-        function showQuestionPanel(type) {
-            document.querySelectorAll('.question-panel').forEach(panel => panel.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(type + '-panel').classList.add('active');
-            event.target.classList.add('active');
         }
 
         function escapeHtml(text) {
@@ -1651,17 +1589,10 @@ require_once 'includes/sidebar.php';
             return div.innerHTML;
         }
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            const terms = ['first', 'second', 'third'];
-            terms.forEach(term => {
-                const list = document.getElementById(term + '-list');
-                if (list) list.style.display = 'flex';
-            });
             updateTopicCount();
         });
 
-        // Close modals on outside click
         window.onclick = function(event) {
             if (event.target.classList && event.target.classList.contains('modal')) {
                 event.target.classList.remove('active');
@@ -1669,7 +1600,6 @@ require_once 'includes/sidebar.php';
             }
         };
 
-        // Auto-hide alerts
         setTimeout(() => {
             document.querySelectorAll('.alert').forEach(alert => {
                 alert.style.transition = 'opacity 0.5s';

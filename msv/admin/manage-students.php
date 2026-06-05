@@ -25,6 +25,7 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 
 require_once '../includes/config.php';
 require_once '../includes/qr_functions.php';
+require_once 'includes/sidebar.php';
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
@@ -489,51 +490,19 @@ if (isset($_GET['get_student'])) {
             width: 20px;
         }
 
-        /* Main Content */
+        /* Replace the existing .main-content styles with this */
         .main-content {
-            margin-left: 0;
+            margin-left: 280px;
             padding: 20px;
             min-height: 100vh;
-            transition: all 0.3s ease;
+            transition: margin-left 0.3s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
-        .top-header {
-            background: white;
-            padding: 15px 25px;
-            border-radius: var(--radius-lg);
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.4rem;
-            margin-bottom: 4px;
-        }
-
-        .header-title p {
-            color: var(--gray-600);
-            font-size: 0.75rem;
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 70px 15px 20px 15px;
+            }
         }
 
         /* Global Search Bar */
@@ -549,10 +518,12 @@ if (isset($_GET['get_student'])) {
             box-shadow: var(--shadow-sm);
             border: 2px solid var(--gray-200);
         }
+
         .global-search-bar .search-icon {
             color: var(--primary-color);
             font-size: 1.2rem;
         }
+
         .global-search-bar input {
             flex: 1;
             min-width: 250px;
@@ -563,18 +534,22 @@ if (isset($_GET['get_student'])) {
             font-size: 0.9rem;
             transition: border-color 0.2s;
         }
+
         .global-search-bar input:focus {
             outline: none;
             border-color: var(--primary-color);
         }
+
         .global-search-bar .search-btn {
             padding: 12px 24px;
             font-size: 0.9rem;
         }
+
         .global-search-bar .clear-btn {
             background: var(--gray-200);
             color: var(--gray-800);
         }
+
         .global-search-bar .clear-btn:hover {
             background: var(--gray-400);
         }
@@ -1093,21 +1068,13 @@ if (isset($_GET['get_student'])) {
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
 
     <div class="main-content" id="mainContent">
         <div class="top-header">
             <div class="header-title">
                 <h1>Manage Students</h1>
                 <p>
-                    <?php 
+                    <?php
                     if ($is_global_search) {
                         echo 'Search Results for: "' . htmlspecialchars($global_search_query) . '"';
                     } elseif ($view_mode === 'students' && $current_class) {
@@ -1185,7 +1152,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-        <!-- CLASSES VIEW (when no class selected and no global search) -->
+            <!-- CLASSES VIEW (when no class selected and no global search) -->
         <?php elseif ($view_mode === 'classes'): ?>
             <div class="class-list">
                 <?php foreach ($all_classes as $class): ?>
@@ -1210,7 +1177,7 @@ if (isset($_GET['get_student'])) {
                 <?php endif; ?>
             </div>
 
-        <!-- STUDENTS VIEW (when class selected) -->
+            <!-- STUDENTS VIEW (when class selected) -->
         <?php elseif ($view_mode === 'students' && $current_class): ?>
 
             <!-- Back Navigation Bar -->

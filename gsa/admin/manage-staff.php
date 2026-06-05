@@ -1,5 +1,7 @@
 <?php
 // admin/manage-staff.php - Complete Staff Management with Attendance, Performance, and QR Tracking
+// MODIFIED: Mobile-friendly with card layout, click-to-view modal, and assigned classes/subjects in details
+
 session_start();
 
 // Check if admin is logged in
@@ -199,7 +201,7 @@ if (isset($_POST['rate_staff'])) {
 // STAFF CRUD OPERATIONS
 // ============================================
 
-// Add Staff (with password confirmation validation)
+// Add Staff
 if (isset($_POST['add_staff'])) {
     $staff_id_num = trim($_POST['staff_id']);
     $full_name = trim($_POST['full_name']);
@@ -209,7 +211,6 @@ if (isset($_POST['add_staff'])) {
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
 
-    // Validate password match
     if ($password !== $confirm_password) {
         $error_message = "Passwords do not match!";
         session_start();
@@ -227,7 +228,7 @@ if (isset($_POST['add_staff'])) {
     exit();
 }
 
-// Update Staff (with proper password update handling)
+// Update Staff
 if (isset($_POST['edit_staff'])) {
     $staff_id = $_POST['id'];
     $full_name = trim($_POST['full_name']);
@@ -235,14 +236,12 @@ if (isset($_POST['edit_staff'])) {
     $role = $_POST['role'];
     $is_active = isset($_POST['is_active']) ? 1 : 0;
 
-    // Check if we need to update password
     $update_password = isset($_POST['change_password']) && !empty($_POST['password']);
 
     if ($update_password) {
         $password = $_POST['password'];
         $confirm_password = $_POST['confirm_password'];
 
-        // Validate password match
         if ($password !== $confirm_password) {
             $error_message = "Passwords do not match!";
             session_start();
@@ -298,7 +297,7 @@ if (isset($_POST['assign_subjects'])) {
 // Assign Classes
 if (isset($_POST['assign_classes'])) {
     $staff_id_num = $_POST['staff_id'];
-    $class_ids = $_POST['classes'] ?? []; // Now this contains class IDs, not class names
+    $class_ids = $_POST['classes'] ?? [];
 
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ?");
     $stmt->execute([$staff_id_num]);
@@ -307,7 +306,6 @@ if (isset($_POST['assign_classes'])) {
     $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
 
     foreach ($class_ids as $class_id) {
-        // Store class_id directly (as ID from classes table)
         $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
         $stmt->execute([$staff_id_string, $class_id, $school_id]);
     }
@@ -321,11 +319,12 @@ $action = $_GET['action'] ?? 'list';
 $staff = null;
 $assigned_subjects = [];
 $assigned_classes = [];
-$assigned_subject_ids = [];   // Add this for subject IDs
-$assigned_class_ids = [];     // Add this for class IDs
-$assigned_class_names = [];   // Add this for class names display
+$assigned_subject_ids = [];
+$assigned_class_ids = [];
+$assigned_class_names = [];
+$assigned_subject_names = [];
 $password_error = isset($_SESSION['staff_error']) ? $_SESSION['staff_error'] : null;
-unset($_SESSION['staff_error']); // Clear error after retrieving
+unset($_SESSION['staff_error']);
 
 if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'attendance', 'performance', 'class_attendance']) && isset($_GET['id'])) {
     $staff_id_num = $_GET['id'];
@@ -337,14 +336,19 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
         $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // Get subject names
+        if (!empty($assigned_subject_ids)) {
+            $placeholders = str_repeat('?,', count($assigned_subject_ids) - 1) . '?';
+            $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id IN ($placeholders)");
+            $stmt->execute($assigned_subject_ids);
+            $assigned_subject_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
 
-        // Get assigned class IDs directly from staff_classes
         $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
-        // Also get class names for display (if needed)
-        $assigned_class_names = [];
         if (!empty($assigned_class_ids)) {
             $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
             $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
@@ -352,25 +356,45 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
             $stmt->execute($params);
             $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
-    } // <-- THIS CLOSING BRACE WAS MISSING!
+    }
 }
 
-// Get all subjects for this school (only school-specific subjects, not central subjects)
+// Get all subjects for this school
 $stmt = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE school_id = ? AND is_central = 0 ORDER BY subject_name");
 $stmt->execute([$school_id]);
 $all_subjects = $stmt->fetchAll();
 
-// Get all classes for this school from the classes table
+// Get all classes for this school
 $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
 $stmt->execute([$school_id]);
-$all_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$all_classes = $stmt->fetchAll();
 
-// If no classes found in classes table, try to get from students table as fallback
 if (empty($all_classes)) {
     $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class != '' ORDER BY class");
     $stmt->execute([$school_id]);
-    $all_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $all_classes = $stmt->fetchAll();
 }
+
+// Build staff list for main view
+$query = "SELECT * FROM staff WHERE school_id = ?";
+$params = [$school_id];
+if (!empty($_GET['search'])) {
+    $query .= " AND (full_name LIKE ? OR staff_id LIKE ? OR email LIKE ?)";
+    $s = "%{$_GET['search']}%";
+    array_push($params, $s, $s, $s);
+}
+if (($_GET['role'] ?? '')) {
+    $query .= " AND role = ?";
+    $params[] = $_GET['role'];
+}
+if (isset($_GET['status']) && $_GET['status'] !== '') {
+    $query .= " AND is_active = ?";
+    $params[] = $_GET['status'];
+}
+$query .= " ORDER BY created_at DESC";
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$staff_list = $stmt->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -378,7 +402,7 @@ if (empty($all_classes)) {
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title><?php echo $school_name; ?> - Manage Staff</title>
 
     <!-- QR Scanner Library -->
@@ -494,16 +518,6 @@ if (empty($all_classes)) {
             padding: 16px;
             border-radius: var(--radius-lg);
             text-align: center;
-        }
-
-        .admin-info h4 {
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-
-        .admin-info p {
-            font-size: 0.7rem;
-            opacity: 0.8;
         }
 
         .nav-links {
@@ -651,17 +665,9 @@ if (empty($all_classes)) {
             color: white;
         }
 
-        .btn-success:hover {
-            background: #219a52;
-        }
-
         .btn-warning {
             background: var(--warning);
             color: white;
-        }
-
-        .btn-warning:hover {
-            background: #e67e22;
         }
 
         .btn-danger {
@@ -669,17 +675,9 @@ if (empty($all_classes)) {
             color: white;
         }
 
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-
         .btn-info {
             background: var(--info);
             color: white;
-        }
-
-        .btn-info:hover {
-            background: #2980b9;
         }
 
         .btn-purple {
@@ -687,19 +685,10 @@ if (empty($all_classes)) {
             color: white;
         }
 
-        .btn-purple:hover {
-            background: #8e44ad;
-        }
-
         .btn-outline {
             background: transparent;
             border: 2px solid var(--gray-300);
             color: var(--gray-800);
-        }
-
-        .btn-outline:hover {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
         }
 
         /* Cards */
@@ -726,41 +715,39 @@ if (empty($all_classes)) {
             color: var(--gray-800);
         }
 
-        /* Password Input Group */
-        .password-group {
-            position: relative;
-        }
-
-        .password-toggle {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: var(--gray-600);
-            background: white;
-            padding: 0 5px;
-        }
-
-        .password-toggle:hover {
-            color: var(--primary-color);
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        /* Filter Form */
+        /* Filter Form - Mobile Responsive */
         .filter-form {
             display: flex;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: 12px;
             align-items: flex-end;
         }
-
+        
         .filter-group {
             flex: 1;
-            min-width: 160px;
+            min-width: 140px;
+        }
+        
+        @media (max-width: 768px) {
+            .filter-form {
+                flex-direction: column;
+            }
+            .filter-group {
+                width: 100%;
+            }
+            .filter-group .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .action-buttons-group {
+                width: 100%;
+            }
+            .action-buttons-group .btn {
+                flex: 1;
+                justify-content: center;
+                font-size: 0.7rem;
+                padding: 8px 12px;
+            }
         }
 
         .form-label {
@@ -783,51 +770,87 @@ if (empty($all_classes)) {
             transition: all 0.2s;
         }
 
-        .form-control:focus,
-        .form-select:focus {
-            outline: none;
+        /* Staff Cards - Mobile Friendly (No Horizontal Scroll) */
+        .staff-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .staff-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--gray-200);
+        }
+        
+        .staff-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
             border-color: var(--primary-color);
         }
-
-        .form-control.password-input {
-            padding-right: 40px;
+        
+        .staff-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
         }
-
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-            border-radius: var(--radius-lg);
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 700px;
-        }
-
-        .data-table th {
-            text-align: left;
-            padding: 12px 16px;
-            background: var(--gray-50);
+        
+        .staff-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
             font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: white;
+        }
+        
+        .staff-card-info {
+            flex: 1;
+        }
+        
+        .staff-card-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        
+        .staff-card-id {
+            font-size: 0.7rem;
             color: var(--gray-600);
-            border-bottom: 2px solid var(--gray-200);
+            font-family: monospace;
         }
-
-        .data-table td {
-            padding: 14px 16px;
-            font-size: 0.8rem;
-            border-bottom: 1px solid var(--gray-200);
+        
+        .staff-card-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--gray-200);
         }
-
-        .data-table tr:hover {
-            background: var(--gray-50);
+        
+        .staff-card-detail {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            color: var(--gray-600);
         }
-
-        /* Status Badges */
+        
+        .staff-card-detail i {
+            width: 16px;
+            color: var(--primary-color);
+        }
+        
         .status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -845,26 +868,35 @@ if (empty($all_classes)) {
             background: var(--danger-light);
             color: var(--danger);
         }
-
-        .status-present {
-            background: var(--success-light);
-            color: var(--success);
+        
+        /* Hide table on mobile, show cards */
+        .table-container {
+            display: block;
+            overflow-x: auto;
         }
-
-        .status-absent {
-            background: var(--danger-light);
-            color: var(--danger);
+        
+        @media (max-width: 768px) {
+            .desktop-table {
+                display: none;
+            }
+            .mobile-cards {
+                display: block;
+            }
         }
-
-        .status-late {
-            background: var(--warning-light);
-            color: var(--warning);
+        
+        @media (min-width: 769px) {
+            .desktop-table {
+                display: block;
+            }
+            .mobile-cards {
+                display: none;
+            }
         }
 
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 16px;
             margin-top: 24px;
         }
@@ -889,51 +921,7 @@ if (empty($all_classes)) {
             margin-top: 4px;
         }
 
-        /* Action Buttons Group in Table */
-        .table-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        /* Grid Layout for Forms */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-        }
-
-        /* Checkbox Group */
-        .checkbox-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            max-height: 300px;
-            overflow-y: auto;
-            padding: 12px;
-            background: var(--gray-50);
-            border-radius: var(--radius-md);
-        }
-
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 140px;
-        }
-
-        .checkbox-item input {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .checkbox-item label {
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-
-        /* Modal */
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -942,7 +930,7 @@ if (empty($all_classes)) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1100;
+            z-index: 2000;
             align-items: center;
             justify-content: center;
         }
@@ -952,7 +940,7 @@ if (empty($all_classes)) {
             border-radius: var(--radius-lg);
             width: 90%;
             max-width: 500px;
-            max-height: 90vh;
+            max-height: 85vh;
             overflow-y: auto;
         }
 
@@ -962,6 +950,9 @@ if (empty($all_classes)) {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
         }
 
         .modal-header h3 {
@@ -986,6 +977,45 @@ if (empty($all_classes)) {
             display: flex;
             justify-content: flex-end;
             gap: 12px;
+            position: sticky;
+            bottom: 0;
+            background: white;
+        }
+
+        /* Info rows for modal */
+        .info-row {
+            display: flex;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .info-label {
+            width: 120px;
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 0.8rem;
+        }
+        
+        .info-value {
+            flex: 1;
+            color: var(--gray-800);
+            font-size: 0.85rem;
+        }
+        
+        .assigned-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .assigned-tag {
+            background: var(--primary-light);
+            color: var(--primary-color);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
         }
 
         /* Alert Messages */
@@ -1011,6 +1041,53 @@ if (empty($all_classes)) {
             border-left: 4px solid var(--danger);
         }
 
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 12px;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 140px;
+        }
+
+        .checkbox-item input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* Password Group */
+        .password-group {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--gray-600);
+            background: white;
+            padding: 0 5px;
+        }
+
         /* Split Layout */
         .split-layout {
             display: grid;
@@ -1018,145 +1095,32 @@ if (empty($all_classes)) {
             gap: 24px;
         }
 
-        /* Responsive */
-        @media (min-width: 768px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .mobile-menu-btn {
-                display: none;
-            }
-        }
-
-        @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
-            }
-
+        @media (max-width: 768px) {
             .split-layout {
                 grid-template-columns: 1fr;
             }
-
-            .filter-form {
+            .main-content {
+                padding-top: 70px;
+            }
+            .info-row {
                 flex-direction: column;
             }
-
-            .filter-group .btn {
+            .info-label {
                 width: 100%;
-                justify-content: center;
-            }
-
-            .action-buttons-group {
-                width: 100%;
-            }
-
-            .action-buttons-group .btn {
-                flex: 1;
-                justify-content: center;
+                margin-bottom: 5px;
             }
         }
 
-        /* Make staff name display bigger */
-        .staff-name-display,
-        .student-name-display,
-        .student-name,
-        .student-info .student-name,
-        .staff-info .staff-name,
-        .data-table td strong,
-        .data-table td:first-child+td strong,
-        .class-item .class-name,
-        .view-name,
-        .profile-name,
-        .name-display {
-            font-size: 1rem !important;
-            font-weight: 600 !important;
-        }
-
-        /* For the staff directory table - make name column larger */
-        .data-table td:nth-child(2) strong,
-        .data-table td:nth-child(2) {
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-        }
-
-        /* For student list items */
-        .student-name {
-            font-size: 1rem !important;
-            font-weight: 600 !important;
-        }
-
-        /* For staff cards or detail views */
-        .info-value strong,
-        .info-value .staff-name {
-            font-size: 1rem !important;
-        }
-
-        /* For attendance table staff names */
-        .table-container .data-table td strong {
-            font-size: 0.95rem !important;
-        }
-
-        /* For performance table staff names */
-        .data-table td:first-child strong {
-            font-size: 0.95rem !important;
-        }
-
-        /* For class list item names */
-        .class-name {
-            font-size: 1rem !important;
-            font-weight: 500 !important;
-        }
-
-        /* For modal headers and student details */
-        .modal-body .info-value {
-            font-size: 0.95rem !important;
-        }
-
-        /* For dropdown and select options */
-        .class-dropdown select option {
-            font-size: 0.9rem;
-        }
-
-        /* For bulk bar selected count text */
-        .selected-count {
-            font-size: 0.8rem;
-        }
-
-        /* Make table headers more readable */
-        .data-table th {
-            font-size: 0.8rem !important;
-            font-weight: 700 !important;
-        }
-
-        /* For student admission number */
-        .student-admission {
-            font-size: 0.75rem !important;
-        }
-
-        /* For status badges text */
-        .status-badge {
-            font-size: 0.7rem !important;
-            font-weight: 600 !important;
-        }
-
-        /* For the header title */
-        .header-title h1 {
-            font-size: 1.6rem !important;
-        }
-
-        /* For dashboard stats */
-        .stat-value {
-            font-size: 2rem !important;
-        }
-
-        /* For any name displays in action buttons */
-        .btn .name {
-            font-size: 0.85rem;
+        @media (min-width: 769px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: var(--sidebar-width);
+            }
+            .mobile-menu-btn {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -1164,10 +1128,7 @@ if (empty($all_classes)) {
 <body>
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
 
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
+    <?php require_once 'includes/sidebar.php'; ?>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1235,55 +1196,33 @@ if (empty($all_classes)) {
                 </form>
             </div>
 
-            <div class="card">
+            <!-- Desktop Table View -->
+            <div class="card desktop-table">
                 <div class="card-header">
                     <h2><i class="fas fa-users"></i> Staff Directory</h2>
                 </div>
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Joined</th>
-                                <th>Actions</th>
+                                <th style="text-align:left; padding:12px;">ID</th>
+                                <th style="text-align:left; padding:12px;">Name</th>
+                                <th style="text-align:left; padding:12px;">Email</th>
+                                <th style="text-align:left; padding:12px;">Role</th>
+                                <th style="text-align:left; padding:12px;">Status</th>
+                                <th style="text-align:left; padding:12px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $query = "SELECT * FROM staff WHERE school_id = ?";
-                            $params = [$school_id];
-                            if (!empty($_GET['search'])) {
-                                $query .= " AND (full_name LIKE ? OR staff_id LIKE ? OR email LIKE ?)";
-                                $s = "%{$_GET['search']}%";
-                                array_push($params, $s, $s, $s);
-                            }
-                            if ($_GET['role'] ?? '') {
-                                $query .= " AND role = ?";
-                                $params[] = $_GET['role'];
-                            }
-                            if (isset($_GET['status']) && $_GET['status'] !== '') {
-                                $query .= " AND is_active = ?";
-                                $params[] = $_GET['status'];
-                            }
-                            $query .= " ORDER BY created_at DESC";
-                            $stmt = $pdo->prepare($query);
-                            $stmt->execute($params);
-                            $staff_list = $stmt->fetchAll();
-                            ?>
                             <?php foreach ($staff_list as $s): ?>
                                 <tr>
-                                    <td><code><?php echo htmlspecialchars($s['staff_id']); ?></code></td>
-                                    <td><strong><?php echo htmlspecialchars($s['full_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($s['email'] ?? '—'); ?></td>
-                                    <td><span class="status-badge <?php echo $s['role'] === 'admin' ? 'status-warning' : 'status-info'; ?>" style="background:<?php echo $s['role'] === 'admin' ? '#fef5e7' : '#eaf6ff'; ?>; color:<?php echo $s['role'] === 'admin' ? '#f39c12' : '#3498db'; ?>"><?php echo ucfirst($s['role']); ?></span></td>
-                                    <td><span class="status-badge <?php echo $s['is_active'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $s['is_active'] ? 'Active' : 'Inactive'; ?></span></td>
-                                    <td><?php echo date('M d, Y', strtotime($s['created_at'])); ?></td>
-                                    <td>
-                                        <div class="table-actions">
+                                    <td style="padding:12px;"><code><?php echo htmlspecialchars($s['staff_id']); ?></code></td>
+                                    <td style="padding:12px;"><strong><?php echo htmlspecialchars($s['full_name']); ?></strong></td>
+                                    <td style="padding:12px;"><?php echo htmlspecialchars($s['email'] ?? '—'); ?></td>
+                                    <td style="padding:12px;"><span class="status-badge" style="background:<?php echo $s['role'] === 'admin' ? '#fef5e7' : '#eaf6ff'; ?>"><?php echo ucfirst($s['role']); ?></span></td>
+                                    <td style="padding:12px;"><span class="status-badge <?php echo $s['is_active'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $s['is_active'] ? 'Active' : 'Inactive'; ?></span></td>
+                                    <td style="padding:12px;">
+                                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                             <a href="manage-staff.php?action=view&id=<?php echo $s['id']; ?>" class="btn btn-info btn-sm"><i class="fas fa-eye"></i></a>
                                             <a href="manage-staff.php?action=edit&id=<?php echo $s['id']; ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
                                             <a href="manage-staff.php?action=assign_subjects&id=<?php echo $s['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-book"></i></a>
@@ -1297,6 +1236,55 @@ if (empty($all_classes)) {
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Mobile Card View (Click to view actions in modal) -->
+            <div class="mobile-cards">
+                <div class="staff-cards">
+                    <?php foreach ($staff_list as $s): ?>
+                        <div class="staff-card" onclick="showStaffActions(<?php echo htmlspecialchars(json_encode($s)); ?>)">
+                            <div class="staff-card-header">
+                                <div class="staff-avatar">
+                                    <?php echo strtoupper(substr($s['full_name'], 0, 1)); ?>
+                                </div>
+                                <div class="staff-card-info">
+                                    <div class="staff-card-name"><?php echo htmlspecialchars($s['full_name']); ?></div>
+                                    <div class="staff-card-id">ID: <?php echo htmlspecialchars($s['staff_id']); ?></div>
+                                </div>
+                                <span class="status-badge <?php echo $s['is_active'] ? 'status-active' : 'status-inactive'; ?>">
+                                    <?php echo $s['is_active'] ? 'Active' : 'Inactive'; ?>
+                                </span>
+                            </div>
+                            <div class="staff-card-details">
+                                <div class="staff-card-detail">
+                                    <i class="fas fa-envelope"></i>
+                                    <?php echo htmlspecialchars($s['email'] ?? 'No email'); ?>
+                                </div>
+                                <div class="staff-card-detail">
+                                    <i class="fas fa-user-tag"></i>
+                                    <?php echo ucfirst($s['role']); ?>
+                                </div>
+                                <div class="staff-card-detail">
+                                    <i class="fas fa-calendar"></i>
+                                    Joined: <?php echo date('M Y', strtotime($s['created_at'])); ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- Mobile Action Modal -->
+            <div class="modal" id="staffActionModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalStaffName">Staff Actions</h3>
+                        <button class="close-modal" onclick="closeStaffActionModal()">&times;</button>
+                    </div>
+                    <div class="modal-body" id="staffActionBody">
+                        <!-- Dynamic content loaded via JS -->
+                    </div>
                 </div>
             </div>
 
@@ -1323,7 +1311,7 @@ if (empty($all_classes)) {
                 </div>
             </div>
 
-            <!-- ADD/EDIT STAFF -->
+        <!-- ADD/EDIT STAFF -->
         <?php elseif ($action === 'add' || $action === 'edit'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1395,7 +1383,6 @@ if (empty($all_classes)) {
             </div>
 
             <script>
-                // Toggle password fields visibility for edit mode
                 function togglePasswordFields() {
                     const chk = document.getElementById('change_password');
                     const passwordFields = document.getElementById('password_fields');
@@ -1405,12 +1392,10 @@ if (empty($all_classes)) {
                     if (passwordFields) {
                         if (chk && chk.checked) {
                             passwordFields.style.display = 'block';
-                            // Make fields required when checkbox is checked
                             if (passwordInput) passwordInput.required = true;
                             if (confirmInput) confirmInput.required = true;
                         } else {
                             passwordFields.style.display = 'none';
-                            // Remove required when checkbox is unchecked
                             if (passwordInput) {
                                 passwordInput.required = false;
                                 passwordInput.value = '';
@@ -1419,14 +1404,12 @@ if (empty($all_classes)) {
                                 confirmInput.required = false;
                                 confirmInput.value = '';
                             }
-                            // Hide error message
                             const errorSpan = document.getElementById('password-match-error');
                             if (errorSpan) errorSpan.style.display = 'none';
                         }
                     }
                 }
 
-                // Toggle password visibility
                 function togglePasswordVisibility(fieldId) {
                     const field = document.getElementById(fieldId);
                     const icon = document.getElementById(fieldId + '-icon');
@@ -1443,18 +1426,14 @@ if (empty($all_classes)) {
                     }
                 }
 
-                // Validate passwords match on form submit
                 function validatePasswords() {
-                    // For edit mode, check if change password checkbox is checked
                     const changePwdCheckbox = document.getElementById('change_password');
                     const isEditMode = <?php echo $action === 'edit' ? 'true' : 'false'; ?>;
 
-                    // If in edit mode and checkbox is not checked, skip validation
                     if (isEditMode && changePwdCheckbox && !changePwdCheckbox.checked) {
                         return true;
                     }
 
-                    // Check if password fields are visible
                     const passwordFields = document.getElementById('password_fields');
                     if (passwordFields && passwordFields.style.display !== 'none') {
                         const password = document.getElementById('password').value;
@@ -1469,7 +1448,6 @@ if (empty($all_classes)) {
                             errorSpan.style.display = 'none';
                         }
 
-                        // Check if password is empty in edit mode when checkbox is checked
                         if (isEditMode && changePwdCheckbox && changePwdCheckbox.checked && password === '') {
                             alert('Please enter a new password or uncheck "Change Password"');
                             document.getElementById('password').focus();
@@ -1479,7 +1457,6 @@ if (empty($all_classes)) {
                     return true;
                 }
 
-                // Real-time password match validation
                 document.addEventListener('DOMContentLoaded', function() {
                     const password = document.getElementById('password');
                     const confirmPassword = document.getElementById('confirm_password');
@@ -1493,14 +1470,13 @@ if (empty($all_classes)) {
                                 errorSpan.style.display = 'none';
                             }
                         }
-
                         password.addEventListener('keyup', checkMatch);
                         confirmPassword.addEventListener('keyup', checkMatch);
                     }
                 });
             </script>
 
-            <!-- ASSIGN SUBJECTS -->
+        <!-- ASSIGN SUBJECTS -->
         <?php elseif ($action === 'assign_subjects' && $staff): ?>
             <div class="card">
                 <div class="card-header">
@@ -1524,7 +1500,7 @@ if (empty($all_classes)) {
                 </form>
             </div>
 
-            <!-- ASSIGN CLASSES -->
+        <!-- ASSIGN CLASSES -->
         <?php elseif ($action === 'assign_classes' && $staff): ?>
             <div class="card">
                 <div class="card-header">
@@ -1534,19 +1510,19 @@ if (empty($all_classes)) {
                     <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
                     <input type="hidden" name="assign_classes" value="1">
                     <div class="checkbox-group">
-    <?php if (!empty($all_classes)): ?>
-        <?php foreach ($all_classes as $class): ?>
-            <label class="checkbox-item">
-                <input type="checkbox" name="classes[]" value="<?php echo $class['id']; ?>" <?php echo in_array($class['id'], $assigned_class_ids) ? 'checked' : ''; ?>>
-                <span><?php echo htmlspecialchars($class['class_name']); ?></span>
-            </label>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <div style="padding: 20px; text-align: center; color: var(--gray-600);">
-            <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
-        </div>
-    <?php endif; ?>
-</div>
+                        <?php if (!empty($all_classes)): ?>
+                            <?php foreach ($all_classes as $class): ?>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" name="classes[]" value="<?php echo $class['id']; ?>" <?php echo in_array($class['id'], $assigned_class_ids) ? 'checked' : ''; ?>>
+                                    <span><?php echo htmlspecialchars($class['class_name']); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div style="padding: 20px; text-align: center; color: var(--gray-600);">
+                                <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
+                            </div>
+                        <?php endif; ?>
+                    </div>
                     <div style="margin-top: 20px; display: flex; gap: 12px;">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Classes</button>
                         <a href="manage-staff.php?action=list" class="btn btn-outline">Back</a>
@@ -1554,7 +1530,7 @@ if (empty($all_classes)) {
                 </form>
             </div>
 
-            <!-- STAFF ATTENDANCE VIEW -->
+        <!-- STAFF ATTENDANCE VIEW -->
         <?php elseif ($action === 'attendance'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1574,27 +1550,27 @@ if (empty($all_classes)) {
                 ?>
 
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr>
-                                <th>Staff ID</th>
-                                <th>Name</th>
-                                <th>Clock In</th>
-                                <th>Clock Out</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th style="text-align:left; padding:12px;">Staff ID</th>
+                                <th style="text-align:left; padding:12px;">Name</th>
+                                <th style="text-align:left; padding:12px;">Clock In</th>
+                                <th style="text-align:left; padding:12px;">Clock Out</th>
+                                <th style="text-align:left; padding:12px;">Status</th>
+                                <th style="text-align:left; padding:12px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($staff_attendance as $sa): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($sa['staff_id']); ?></td>
-                                    <td><strong><?php echo htmlspecialchars($sa['full_name']); ?></strong></td>
-                                    <td><?php echo $sa['clock_in'] ?? '—'; ?></td>
-                                    <td><?php echo $sa['clock_out'] ?? '—'; ?></td>
-                                    <td><span class="status-badge status-<?php echo $sa['status'] ?? 'absent'; ?>"><?php echo ucfirst($sa['status'] ?? 'Absent'); ?></span></td>
-                                    <td>
-                                        <div class="table-actions">
+                                    <td style="padding:12px;"><?php echo htmlspecialchars($sa['staff_id']); ?></td>
+                                    <td style="padding:12px;"><strong><?php echo htmlspecialchars($sa['full_name']); ?></strong></td>
+                                    <td style="padding:12px;"><?php echo $sa['clock_in'] ?? '—'; ?></td>
+                                    <td style="padding:12px;"><?php echo $sa['clock_out'] ?? '—'; ?></td>
+                                    <td style="padding:12px;"><span class="status-badge status-<?php echo $sa['status'] ?? 'absent'; ?>"><?php echo ucfirst($sa['status'] ?? 'Absent'); ?></span></td>
+                                    <td style="padding:12px;">
+                                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                             <form method="POST" style="display:inline;">
                                                 <input type="hidden" name="staff_id" value="<?php echo $sa['staff_id']; ?>">
                                                 <input type="hidden" name="clock_action" value="clock_in">
@@ -1615,7 +1591,7 @@ if (empty($all_classes)) {
                 </div>
             </div>
 
-            <!-- CLASS ATTENDANCE QR -->
+        <!-- CLASS ATTENDANCE QR -->
         <?php elseif ($action === 'class_attendance'): ?>
             <div class="split-layout">
                 <div class="card">
@@ -1646,13 +1622,13 @@ if (empty($all_classes)) {
                     <h2><i class="fas fa-list"></i> Today's Class Attendance</h2>
                 </div>
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr>
-                                <th>Class</th>
-                                <th>Staff</th>
-                                <th>Time In</th>
-                                <th>Time Out</th>
+                                <th style="text-align:left; padding:12px;">Class</th>
+                                <th style="text-align:left; padding:12px;">Staff</th>
+                                <th style="text-align:left; padding:12px;">Time In</th>
+                                <th style="text-align:left; padding:12px;">Time Out</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1662,10 +1638,10 @@ if (empty($all_classes)) {
                             $stmt->execute([$today, $school_id]);
                             foreach ($stmt->fetchAll() as $ca): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($ca['class_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($ca['staff_name']); ?></td>
-                                    <td><?php echo $ca['time_in']; ?></td>
-                                    <td><?php echo $ca['time_out'] ?? '—'; ?></td>
+                                    <td style="padding:12px;"><strong><?php echo htmlspecialchars($ca['class_name']); ?></strong></td>
+                                    <td style="padding:12px;"><?php echo htmlspecialchars($ca['staff_name']); ?></td>
+                                    <td style="padding:12px;"><?php echo $ca['time_in']; ?></td>
+                                    <td style="padding:12px;"><?php echo $ca['time_out'] ?? '—'; ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -1673,7 +1649,7 @@ if (empty($all_classes)) {
                 </div>
             </div>
 
-            <!-- PERFORMANCE RATING -->
+        <!-- PERFORMANCE RATING -->
         <?php elseif ($action === 'performance'): ?>
             <div class="card">
                 <div class="card-header">
@@ -1686,15 +1662,15 @@ if (empty($all_classes)) {
                 </form>
 
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr>
-                                <th>Staff Name</th>
-                                <th>Punctuality</th>
-                                <th>Task Completion</th>
-                                <th>Student Feedback</th>
-                                <th>Overall Rating</th>
-                                <th>Action</th>
+                                <th style="text-align:left; padding:12px;">Staff Name</th>
+                                <th style="text-align:left; padding:12px;">Punctuality</th>
+                                <th style="text-align:left; padding:12px;">Task Completion</th>
+                                <th style="text-align:left; padding:12px;">Student Feedback</th>
+                                <th style="text-align:left; padding:12px;">Overall Rating</th>
+                                <th style="text-align:left; padding:12px;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1704,12 +1680,12 @@ if (empty($all_classes)) {
                             $stmt->execute([$perf_month, $school_id]);
                             foreach ($stmt->fetchAll() as $perf): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($perf['full_name']); ?></strong></td>
-                                    <td><?php echo $perf['punctuality_score'] ?? '—'; ?> / 5</td>
-                                    <td><?php echo $perf['task_completion_score'] ?? '—'; ?> / 5</td>
-                                    <td><?php echo $perf['student_feedback_score'] ?? '—'; ?> / 5</td>
-                                    <td><span class="status-badge" style="background:<?php echo $perf['overall_rating'] ? '#e8f4fd' : '#f0f2f5'; ?>; font-weight:600;"><?php echo $perf['overall_rating'] ?? 'Not Rated'; ?></span></td>
-                                    <td><button onclick="rateStaff(<?php echo $perf['id']; ?>, '<?php echo addslashes($perf['full_name']); ?>', '<?php echo $perf_month; ?>')" class="btn btn-primary btn-sm"><i class="fas fa-star"></i> Rate</button></td>
+                                    <td style="padding:12px;"><strong><?php echo htmlspecialchars($perf['full_name']); ?></strong></td>
+                                    <td style="padding:12px;"><?php echo $perf['punctuality_score'] ?? '—'; ?> / 5</td>
+                                    <td style="padding:12px;"><?php echo $perf['task_completion_score'] ?? '—'; ?> / 5</td>
+                                    <td style="padding:12px;"><?php echo $perf['student_feedback_score'] ?? '—'; ?> / 5</td>
+                                    <td style="padding:12px;"><span class="status-badge" style="background:<?php echo $perf['overall_rating'] ? '#e8f4fd' : '#f0f2f5'; ?>; font-weight:600;"><?php echo $perf['overall_rating'] ?? 'Not Rated'; ?></span></td>
+                                    <td style="padding:12px;"><button onclick="rateStaff(<?php echo $perf['id']; ?>, '<?php echo addslashes($perf['full_name']); ?>', '<?php echo $perf_month; ?>')" class="btn btn-primary btn-sm"><i class="fas fa-star"></i> Rate</button></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -1717,11 +1693,12 @@ if (empty($all_classes)) {
                 </div>
             </div>
 
-            <!-- VIEW STAFF DETAILS -->
+        <!-- VIEW STAFF DETAILS (Enhanced with assigned classes/subjects) -->
         <?php elseif ($action === 'view' && $staff): ?>
             <div class="card">
                 <div class="card-header">
                     <h2><i class="fas fa-id-card"></i> Staff Details</h2>
+                    <a href="manage-staff.php?action=list" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap: 20px;">
                     <div><strong>Staff ID:</strong><br><?php echo htmlspecialchars($staff['staff_id']); ?></div>
@@ -1731,11 +1708,39 @@ if (empty($all_classes)) {
                     <div><strong>Status:</strong><br><span class="status-badge <?php echo $staff['is_active'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $staff['is_active'] ? 'Active' : 'Inactive'; ?></span></div>
                     <div><strong>Joined:</strong><br><?php echo date('F j, Y', strtotime($staff['created_at'])); ?></div>
                 </div>
+                
+                <!-- Assigned Subjects -->
+                <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--gray-200);">
+                    <h3 style="font-size: 1rem; margin-bottom: 12px;"><i class="fas fa-book" style="color: var(--primary-color);"></i> Assigned Subjects</h3>
+                    <div class="assigned-items">
+                        <?php if (!empty($assigned_subject_names)): ?>
+                            <?php foreach ($assigned_subject_names as $subject): ?>
+                                <span class="assigned-tag"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($subject); ?></span>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <p style="color: var(--gray-600); font-size: 0.8rem;">No subjects assigned yet.</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- Assigned Classes -->
+                <div style="margin-top: 20px;">
+                    <h3 style="font-size: 1rem; margin-bottom: 12px;"><i class="fas fa-chalkboard" style="color: var(--primary-color);"></i> Assigned Classes</h3>
+                    <div class="assigned-items">
+                        <?php if (!empty($assigned_class_names)): ?>
+                            <?php foreach ($assigned_class_names as $class): ?>
+                                <span class="assigned-tag"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($class); ?></span>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <p style="color: var(--gray-600); font-size: 0.8rem;">No classes assigned yet.</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
                 <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
                     <a href="manage-staff.php?action=assign_subjects&id=<?php echo $staff['id']; ?>" class="btn btn-primary"><i class="fas fa-book"></i> Assign Subjects</a>
                     <a href="manage-staff.php?action=assign_classes&id=<?php echo $staff['id']; ?>" class="btn btn-purple"><i class="fas fa-chalkboard"></i> Assign Classes</a>
                     <a href="manage-staff.php?action=edit&id=<?php echo $staff['id']; ?>" class="btn btn-warning"><i class="fas fa-edit"></i> Edit</a>
-                    <a href="manage-staff.php?action=list" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</a>
                 </div>
             </div>
         <?php endif; ?>
@@ -1790,7 +1795,7 @@ if (empty($all_classes)) {
             }
         });
 
-        // Password toggle (global function for any password fields)
+        // Password toggle
         function togglePasswordVisibility(fieldId) {
             const field = document.getElementById(fieldId);
             const icon = document.getElementById(fieldId + '-icon');
@@ -1817,6 +1822,45 @@ if (empty($all_classes)) {
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+
+        // Show staff actions modal for mobile
+        function showStaffActions(staff) {
+            const modal = document.getElementById('staffActionModal');
+            const modalName = document.getElementById('modalStaffName');
+            const modalBody = document.getElementById('staffActionBody');
+            
+            modalName.innerHTML = staff.full_name;
+            modalBody.innerHTML = `
+                <div class="info-row"><div class="info-label">Staff ID:</div><div class="info-value">${escapeHtml(staff.staff_id)}</div></div>
+                <div class="info-row"><div class="info-label">Email:</div><div class="info-value">${escapeHtml(staff.email || '—')}</div></div>
+                <div class="info-row"><div class="info-label">Role:</div><div class="info-value">${escapeHtml(staff.role)}</div></div>
+                <div class="info-row"><div class="info-label">Status:</div><div class="info-value"><span class="status-badge ${staff.is_active ? 'status-active' : 'status-inactive'}">${staff.is_active ? 'Active' : 'Inactive'}</span></div></div>
+                <div class="info-row"><div class="info-label">Joined:</div><div class="info-value">${new Date(staff.created_at).toLocaleDateString()}</div></div>
+                <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+                    <a href="manage-staff.php?action=view&id=${staff.id}" class="btn btn-info btn-sm"><i class="fas fa-eye"></i> View</a>
+                    <a href="manage-staff.php?action=edit&id=${staff.id}" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i> Edit</a>
+                    <a href="manage-staff.php?action=assign_subjects&id=${staff.id}" class="btn btn-primary btn-sm"><i class="fas fa-book"></i> Subjects</a>
+                    <a href="manage-staff.php?action=assign_classes&id=${staff.id}" class="btn btn-purple btn-sm"><i class="fas fa-chalkboard"></i> Classes</a>
+                    <?php if ($admin_role === 'super_admin'): ?>
+                        <a href="manage-staff.php?delete=${staff.id}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this staff?')"><i class="fas fa-trash"></i> Delete</a>
+                    <?php endif; ?>
+                </div>
+            `;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeStaffActionModal() {
+            document.getElementById('staffActionModal').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // QR Scanner
@@ -1889,8 +1933,10 @@ if (empty($all_classes)) {
         }
 
         window.onclick = function(event) {
-            const modal = document.getElementById('rateModal');
-            if (event.target === modal) closeRateModal();
+            const rateModal = document.getElementById('rateModal');
+            if (event.target === rateModal) closeRateModal();
+            const actionModal = document.getElementById('staffActionModal');
+            if (event.target === actionModal) closeStaffActionModal();
         }
     </script>
 </body>

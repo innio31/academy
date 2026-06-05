@@ -4,7 +4,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /ida/login.php");
+    header("Location: /gsa/login.php");
     exit();
 }
 
@@ -271,6 +271,7 @@ foreach ($all_classes as &$class) {
     $stmt->execute([$class['id'], $school_id]);
     $class['student_count'] = $stmt->fetchColumn();
 }
+unset($class);
 
 // Get current selected class
 $selected_class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;

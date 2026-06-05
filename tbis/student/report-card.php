@@ -1,6 +1,6 @@
 <?php
 // tbis/student/report-card.php — Student Report Card Viewer
-// Checks publish status, loads the student's own record, renders card + PDF download
+// FIXED: Respects all exam settings, single page layout
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -70,6 +70,27 @@ if (empty($school_address) || empty($school_phone)) {
     }
 }
 
+// Fix logo path
+if (!empty($school_logo)) {
+    $school_logo = str_replace(['../', './', '..\\', '.\\'], '', $school_logo);
+    $school_logo = ltrim($school_logo, '/');
+    $logo_paths = [
+        $_SERVER['DOCUMENT_ROOT'] . '/tbis/' . $school_logo,
+        $_SERVER['DOCUMENT_ROOT'] . '/' . $school_logo,
+        $_SERVER['DOCUMENT_ROOT'] . '/tbis/assets/logos/logo.png',
+        $_SERVER['DOCUMENT_ROOT'] . '/assets/logos/logo.png',
+    ];
+    $logo_found = false;
+    foreach ($logo_paths as $path) {
+        if (file_exists($path)) {
+            $school_logo = str_replace($_SERVER['DOCUMENT_ROOT'], '', $path);
+            $logo_found = true;
+            break;
+        }
+    }
+    if (!$logo_found) $school_logo = '';
+}
+
 // ── Determine requested term/session (or default to latest published) ─────────
 $req_session = trim($_GET['session'] ?? '');
 $req_term    = trim($_GET['term']    ?? '');
@@ -107,6 +128,14 @@ foreach ($published_records as $r) {
 }
 
 // ── Helper Functions ──────────────────────────────────────────────────────────
+function ordinal($n)
+{
+    if ($n <= 0) return '—';
+    $sfx = ['th', 'st', 'nd', 'rd'];
+    $v   = $n % 100;
+    return $n . ($sfx[($v - 20) % 10] ?? $sfx[min($v, 3)]);
+}
+
 function getGradeInfo($total, $scale)
 {
     foreach ($scale as $row) {
@@ -114,14 +143,6 @@ function getGradeInfo($total, $scale)
             return ['grade' => $row['grade'], 'remark' => $row['remark']];
     }
     return ['grade' => 'F', 'remark' => 'Fail'];
-}
-
-function ordinal($n)
-{
-    if ($n <= 0) return '—';
-    $sfx = ['th', 'st', 'nd', 'rd'];
-    $v   = $n % 100;
-    return $n . ($sfx[($v - 20) % 10] ?? $sfx[min($v, 3)]);
 }
 
 // ── Load Card Data (only when a published record is found) ────────────────────
@@ -133,6 +154,15 @@ $total_students = 0;
 if ($record) {
     $session = $record['session'];
     $term    = $record['term'];
+    
+    // Get display settings
+    $show_class_position   = (int)($record['show_class_position'] ?? 1);
+    $show_subject_position = (int)($record['show_subject_position'] ?? 1);
+    $show_lowest_highest_avg = (int)($record['show_lowest_highest_avg'] ?? 1);
+    $show_attendance       = (int)($record['show_attendance'] ?? 1);
+    $show_affective_traits = (int)($record['show_affective_traits'] ?? 1);
+    $show_psychomotor      = (int)($record['show_psychomotor'] ?? 1);
+    $show_promoted_to      = (int)($record['show_promoted_to'] ?? 1);
 
     // Decode score types & grading
     $decoded      = json_decode($record['score_types'] ?? '{}', true);
@@ -147,16 +177,28 @@ if ($record) {
 
     // Subjects for this class
     try {
-        $stmt = $pdo->prepare(
-    "SELECT s.id, s.subject_name
-     FROM subjects s
-     JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-     WHERE sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1)
-     ORDER BY s.subject_name ASC"
-);
-$stmt->execute([$school_id, $student_class_id, $school_id]);
+        if ($student_class_id > 0) {
+            $stmt = $pdo->prepare(
+                "SELECT s.id, s.subject_name
+                 FROM subjects s
+                 JOIN subject_classes sc ON sc.subject_id = s.id
+                 WHERE sc.school_id = ? AND sc.class_id = ? AND (s.school_id = ? OR s.is_central = 1)
+                 ORDER BY s.subject_name ASC"
+            );
+            $stmt->execute([$school_id, $student_class_id, $school_id]);
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT s.id, s.subject_name
+                 FROM subjects s
+                 JOIN subject_classes sc ON sc.subject_id = s.id
+                 WHERE sc.school_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
+                 ORDER BY s.subject_name ASC"
+            );
+            $stmt->execute([$school_id, $student_class, $school_id]);
+        }
         $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
+        error_log("Failed to load subjects: " . $e->getMessage());
     }
 
     // This student's scores
@@ -176,10 +218,11 @@ $stmt->execute([$school_id, $student_class_id, $school_id]);
                 $s_scores[(int)$row['subject_id']] = $row;
             }
         } catch (Exception $e) {
+            error_log("Failed to load scores: " . $e->getMessage());
         }
     }
 
-    // Position
+    // Position & average
     try {
         $stmt = $pdo->prepare(
             "SELECT class_position, total_marks, average, promoted_to
@@ -189,6 +232,7 @@ $stmt->execute([$school_id, $student_class_id, $school_id]);
         $stmt->execute([$school_id, $student_id, $session, $term]);
         $s_pos = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {
+        error_log("Failed to load position: " . $e->getMessage());
     }
 
     // Comments
@@ -202,51 +246,74 @@ $stmt->execute([$school_id, $student_class_id, $school_id]);
         $stmt->execute([$school_id, $student_id, $session, $term]);
         $s_comm = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {
+        error_log("Failed to load comments: " . $e->getMessage());
     }
 
     // Affective traits
-    try {
-        $stmt = $pdo->prepare(
-            "SELECT punctuality, attendance, politeness, honesty, neatness,
-                    reliability, relationship, self_control
-             FROM affective_traits
-             WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1"
-        );
-        $stmt->execute([$school_id, $student_id, $session, $term]);
-        $s_af = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (Exception $e) {
+    if ($show_affective_traits) {
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT punctuality, attendance, politeness, honesty, neatness,
+                        reliability, relationship, self_control
+                 FROM affective_traits
+                 WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1"
+            );
+            $stmt->execute([$school_id, $student_id, $session, $term]);
+            $s_af = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Exception $e) {
+            error_log("Failed to load affective traits: " . $e->getMessage());
+        }
     }
 
     // Psychomotor skills
-    try {
-        $stmt = $pdo->prepare(
-            "SELECT handwriting, verbal_fluency, sports, handling_tools,
-                    drawing_painting, musical_skills
-             FROM psychomotor_skills
-             WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1"
-        );
-        $stmt->execute([$school_id, $student_id, $session, $term]);
-        $s_pm = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (Exception $e) {
+    if ($show_psychomotor) {
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT handwriting, verbal_fluency, sports, handling_tools,
+                        drawing_painting, musical_skills
+                 FROM psychomotor_skills
+                 WHERE school_id=? AND student_id=? AND session=? AND term=? LIMIT 1"
+            );
+            $stmt->execute([$school_id, $student_id, $session, $term]);
+            $s_pm = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Exception $e) {
+            error_log("Failed to load psychomotor: " . $e->getMessage());
+        }
     }
 
     // Class-wide stats (for highest/lowest average)
-    try {
-        $stmt = $pdo->prepare(
-            "SELECT sp.average
-             FROM student_positions sp
-             JOIN students st ON st.id = sp.student_id
-             WHERE sp.school_id=? AND sp.session=? AND sp.term=?
-             AND (st.class=? OR st.class_id=?)"
-        );
-        $stmt->execute([$school_id, $session, $term, $student_class, $student_class_id]);
-        $avgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        if (!empty($avgs)) {
-            $highest_avg    = max($avgs);
-            $lowest_avg     = min($avgs);
-            $total_students = count($avgs);
+    if ($show_lowest_highest_avg) {
+        try {
+            if ($student_class_id > 0) {
+                $stmt = $pdo->prepare(
+                    "SELECT sp.average
+                     FROM student_positions sp
+                     JOIN students st ON st.id = sp.student_id
+                     WHERE sp.school_id=? AND sp.session=? AND sp.term=?
+                     AND st.class_id = ?
+                     AND sp.average > 0"
+                );
+                $stmt->execute([$school_id, $session, $term, $student_class_id]);
+            } else {
+                $stmt = $pdo->prepare(
+                    "SELECT sp.average
+                     FROM student_positions sp
+                     JOIN students st ON st.id = sp.student_id
+                     WHERE sp.school_id=? AND sp.session=? AND sp.term=?
+                     AND st.class = ?
+                     AND sp.average > 0"
+                );
+                $stmt->execute([$school_id, $session, $term, $student_class]);
+            }
+            $avgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!empty($avgs)) {
+                $highest_avg    = max($avgs);
+                $lowest_avg     = min($avgs);
+                $total_students = count($avgs);
+            }
+        } catch (Exception $e) {
+            error_log("Failed to load class stats: " . $e->getMessage());
         }
-    } catch (Exception $e) {
     }
 }
 
@@ -266,7 +333,7 @@ $psychomotor_fields = [
     'verbal_fluency'  => 'Verbal Fluency',
     'sports'          => 'Sports',
     'handling_tools'  => 'Handling Tools',
-    'drawing_painting' => 'Drawing / Painting',
+    'drawing_painting' => 'Drawing/Painting',
     'musical_skills'  => 'Musical Skills',
 ];
 ?>
@@ -315,7 +382,7 @@ $psychomotor_fields = [
         .content-area {
             flex: 1;
             margin-left: 280px;
-            padding: 24px;
+            padding: 20px;
             transition: margin .3s;
         }
 
@@ -354,7 +421,7 @@ $psychomotor_fields = [
         .top-bar {
             background: white;
             border-radius: var(--radius);
-            padding: 14px 20px;
+            padding: 12px 20px;
             margin-bottom: 20px;
             box-shadow: var(--shadow);
             display: flex;
@@ -365,12 +432,12 @@ $psychomotor_fields = [
         }
 
         .top-bar h1 {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
         }
 
         .top-bar p {
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             color: #666;
             margin-top: 2px;
         }
@@ -387,9 +454,9 @@ $psychomotor_fields = [
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 7px 14px;
+            padding: 6px 12px;
             border-radius: 20px;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-weight: 500;
             text-decoration: none;
             background: white;
@@ -418,10 +485,10 @@ $psychomotor_fields = [
             display: inline-flex;
             align-items: center;
             gap: 7px;
-            padding: 9px 18px;
+            padding: 8px 16px;
             border-radius: 8px;
             font-family: 'Poppins', sans-serif;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
             border: none;
@@ -449,18 +516,18 @@ $psychomotor_fields = [
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            padding: 60px 30px;
+            padding: 50px 30px;
             text-align: center;
         }
 
         .notice-icon {
-            font-size: 3.5rem;
+            font-size: 3rem;
             color: #ccc;
             margin-bottom: 16px;
         }
 
         .notice-card h2 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             margin-bottom: 8px;
         }
 
@@ -472,7 +539,7 @@ $psychomotor_fields = [
         }
 
         /* ═══════════════════════════════════
-           REPORT CARD STYLES
+           REPORT CARD - SINGLE PAGE OPTIMIZED
         ═══════════════════════════════════ */
         .rc-card {
             background: white;
@@ -480,23 +547,23 @@ $psychomotor_fields = [
             box-shadow: var(--shadow);
             overflow: hidden;
             font-family: 'Poppins', sans-serif;
+            max-width: 100%;
         }
 
-        /* Header */
+        /* Compact Header */
         .rc-header {
-            padding: 14px 20px;
-            border-bottom: 3px solid var(--secondary);
+            padding: 6px 16px;
+            border-bottom: 2px solid var(--secondary);
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
             flex-wrap: wrap;
         }
 
         .rc-logo {
-            width: 72px;
-            height: 72px;
+            width: 50px;
+            height: 50px;
             object-fit: contain;
-            flex-shrink: 0;
         }
 
         .rc-school-details {
@@ -505,27 +572,25 @@ $psychomotor_fields = [
         }
 
         .rc-school-details h1 {
-            font-size: 1.15rem;
+            font-size: 0.9rem;
             font-weight: 700;
             color: var(--primary);
-            margin: 0 0 4px;
+            margin: 0;
         }
 
         .rc-school-details .motto {
-            font-size: .7rem;
+            font-size: 0.6rem;
             font-style: italic;
             color: var(--secondary);
-            margin-bottom: 3px;
         }
 
         .rc-school-details .address {
-            font-size: .65rem;
+            font-size: 0.55rem;
             color: #555;
-            margin-bottom: 3px;
         }
 
         .rc-school-details .contacts {
-            font-size: .62rem;
+            font-size: 0.5rem;
             color: #777;
         }
 
@@ -533,60 +598,78 @@ $psychomotor_fields = [
             display: inline-block;
             background: var(--primary);
             color: white;
-            padding: 3px 16px;
+            padding: 2px 12px;
             border-radius: 20px;
-            font-size: .7rem;
+            font-size: 0.6rem;
             font-weight: 600;
-            margin-top: 6px;
+            margin-top: 3px;
         }
 
         .rc-photo {
-            width: 72px;
-            height: 72px;
+            width: 50px;
+            height: 50px;
             object-fit: cover;
-            border-radius: 8px;
+            border-radius: 6px;
             border: 2px solid var(--light);
-            flex-shrink: 0;
         }
 
         .rc-photo-placeholder {
-            width: 72px;
-            height: 72px;
+            width: 50px;
+            height: 50px;
             background: var(--light);
-            border-radius: 8px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.5rem;
             color: #aaa;
-            flex-shrink: 0;
         }
 
-        /* Student info strip */
-        .rc-student-info {
-            display: flex;
-            flex-wrap: wrap;
+        /* Student info - Centered */
+        .rc-student-name {
+            text-align: center;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+        
+        .rc-student-name h2 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        
+        .rc-student-name p {
+            font-size: 0.6rem;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+
+        /* Student details grid */
+        .rc-student-details {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
             background: #f8f9fc;
-            padding: 7px 16px;
+            padding: 5px 12px;
             border-bottom: 1px solid #e0e0e0;
-            font-size: .7rem;
-            gap: 4px 0;
+            gap: 5px;
+            font-size: 0.6rem;
         }
-
-        .info-item {
+        
+        .rc-student-details .detail-item {
             display: inline-flex;
             align-items: baseline;
-            gap: 5px;
-            margin-right: 22px;
-            padding: 3px 0;
+            gap: 4px;
+            justify-content: center;
         }
-
-        .info-label {
+        
+        .detail-label {
             font-weight: 600;
             color: #666;
         }
-
-        .info-value {
+        
+        .detail-value {
             font-weight: 500;
             color: #222;
         }
@@ -595,93 +678,68 @@ $psychomotor_fields = [
         .rc-section-title {
             background: var(--primary);
             color: white;
-            padding: 8px 16px;
-            font-size: .78rem;
+            padding: 3px 12px;
+            font-size: 0.65rem;
             font-weight: 600;
-            letter-spacing: .4px;
         }
 
         .rc-section-title i {
-            margin-right: 8px;
+            margin-right: 5px;
         }
 
-        /* Academic table */
+        /* Academic table - Compact */
         .rc-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: .73rem;
+            font-size: 0.65rem;
         }
 
         .rc-table th {
             background: #eef2ff;
-            padding: 8px 6px;
+            padding: 4px 3px;
             text-align: center;
             border: 1px solid #d0d7de;
             font-weight: 600;
-            font-size: .68rem;
+            font-size: 0.6rem;
         }
 
         .rc-table th:first-child {
             text-align: left;
-            padding-left: 12px;
+            padding-left: 8px;
         }
 
         .rc-table td {
-            padding: 6px;
+            padding: 3px;
             border: 1px solid #e8e8e8;
             text-align: center;
-            font-size: .71rem;
+            font-size: 0.63rem;
         }
 
         .rc-table td:first-child {
             text-align: left;
-            padding-left: 12px;
+            padding-left: 8px;
             font-weight: 500;
-        }
-
-        .rc-table tr:nth-child(even) td {
-            background: #fafbff;
         }
 
         .rc-total {
             font-weight: 700;
             color: var(--primary);
-            font-size: .77rem;
         }
 
         /* Grade badges */
         .g-badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: .68rem;
+            padding: 1px 5px;
+            border-radius: 10px;
+            font-size: 0.6rem;
             font-weight: 700;
         }
 
-        .g-a {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .g-b {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .g-c {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .g-d {
-            background: #fce4ec;
-            color: #880e4f;
-        }
-
-        .g-f {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .g-a { background: #d4edda; color: #155724; }
+        .g-b { background: #cce5ff; color: #004085; }
+        .g-c { background: #fff3cd; color: #856404; }
+        .g-d { background: #fce4ec; color: #880e4f; }
+        .g-f { background: #f8d7da; color: #721c24; }
 
         /* Summary stats */
         .rc-summary {
@@ -690,45 +748,45 @@ $psychomotor_fields = [
             background: #f0f4ff;
             border-top: 1px solid var(--secondary);
             border-bottom: 1px solid #e0e0e0;
-            padding: 8px 12px;
-            gap: 12px;
-            justify-content: space-around;
+            padding: 4px 8px;
+            gap: 10px;
+            justify-content: center;
         }
 
         .summary-item {
             text-align: center;
-            padding: 4px 8px;
+            padding: 2px 6px;
         }
 
         .summary-item .value {
-            font-size: .9rem;
+            font-size: 0.75rem;
             font-weight: 700;
             color: var(--primary);
         }
 
         .summary-item .label {
-            font-size: .6rem;
+            font-size: 0.5rem;
             color: #666;
         }
 
         /* Grading key */
         .grade-key {
-            padding: 5px 12px;
+            padding: 3px 10px;
             background: #f9f9f9;
             border-bottom: 1px solid #eee;
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
-            font-size: .6rem;
+            font-size: 0.55rem;
         }
 
         .grade-key strong {
-            font-size: .64rem;
+            font-size: 0.58rem;
             color: #555;
         }
 
-        /* Traits */
+        /* Traits - Compact */
         .traits-section {
             display: flex;
             flex-wrap: wrap;
@@ -737,56 +795,33 @@ $psychomotor_fields = [
 
         .trait-col {
             flex: 1;
-            min-width: 180px;
+            min-width: 140px;
         }
 
         .trait-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 4px 12px;
+            padding: 2px 10px;
             border-bottom: 1px solid #f0f0f0;
-            font-size: .68rem;
+            font-size: 0.6rem;
         }
 
         .trait-val {
-            padding: 2px 7px;
+            padding: 1px 5px;
             border-radius: 8px;
-            font-size: .62rem;
+            font-size: 0.55rem;
             font-weight: 600;
         }
 
-        .tv-a {
-            background: #d4edda;
-            color: #155724;
-        }
+        .tv-a { background: #d4edda; color: #155724; }
+        .tv-b { background: #cce5ff; color: #004085; }
+        .tv-c { background: #fff3cd; color: #856404; }
+        .tv-d { background: #ffe0b2; color: #e65100; }
+        .tv-e { background: #f8d7da; color: #721c24; }
+        .tv-null { background: #f0f0f0; color: #999; }
 
-        .tv-b {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .tv-c {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .tv-d {
-            background: #ffe0b2;
-            color: #e65100;
-        }
-
-        .tv-e {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .tv-null {
-            background: #f0f0f0;
-            color: #999;
-        }
-
-        /* Comments */
+        /* Comments - Compact */
         .comments-row {
             display: flex;
             border-bottom: 1px solid #e0e0e0;
@@ -794,7 +829,7 @@ $psychomotor_fields = [
 
         .comment-box {
             flex: 1;
-            padding: 8px 14px;
+            padding: 5px 10px;
             border-right: 1px solid #e0e0e0;
         }
 
@@ -803,82 +838,73 @@ $psychomotor_fields = [
         }
 
         .comment-box .c-label {
-            font-size: .6rem;
+            font-size: 0.52rem;
             color: var(--primary);
             font-weight: 600;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
 
         .comment-box .c-text {
-            font-size: .68rem;
-            line-height: 1.4;
+            font-size: 0.58rem;
+            line-height: 1.3;
         }
 
         .comment-box .c-signature {
-            font-size: .58rem;
+            font-size: 0.5rem;
             color: #888;
-            margin-top: 4px;
+            margin-top: 2px;
             border-top: 1px dashed #ddd;
-            padding-top: 3px;
+            padding-top: 2px;
         }
 
         /* Resumption notice */
         .rc-resumption {
-            padding: 6px 16px;
+            padding: 4px 12px;
             background: #fffbe6;
             border-bottom: 1px solid #ffe082;
-            font-size: .7rem;
+            font-size: 0.6rem;
             color: #6d4c00;
-        }
-
-        .rc-resumption i {
-            margin-right: 6px;
         }
 
         /* Footer */
         .rc-footer {
             background: linear-gradient(90deg, var(--primary), var(--dark));
             color: white;
-            padding: 6px 16px;
+            padding: 4px 12px;
             display: flex;
             justify-content: space-between;
-            font-size: .6rem;
+            font-size: 0.5rem;
         }
 
-        /* ── Print / PDF ── */
+        /* ── Print / PDF - Single Page Fix ── */
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 5mm;
+                margin: 3mm;
             }
-
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
-
             .no-print,
             .mobile-toggle,
             .top-bar,
             .term-selector,
             .action-bar,
-            button {
-                display: none !important;
-            }
-
-            .content-area {
-                margin-left: 0 !important;
-                padding: 0 !important;
-            }
-
+            button,
             .student-sidebar,
             .sidebar-overlay {
                 display: none !important;
             }
-
+            .content-area {
+                margin-left: 0 !important;
+                padding: 0 !important;
+            }
             .rc-card {
                 box-shadow: none;
                 border-radius: 0;
+                page-break-inside: avoid;
+                break-inside: avoid;
             }
         }
     </style>
@@ -977,14 +1003,34 @@ $psychomotor_fields = [
 
                     <!-- Header -->
                     <div class="rc-header">
-                        <?php if (!empty($school_logo) && (file_exists($_SERVER['DOCUMENT_ROOT'] . '/' . ltrim($school_logo, '/')) || file_exists($school_logo))): ?>
-                            <img class="rc-logo" src="<?php echo htmlspecialchars($school_logo); ?>" alt="School Logo" onerror="this.style.display='none'">
+                        <?php if (!empty($school_logo)): ?>
+                            <?php 
+                            $logo_displayed = false;
+                            $logo_paths_to_try = [
+                                $school_logo,
+                                '/tbis/assets/logos/logo.png',
+                                '/assets/logos/logo.png',
+                                '/tbis/admin/assets/logo.png',
+                                '/tbis/uploads/logo.png',
+                            ];
+                            foreach ($logo_paths_to_try as $logo_path) {
+                                if (!empty($logo_path) && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)) {
+                                    echo '<img class="rc-logo" src="' . htmlspecialchars($logo_path) . '" alt="School Logo" onerror="this.style.display=\'none\'">';
+                                    $logo_displayed = true;
+                                    break;
+                                }
+                            }
+                            if (!$logo_displayed): ?>
+                                <div class="rc-photo-placeholder"><i class="fas fa-school"></i></div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <div class="rc-photo-placeholder"><i class="fas fa-school"></i></div>
                         <?php endif; ?>
 
                         <div class="rc-school-details">
                             <h1><?php echo htmlspecialchars($school_name); ?></h1>
                             <?php if (!empty($school_motto)): ?>
-                                <div class="motto">"<?php echo htmlspecialchars($school_motto); ?>"</div>
+                                <div class="motto"><?php echo htmlspecialchars($school_motto); ?></div>
                             <?php endif; ?>
                             <?php if (!empty($school_address)): ?>
                                 <div class="address"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($school_address); ?></div>
@@ -1000,57 +1046,33 @@ $psychomotor_fields = [
                                 </div>
                             <?php endif; ?>
                             <div class="rc-title">
-                                REPORT CARD &mdash; <?php echo strtoupper(htmlspecialchars($record['term'])); ?> TERM <?php echo htmlspecialchars($record['session']); ?>
+                                REPORT CARD — <?php echo strtoupper(htmlspecialchars($record['term'])); ?> TERM <?php echo htmlspecialchars($record['session']); ?>
                             </div>
                         </div>
 
                         <?php if (!empty($student['profile_picture'])): ?>
-                            <img class="rc-photo" src="<?php echo htmlspecialchars($student['profile_picture']); ?>" alt="Student Photo" onerror="this.classList.add('d-none')">
+                            <img class="rc-photo" src="<?php echo htmlspecialchars($student['profile_picture']); ?>" alt="Student Photo" onerror="this.style.display='none'">
                         <?php else: ?>
                             <div class="rc-photo-placeholder"><i class="fas fa-user-graduate"></i></div>
                         <?php endif; ?>
                     </div>
 
-                    <!-- Student info strip -->
-                    <div class="rc-student-info">
-                        <div class="info-item">
-                            <span class="info-label">Name:</span>
-                            <span class="info-value"><?php echo htmlspecialchars($student['full_name']); ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Admission No:</span>
-                            <span class="info-value"><?php echo htmlspecialchars($student['admission_number']); ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Class:</span>
-                            <span class="info-value"><?php echo htmlspecialchars($student_class); ?></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Gender:</span>
-                            <span class="info-value"><?php echo ucfirst(strtolower($student['gender'] ?? '')); ?></span>
-                        </div>
-                        <?php if (!empty($student['guardian_name'])): ?>
-                            <div class="info-item">
-                                <span class="info-label">Guardian:</span>
-                                <span class="info-value"><?php echo htmlspecialchars($student['guardian_name']); ?></span>
-                            </div>
+                    <!-- Student Name -->
+                    <div class="rc-student-name">
+                        <h2><?php echo htmlspecialchars($student['full_name']); ?></h2>
+                        <p>Admission No: <?php echo htmlspecialchars($student['admission_number']); ?></p>
+                    </div>
+
+                    <!-- Student Details Grid -->
+                    <div class="rc-student-details">
+                        <div class="detail-item"><span class="detail-label">Class:</span><span class="detail-value"><?php echo htmlspecialchars($student_class); ?></span></div>
+                        <div class="detail-item"><span class="detail-label">Gender:</span><span class="detail-value"><?php echo ucfirst($student['gender'] ?? ''); ?></span></div>
+                        <div class="detail-item"><span class="detail-label">Guardian:</span><span class="detail-value"><?php echo htmlspecialchars($student['guardian_name'] ?? '—'); ?></span></div>
+                        <?php if ($show_attendance && $days_opened > 0): ?>
+                            <div class="detail-item"><span class="detail-label">Attendance:</span><span class="detail-value"><?php echo $days_present; ?>/<?php echo $days_opened; ?> (<?php echo round(($days_present / $days_opened) * 100); ?>%)</span></div>
                         <?php endif; ?>
-                        <?php if ((int)($record['show_attendance'] ?? 1) && $days_opened > 0): ?>
-                            <div class="info-item">
-                                <span class="info-label">Attendance:</span>
-                                <span class="info-value">
-                                    <?php echo $days_present; ?>/<?php echo $days_opened; ?> days
-                                    (<?php echo round(($days_present / $days_opened) * 100); ?>%)
-                                </span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ((int)($record['show_promoted_to'] ?? 1) && !empty($promoted_to)): ?>
-                            <div class="info-item">
-                                <span class="info-label">Promoted To:</span>
-                                <span class="info-value" style="color:var(--success);font-weight:600;">
-                                    <i class="fas fa-arrow-up" style="font-size:.65rem;"></i> <?php echo htmlspecialchars($promoted_to); ?>
-                                </span>
-                            </div>
+                        <?php if ($show_promoted_to && !empty($promoted_to)): ?>
+                            <div class="detail-item"><span class="detail-label">Promoted to:</span><span class="detail-value" style="color:var(--success);font-weight:600;"><?php echo htmlspecialchars($promoted_to); ?></span></div>
                         <?php endif; ?>
                     </div>
 
@@ -1062,36 +1084,44 @@ $psychomotor_fields = [
                     <table class="rc-table">
                         <thead>
                             <tr>
-                                <th style="width:30%">SUBJECT</th>
+                                <th style="width:35%">SUBJECT</th>
                                 <?php foreach ($score_types as $st): ?>
-                                    <th><?php echo htmlspecialchars($st['label'] ?? $st['name'] ?? 'CA'); ?></th>
+                                    <th><?php echo htmlspecialchars(substr($st['label'] ?? $st['name'] ?? 'CA', 0, 8)); ?></th>
                                 <?php endforeach; ?>
                                 <th>TOTAL</th>
                                 <th>GRADE</th>
+                                <?php if ($show_subject_position): ?><th>POS</th><?php endif; ?>
                                 <th>REMARK</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($subjects as $sub):
+                            <?php 
+                            $total_sum = 0;
+                            $scored_count = 0;
+                            foreach ($subjects as $sub):
                                 $sub_id = (int)$sub['id'];
-                                $row    = $s_scores[$sub_id] ?? null;
+                                $row = $s_scores[$sub_id] ?? null;
                                 if (!$row) continue;
-                                $total_sc   = (float)$row['total_score'];
+                                $total_sc = (float)$row['total_score'];
                                 $grade_info = getGradeInfo($total_sc, $grading_scale);
-                                $g_cls      = strtolower(substr($grade_info['grade'], 0, 1));
+                                $g_cls = strtolower(substr($grade_info['grade'], 0, 1));
+                                $total_sum += $total_sc;
+                                $scored_count++;
+                                $subject_pos = $row['subject_position'] ?? 0;
                             ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($sub['subject_name']); ?></strong></td>
                                     <?php foreach ($score_types as $st):
-                                        $st_key = strtolower(str_replace([' ', '-'], '_', $st['label'] ?? $st['name'] ?? ''));
-                                        $val    = $row['score_data'][$st_key]
-                                            ?? $row['score_data'][$st['label'] ?? '']
-                                            ?? '—';
+                                        $label = $st['label'];
+                                        $val = $row['score_data'][$label] ?? '—';
                                     ?>
                                         <td><?php echo is_numeric($val) ? $val : '—'; ?></td>
                                     <?php endforeach; ?>
                                     <td class="rc-total"><?php echo number_format($total_sc, 0); ?></td>
                                     <td><span class="g-badge g-<?php echo $g_cls; ?>"><?php echo $grade_info['grade']; ?></span></td>
+                                    <?php if ($show_subject_position): ?>
+                                        <td><?php echo $subject_pos > 0 ? ordinal($subject_pos) : '—'; ?></td>
+                                    <?php endif; ?>
                                     <td><?php echo htmlspecialchars($grade_info['remark']); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1100,33 +1130,15 @@ $psychomotor_fields = [
 
                     <!-- Summary stats -->
                     <div class="rc-summary">
-                        <div class="summary-item">
-                            <div class="value"><?php echo $scored_count; ?></div>
-                            <div class="label">Subjects</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="value"><?php echo number_format($total_sum, 0); ?></div>
-                            <div class="label">Total Marks</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="value"><?php echo number_format($avg, 1); ?>%</div>
-                            <div class="label">Average</div>
-                        </div>
-                        <?php if ((int)($record['show_class_position'] ?? 1)): ?>
-                            <div class="summary-item">
-                                <div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div>
-                                <div class="label">Class Position</div>
-                            </div>
+                        <div class="summary-item"><div class="value"><?php echo $scored_count; ?></div><div class="label">Subjects</div></div>
+                        <div class="summary-item"><div class="value"><?php echo number_format($total_sum, 0); ?></div><div class="label">Total Marks</div></div>
+                        <div class="summary-item"><div class="value"><?php echo number_format($avg, 1); ?>%</div><div class="label">Average</div></div>
+                        <?php if ($show_class_position): ?>
+                            <div class="summary-item"><div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div><div class="label">Class Position</div></div>
                         <?php endif; ?>
-                        <?php if ((int)($record['show_lowest_highest_avg'] ?? 1) && $total_students): ?>
-                            <div class="summary-item">
-                                <div class="value"><?php echo number_format($highest_avg, 1); ?>%</div>
-                                <div class="label">Highest Avg</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div>
-                                <div class="label">Lowest Avg</div>
-                            </div>
+                        <?php if ($show_lowest_highest_avg && $total_students > 0): ?>
+                            <div class="summary-item"><div class="value"><?php echo number_format($highest_avg, 1); ?>%</div><div class="label">Highest in Class</div></div>
+                            <div class="summary-item"><div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div><div class="label">Lowest in Class</div></div>
                         <?php endif; ?>
                     </div>
 
@@ -1139,13 +1151,12 @@ $psychomotor_fields = [
                             <span class="g-badge g-<?php echo $gc; ?>">
                                 <?php echo htmlspecialchars($g['grade']); ?>
                                 (<?php echo $g['min']; ?>–<?php echo $g['max']; ?>%)
-                                &mdash; <?php echo htmlspecialchars($g['remark']); ?>
                             </span>
                         <?php endforeach; ?>
                     </div>
 
                     <!-- Affective Traits -->
-                    <?php if ((int)($record['show_affective_traits'] ?? 1)): ?>
+                    <?php if ($show_affective_traits && !empty($affective_fields)): ?>
                         <div class="rc-section-title" style="background:#5a6268;">
                             <i class="fas fa-heart"></i> AFFECTIVE TRAITS
                         </div>
@@ -1179,7 +1190,7 @@ $psychomotor_fields = [
                     <?php endif; ?>
 
                     <!-- Psychomotor Skills -->
-                    <?php if ((int)($record['show_psychomotor'] ?? 1)): ?>
+                    <?php if ($show_psychomotor && !empty($psychomotor_fields)): ?>
                         <div class="rc-section-title" style="background:#5a6268;">
                             <i class="fas fa-futbol"></i> PSYCHOMOTOR SKILLS
                         </div>
@@ -1289,7 +1300,7 @@ $psychomotor_fields = [
             }
         });
 
-        /* ── PDF Download ────────────────────────────────────────────────────────── */
+        /* ── PDF Download - Single Page ── */
         async function downloadReportCardPDF() {
             const card = document.getElementById('reportCard');
             if (!card) {
@@ -1313,7 +1324,7 @@ $psychomotor_fields = [
                 });
             });
 
-            // Temporarily expand content area to full width
+            // Temporarily expand content area
             const contentArea = document.querySelector('.content-area');
             const originalMargin = contentArea ? contentArea.style.marginLeft : '';
             if (contentArea) contentArea.style.marginLeft = '0';
@@ -1322,10 +1333,9 @@ $psychomotor_fields = [
                 const canvas = await html2canvas(card, {
                     scale: 2.5,
                     useCORS: true,
-                    allowTaint: true,
                     backgroundColor: '#ffffff',
                     logging: false,
-                    windowWidth: 794 // A4 width in px at 96dpi
+                    windowWidth: 794
                 });
 
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -1334,24 +1344,22 @@ $psychomotor_fields = [
                     unit: 'mm',
                     format: 'a4'
                 });
+                
                 const pdfW = pdf.internal.pageSize.getWidth();
                 const pdfH = pdf.internal.pageSize.getHeight();
                 const imgW = pdfW - 10;
                 const imgH = (canvas.height * imgW) / canvas.width;
-
-                let posY = 5;
-                pdf.addImage(imgData, 'JPEG', 5, posY, imgW, imgH);
-
-                // Add extra pages if content is taller than A4
-                if (imgH > pdfH - 10) {
-                    let remainingH = imgH - (pdfH - posY - 5);
-                    let pageNum = 1;
-                    while (remainingH > 0) {
-                        pdf.addPage();
-                        pdf.addImage(imgData, 'JPEG', 5, -(pageNum * (pdfH - 10)) + posY, imgW, imgH);
-                        remainingH -= (pdfH - 10);
-                        pageNum++;
-                    }
+                
+                // Calculate if content fits on one page
+                if (imgH <= pdfH - 10) {
+                    // Fits on one page
+                    pdf.addImage(imgData, 'JPEG', 5, 5, imgW, imgH);
+                } else {
+                    // Scale down to fit on one page
+                    const scaledH = pdfH - 20;
+                    const scaledW = (canvas.width * scaledH) / canvas.height;
+                    const offsetX = (pdfW - scaledW) / 2;
+                    pdf.addImage(imgData, 'JPEG', offsetX, 10, scaledW, scaledH);
                 }
 
                 // Compose filename

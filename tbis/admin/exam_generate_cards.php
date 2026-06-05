@@ -1,6 +1,6 @@
 <?php
 // tbis/admin/exam_generate_cards.php — Step 4: Generate & View Report Cards
-// FIXED: Ordinal numbers, student name centered, reduced spacing, removed grading scale
+// FIXED: Allow publishing with absent students
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -147,19 +147,17 @@ if (empty($grading_scale)) {
     ];
 }
 
-// ── Helper function for ordinal numbers (FIXED) ───────────────────────────────
+// ── Helper function for ordinal numbers ───────────────────────────────────────
 function ordinal($number) {
     if ($number <= 0) return '-';
     $number = (int)$number;
     $last_digit = $number % 10;
     $last_two = $number % 100;
     
-    // Special cases for 11, 12, 13
     if ($last_two >= 11 && $last_two <= 13) {
         return $number . 'th';
     }
     
-    // Normal cases
     switch ($last_digit) {
         case 1: return $number . 'st';
         case 2: return $number . 'nd';
@@ -177,33 +175,56 @@ function getGradeInfo(float $total, array $scale): array
     return ['grade' => 'F', 'remark' => 'Fail'];
 }
 
-// ── Handle publish actions ────────────────────────────────────────────────────
+// ── Handle publish actions (MODIFIED: Allow forced publish with confirmation) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $act = $_POST['action'];
+    
     if ($act === 'publish_record') {
+        $force_publish = isset($_POST['force_publish']) && $_POST['force_publish'] === 'true';
+        
         try {
-            $pdo->prepare("UPDATE report_card_settings SET status='published', updated_at=NOW() WHERE id=? AND school_id=?")->execute([$record_id, $school_id]);
-            $record['status'] = 'published';
-            $_SESSION['flash_success'] = "Report cards published.";
-        } catch (Exception $e) { $_SESSION['flash_error'] = "Could not publish: " . $e->getMessage(); }
+            // Check if already published
+            if (($record['status'] ?? '') === 'published') {
+                throw new Exception('Record is already published!');
+            }
+            
+            // If not force publishing, we'll do the check in JavaScript
+            // The actual update happens here regardless for force publish
+            $stmt = $pdo->prepare("UPDATE report_card_settings SET status='published', updated_at=NOW() WHERE id=? AND school_id=? AND status != 'published'");
+            $stmt->execute([$record_id, $school_id]);
+            
+            if ($stmt->rowCount() > 0) {
+                $record['status'] = 'published';
+                $_SESSION['flash_success'] = "✅ Report cards published successfully!";
+                error_log("Report card published - Record ID: {$record_id}, School ID: {$school_id}, Force: {$force_publish}");
+            } else {
+                throw new Exception('No changes made. Record may already be published or doesn\'t exist.');
+            }
+        } catch (Exception $e) { 
+            $_SESSION['flash_error'] = "Could not publish: " . $e->getMessage();
+            error_log("Publish error: " . $e->getMessage());
+        }
         header("Location: exam_generate_cards.php?record_id={$record_id}");
         exit();
     }
+    
     if ($act === 'unpublish_record') {
         try {
-            $pdo->prepare("UPDATE report_card_settings SET status='active', updated_at=NOW() WHERE id=? AND school_id=?")->execute([$record_id, $school_id]);
-            $record['status'] = 'active';
-            $_SESSION['flash_success'] = "Record unpublished.";
-        } catch (Exception $e) { $_SESSION['flash_error'] = "Could not unpublish: " . $e->getMessage(); }
+            $stmt = $pdo->prepare("UPDATE report_card_settings SET status='active', updated_at=NOW() WHERE id=? AND school_id=? AND status='published'");
+            $stmt->execute([$record_id, $school_id]);
+            
+            if ($stmt->rowCount() > 0) {
+                $record['status'] = 'active';
+                $_SESSION['flash_success'] = "📝 Record unpublished successfully! Cards are now editable.";
+                error_log("Report card unpublished - Record ID: {$record_id}");
+            } else {
+                throw new Exception('Record was not published or doesn\'t exist.');
+            }
+        } catch (Exception $e) { 
+            $_SESSION['flash_error'] = "Could not unpublish: " . $e->getMessage();
+            error_log("Unpublish error: " . $e->getMessage());
+        }
         header("Location: exam_generate_cards.php?record_id={$record_id}");
-        exit();
-    }
-    if ($act === 'archive_record') {
-        try {
-            $pdo->prepare("UPDATE report_card_settings SET status='archived', updated_at=NOW() WHERE id=? AND school_id=?")->execute([$record_id, $school_id]);
-            $_SESSION['flash_success'] = "Record archived.";
-        } catch (Exception $e) { $_SESSION['flash_error'] = "Could not archive: " . $e->getMessage(); }
-        header("Location: exam_record_setup.php");
         exit();
     }
 }
@@ -212,11 +233,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $students = [];
 try {
     if ($class_id > 0) {
-        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class_id = ? AND status = 'active' ORDER BY full_name ASC");
+        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture, status FROM students WHERE school_id = ? AND class_id = ? AND status = 'active' ORDER BY full_name ASC");
         $stmt->execute([$school_id, $class_id]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture FROM students WHERE school_id = ? AND class = ? AND status = 'active' ORDER BY full_name ASC");
+        $stmt = $pdo->prepare("SELECT id, full_name, admission_number, gender, dob, guardian_name, profile_picture, status FROM students WHERE school_id = ? AND class = ? AND status = 'active' ORDER BY full_name ASC");
         $stmt->execute([$school_id, $class]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -270,9 +291,9 @@ $class_highest_avg = !empty($student_averages) ? max($student_averages) : 0;
 $class_lowest_avg = !empty($student_averages) ? min(array_filter($student_averages, function($v) { return $v > 0; })) : 0;
 if ($class_lowest_avg == 0 && !empty($student_averages)) $class_lowest_avg = min($student_averages);
 
-// Calculate class positions
+// Calculate class positions (only for students with scores)
 $position_map = [];
-$sorted_averages = $student_averages;
+$sorted_averages = array_filter($student_averages, function($avg) { return $avg > 0; });
 arsort($sorted_averages);
 $position = 1;
 $prev_avg = null;
@@ -280,6 +301,13 @@ foreach ($sorted_averages as $sid => $avg) {
     if ($prev_avg !== null && $avg < $prev_avg) $position++;
     $position_map[$sid] = $position;
     $prev_avg = $avg;
+}
+// For students with no scores, set position to 0 (will show as 'N/A')
+foreach ($students as $student) {
+    $sid = (int)$student['id'];
+    if (!isset($position_map[$sid])) {
+        $position_map[$sid] = 0;
+    }
 }
 
 // ── Load comments ─────────────────────────────────────────────────────────────
@@ -349,15 +377,41 @@ foreach ($students as $s) {
     }
 }
 
-// ── Check readiness ───────────────────────────────────────────────────────────
-$students_with_scores = 0;
-$students_with_comments = 0;
+// ── Check readiness (Identify students with missing data) ─────────────────────
+$students_missing_scores = [];
+$students_missing_comments = [];
+$students_with_data = [];
+
 foreach ($students as $s) {
     $sid = (int)$s['id'];
-    if (!empty($scores[$sid])) $students_with_scores++;
-    if (!empty($comments[$sid])) $students_with_comments++;
+    $has_scores = !empty($scores[$sid]);
+    $has_comments = !empty($comments[$sid]);
+    
+    if (!$has_scores) {
+        $students_missing_scores[] = $s['full_name'];
+    }
+    if (!$has_comments) {
+        $students_missing_comments[] = $s['full_name'];
+    }
+    if ($has_scores || $has_comments) {
+        $students_with_data[] = $s['full_name'];
+    }
 }
-$all_ready = ($students_with_scores >= $total_students && $students_with_comments >= $total_students);
+
+$students_with_scores = $total_students - count($students_missing_scores);
+$students_with_comments = $total_students - count($students_missing_comments);
+
+// Never disable the publish button - we'll show a warning dialog instead
+$publish_warning = '';
+if (!empty($students_missing_scores)) {
+    $publish_warning .= count($students_missing_scores) . " student(s) missing scores: " . implode(', ', array_slice($students_missing_scores, 0, 3));
+    if (count($students_missing_scores) > 3) $publish_warning .= " and " . (count($students_missing_scores) - 3) . " more";
+}
+if (!empty($students_missing_comments)) {
+    if (!empty($publish_warning)) $publish_warning .= "\n";
+    $publish_warning .= count($students_missing_comments) . " student(s) missing comments: " . implode(', ', array_slice($students_missing_comments, 0, 3));
+    if (count($students_missing_comments) > 3) $publish_warning .= " and " . (count($students_missing_comments) - 3) . " more";
+}
 
 // ── Trait definitions ─────────────────────────────────────────────────────────
 $affective_fields = [
@@ -500,27 +554,60 @@ $psychomotor_fields = [
         .rc-footer { background: linear-gradient(90deg, var(--primary), var(--dark)); color: white; padding: 4px 12px; display: flex; justify-content: space-between; font-size: 0.55rem; }
         
         /* Buttons */
-        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-family: 'Poppins', sans-serif; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-family: 'Poppins', sans-serif; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.3s ease; }
         .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--secondary); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-secondary { background: white; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-1px); }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #e67e22; transform: translateY(-1px); }
         
         /* Alerts */
         .alert-warning { background: #fff3cd; color: #856404; padding: 12px; border-radius: var(--radius); margin-bottom: 15px; border-left: 4px solid #f39c12; }
         .alert-success { background: #d4edda; color: #155724; padding: 12px; border-radius: var(--radius); margin-bottom: 15px; border-left: 4px solid #27ae60; }
         .alert-danger { background: #f8d7da; color: #721c24; padding: 12px; border-radius: var(--radius); margin-bottom: 15px; border-left: 4px solid #e74c3c; }
+        .alert-info { background: #d1ecf1; color: #0c5460; padding: 12px; border-radius: var(--radius); margin-bottom: 15px; border-left: 4px solid #17a2b8; }
         .empty-state { text-align: center; padding: 30px; color: #999; }
+        
+        /* Modal for publish confirmation */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 12px; max-width: 500px; width: 90%; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .modal-header { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; color: var(--primary); }
+        .modal-body { margin-bottom: 20px; line-height: 1.5; max-height: 300px; overflow-y: auto; }
+        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-footer button { padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .warning-text { color: #e67e22; font-weight: 600; }
+        .danger-text { color: #e74c3c; }
+        .student-list-modal { margin: 10px 0; padding-left: 20px; max-height: 150px; overflow-y: auto; font-size: 0.85rem; }
         
         /* PRINT */
         @media print {
             @page { size: A4 portrait; margin: 5mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            .no-print, .sidebar, .mobile-toggle, .overlay, .top-header, .publish-bar, .student-panel, .layout-grid>.student-panel, button, .btn { display: none !important; }
+            .no-print, .sidebar, .mobile-toggle, .overlay, .top-header, .publish-bar, .student-panel, .layout-grid>.student-panel, button, .btn, .modal { display: none !important; }
             .layout-grid { display: block !important; }
             .rc-card { margin: 0; box-shadow: none; page-break-inside: avoid; break-inside: avoid; max-width: 100%; }
         }
     </style>
 </head>
 <body>
+    <!-- Modal for publish confirmation -->
+    <div id="publishModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-triangle warning-text"></i> Publish Report Cards
+            </div>
+            <div class="modal-body" id="modalBody">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" id="confirmPublishBtn" onclick="forcePublish()">Publish Anyway</button>
+            </div>
+        </div>
+    </div>
+
     <div class="overlay" id="overlay"></div>
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header" style="padding:0 20px 15px;">
@@ -533,6 +620,7 @@ $psychomotor_fields = [
             <li><a href="index.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-home"></i>Dashboard</a></li>
             <li><a href="exam_record_setup.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-file-alt"></i>Exam Records</a></li>
             <li><a href="exam_generate_cards.php?record_id=<?php echo $record_id; ?>" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;background:rgba(255,255,255,0.2);border-radius:8px;"><i class="fas fa-id-card"></i>Report Cards</a></li>
+            <li><a href="exam_broadsheet.php?record_id=<?php echo $record_id; ?>" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-chart-line"></i>Broadsheet</a></li>
             <li><a href="logout.php" style="display:flex;gap:10px;padding:10px;color:white;text-decoration:none;"><i class="fas fa-sign-out-alt"></i>Logout</a></li>
         </ul>
     </nav>
@@ -541,11 +629,29 @@ $psychomotor_fields = [
     <main class="main">
         <div class="top-header no-print">
             <div><h1 style="font-size:1.1rem;"><i class="fas fa-id-card"></i> Generate Report Cards</h1><p style="font-size:0.7rem;"><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term {$session}"); ?></p></div>
-            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" style="text-decoration:none;padding:6px 12px;background:#eee;border-radius:6px;font-size:0.8rem;">← Back to Step 3</a>
+            <a href="exam_traits_comments.php?record_id=<?php echo $record_id; ?>" class="btn-secondary" style="text-decoration:none;padding:6px 12px;border-radius:6px;font-size:0.8rem;">← Back to Step 3</a>
         </div>
 
-        <?php if ($success_msg): ?><div class="alert-success no-print"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_msg); ?></div><?php endif; ?>
-        <?php if ($error_msg): ?><div class="alert-danger no-print"><i class="fas fa-exclamation-triangle"></i> <?php echo $error_msg; ?></div><?php endif; ?>
+        <?php if ($success_msg): ?>
+            <div class="alert-success no-print"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_msg); ?></div>
+        <?php endif; ?>
+        <?php if ($error_msg): ?>
+            <div class="alert-danger no-print"><i class="fas fa-exclamation-triangle"></i> <?php echo $error_msg; ?></div>
+        <?php endif; ?>
+        
+        <?php if (!empty($students_missing_scores) || !empty($students_missing_comments)): ?>
+            <div class="alert-warning no-print">
+                <i class="fas fa-info-circle"></i> 
+                <strong>Missing Data Alert:</strong><br>
+                <?php if (!empty($students_missing_scores)): ?>
+                    • <?php echo count($students_missing_scores); ?> student(s) have no scores. They will show empty results.<br>
+                <?php endif; ?>
+                <?php if (!empty($students_missing_comments)): ?>
+                    • <?php echo count($students_missing_comments); ?> student(s) have no comments. Comments section will be blank.<br>
+                <?php endif; ?>
+                <small>You can still publish, but review the affected students first.</small>
+            </div>
+        <?php endif; ?>
 
         <?php if (empty($students)): ?>
             <div class="alert-warning">No active students found for <?php echo htmlspecialchars($class); ?>.</div>
@@ -554,20 +660,38 @@ $psychomotor_fields = [
         <?php else: ?>
 
             <div class="publish-bar no-print">
-    <div><strong><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term"); ?></strong><span style="margin-left:10px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-warning" onclick="recalculateScoresAndPositions()" id="recalcBtn" style="background:#f39c12;color:white;">
-            <i class="fas fa-sync-alt"></i> Recalculate
-        </button>
-        <?php if (($record['status'] ?? '') !== 'published'): ?>
-            <form method="POST" style="display:inline"><input type="hidden" name="action" value="publish_record"><button type="submit" class="btn btn-primary" <?php echo !$all_ready ? 'disabled' : ''; ?>>Publish Cards</button></form>
-        <?php else: ?>
-            <form method="POST" style="display:inline"><input type="hidden" name="action" value="unpublish_record"><button type="submit" class="btn btn-secondary">Unpublish</button></form>
-        <?php endif; ?>
-        <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
-        <button class="btn btn-primary" onclick="downloadReportCardPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
-    </div>
-</div>
+                <div>
+                    <strong><?php echo htmlspecialchars($record['record_name'] ?? "{$class} — {$term} Term"); ?></strong>
+                    <span style="margin-left:10px;font-size:0.7rem;"><?php echo htmlspecialchars($session); ?> • <?php echo htmlspecialchars($class); ?></span>
+                    <br>
+                    <small style="color: #666;">
+                        📊 Scores: <?php echo $students_with_scores; ?>/<?php echo $total_students; ?> | 
+                        💬 Comments: <?php echo $students_with_comments; ?>/<?php echo $total_students; ?>
+                        <?php if ($record['status'] === 'published'): ?>
+                            | 🔒 <strong style="color: #27ae60;">PUBLISHED</strong>
+                        <?php endif; ?>
+                    </small>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn btn-warning" onclick="recalculateScoresAndPositions()" id="recalcBtn">
+                        <i class="fas fa-sync-alt"></i> Recalculate
+                    </button>
+                    <?php if (($record['status'] ?? '') !== 'published'): ?>
+                        <button class="btn btn-primary" id="publishBtn" onclick="showPublishModal()">
+                            <i class="fas fa-check-circle"></i> Publish Cards
+                        </button>
+                    <?php else: ?>
+                        <form method="POST" style="display:inline" onsubmit="return confirm('⚠️ WARNING: Unpublishing will make these report cards editable again.\n\nAre you sure you want to continue?');">
+                            <input type="hidden" name="action" value="unpublish_record">
+                            <button type="submit" class="btn btn-secondary">
+                                <i class="fas fa-undo-alt"></i> Unpublish
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                    <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-primary" onclick="downloadReportCardPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </div>
 
             <div class="layout-grid">
                 <div class="student-panel no-print">
@@ -578,7 +702,7 @@ $psychomotor_fields = [
                             $has_scores = !empty($scores[$sid]);
                             $has_comm = !empty($comments[$sid]);
                         ?>
-                            <li><a href="?record_id=<?php echo $record_id; ?>&student_id=<?php echo $sid; ?>" class="<?php echo ($sid === $preview_sid) ? 'active' : ''; ?>"><div class="s-avatar"><?php echo strtoupper(substr($s['full_name'], 0, 1)); ?></div><div style="flex:1;"><strong style="font-size:0.75rem;"><?php echo htmlspecialchars($s['full_name']); ?></strong><span style="font-size:0.65rem;color:#888;display:block;"><?php echo htmlspecialchars($s['admission_number']); ?></span></div><?php if ($has_scores && $has_comm): ?><span class="s-badge">✓</span><?php else: ?><span class="s-badge" style="background:#fce4ec;color:#c62828;">!</span><?php endif; ?></a></li>
+                            <li><a href="?record_id=<?php echo $record_id; ?>&student_id=<?php echo $sid; ?>" class="<?php echo ($sid === $preview_sid) ? 'active' : ''; ?>"><div class="s-avatar"><?php echo strtoupper(substr($s['full_name'], 0, 1)); ?></div><div style="flex:1;"><strong style="font-size:0.75rem;"><?php echo htmlspecialchars($s['full_name']); ?></strong><span style="font-size:0.65rem;color:#888;display:block;"><?php echo htmlspecialchars($s['admission_number']); ?></span></div><?php if ($has_scores && $has_comm): ?><span class="s-badge">✓</span><?php elseif ($has_scores): ?><span class="s-badge" style="background:#fff3cd;color:#856404;">⚠️</span><?php else: ?><span class="s-badge" style="background:#fce4ec;color:#c62828;">!</span><?php endif; ?></a></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -598,39 +722,28 @@ $psychomotor_fields = [
                         $days_present = (int)($s_comm['days_present'] ?? 0);
                     ?>
                         <div class="rc-header">
-    <?php 
-    // Try multiple possible logo paths
-    $logo_displayed = false;
-    $logo_paths_to_try = [
-        $school_logo,
-        '/tbis/assets/logos/logo.png',
-        '/assets/logos/logo.png',
-        '/tbis/admin/assets/logo.png',
-        '/tbis/uploads/logo.png',
-        '../assets/logos/logo.png',
-        'assets/logos/logo.png'
-    ];
-    
-    foreach ($logo_paths_to_try as $logo_path) {
-        if (!empty($logo_path) && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)) {
-            echo '<img class="rc-logo" src="' . htmlspecialchars($logo_path) . '" alt="School Logo" onerror="this.style.display=\'none\'">';
-            $logo_displayed = true;
-            break;
-        } elseif (!empty($logo_path) && file_exists($_SERVER['DOCUMENT_ROOT'] . '/tbis/' . $logo_path)) {
-            echo '<img class="rc-logo" src="/tbis/' . htmlspecialchars($logo_path) . '" alt="School Logo" onerror="this.style.display=\'none\'">';
-            $logo_displayed = true;
-            break;
-        } elseif (!empty($logo_path) && file_exists($logo_path)) {
-            echo '<img class="rc-logo" src="' . htmlspecialchars($logo_path) . '" alt="School Logo" onerror="this.style.display=\'none\'">';
-            $logo_displayed = true;
-            break;
-        }
-    }
-    
-    if (!$logo_displayed): 
-    ?>
-        <div class="rc-photo-placeholder"><i class="fas fa-school"></i></div>
-    <?php endif; ?>
+                            <?php 
+                            $logo_displayed = false;
+                            $logo_paths_to_try = [
+                                $school_logo,
+                                '/tbis/assets/logos/logo.png',
+                                '/assets/logos/logo.png',
+                                '/tbis/admin/assets/logo.png',
+                                '/tbis/uploads/logo.png',
+                            ];
+                            
+                            foreach ($logo_paths_to_try as $logo_path) {
+                                if (!empty($logo_path) && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)) {
+                                    echo '<img class="rc-logo" src="' . htmlspecialchars($logo_path) . '" alt="School Logo" onerror="this.style.display=\'none\'">';
+                                    $logo_displayed = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!$logo_displayed): 
+                            ?>
+                                <div class="rc-photo-placeholder"><i class="fas fa-school"></i></div>
+                            <?php endif; ?>
                             <div class="rc-school-details">
                                 <h1><?php echo htmlspecialchars($school_name); ?></h1>
                                 <?php if (!empty($school_motto)): ?><div class="motto"><?php echo htmlspecialchars($school_motto); ?></div><?php endif; ?>
@@ -645,13 +758,11 @@ $psychomotor_fields = [
                             <?php endif; ?>
                         </div>
 
-                        <!-- Student Name - Centered and Distinct -->
                         <div class="rc-student-name">
                             <h2><?php echo htmlspecialchars($preview_student['full_name']); ?></h2>
                             <p>Admission No: <?php echo htmlspecialchars($preview_student['admission_number']); ?></p>
                         </div>
 
-                        <!-- Student Details - Compact Grid -->
                         <div class="rc-student-details">
                             <div class="detail-item"><span class="detail-label">Class:</span><span class="detail-value"><?php echo htmlspecialchars($class); ?></span></div>
                             <div class="detail-item"><span class="detail-label">Gender:</span><span class="detail-value"><?php echo ucfirst($preview_student['gender'] ?? ''); ?></span></div>
@@ -664,11 +775,10 @@ $psychomotor_fields = [
                             <?php endif; ?>
                         </div>
 
-                        <!-- Academic Performance -->
                         <div class="rc-section-title"><i class="fas fa-chart-line"></i> ACADEMIC PERFORMANCE</div>
 
                         <?php if (empty($s_scores)): ?>
-                            <div class="empty-state"><i class="fas fa-chart-line"></i><p>No scores recorded.</p></div>
+                            <div class="empty-state"><i class="fas fa-chart-line"></i><p>No scores recorded for this student.</p><small>Student may have been absent throughout the term.</small></div>
                         <?php else: ?>
                             <table class="rc-table">
                                 <thead>
@@ -717,13 +827,12 @@ $psychomotor_fields = [
                                 </tbody>
                             </table>
 
-                            <!-- Summary Stats -->
                             <div class="rc-summary">
                                 <div class="summary-item"><div class="value"><?php echo $scored_count; ?></div><div class="label">Subjects</div></div>
                                 <div class="summary-item"><div class="value"><?php echo number_format($total_sum, 0); ?></div><div class="label">Total Marks</div></div>
                                 <div class="summary-item"><div class="value"><?php echo number_format($student_avg, 1); ?>%</div><div class="label">Average</div></div>
                                 <?php if ($show_class_position): ?>
-                                    <div class="summary-item"><div class="value"><?php echo $student_position ? ordinal($student_position) : '—'; ?></div><div class="label">Class Position</div></div>
+                                    <div class="summary-item"><div class="value"><?php echo $student_position ? ordinal($student_position) : 'N/A'; ?></div><div class="label">Class Position</div></div>
                                 <?php endif; ?>
                                 <?php if ($show_lowest_highest_avg): ?>
                                     <div class="summary-item"><div class="value"><?php echo number_format($class_highest_avg, 1); ?>%</div><div class="label">Highest in Class</div></div>
@@ -732,7 +841,6 @@ $psychomotor_fields = [
                             </div>
                         <?php endif; ?>
 
-                        <!-- Affective Traits (only if enabled) - Minimal -->
                         <?php if ($show_affective_traits && !empty($affective_fields)): ?>
                             <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-heart"></i> AFFECTIVE TRAITS</div>
                             <div class="traits-compact">
@@ -757,7 +865,6 @@ $psychomotor_fields = [
                             </div>
                         <?php endif; ?>
 
-                        <!-- Psychomotor Skills (only if enabled) - Minimal -->
                         <?php if ($show_psychomotor && !empty($psychomotor_fields)): ?>
                             <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-futbol"></i> PSYCHOMOTOR SKILLS</div>
                             <div class="traits-compact">
@@ -782,22 +889,20 @@ $psychomotor_fields = [
                             </div>
                         <?php endif; ?>
 
-                        <!-- Comments -->
                         <div class="rc-section-title" style="background:#5a6268;"><i class="fas fa-comment-dots"></i> COMMENTS</div>
                         <div class="comments-compact">
                             <div class="comment-box">
                                 <div class="c-label"><i class="fas fa-chalkboard-teacher"></i> Class Teacher's Comment</div>
-                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['teachers_comment'] ?? '—')); ?></div>
+                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['teachers_comment'] ?? 'No comment provided.')); ?></div>
                                 <div class="c-signature"><?php echo htmlspecialchars($s_comm['class_teachers_name'] ?? ''); ?></div>
                             </div>
                             <div class="comment-box">
                                 <div class="c-label"><i class="fas fa-user-tie"></i> Principal's Comment</div>
-                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['principals_comment'] ?? '—')); ?></div>
+                                <div class="c-text"><?php echo nl2br(htmlspecialchars($s_comm['principals_comment'] ?? 'No comment provided.')); ?></div>
                                 <div class="c-signature"><?php echo htmlspecialchars($s_comm['principals_name'] ?? ''); ?></div>
                             </div>
                         </div>
 
-                        <!-- Footer -->
                         <div class="rc-footer">
                             <span><?php echo htmlspecialchars($school_name); ?></span>
                             <span>Generated: <?php echo date('d M Y'); ?></span>
@@ -812,6 +917,11 @@ $psychomotor_fields = [
     </main>
 
     <script>
+        // Store missing data info for modal
+        const missingScores = <?php echo json_encode($students_missing_scores); ?>;
+        const missingComments = <?php echo json_encode($students_missing_comments); ?>;
+        const totalStudents = <?php echo $total_students; ?>;
+        
         const sb = document.getElementById('sidebar');
         const ov = document.getElementById('overlay');
         const btn = document.getElementById('menuBtn');
@@ -821,7 +931,82 @@ $psychomotor_fields = [
         if (ov) {
             ov.addEventListener('click', () => { sb.classList.remove('open'); ov.classList.remove('show'); });
         }
-
+        
+        function showPublishModal() {
+            const modal = document.getElementById('publishModal');
+            const modalBody = document.getElementById('modalBody');
+            
+            let html = '<p><strong>⚠️ Before publishing, please review:</strong></p>';
+            
+            if (missingScores.length > 0) {
+                html += '<div class="warning-text"><i class="fas fa-chart-line"></i> <strong>Students WITHOUT scores:</strong></div>';
+                html += '<div class="student-list-modal"><ul>';
+                missingScores.forEach(name => {
+                    html += `<li>${escapeHtml(name)} - <em>No scores recorded</em></li>`;
+                });
+                html += '</ul></div>';
+                html += '<p class="warning-text">⚠️ These students will show empty result tables!</p>';
+            } else {
+                html += '<div class="success-text">✓ All students have scores recorded.</div>';
+            }
+            
+            if (missingComments.length > 0) {
+                html += '<div class="warning-text" style="margin-top:15px;"><i class="fas fa-comment"></i> <strong>Students WITHOUT comments:</strong></div>';
+                html += '<div class="student-list-modal"><ul>';
+                missingComments.forEach(name => {
+                    html += `<li>${escapeHtml(name)} - <em>No comments added</em></li>`;
+                });
+                html += '</ul></div>';
+                html += '<p class="warning-text">⚠️ These students will have empty comment sections!</p>';
+            } else {
+                html += '<div class="success-text" style="margin-top:15px;">✓ All students have comments.</div>';
+            }
+            
+            if (missingScores.length === 0 && missingComments.length === 0) {
+                html += '<p style="margin-top:15px;"><strong>✅ All data is complete! Ready to publish.</strong></p>';
+                html += '<p>Publishing will lock these report cards and make them available to parents/students.</p>';
+                html += '<p class="warning-text">This action cannot be undone easily.</p>';
+            } else {
+                html += '<hr>';
+                html += '<p><strong class="danger-text">⚠️ WARNING:</strong> You are about to publish report cards with missing data!</p>';
+                html += '<p>These students will receive incomplete report cards. Consider adding their scores/comments first, or mark them as "Absent/Dropped" if they left the school.</p>';
+                html += '<p><strong>Do you want to continue anyway?</strong></p>';
+            }
+            
+            modalBody.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+        
+        function closeModal() {
+            document.getElementById('publishModal').style.display = 'none';
+        }
+        
+        function forcePublish() {
+            // Create and submit form with force_publish flag
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.style.display = 'none';
+            
+            const actionInput = document.createElement('input');
+            actionInput.name = 'action';
+            actionInput.value = 'publish_record';
+            form.appendChild(actionInput);
+            
+            const forceInput = document.createElement('input');
+            forceInput.name = 'force_publish';
+            forceInput.value = 'true';
+            form.appendChild(forceInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         async function downloadReportCardPDF() {
             const card = document.getElementById('reportCard');
             if (!card) { alert('No report card found.'); return; }
@@ -838,7 +1023,8 @@ $psychomotor_fields = [
             try {
                 const canvas = await html2canvas(card, { scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false });
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                const pdf = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const imgWidth = pdfWidth - 10;
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -852,58 +1038,62 @@ $psychomotor_fields = [
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF'; }
             }
         }
-        // Recalculate scores and positions via AJAX
-async function recalculateScoresAndPositions() {
-    const recordId = <?php echo $record_id; ?>;
-    const recalcBtn = document.getElementById('recalcBtn');
-    
-    if (!confirm('This will recalculate all scores, subject positions, class positions, and grades for this exam record. Continue?')) {
-        return;
-    }
-    
-    // Show loading state
-    const originalText = recalcBtn.innerHTML;
-    recalcBtn.disabled = true;
-    recalcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recalculating...';
-    
-    try {
-        const response = await fetch('exam_recalculate.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `record_id=${recordId}&recalc_action=all`
-        });
         
-        const data = await response.json();
-        
-        if (data.success) {
-            // Show success message with stats
-            let message = data.message + '\n\n';
-            message += `📊 Statistics:\n`;
-            message += `• Scores updated: ${data.stats.scores_updated}\n`;
-            message += `• Grades updated: ${data.stats.grades_updated}\n`;
-            message += `• Subject positions updated: ${data.stats.subject_positions_updated}\n`;
-            message += `• Class positions updated: ${data.stats.class_positions_updated}\n`;
-            message += `• Subjects processed: ${data.stats.subjects_processed}\n`;
-            message += `• Students processed: ${data.stats.students_processed}\n\n`;
-            message += `The page will now reload to show updated data.`;
+        async function recalculateScoresAndPositions() {
+            const recordId = <?php echo $record_id; ?>;
+            const recalcBtn = document.getElementById('recalcBtn');
             
-            alert(message);
+            if (!confirm('⚠️ WARNING: This will recalculate:\n\n• All total scores and percentages\n• All subject grades (A, B, C, etc.)\n• Subject positions (rankings within each subject)\n• Class positions (overall rankings)\n\nThis action cannot be undone. Continue?')) {
+                return;
+            }
             
-            // Reload the page to show updated data
-            window.location.reload();
-        } else {
-            alert('Error: ' + data.message);
+            const originalText = recalcBtn.innerHTML;
+            recalcBtn.disabled = true;
+            recalcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recalculating...';
+            
+            try {
+                const response = await fetch('exam_recalculate.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `record_id=${recordId}&recalc_action=all`
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let message = data.message + '\n\n';
+                    message += `📊 Statistics:\n`;
+                    message += `• Scores updated: ${data.stats.scores_updated}\n`;
+                    message += `• Grades updated: ${data.stats.grades_updated}\n`;
+                    message += `• Subject positions updated: ${data.stats.subject_positions_updated}\n`;
+                    message += `• Class positions updated: ${data.stats.class_positions_updated}\n`;
+                    message += `• Subjects processed: ${data.stats.subjects_processed}\n`;
+                    message += `• Students processed: ${data.stats.students_processed}\n\n`;
+                    message += `The page will now reload to show updated data.`;
+                    
+                    alert(message);
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to recalculate. Please try again. Error: ' + error.message);
+            } finally {
+                recalcBtn.disabled = false;
+                recalcBtn.innerHTML = originalText;
+            }
         }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to recalculate. Please try again. Error: ' + error.message);
-    } finally {
-        recalcBtn.disabled = false;
-        recalcBtn.innerHTML = originalText;
-    }
-}
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('publishModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
     </script>
 </body>
 </html>

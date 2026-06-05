@@ -1467,7 +1467,6 @@ require_once 'includes/sidebar.php';
             });
         }
 
-        // Reset form
         function resetForm() {
             document.getElementById('exam_id').value = '';
             document.getElementById('exam_name').value = '';
@@ -1479,7 +1478,13 @@ require_once 'includes/sidebar.php';
             document.getElementById('subjective_count').value = '0';
             document.getElementById('theory_count').value = '0';
             document.getElementById('instructions').value = '';
-            document.getElementById('is_active').checked = true;
+
+            // Fix: Use querySelector for checkbox without an ID
+            const activeCheckbox = document.querySelector('input[name="is_active"]');
+            if (activeCheckbox) {
+                activeCheckbox.checked = true;
+            }
+
             document.getElementById('exam_type').value = 'objective';
             updateQuestionCounts();
 

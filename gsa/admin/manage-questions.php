@@ -1,10 +1,8 @@
 <?php
-// admin/manage-questions.php - Manage Questions with Subject → Topic Selection
-// Topics are based on subject, not classes
-
+// admin/manage-questions.php - Manage Questions with Card Layout & Modal Actions
 session_start();
 
-// Check if admin is logged in (support both session styles)
+// Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header("Location: /gsa/login.php");
     exit();
@@ -32,6 +30,7 @@ require_once '../includes/config.php';
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
+$page_title = "Manage Questions";
 
 $message = '';
 $message_type = '';
@@ -69,7 +68,6 @@ if ($topic_id) {
 
         if ($selected_topic) {
             $selected_subject_id = $selected_topic['subject_id'];
-            // Reload subject details
             $stmt = $pdo->prepare("SELECT * FROM subjects WHERE id = ? AND school_id = ?");
             $stmt->execute([$selected_subject_id, $school_id]);
             $selected_subject = $stmt->fetch();
@@ -106,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
                 throw new Exception("Invalid question type");
         }
 
-        // Verify ownership and get file path
         $sql = "SELECT $file_column FROM $table_name WHERE id = ? AND school_id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$question_id, $school_id]);
@@ -116,7 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
             throw new Exception("Question not found or access denied");
         }
 
-        // Delete associated file if exists
         if ($file_column && !empty($question[$file_column])) {
             $file_path = '../' . $question[$file_column];
             if (file_exists($file_path)) {
@@ -124,15 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
             }
         }
 
-        // Delete the question
         $delete_sql = "DELETE FROM $table_name WHERE id = ? AND school_id = ?";
         $stmt = $pdo->prepare($delete_sql);
         $stmt->execute([$question_id, $school_id]);
-
-        // Log activity
-        $log_sql = "INSERT INTO activity_logs (user_id, user_type, activity, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)";
-        $log_stmt = $pdo->prepare($log_sql);
-        $log_stmt->execute([$admin_id, 'admin', "Deleted $question_type question ID: $question_id", $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'] ?? null]);
 
         $message = "Question deleted successfully!";
         $message_type = "success";
@@ -149,17 +139,14 @@ $theory_questions = [];
 
 if ($selected_topic) {
     try {
-        // Get objective questions
         $stmt = $pdo->prepare("SELECT * FROM objective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
         $stmt->execute([$topic_id, $school_id]);
         $objective_questions = $stmt->fetchAll();
 
-        // Get subjective questions
         $stmt = $pdo->prepare("SELECT * FROM subjective_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
         $stmt->execute([$topic_id, $school_id]);
         $subjective_questions = $stmt->fetchAll();
 
-        // Get theory questions
         $stmt = $pdo->prepare("SELECT * FROM theory_questions WHERE topic_id = ? AND school_id = ? ORDER BY id DESC");
         $stmt->execute([$topic_id, $school_id]);
         $theory_questions = $stmt->fetchAll();
@@ -170,25 +157,22 @@ if ($selected_topic) {
 }
 
 // Get all subjects for dropdown
+$subjects = [];
 try {
     $stmt = $pdo->prepare("
         SELECT s.*, 
-               GROUP_CONCAT(DISTINCT sc.class) as assigned_classes,
                (SELECT COUNT(*) FROM topics WHERE subject_id = s.id AND school_id = s.school_id) as topic_count
         FROM subjects s
-        LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
         WHERE s.school_id = ?
-        GROUP BY s.id
         ORDER BY s.subject_name
     ");
     $stmt->execute([$school_id]);
     $subjects = $stmt->fetchAll();
 } catch (Exception $e) {
     error_log("Error loading subjects: " . $e->getMessage());
-    $subjects = [];
 }
 
-// Get topics for selected subject (only if a subject is selected)
+// Get topics for selected subject
 $topics = [];
 if ($selected_subject_id) {
     try {
@@ -209,9 +193,11 @@ if ($selected_subject_id) {
         $topics = $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Error loading topics: " . $e->getMessage());
-        $topics = [];
     }
 }
+
+// Include sidebar
+require_once 'includes/sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -219,25 +205,37 @@ if ($selected_subject_id) {
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title><?php echo htmlspecialchars($school_name); ?> - Manage Questions</title>
 
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
+            --primary-dark: #1a5a8a;
             --secondary-color: #3498db;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-            --sidebar-width: 260px;
+            --success: #27ae60;
+            --success-light: #d5f4e6;
+            --warning: #f39c12;
+            --warning-light: #fef5e7;
+            --danger: #e74c3c;
+            --danger-light: #fbe9e7;
+            --info: #3498db;
+            --info-light: #eaf6ff;
+            --purple: #9b59b6;
+            --gray-50: #f9fafb;
+            --gray-100: #f0f2f5;
+            --gray-200: #e4e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #6b7280;
+            --gray-800: #1f2937;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         * {
@@ -248,426 +246,66 @@ if ($selected_subject_id) {
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
+            background: var(--gray-100);
+            color: var(--gray-800);
             min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
-            color: white;
-            padding: 20px 0;
-            transition: all 0.3s ease;
-            z-index: 100;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px;
-            margin-bottom: 15px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--secondary-color);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 0 15px 20px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-        }
-
-        .nav-links li {
-            margin-bottom: 5px;
-        }
-
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
         }
 
         /* Main Content */
         .main-content {
-            margin-left: 0;
+            margin-left: 280px;
             padding: 20px;
             min-height: 100vh;
+            transition: margin-left 0.3s ease;
         }
 
-        .mobile-menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 101;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 10px;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
+        /* Top Header */
         .top-header {
             background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
+            border-radius: var(--radius-lg);
+            padding: 20px 24px;
+            margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 16px;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-        }
-
-        .logout-btn {
-            background: var(--danger-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .add-questions-btn {
-            background: var(--success-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-        }
-
-        /* Breadcrumb */
-        .breadcrumb {
-            background: white;
-            padding: 12px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .breadcrumb a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        .breadcrumb a:hover {
-            text-decoration: underline;
-        }
-
-        /* Form Styles */
-        .form-container {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .form-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--light-color);
-        }
-
-        .form-header h3 {
-            color: var(--primary-color);
-            font-size: 1.3rem;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--primary-color);
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        select.form-control {
-            cursor: pointer;
-        }
-
-        /* Selection Cards */
-        .selection-card {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .selection-row {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-
-        .selection-item {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        /* Tabs */
-        .tabs-navigation {
-            background: white;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            overflow: hidden;
-        }
-
-        .tab-buttons {
-            display: flex;
-            background: #f8f9fa;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        .tab-button {
-            flex: 1;
-            padding: 15px 20px;
-            border: none;
-            background: none;
-            font-size: 1rem;
-            font-weight: 500;
-            color: #666;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: all 0.3s;
-        }
-
-        .tab-button:hover {
-            background: #e9ecef;
-        }
-
-        .tab-button.active {
-            color: var(--primary-color);
-            border-bottom: 3px solid var(--primary-color);
-            background: white;
-        }
-
-        .tab-content {
-            display: none;
-            padding: 25px;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Table */
-        .table-container {
-            background: white;
-            border-radius: 15px;
-            overflow-x: auto;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .data-table th {
-            background: var(--light-color);
-            font-weight: 600;
-        }
-
-        .data-table tr:hover {
-            background: #f9f9f9;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .badge-primary {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .badge-success {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .badge-warning {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-
-        .badge-danger {
-            background: #ffebee;
-            color: #c62828;
-        }
-
-        .badge-info {
-            background: #e3f2fd;
-            color: #0288d1;
-        }
-
-        .badge-first {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .badge-second {
-            background: #fff3e0;
-            color: #ef6c00;
-        }
-
-        .badge-third {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-
-        /* Stats Cards */
-        .stats-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stats-card {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .stats-value {
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: 700;
-            color: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 4px;
         }
 
-        .stats-label {
-            color: #666;
-            font-size: 0.85rem;
-            margin-top: 5px;
+        .header-title p {
+            color: var(--gray-600);
+            font-size: 0.8rem;
         }
 
-        .topic-info-card {
-            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
-            color: white;
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-        }
-
-        .topic-meta {
-            display: flex;
-            gap: 20px;
-            margin-top: 15px;
-            flex-wrap: wrap;
-        }
-
-        .meta-item {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
+        /* Buttons */
         .btn {
-            padding: 8px 15px;
-            border-radius: 6px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
             border: none;
+            font-weight: 500;
+            font-size: 0.8rem;
             cursor: pointer;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            font-size: 0.85rem;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.7rem;
         }
 
         .btn-primary {
@@ -675,47 +313,239 @@ if ($selected_subject_id) {
             color: white;
         }
 
-        .btn-danger {
-            background: var(--danger-color);
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: var(--success);
             color: white;
         }
 
-        .btn-sm {
-            padding: 5px 10px;
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        /* Filter Section */
+        .filter-section {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        /* Topic Info Card */
+        .topic-info-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 20px 25px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 24px;
+        }
+
+        .topic-info-card h2 {
+            margin-bottom: 8px;
+        }
+
+        .topic-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 5px 12px;
+            border-radius: 20px;
             font-size: 0.75rem;
         }
 
-        .btn-icon {
-            padding: 6px 10px;
+        /* Stats Row */
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
         }
 
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+        .stat-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 15px 20px;
+            flex: 1;
+            min-width: 100px;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-card.active {
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray-600);
+        }
+
+        /* Questions Grid - Mobile First */
+        .questions-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .question-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--gray-200);
+        }
+
+        .question-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+
+        .question-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .question-id {
+            font-size: 0.7rem;
+            font-family: monospace;
+            background: var(--gray-100);
+            padding: 3px 8px;
+            border-radius: 15px;
+            color: var(--gray-600);
+        }
+
+        .question-text-preview {
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+
+        .options-preview {
+            margin: 10px 0;
+            padding: 10px;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+        }
+
+        .option-item {
+            font-size: 0.75rem;
+            padding: 4px 0;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
-        .alert-success {
-            background: #d5f4e6;
-            color: #155724;
-            border-left: 4px solid var(--success-color);
+        .correct-option {
+            background: var(--success-light);
+            color: var(--success);
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            margin-left: 8px;
         }
 
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid var(--danger-color);
+        .marks-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            background: var(--info-light);
+            color: var(--info);
         }
 
+        .file-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            background: var(--warning-light);
+            color: var(--warning);
+        }
+
+        /* Empty State */
         .empty-state {
             text-align: center;
-            padding: 50px;
-            color: #999;
+            padding: 60px 20px;
+            background: white;
+            border-radius: var(--radius-lg);
         }
 
+        .empty-state i {
+            font-size: 48px;
+            color: var(--gray-300);
+            margin-bottom: 16px;
+        }
+
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -724,7 +554,7 @@ if ($selected_subject_id) {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+            z-index: 2000;
             align-items: center;
             justify-content: center;
         }
@@ -735,130 +565,175 @@ if ($selected_subject_id) {
 
         .modal-content {
             background: white;
-            border-radius: 15px;
+            border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 800px;
-            max-height: 90vh;
+            max-width: 600px;
+            max-height: 85vh;
             overflow-y: auto;
         }
 
-        .modal-header,
-        .modal-footer {
-            padding: 15px 20px;
-        }
-
         .modal-header {
-            border-bottom: 1px solid #eee;
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+        }
+
+        .modal-header h3 {
+            font-size: 1.1rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--gray-600);
         }
 
         .modal-body {
             padding: 20px;
         }
 
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
         }
 
-        .question-text {
-            line-height: 1.5;
-            margin-bottom: 5px;
+        .info-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-200);
         }
 
-        .option-text {
-            display: block;
+        .info-label {
+            width: 120px;
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 0.8rem;
+        }
+
+        .info-value {
+            flex: 1;
+            color: var(--gray-800);
             font-size: 0.85rem;
-            padding: 2px 0;
         }
 
-        .info-note {
-            background: #e8f4fd;
-            padding: 12px 15px;
-            border-radius: 8px;
+        .modal-action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid var(--gray-200);
+        }
+
+        .modal-action-btn {
+            flex: 1;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .alert {
+            padding: 14px 18px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            color: #0066cc;
-            font-size: 0.9rem;
+            gap: 12px;
+            font-size: 0.85rem;
         }
 
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-            }
+        .alert-success {
+            background: var(--success-light);
+            color: var(--success);
+            border-left: 4px solid var(--success);
+        }
 
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
+        .alert-error {
+            background: var(--danger-light);
+            color: var(--danger);
+            border-left: 4px solid var(--danger);
+        }
 
-            .mobile-menu-btn {
-                display: none;
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
             }
         }
 
         @media (max-width: 768px) {
-            .tab-buttons {
+            .main-content {
+                margin-left: 0;
+                padding: 20px 15px;
+            }
+
+            .top-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .filter-row {
                 flex-direction: column;
             }
 
-            .stats-cards {
-                grid-template-columns: 1fr;
-            }
-
-            .selection-row {
-                flex-direction: column;
-            }
-
-            .selection-item {
+            .filter-group {
                 width: 100%;
+            }
+
+            .info-row {
+                flex-direction: column;
+            }
+
+            .info-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .modal-action-buttons {
+                flex-direction: column;
+            }
+
+            .modal-action-btn {
+                width: 100%;
+            }
+
+            .stats-row {
+                flex-direction: column;
             }
         }
     </style>
 </head>
 
 <body>
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
 
     <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
             <div class="header-title">
-                <h1>Manage Questions</h1>
-                <p>Create and manage questions for topics</p>
+                <h1><i class="fas fa-question-circle"></i> Manage Questions</h1>
+                <p><?php echo $selected_topic ? 'Topic: ' . htmlspecialchars($selected_topic['topic_name']) : 'Select a subject and topic to manage questions'; ?></p>
             </div>
-            <div class="header-actions" style="display: flex; gap: 10px;">
-                <?php if ($selected_topic): ?>
-                    <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>" class="add-questions-btn">
-                        <i class="fas fa-plus-circle"></i> Add Questions
-                    </a>
-                <?php endif; ?>
-                <button class="logout-btn" onclick="window.location.href='/gsa/logout.php'">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
-            </div>
-        </div>
-
-        <!-- Breadcrumb -->
-        <div class="breadcrumb">
-            <a href="manage-topics.php">Topics</a>
-            <?php if ($selected_subject): ?>
-                &rsaquo; <a href="manage-questions.php?subject_id=<?php echo $selected_subject_id; ?>">
-                    <?php echo htmlspecialchars($selected_subject['subject_name']); ?>
-                </a>
-            <?php endif; ?>
             <?php if ($selected_topic): ?>
-                &rsaquo; <a href="manage-questions.php?topic_id=<?php echo $topic_id; ?>">
-                    <?php echo htmlspecialchars($selected_topic['topic_name']); ?>
+                <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> Add Questions
                 </a>
             <?php endif; ?>
         </div>
@@ -870,21 +745,16 @@ if ($selected_subject_id) {
             </div>
         <?php endif; ?>
 
-        <!-- Subject and Topic Selection -->
-        <div class="form-container">
-            <div class="form-header">
-                <h3><i class="fas fa-filter"></i> Select Subject & Topic</h3>
-            </div>
-
-            <form method="GET" action="" id="selectionForm">
-                <div class="selection-row">
-                    <div class="selection-item">
-                        <label for="subject_id"><i class="fas fa-book"></i> Select Subject</label>
-                        <select id="subject_id" name="subject_id" class="form-control" onchange="this.form.submit()">
+        <!-- Subject & Topic Selection -->
+        <div class="filter-section">
+            <form method="GET" id="selectionForm">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-book"></i> Select Subject</label>
+                        <select name="subject_id" id="subject_id" onchange="this.form.submit()">
                             <option value="">-- Select a subject --</option>
                             <?php foreach ($subjects as $subject): ?>
-                                <option value="<?php echo $subject['id']; ?>"
-                                    <?php echo ($selected_subject_id == $subject['id']) ? 'selected' : ''; ?>>
+                                <option value="<?php echo $subject['id']; ?>" <?php echo ($selected_subject_id == $subject['id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($subject['subject_name']); ?>
                                     <?php if ($subject['topic_count'] > 0): ?>
                                         (<?php echo $subject['topic_count']; ?> topics)
@@ -893,46 +763,27 @@ if ($selected_subject_id) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-
-                    <div class="selection-item">
-                        <label for="topic_id"><i class="fas fa-list"></i> Select Topic</label>
-                        <select id="topic_id" name="topic_id" class="form-control" onchange="this.form.submit()" <?php echo empty($topics) ? 'disabled' : ''; ?>>
+                    <div class="filter-group">
+                        <label><i class="fas fa-list"></i> Select Topic</label>
+                        <select name="topic_id" id="topic_id" onchange="this.form.submit()" <?php echo empty($topics) ? 'disabled' : ''; ?>>
                             <option value="">-- Select a topic --</option>
                             <?php foreach ($topics as $topic): ?>
-                                <option value="<?php echo $topic['id']; ?>"
-                                    <?php echo ($topic_id == $topic['id']) ? 'selected' : ''; ?>>
-                                    <?php
-                                    $term_icon = '';
-                                    switch ($topic['term']) {
-                                        case 'First':
-                                            $term_icon = '🌱';
-                                            break;
-                                        case 'Second':
-                                            $term_icon = '☀️';
-                                            break;
-                                        case 'Third':
-                                            $term_icon = '❄️';
-                                            break;
-                                        default:
-                                            $term_icon = '📚';
-                                    }
-                                    echo $term_icon . ' ' . htmlspecialchars($topic['topic_name']);
-                                    ?>
+                                <option value="<?php echo $topic['id']; ?>" <?php echo ($topic_id == $topic['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($topic['topic_name']); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                         <?php if ($selected_subject_id && empty($topics)): ?>
-                            <small style="color: var(--warning-color); display: block; margin-top: 5px;">
-                                <i class="fas fa-exclamation-triangle"></i> No topics found for this subject.
+                            <small style="color: var(--warning); display: block; margin-top: 5px;">
+                                <i class="fas fa-exclamation-triangle"></i> No topics found.
                                 <a href="manage-topics.php?subject_id=<?php echo $selected_subject_id; ?>">Add topics first</a>
                             </small>
                         <?php endif; ?>
                     </div>
-
                     <?php if ($selected_topic): ?>
-                        <div class="selection-item">
-                            <a href="manage-questions.php" class="btn btn-secondary" style="background: #95a5a6; color: white; margin-top: 28px;">
-                                <i class="fas fa-times"></i> Clear Selection
+                        <div class="filter-group">
+                            <a href="manage-questions.php" class="btn btn-outline" style="margin-top: 26px;">
+                                <i class="fas fa-times"></i> Clear
                             </a>
                         </div>
                     <?php endif; ?>
@@ -946,13 +797,7 @@ if ($selected_subject_id) {
                 <h2><i class="fas fa-bookmark"></i> <?php echo htmlspecialchars($selected_topic['topic_name']); ?></h2>
                 <p><i class="fas fa-book"></i> Subject: <?php echo htmlspecialchars($selected_topic['subject_name']); ?></p>
                 <?php if ($selected_topic['term']): ?>
-                    <p><i class="fas fa-calendar-alt"></i> Term:
-                        <span class="badge <?php
-                                            echo $selected_topic['term'] == 'First' ? 'badge-first' : ($selected_topic['term'] == 'Second' ? 'badge-second' : 'badge-third');
-                                            ?>">
-                            <?php echo $selected_topic['term']; ?> Term
-                        </span>
-                    </p>
+                    <p><i class="fas fa-calendar-alt"></i> Term: <?php echo $selected_topic['term']; ?> Term</p>
                 <?php endif; ?>
                 <?php if ($selected_topic['description']): ?>
                     <p><i class="fas fa-info-circle"></i> <?php echo htmlspecialchars($selected_topic['description']); ?></p>
@@ -964,359 +809,347 @@ if ($selected_subject_id) {
                 </div>
             </div>
 
-            <!-- Info Note -->
-            <div class="info-note">
-                <i class="fas fa-info-circle" style="font-size: 1.2rem;"></i>
-                <span>Questions are organized by topic. Each topic can have multiple questions of different types. Click "Add Questions" to create new questions for this topic.</span>
-            </div>
-
-            <!-- Stats Cards -->
-            <div class="stats-cards">
-                <div class="stats-card">
-                    <div class="stats-value"><?php echo count($objective_questions); ?></div>
-                    <div class="stats-label">Objective Questions</div>
+            <!-- Stats Row (Tab Switchers) -->
+            <div class="stats-row">
+                <div class="stat-card <?php echo $current_tab === 'objective' ? 'active' : ''; ?>" onclick="switchTab('objective')">
+                    <div class="stat-value"><?php echo count($objective_questions); ?></div>
+                    <div class="stat-label">Objective</div>
                 </div>
-                <div class="stats-card">
-                    <div class="stats-value"><?php echo count($subjective_questions); ?></div>
-                    <div class="stats-label">Subjective Questions</div>
+                <div class="stat-card <?php echo $current_tab === 'subjective' ? 'active' : ''; ?>" onclick="switchTab('subjective')">
+                    <div class="stat-value"><?php echo count($subjective_questions); ?></div>
+                    <div class="stat-label">Subjective</div>
                 </div>
-                <div class="stats-card">
-                    <div class="stats-value"><?php echo count($theory_questions); ?></div>
-                    <div class="stats-label">Theory Questions</div>
-                </div>
-                <div class="stats-card">
-                    <div class="stats-value"><?php echo count($objective_questions) + count($subjective_questions) + count($theory_questions); ?></div>
-                    <div class="stats-label">Total Questions</div>
+                <div class="stat-card <?php echo $current_tab === 'theory' ? 'active' : ''; ?>" onclick="switchTab('theory')">
+                    <div class="stat-value"><?php echo count($theory_questions); ?></div>
+                    <div class="stat-label">Theory</div>
                 </div>
             </div>
 
-            <!-- Tabs Navigation -->
-            <div class="tabs-navigation">
-                <div class="tab-buttons">
-                    <button class="tab-button <?php echo $current_tab === 'objective' ? 'active' : ''; ?>" onclick="switchTab('objective')">
-                        <i class="fas fa-check-circle"></i> Objective Questions (<?php echo count($objective_questions); ?>)
-                    </button>
-                    <button class="tab-button <?php echo $current_tab === 'subjective' ? 'active' : ''; ?>" onclick="switchTab('subjective')">
-                        <i class="fas fa-edit"></i> Subjective Questions (<?php echo count($subjective_questions); ?>)
-                    </button>
-                    <button class="tab-button <?php echo $current_tab === 'theory' ? 'active' : ''; ?>" onclick="switchTab('theory')">
-                        <i class="fas fa-file-alt"></i> Theory Questions (<?php echo count($theory_questions); ?>)
-                    </button>
-                </div>
-
-                <!-- Objective Questions Tab -->
-                <div class="tab-content <?php echo $current_tab === 'objective' ? 'active' : ''; ?>" id="objectiveTab">
-                    <div style="margin-bottom: 20px; text-align: right;">
-                        <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=objective" class="btn btn-primary">
+            <!-- Objective Questions Section -->
+            <div id="objective-section" style="display: <?php echo $current_tab === 'objective' ? 'block' : 'none'; ?>">
+                <?php if (empty($objective_questions)): ?>
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>No Objective Questions</h3>
+                        <p>Click "Add Questions" to create your first objective question.</p>
+                        <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=objective" class="btn btn-primary" style="margin-top: 15px;">
                             <i class="fas fa-plus"></i> Add Objective Question
                         </a>
                     </div>
-
-                    <div class="table-container">
-                        <?php if (empty($objective_questions)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-check-circle" style="font-size: 48px; color: #ccc;"></i>
-                                <h3>No Objective Questions</h3>
-                                <p>Click the button above to add your first objective question.</p>
+                <?php else: ?>
+                    <div class="questions-grid">
+                        <?php foreach ($objective_questions as $q): ?>
+                            <div class="question-card" data-question-id="<?php echo $q['id']; ?>" data-question-type="objective">
+                                <div class="question-card-header">
+                                    <span class="question-id">ID: <?php echo $q['id']; ?></span>
+                                    <span class="marks-badge"><i class="fas fa-star"></i> <?php echo $q['marks']; ?> marks</span>
+                                </div>
+                                <div class="question-text-preview">
+                                    <?php echo htmlspecialchars(substr($q['question_text'], 0, 120)) . (strlen($q['question_text']) > 120 ? '...' : ''); ?>
+                                </div>
+                                <div class="options-preview">
+                                    <div class="option-item"><strong>A:</strong> <?php echo htmlspecialchars(substr($q['option_a'], 0, 40)); ?></div>
+                                    <div class="option-item"><strong>B:</strong> <?php echo htmlspecialchars(substr($q['option_b'], 0, 40)); ?></div>
+                                    <div class="option-item"><strong>C:</strong> <?php echo htmlspecialchars(substr($q['option_c'], 0, 40)); ?></div>
+                                    <div class="option-item"><strong>D:</strong> <?php echo htmlspecialchars(substr($q['option_d'], 0, 40)); ?>
+                                        <span class="correct-option">✓ Correct: <?php echo $q['correct_answer']; ?></span>
+                                    </div>
+                                </div>
                             </div>
-                        <?php else: ?>
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 50px;">ID</th>
-                                        <th>Question</th>
-                                        <th style="width: 200px;">Options</th>
-                                        <th style="width: 80px;">Correct</th>
-                                        <th style="width: 80px;">Marks</th>
-                                        <th style="width: 100px;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($objective_questions as $q): ?>
-                                        <tr>
-                                            <td><?php echo $q['id']; ?></td>
-                                            <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                            <td>
-                                                <span class="option-text"><strong>A:</strong> <?php echo htmlspecialchars(substr($q['option_a'], 0, 25)); ?></span>
-                                                <span class="option-text"><strong>B:</strong> <?php echo htmlspecialchars(substr($q['option_b'], 0, 25)); ?></span>
-                                                <span class="option-text"><strong>C:</strong> <?php echo htmlspecialchars(substr($q['option_c'], 0, 25)); ?></span>
-                                                <span class="option-text"><strong>D:</strong> <?php echo htmlspecialchars(substr($q['option_d'], 0, 25)); ?></span>
+                        <?php endforeach; ?>
                     </div>
-                    <td><span class="badge badge-success"><?php echo $q['correct_answer']; ?></span></td>
-                    <td><?php echo $q['marks']; ?></td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'objective')" title="View"><i class="fas fa-eye"></i></button>
-                            <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                <input type="hidden" name="question_type" value="objective">
-                                <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon" title="Delete"><i class="fas fa-trash"></i></button>
-                            </form>
-                        </div>
-                </div>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
+                <?php endif; ?>
+            </div>
+
+            <!-- Subjective Questions Section -->
+            <div id="subjective-section" style="display: <?php echo $current_tab === 'subjective' ? 'block' : 'none'; ?>">
+                <?php if (empty($subjective_questions)): ?>
+                    <div class="empty-state">
+                        <i class="fas fa-edit"></i>
+                        <h3>No Subjective Questions</h3>
+                        <p>Click "Add Questions" to create your first subjective question.</p>
+                        <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=subjective" class="btn btn-primary" style="margin-top: 15px;">
+                            <i class="fas fa-plus"></i> Add Subjective Question
+                        </a>
+                    </div>
+                <?php else: ?>
+                    <div class="questions-grid">
+                        <?php foreach ($subjective_questions as $q): ?>
+                            <div class="question-card" data-question-id="<?php echo $q['id']; ?>" data-question-type="subjective">
+                                <div class="question-card-header">
+                                    <span class="question-id">ID: <?php echo $q['id']; ?></span>
+                                    <span class="marks-badge"><i class="fas fa-star"></i> <?php echo $q['marks']; ?> marks</span>
+                                </div>
+                                <div class="question-text-preview">
+                                    <?php echo htmlspecialchars(substr($q['question_text'], 0, 150)) . (strlen($q['question_text']) > 150 ? '...' : ''); ?>
+                                </div>
+                                <div class="options-preview" style="background: var(--success-light);">
+                                    <div class="option-item"><strong>Answer Guide:</strong> <?php echo htmlspecialchars(substr($q['correct_answer'] ?? '', 0, 80)) . (strlen($q['correct_answer'] ?? '') > 80 ? '...' : ''); ?></div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Theory Questions Section -->
+            <div id="theory-section" style="display: <?php echo $current_tab === 'theory' ? 'block' : 'none'; ?>">
+                <?php if (empty($theory_questions)): ?>
+                    <div class="empty-state">
+                        <i class="fas fa-file-alt"></i>
+                        <h3>No Theory Questions</h3>
+                        <p>Click "Add Questions" to create your first theory question.</p>
+                        <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=theory" class="btn btn-primary" style="margin-top: 15px;">
+                            <i class="fas fa-plus"></i> Add Theory Question
+                        </a>
+                    </div>
+                <?php else: ?>
+                    <div class="questions-grid">
+                        <?php foreach ($theory_questions as $q): ?>
+                            <div class="question-card" data-question-id="<?php echo $q['id']; ?>" data-question-type="theory">
+                                <div class="question-card-header">
+                                    <span class="question-id">ID: <?php echo $q['id']; ?></span>
+                                    <span class="marks-badge"><i class="fas fa-star"></i> <?php echo $q['marks']; ?> marks</span>
+                                    <?php if ($q['question_file']): ?>
+                                        <span class="file-badge"><i class="fas fa-paperclip"></i> Has Attachment</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="question-text-preview">
+                                    <?php if ($q['question_text']): ?>
+                                        <?php echo htmlspecialchars(substr($q['question_text'], 0, 150)) . (strlen($q['question_text']) > 150 ? '...' : ''); ?>
+                                    <?php else: ?>
+                                        <em>Question content in attached file</em>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+        <?php elseif ($selected_subject_id && empty($topics)): ?>
+            <div class="empty-state">
+                <i class="fas fa-list"></i>
+                <h3>No Topics Found</h3>
+                <p>This subject doesn't have any topics yet.</p>
+                <a href="manage-topics.php?subject_id=<?php echo $selected_subject_id; ?>" class="btn btn-primary" style="margin-top: 15px;">
+                    <i class="fas fa-plus"></i> Add Topics to <?php echo htmlspecialchars($selected_subject['subject_name']); ?>
+                </a>
+            </div>
+        <?php elseif (!$selected_subject_id): ?>
+            <div class="empty-state">
+                <i class="fas fa-question-circle"></i>
+                <h3>Select a Subject & Topic</h3>
+                <p>Use the dropdown above to select a subject, then choose a topic to manage its questions.</p>
             </div>
         <?php endif; ?>
     </div>
-    </div>
 
-    <!-- Subjective Questions Tab -->
-    <div class="tab-content <?php echo $current_tab === 'subjective' ? 'active' : ''; ?>" id="subjectiveTab">
-        <div style="margin-bottom: 20px; text-align: right;">
-            <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=subjective" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add Subjective Question
-            </a>
-        </div>
-
-        <div class="table-container">
-            <?php if (empty($subjective_questions)): ?>
-                <div class="empty-state">
-                    <i class="fas fa-edit" style="font-size: 48px; color: #ccc;"></i>
-                    <h3>No Subjective Questions</h3>
-                    <p>Click the button above to add your first subjective question.</p>
-                </div>
-            <?php else: ?>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">ID</th>
-                            <th>Question</th>
-                            <th style="width: 200px;">Answer Guide</th>
-                            <th style="width: 80px;">Marks</th>
-                            <th style="width: 100px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($subjective_questions as $q): ?>
-                            <tr>
-                                <td><?php echo $q['id']; ?></td>
-                                <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'], 0, 80)) . (strlen($q['question_text']) > 80 ? '...' : ''); ?></td>
-                                <td><?php echo htmlspecialchars(substr($q['correct_answer'] ?? '', 0, 50)) . (strlen($q['correct_answer'] ?? '') > 50 ? '...' : ''); ?></td>
-                                <td><?php echo $q['marks']; ?></td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-primary btn-sm btn-icon" onclick="viewQuestion(<?php echo $q['id']; ?>, 'subjective')" title="View"><i class="fas fa-eye"></i></button>
-                                        <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                                            <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                                            <input type="hidden" name="question_type" value="subjective">
-                                            <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-                                        </form>
-                                    </div>
-        </div>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-    </div>
-<?php endif; ?>
-</div>
-</div>
-
-<!-- Theory Questions Tab -->
-<div class="tab-content <?php echo $current_tab === 'theory' ? 'active' : ''; ?>" id="theoryTab">
-    <div style="margin-bottom: 20px; text-align: right;">
-        <a href="add_questions.php?topic_id=<?php echo $topic_id; ?>&type=theory" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Add Theory Question
-        </a>
-    </div>
-
-    <div class="table-container">
-        <?php if (empty($theory_questions)): ?>
-            <div class="empty-state">
-                <i class="fas fa-file-alt" style="font-size: 48px; color: #ccc;"></i>
-                <h3>No Theory Questions</h3>
-                <p>Click the button above to add your first theory question.</p>
+    <!-- Question Detail Modal -->
+    <div class="modal" id="questionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Question Details</h3>
+                <button class="close-modal" onclick="closeModal('questionModal')">&times;</button>
             </div>
-        <?php else: ?>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">ID</th>
-                        <th>Question</th>
-                        <th style="width: 100px;">File</th>
-                        <th style="width: 80px;">Marks</th>
-                        <th style="width: 100px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($theory_questions as $q): ?>
-                        <tr>
-                            <td><?php echo $q['id']; ?></td>
-                            <td class="question-text"><?php echo htmlspecialchars(substr($q['question_text'] ?? '', 0, 80)) . ((strlen($q['question_text'] ?? '') > 80) ? '...' : ''); ?></td>
-                            <td>
-                                <?php if ($q['question_file']): ?>
-                                    <span class="badge badge-info"><i class="fas fa-file"></i> Attached</span>
-                                <?php else: ?>
-                                    <span class="badge badge-warning">No file</span>
-                                <?php endif; ?>
-    </div>
-    <td><?php echo $q['marks']; ?></td>
-    <td>
-        <div class="action-buttons">
-            <?php if ($q['question_file']): ?>
-                <a href="../<?php echo $q['question_file']; ?>" class="btn btn-primary btn-sm btn-icon" target="_blank" title="View File"><i class="fas fa-eye"></i></a>
-            <?php endif; ?>
-            <form method="POST" onsubmit="return confirm('Delete this question?')" style="display: inline;">
-                <input type="hidden" name="question_id" value="<?php echo $q['id']; ?>">
-                <input type="hidden" name="question_type" value="theory">
-                <button type="submit" name="delete_question" class="btn btn-danger btn-sm btn-icon"><i class="fas fa-trash"></i></button>
-            </form>
+            <div class="modal-body" id="questionModalBody">
+                <div style="text-align: center; padding: 40px;">
+                    <div class="loading"></div>
+                    <p>Loading...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('questionModal')">Close</button>
+            </div>
         </div>
-</div>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</div>
-<?php endif; ?>
-</div>
-</div>
-</div>
-<?php elseif ($selected_subject_id && empty($topics)): ?>
-    <!-- No Topics Message -->
-    <div class="form-container" style="text-align: center; padding: 50px;">
-        <i class="fas fa-list" style="font-size: 64px; color: #ccc; margin-bottom: 20px;"></i>
-        <h3>No Topics Found</h3>
-        <p>This subject doesn't have any topics yet.</p>
-        <a href="manage-topics.php?subject_id=<?php echo $selected_subject_id; ?>" class="btn btn-primary" style="margin-top: 15px;">
-            <i class="fas fa-plus"></i> Add Topics to <?php echo htmlspecialchars($selected_subject['subject_name']); ?>
-        </a>
     </div>
-<?php elseif (!$selected_subject_id): ?>
-    <!-- No Selection Message -->
-    <div class="form-container" style="text-align: center; padding: 50px;">
-        <i class="fas fa-question-circle" style="font-size: 64px; color: #ccc; margin-bottom: 20px;"></i>
-        <h3>Select a Subject & Topic</h3>
-        <p>Use the dropdown above to select a subject, then choose a topic to manage its questions.</p>
-    </div>
-<?php endif; ?>
-</div>
 
-<!-- View Question Modal -->
-<div class="modal" id="viewModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-eye"></i> Question Details</h3>
-            <button class="close-modal" onclick="closeViewModal()">&times;</button>
-        </div>
-        <div class="modal-body" id="viewModalBody">
-            <p>Loading...</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeViewModal()">Close</button>
-        </div>
-    </div>
-</div>
+    <script>
+        // Tab switching
+        function switchTab(tabName) {
+            const url = new URL(window.location);
+            url.searchParams.set('type', tabName);
+            window.history.pushState({}, '', url);
 
-<script>
-    const mobileBtn = document.getElementById('mobileMenuBtn');
-    const sidebar = document.getElementById('sidebar');
-    if (mobileBtn) {
-        mobileBtn.onclick = () => sidebar.classList.toggle('active');
-    }
+            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            document.querySelector(`.stat-card:has(.stat-label:contains('${tabName === 'objective' ? 'Objective' : (tabName === 'subjective' ? 'Subjective' : 'Theory')}')`).classList.add('active');
 
-    document.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768 && sidebar && mobileBtn) {
-            if (!sidebar.contains(e.target) && !mobileBtn.contains(e.target)) {
-                sidebar.classList.remove('active');
-            }
+            document.getElementById('objective-section').style.display = tabName === 'objective' ? 'block' : 'none';
+            document.getElementById('subjective-section').style.display = tabName === 'subjective' ? 'block' : 'none';
+            document.getElementById('theory-section').style.display = tabName === 'theory' ? 'block' : 'none';
         }
-    });
 
-    function switchTab(tabName) {
-        const url = new URL(window.location);
-        url.searchParams.set('type', tabName);
-        window.history.pushState({}, '', url);
-
-        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        document.querySelector(`.tab-button[onclick="switchTab('${tabName}')"]`).classList.add('active');
-        document.getElementById(tabName + 'Tab').classList.add('active');
-    }
-
-    function closeViewModal() {
-        document.getElementById('viewModal').classList.remove('active');
-    }
-
-    async function viewQuestion(id, type) {
-        try {
-            const response = await fetch(`ajax/get_question.php?id=${id}&type=${type}`);
-            const data = await response.json();
-
-            if (data.success) {
-                let html = '';
-                if (type === 'objective') {
-                    const q = data.question;
-                    html = `
-                            <div style="margin-bottom: 20px;">
-                                <h4>Question:</h4>
-                                <p style="background: #f8f9fa; padding: 15px; border-radius: 8px;">${escapeHtml(q.question_text)}</p>
-                                ${q.question_image ? `<img src="../${q.question_image}" style="max-width: 100%; margin: 10px 0; border-radius: 8px;">` : ''}
-                                <h4 style="margin-top: 20px;">Options:</h4>
-                                <ul style="list-style: none; padding: 0;">
-                                    <li style="padding: 8px; background: ${q.correct_answer === 'A' ? '#e8f5e9' : '#f8f9fa'}; margin: 5px 0; border-radius: 5px;"><strong>A:</strong> ${escapeHtml(q.option_a)} ${q.correct_answer === 'A' ? ' ✓' : ''}</li>
-                                    <li style="padding: 8px; background: ${q.correct_answer === 'B' ? '#e8f5e9' : '#f8f9fa'}; margin: 5px 0; border-radius: 5px;"><strong>B:</strong> ${escapeHtml(q.option_b)} ${q.correct_answer === 'B' ? ' ✓' : ''}</li>
-                                    <li style="padding: 8px; background: ${q.correct_answer === 'C' ? '#e8f5e9' : '#f8f9fa'}; margin: 5px 0; border-radius: 5px;"><strong>C:</strong> ${escapeHtml(q.option_c)} ${q.correct_answer === 'C' ? ' ✓' : ''}</li>
-                                    <li style="padding: 8px; background: ${q.correct_answer === 'D' ? '#e8f5e9' : '#f8f9fa'}; margin: 5px 0; border-radius: 5px;"><strong>D:</strong> ${escapeHtml(q.option_d)} ${q.correct_answer === 'D' ? ' ✓' : ''}</li>
-                                </ul>
-                                <p><strong>Marks:</strong> ${q.marks} | <strong>Difficulty:</strong> ${q.difficulty_level}</p>
-                            </div>
-                        `;
-                } else if (type === 'subjective') {
-                    const q = data.question;
-                    html = `
-                            <div>
-                                <h4>Question:</h4>
-                                <p style="background: #f8f9fa; padding: 15px; border-radius: 8px;">${escapeHtml(q.question_text)}</p>
-                                <h4>Model Answer:</h4>
-                                <div style="background: #e8f5e9; padding: 15px; border-radius: 8px;">${escapeHtml(q.correct_answer || 'No answer guide provided')}</div>
-                                <p style="margin-top: 15px;"><strong>Marks:</strong> ${q.marks} | <strong>Difficulty:</strong> ${q.difficulty_level}</p>
-                            </div>
-                        `;
-                } else if (type === 'theory') {
-                    const q = data.question;
-                    html = `
-                            <div>
-                                <h4>Question:</h4>
-                                <p style="background: #f8f9fa; padding: 15px; border-radius: 8px;">${escapeHtml(q.question_text || 'Question content in file')}</p>
-                                ${q.question_file ? `<p><a href="../${q.question_file}" target="_blank" class="btn btn-primary"><i class="fas fa-download"></i> Download Question File</a></p>` : ''}
-                                <p><strong>Marks:</strong> ${q.marks} | <strong>Difficulty:</strong> ${q.difficulty_level}</p>
-                            </div>
-                        `;
-                }
-                document.getElementById('viewModalBody').innerHTML = html;
-                document.getElementById('viewModal').classList.add('active');
-            } else {
-                alert('Error loading question: ' + data.message);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error loading question');
-        }
-    }
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeViewModal();
-        }
-    });
-
-    setTimeout(() => {
-        document.querySelectorAll('.alert').forEach(alert => {
-            alert.style.opacity = '0';
-            alert.style.transition = 'opacity 0.5s';
-            setTimeout(() => alert.remove(), 500);
+        // Make stat cards clickable
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const label = this.querySelector('.stat-label').textContent.toLowerCase();
+                if (label === 'objective') switchTab('objective');
+                else if (label === 'subjective') switchTab('subjective');
+                else if (label === 'theory') switchTab('theory');
+            });
         });
-    }, 5000);
-</script>
+
+        // Question card click handler
+        document.querySelectorAll('.question-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                if (e.target.closest('.btn') || e.target.closest('a') || e.target.closest('form')) return;
+                const questionId = this.getAttribute('data-question-id');
+                const questionType = this.getAttribute('data-question-type');
+                viewQuestion(questionId, questionType);
+            });
+        });
+
+        function viewQuestion(id, type) {
+            const modal = document.getElementById('questionModal');
+            const modalBody = document.getElementById('questionModalBody');
+            const modalTitle = document.getElementById('modalTitle');
+
+            modalTitle.innerHTML = `<i class="fas fa-eye"></i> ${type.charAt(0).toUpperCase() + type.slice(1)} Question Details`;
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading"></div><p>Loading...</p></div>';
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            fetch(`ajax/get_question.php?id=${id}&type=${type}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let html = '';
+                        if (type === 'objective') {
+                            const q = data.question;
+                            html = `
+                                <div class="info-row">
+                                    <div class="info-label">Question ID:</div>
+                                    <div class="info-value">#${q.id}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Question:</div>
+                                    <div class="info-value">${escapeHtml(q.question_text)}</div>
+                                </div>
+                                ${q.question_image ? `<div class="info-row"><div class="info-label">Image:</div><div class="info-value"><img src="../${q.question_image}" style="max-width: 100%; border-radius: 8px;"></div></div>` : ''}
+                                <div class="info-row">
+                                    <div class="info-label">Options:</div>
+                                    <div class="info-value">
+                                        <div><strong>A:</strong> ${escapeHtml(q.option_a)} ${q.correct_answer === 'A' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                        <div><strong>B:</strong> ${escapeHtml(q.option_b)} ${q.correct_answer === 'B' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                        <div><strong>C:</strong> ${escapeHtml(q.option_c)} ${q.correct_answer === 'C' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                        <div><strong>D:</strong> ${escapeHtml(q.option_d)} ${q.correct_answer === 'D' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                    </div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Marks:</div>
+                                    <div class="info-value">${q.marks}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Difficulty:</div>
+                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                                </div>
+                            `;
+                        } else if (type === 'subjective') {
+                            const q = data.question;
+                            html = `
+                                <div class="info-row">
+                                    <div class="info-label">Question ID:</div>
+                                    <div class="info-value">#${q.id}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Question:</div>
+                                    <div class="info-value">${escapeHtml(q.question_text)}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Answer Guide:</div>
+                                    <div class="info-value" style="background: var(--success-light); padding: 10px; border-radius: 8px;">${escapeHtml(q.correct_answer || 'No answer guide provided')}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Marks:</div>
+                                    <div class="info-value">${q.marks}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Difficulty:</div>
+                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                                </div>
+                            `;
+                        } else if (type === 'theory') {
+                            const q = data.question;
+                            html = `
+                                <div class="info-row">
+                                    <div class="info-label">Question ID:</div>
+                                    <div class="info-value">#${q.id}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Question:</div>
+                                    <div class="info-value">${escapeHtml(q.question_text || 'Content in attached file')}</div>
+                                </div>
+                                ${q.question_file ? `<div class="info-row"><div class="info-label">Attachment:</div><div class="info-value"><a href="../${q.question_file}" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Download File</a></div></div>` : ''}
+                                <div class="info-row">
+                                    <div class="info-label">Marks:</div>
+                                    <div class="info-value">${q.marks}</div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="info-label">Difficulty:</div>
+                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                                </div>
+                            `;
+                        }
+
+                        html += `
+                            <div class="modal-action-buttons">
+                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="width: 100%;">
+                                    <input type="hidden" name="question_id" value="${id}">
+                                    <input type="hidden" name="question_type" value="${type}">
+                                    <button type="submit" name="delete_question" class="btn btn-danger modal-action-btn"><i class="fas fa-trash"></i> Delete Question</button>
+                                </form>
+                            </div>
+                        `;
+                        modalBody.innerHTML = html;
+                    } else {
+                        modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(data.message)}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> Failed to load question details.</div>`;
+                });
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modals on outside click
+        window.onclick = function(event) {
+            if (event.target.classList && event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        };
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal').forEach(modal => {
+                    modal.classList.remove('active');
+                });
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Auto-hide alerts
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
 </body>
 
 </html>

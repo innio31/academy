@@ -1,17 +1,17 @@
 <?php
-// msv/admin/index.php - Admin Dashboard (Aligned with offline version)
+// admin/index.php - Admin Dashboard
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 require_once '../includes/config.php';
 
-// Check if admin is logged in (support both offline and online session styles)
+// Check if admin is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header("Location: /msv/login.php");
+    header("Location: /gsa/login.php");
     exit();
 }
 
-// Get admin info from session
+// Get admin info
 if (isset($_SESSION['admin_id'])) {
     $admin_id = $_SESSION['admin_id'];
     $admin_name = $_SESSION['admin_name'] ?? 'Administrator';
@@ -26,12 +26,12 @@ $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $secondary_color = SCHOOL_SECONDARY;
+$page_title = "Dashboard";
 
-// Get subscription status from schools table
+// Get subscription status
 $subscription_active = false;
 $subscription_end_date = '';
 $subscription_days_remaining = 0;
-$subscription_warning_days = 30; // Show warning when 30 days or less remaining
 
 try {
     $stmt = $pdo->prepare("SELECT subscription_status, subscription_expiry FROM schools WHERE id = ?");
@@ -48,7 +48,6 @@ try {
             $subscription_days_remaining = ceil(($expiry_timestamp - $current_timestamp) / (60 * 60 * 24));
             $subscription_days_remaining = max(0, $subscription_days_remaining);
 
-            // Check if expired
             if ($expiry_timestamp < $current_timestamp) {
                 $subscription_active = false;
             }
@@ -58,878 +57,494 @@ try {
     error_log("Error checking subscription: " . $e->getMessage());
 }
 
-// Get statistics for this school only
+// Get statistics
 try {
-    // Total Students
     $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM students WHERE school_id = ? AND status = 'active'");
     $stmt->execute([$school_id]);
     $total_students = $stmt->fetch()['total'];
 
-    // Total Staff
     $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM staff WHERE school_id = ? AND is_active = 1");
     $stmt->execute([$school_id]);
     $total_staff = $stmt->fetch()['total'];
 
-    // Total Exams
     $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM exams WHERE school_id = ?");
     $stmt->execute([$school_id]);
     $total_exams = $stmt->fetch()['total'];
 
-    // Total Subjects
     $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM subjects WHERE school_id = ?");
     $stmt->execute([$school_id]);
     $total_subjects = $stmt->fetch()['total'];
 
-    // Recent Activity Logs
+    // Recent activities
     $stmt = $pdo->prepare("
         SELECT al.*, 
                CASE 
                    WHEN al.user_type = 'student' THEN s.full_name
                    WHEN al.user_type = 'staff' THEN st.full_name
                    WHEN al.user_type = 'admin' THEN a.full_name
-                   ELSE 'Unknown User'
+                   ELSE 'Unknown'
                END as user_name
         FROM activity_logs al
         LEFT JOIN students s ON al.user_id = s.id AND al.user_type = 'student' AND s.school_id = ?
         LEFT JOIN staff st ON al.user_id = st.id AND al.user_type = 'staff' AND st.school_id = ?
         LEFT JOIN admin_users a ON al.user_id = a.id AND al.user_type = 'admin' AND a.school_id = ?
         WHERE al.school_id = ?
-        ORDER BY al.created_at DESC 
-        LIMIT 10
+        ORDER BY al.created_at DESC LIMIT 10
     ");
     $stmt->execute([$school_id, $school_id, $school_id, $school_id]);
     $recent_activities = $stmt->fetchAll();
 
-    // Recent Exams
+    // Recent exams
     $stmt = $pdo->prepare("
-        SELECT e.*, s.subject_name 
-        FROM exams e 
-        LEFT JOIN subjects s ON e.subject_id = s.id 
+        SELECT e.*, s.subject_name, c.class_name 
+        FROM exams e
+        LEFT JOIN subjects s ON e.subject_id = s.id
+        LEFT JOIN classes c ON e.class_id = c.id
         WHERE e.school_id = ?
-        ORDER BY e.created_at DESC 
-        LIMIT 5
+        ORDER BY e.created_at DESC LIMIT 5
     ");
     $stmt->execute([$school_id]);
     $recent_exams = $stmt->fetchAll();
-
-    // Recent Results
-    $stmt = $pdo->prepare("
-        SELECT r.*, stu.full_name as student_name, e.exam_name 
-        FROM results r 
-        JOIN students stu ON r.student_id = stu.id 
-        JOIN exams e ON r.exam_id = e.id 
-        WHERE stu.school_id = ?
-        ORDER BY r.submitted_at DESC 
-        LIMIT 5
-    ");
-    $stmt->execute([$school_id]);
-    $recent_results = $stmt->fetchAll();
 } catch (Exception $e) {
     error_log("Admin dashboard error: " . $e->getMessage());
-    $error_message = "Error loading dashboard data";
+    $recent_exams = [];
 }
+
+// Include sidebar (this now outputs the sidebar AND the top header)
+$standalone_sidebar = false;
+require_once 'includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?php echo $school_name; ?> - Admin Dashboard</title>
+<style>
+    /* Dashboard specific styles */
+    .dashboard-container {
+        padding: 30px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
 
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border-top: 4px solid;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+    }
 
-    <style>
-        :root {
-            --primary-color: <?php echo $primary_color; ?>;
-            --secondary-color: <?php echo $secondary_color; ?>;
-            --accent-color: #e74c3c;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --light-color: #ecf0f1;
-            --dark-color: #2c3e50;
-            --sidebar-width: 260px;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --transition: all 0.3s ease;
-        }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    .stat-card.students {
+        border-top-color: <?php echo $secondary_color; ?>;
+    }
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
+    .stat-card.staff {
+        border-top-color: #f39c12;
+    }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: linear-gradient(180deg, var(--primary-color), var(--dark-color));
-            color: white;
-            padding: 20px 0;
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-        }
+    .stat-card.exams {
+        border-top-color: #27ae60;
+    }
 
-        .sidebar.active {
-            transform: translateX(0);
-        }
+    .stat-card.subjects {
+        border-top-color: #e74c3c;
+    }
 
-        .sidebar-header {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
+    .stat-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+    .stat-icon {
+        width: 55px;
+        height: 55px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: white;
+    }
 
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--secondary-color);
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
+    .stat-card.students .stat-icon {
+        background: <?php echo $secondary_color; ?>;
+    }
 
-        .logo-text h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
+    .stat-card.staff .stat-icon {
+        background: #f39c12;
+    }
 
-        .logo-text p {
-            font-size: 0.7rem;
-            opacity: 0.8;
-        }
+    .stat-card.exams .stat-icon {
+        background: #27ae60;
+    }
 
-        .admin-info {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin: 15px;
-        }
+    .stat-card.subjects .stat-icon {
+        background: #e74c3c;
+    }
 
-        /* Subscription Status in Sidebar */
-        .subscription-status {
-            margin: 15px;
-            padding: 12px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            text-align: center;
-        }
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
 
-        .subscription-status .status-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.8;
-            margin-bottom: 5px;
-        }
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin-top: 5px;
+    }
 
-        .subscription-status .days-remaining {
-            font-size: 1.3rem;
-            font-weight: 700;
-        }
+    .content-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 25px;
+        margin-bottom: 30px;
+    }
 
-        .subscription-status .expiry-date {
-            font-size: 0.7rem;
-            opacity: 0.8;
-            margin-top: 5px;
-        }
+    .content-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
 
-        .subscription-status.warning {
-            background: rgba(243, 156, 18, 0.3);
-            border-left: 3px solid var(--warning-color);
-        }
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #e5e7eb;
+    }
 
-        .subscription-status.warning .days-remaining {
-            color: var(--warning-color);
-        }
+    .card-header h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
 
-        .subscription-status.danger {
-            background: rgba(231, 76, 60, 0.3);
-            border-left: 3px solid var(--danger-color);
-            animation: pulseRed 1s infinite;
-        }
+    .card-header h3 i {
+        color: <?php echo $primary_color; ?>;
+        margin-right: 8px;
+    }
 
-        .subscription-status.danger .days-remaining {
-            color: var(--danger-color);
-        }
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 15px;
+    }
 
-        .subscription-status.active {
-            background: rgba(39, 174, 96, 0.2);
-            border-left: 3px solid var(--success-color);
-        }
+    .action-btn {
+        background: #f9fafb;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        text-decoration: none;
+        color: <?php echo $primary_color; ?>;
+        transition: all 0.3s ease;
+    }
 
-        .subscription-status.active .days-remaining {
-            color: var(--success-color);
-        }
+    .action-btn:hover {
+        border-color: <?php echo $secondary_color; ?>;
+        background: white;
+        transform: translateY(-3px);
+    }
 
-        @keyframes pulseRed {
-            0% {
-                opacity: 1;
-            }
+    .action-icon {
+        font-size: 28px;
+        margin-bottom: 10px;
+    }
 
-            50% {
-                opacity: 0.7;
-            }
+    .activity-list {
+        list-style: none;
+        max-height: 350px;
+        overflow-y: auto;
+    }
 
-            100% {
-                opacity: 1;
-            }
-        }
+    .activity-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 12px;
+    }
 
-        .nav-links {
-            list-style: none;
-            padding: 0 15px;
-            margin-top: 10px;
-        }
+    .activity-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: <?php echo $primary_color; ?>;
+    }
 
-        .nav-links li {
-            margin-bottom: 5px;
-        }
+    .activity-content {
+        flex: 1;
+    }
 
-        .nav-links a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            border-radius: 8px;
-            transition: var(--transition);
-        }
+    .activity-content h4 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
 
-        .nav-links a:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
+    .activity-content p {
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
 
-        .nav-links a.active {
-            background: rgba(255, 255, 255, 0.2);
-            border-left: 3px solid var(--secondary-color);
-        }
+    .activity-time {
+        font-size: 0.7rem;
+        color: #9ca3af;
+        margin-top: 4px;
+    }
 
-        .nav-links i {
-            width: 20px;
-            text-align: center;
-        }
+    .table-container {
+        overflow-x: auto;
+    }
 
-        /* Main Content */
-        .main-content {
-            min-height: 100vh;
-            padding: 20px;
-            transition: var(--transition);
-        }
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
 
-        /* Mobile Menu Toggle */
-        .mobile-menu-toggle {
-            position: fixed;
-            top: 15px;
-            right: 20px;
-            z-index: 1001;
-            width: 44px;
-            height: 44px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 20px;
-            cursor: pointer;
-        }
+    .data-table th,
+    .data-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.85rem;
+    }
 
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
+    .data-table th {
+        background: #f9fafb;
+        font-weight: 600;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .status-active {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .dashboard-footer {
+        text-align: center;
+        padding: 25px;
+        color: #6b7280;
+        font-size: 0.8rem;
+        border-top: 1px solid #e5e7eb;
+        margin-top: 30px;
+    }
+
+    .welcome-banner {
+        background: linear-gradient(135deg, <?php echo $primary_color; ?> 0%, <?php echo $secondary_color; ?> 100%);
+        border-radius: 16px;
+        padding: 25px 30px;
+        margin-bottom: 30px;
+        color: white;
+    }
+
+    .welcome-banner h1 {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+    }
+
+    @keyframes fadeInUp {
+        from {
             opacity: 0;
-            visibility: hidden;
-            transition: var(--transition);
+            transform: translateY(20px);
         }
 
-        .sidebar-overlay.active {
+        to {
             opacity: 1;
-            visibility: visible;
+            transform: translateY(0);
         }
+    }
 
-        /* Top Header */
-        .top-header {
-            background: white;
-            padding: 20px;
-            border-radius: var(--radius-md);
-            margin-bottom: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-            box-shadow: var(--shadow-sm);
-        }
+    .stat-card,
+    .content-card {
+        animation: fadeInUp 0.5s ease forwards;
+    }
+</style>
 
-        .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
+<div class="dashboard-container">
+    <!-- Welcome Banner -->
+    <div class="welcome-banner">
+        <h1>Welcome back, <?php echo htmlspecialchars($admin_name); ?>! 👋</h1>
+        <p>Here's what's happening with <?php echo htmlspecialchars($school_name); ?> today.</p>
+    </div>
 
-        .header-title p {
-            color: #666;
-            font-size: 0.85rem;
-        }
-
-        .logout-btn {
-            background: var(--danger-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Stats Cards */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-bottom: 24px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-sm);
-            border-top: 4px solid;
-        }
-
-        .stat-card.students {
-            border-top-color: var(--secondary-color);
-        }
-
-        .stat-card.staff {
-            border-top-color: var(--warning-color);
-        }
-
-        .stat-card.exams {
-            border-top-color: var(--success-color);
-        }
-
-        .stat-card.subjects {
-            border-top-color: var(--accent-color);
-        }
-
-        .stat-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            color: white;
-        }
-
-        .stat-card.students .stat-icon {
-            background: var(--secondary-color);
-        }
-
-        .stat-card.staff .stat-icon {
-            background: var(--warning-color);
-        }
-
-        .stat-card.exams .stat-icon {
-            background: var(--success-color);
-        }
-
-        .stat-card.subjects .stat-icon {
-            background: var(--accent-color);
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        .stat-label {
-            font-size: 0.85rem;
-            color: #666;
-        }
-
-        /* Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            margin-bottom: 24px;
-        }
-
-        .content-card {
-            background: white;
-            border-radius: var(--radius-md);
-            padding: 20px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--light-color);
-        }
-
-        .card-header h3 {
-            color: var(--primary-color);
-            font-size: 1.1rem;
-        }
-
-        .card-header a {
-            color: var(--secondary-color);
-            text-decoration: none;
-            font-size: 0.8rem;
-        }
-
-        /* Tables */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            font-size: 0.85rem;
-        }
-
-        .data-table th {
-            background: var(--light-color);
-            font-weight: 600;
-        }
-
-        .status-badge {
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-
-        .status-active {
-            background: #d5f4e6;
-            color: var(--success-color);
-        }
-
-        .status-inactive {
-            background: #f8d7da;
-            color: var(--danger-color);
-        }
-
-        /* Quick Actions */
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        .action-btn {
-            background: white;
-            border: 2px solid var(--light-color);
-            border-radius: var(--radius-sm);
-            padding: 15px;
-            text-align: center;
-            text-decoration: none;
-            color: var(--primary-color);
-            transition: var(--transition);
-        }
-
-        .action-btn:hover {
-            border-color: var(--secondary-color);
-            transform: translateY(-3px);
-        }
-
-        .action-icon {
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-
-        .action-text {
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        /* Activity List */
-        .activity-list {
-            list-style: none;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .activity-item {
-            padding: 12px 0;
-            border-bottom: 1px solid var(--light-color);
-            display: flex;
-            gap: 12px;
-        }
-
-        .activity-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .activity-icon.student {
-            background: rgba(52, 152, 219, 0.1);
-            color: var(--secondary-color);
-        }
-
-        .activity-content {
-            flex: 1;
-        }
-
-        .activity-content h4 {
-            font-size: 0.85rem;
-            margin-bottom: 4px;
-        }
-
-        .activity-content p {
-            font-size: 0.75rem;
-            color: #666;
-        }
-
-        .activity-time {
-            font-size: 0.7rem;
-            color: #999;
-        }
-
-        .dashboard-footer {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 0.8rem;
-            border-top: 1px solid var(--light-color);
-            margin-top: 20px;
-        }
-
-        @media (min-width: 768px) {
-
-            .mobile-menu-toggle,
-            .sidebar-overlay {
-                display: none;
-            }
-
-            .sidebar {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-        }
-
-        @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .mobile-menu-btn {
-            position: fixed;
-            top: 15px;
-            right: 20px;
-            z-index: 1001;
-            width: 44px;
-            height: 44px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 20px;
-            cursor: pointer;
-            display: none;
-        }
-
-        @media (max-width: 767px) {
-            .mobile-menu-btn {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-        }
-    </style>
-</head>
-
-<body>
-
-    <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <!-- Main Content -->
-    <div class="main-content" id="mainContent">
-        <!-- Top Header -->
-        <div class="top-header">
-            <div class="header-title">
-                <h1>Admin Dashboard</h1>
-                <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>!</p>
-            </div>
-            <div class="header-actions">
-                <button class="logout-btn" onclick="window.location.href='/msv/logout.php'">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card students" onclick="window.location.href='manage-students.php'">
+            <div class="stat-card-header">
+                <div>
+                    <div class="stat-value"><?php echo number_format($total_students ?? 0); ?></div>
+                    <div class="stat-label">Total Students</div>
+                </div>
+                <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
             </div>
         </div>
-
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card students">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-value"><?php echo $total_students ?? 0; ?></div>
-                        <div class="stat-label">Total Students</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-user-graduate"></i>
-                    </div>
+        <div class="stat-card staff" onclick="window.location.href='manage-staff.php'">
+            <div class="stat-card-header">
+                <div>
+                    <div class="stat-value"><?php echo number_format($total_staff ?? 0); ?></div>
+                    <div class="stat-label">Total Staff</div>
                 </div>
-            </div>
-
-            <div class="stat-card staff">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-value"><?php echo $total_staff ?? 0; ?></div>
-                        <div class="stat-label">Total Staff</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card exams">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-value"><?php echo $total_exams ?? 0; ?></div>
-                        <div class="stat-label">Total Exams</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-file-alt"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stat-card subjects">
-                <div class="stat-card-header">
-                    <div>
-                        <div class="stat-value"><?php echo $total_subjects ?? 0; ?></div>
-                        <div class="stat-label">Total Subjects</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-book"></i>
-                    </div>
-                </div>
+                <div class="stat-icon"><i class="fas fa-chalkboard-teacher"></i></div>
             </div>
         </div>
-
-        <!-- Content Grid -->
-        <div class="content-grid">
-            <div class="content-card">
-                <div class="card-header">
-                    <h3>Quick Actions</h3>
+        <div class="stat-card exams" onclick="window.location.href='manage-exams.php'">
+            <div class="stat-card-header">
+                <div>
+                    <div class="stat-value"><?php echo number_format($total_exams ?? 0); ?></div>
+                    <div class="stat-label">Total Exams</div>
                 </div>
-                <div class="quick-actions">
-                    <a href="manage-students.php" class="action-btn">
-                        <div class="action-icon"><i class="fas fa-user-plus"></i></div>
-                        <div class="action-text">Add Student</div>
-                    </a>
-                    <a href="manage-staff.php" class="action-btn">
-                        <div class="action-icon"><i class="fas fa-user-tie"></i></div>
-                        <div class="action-text">Add Staff</div>
-                    </a>
-                    <a href="manage-exams.php" class="action-btn">
-                        <div class="action-icon"><i class="fas fa-plus-circle"></i></div>
-                        <div class="action-text">Create Exam</div>
-                    </a>
-                    <a href="sync.php" class="action-btn">
-                        <div class="action-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <div class="action-text">Sync to Cloud</div>
-                    </a>
-                </div>
-            </div>
-
-            <div class="content-card">
-                <div class="card-header">
-                    <h3>Recent Activities</h3>
-                    <a href="reports.php">View All</a>
-                </div>
-                <ul class="activity-list">
-                    <?php if (!empty($recent_activities)): ?>
-                        <?php foreach ($recent_activities as $activity): ?>
-                            <li class="activity-item">
-                                <div class="activity-icon <?php echo $activity['user_type']; ?>">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <h4><?php echo htmlspecialchars($activity['user_name'] ?? 'Unknown'); ?></h4>
-                                    <p><?php echo htmlspecialchars($activity['activity']); ?></p>
-                                    <div class="activity-time">
-                                        <?php echo date('M d, H:i', strtotime($activity['created_at'])); ?>
-                                    </div>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <li style="text-align:center; color:#999; padding:20px;">No recent activities</li>
-                    <?php endif; ?>
-                </ul>
+                <div class="stat-icon"><i class="fas fa-file-alt"></i></div>
             </div>
         </div>
-
-        <!-- Recent Exams -->
-        <div class="content-card">
-            <div class="card-header">
-                <h3>Recent Exams</h3>
-                <a href="manage-exams.php">View All</a>
+        <div class="stat-card subjects" onclick="window.location.href='manage-subjects.php'">
+            <div class="stat-card-header">
+                <div>
+                    <div class="stat-value"><?php echo number_format($total_subjects ?? 0); ?></div>
+                    <div class="stat-label">Total Subjects</div>
+                </div>
+                <div class="stat-icon"><i class="fas fa-book"></i></div>
             </div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Exam Name</th>
-                            <th>Subject</th>
-                            <th>Class</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($recent_exams)): ?>
-                            <?php foreach ($recent_exams as $exam): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($exam['exam_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($exam['subject_name'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($exam['class']); ?></td>
-                                    <td><span class="status-badge <?php echo $exam['is_active'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $exam['is_active'] ? 'Active' : 'Inactive'; ?></span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="4" style="text-align:center;">No exams found</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="dashboard-footer">
-            <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - Online Portal</p>
         </div>
     </div>
 
-    <script>
-        // Mobile menu functionality - FIXED
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    <!-- Content Grid -->
+    <div class="content-grid">
+        <div class="content-card">
+            <div class="card-header">
+                <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+            </div>
+            <div class="quick-actions">
+                <a href="manage-students.php?action=add" class="action-btn">
+                    <div class="action-icon"><i class="fas fa-user-plus"></i></div>
+                    <div class="action-text">Add Student</div>
+                </a>
+                <a href="manage-staff.php?action=add" class="action-btn">
+                    <div class="action-icon"><i class="fas fa-user-tie"></i></div>
+                    <div class="action-text">Add Staff</div>
+                </a>
+                <a href="manage-exams.php?action=create" class="action-btn">
+                    <div class="action-icon"><i class="fas fa-plus-circle"></i></div>
+                    <div class="action-text">Create Exam</div>
+                </a>
+                <a href="attendance.php" class="action-btn">
+                    <div class="action-icon"><i class="fas fa-calendar-check"></i></div>
+                    <div class="action-text">Take Attendance</div>
+                </a>
+            </div>
+        </div>
 
-            // Wait for sidebar to load (since it's included at the bottom)
-            setTimeout(function() {
-                const sidebar = document.getElementById('sidebar');
-                const sidebarOverlay = document.getElementById('sidebarOverlay');
+        <div class="content-card">
+            <div class="card-header">
+                <h3><i class="fas fa-history"></i> Recent Activities</h3>
+                <a href="reports.php">View All</a>
+            </div>
+            <ul class="activity-list">
+                <?php if (!empty($recent_activities)): ?>
+                    <?php foreach ($recent_activities as $activity): ?>
+                        <li class="activity-item">
+                            <div class="activity-icon">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="activity-content">
+                                <h4><?php echo htmlspecialchars($activity['user_name'] ?? 'Unknown'); ?></h4>
+                                <p><?php echo htmlspecialchars($activity['activity']); ?></p>
+                                <div class="activity-time">
+                                    <?php echo date('M d, Y • h:i A', strtotime($activity['created_at'])); ?>
+                                </div>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <li style="text-align:center; padding:20px;">No recent activities</li>
+                <?php endif; ?>
+            </ul>
+        </div>
+    </div>
 
-                if (mobileMenuBtn && sidebar) {
-                    mobileMenuBtn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        sidebar.classList.toggle('active');
-                        if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
-                        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-                    });
-                }
+    <!-- Recent Exams -->
+    <div class="content-card">
+        <div class="card-header">
+            <h3><i class="fas fa-file-alt"></i> Recent Exams</h3>
+            <a href="manage-exams.php">View All</a>
+        </div>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Exam Name</th>
+                        <th>Subject</th>
+                        <th>Class</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($recent_exams)): ?>
+                        <?php foreach ($recent_exams as $exam): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($exam['exam_name']); ?></td>
+                                <td><?php echo htmlspecialchars($exam['subject_name'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($exam['class_name'] ?? 'N/A'); ?></td>
+                                <td><span class="status-badge status-active">Active</span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" style="text-align:center;">No exams found</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-                if (sidebarOverlay) {
-                    sidebarOverlay.addEventListener('click', function() {
-                        sidebar.classList.remove('active');
-                        sidebarOverlay.classList.remove('active');
-                        document.body.style.overflow = '';
-                    });
-                }
-            }, 100);
-        });
+    <!-- Footer -->
+    <div class="dashboard-footer">
+        <p>&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($school_name); ?> - All Rights Reserved</p>
+    </div>
+</div>
 
-        // Add animation to stat cards on load
-        document.addEventListener('DOMContentLoaded', function() {
-            const statCards = document.querySelectorAll('.stat-card');
-            statCards.forEach((card, index) => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                setTimeout(() => {
-                    card.style.transition = 'all 0.5s ease';
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, index * 100);
-            });
-        });
-    </script>
-    <?php
-    // Include sidebar at the end (it will be positioned fixed)
-    require_once 'includes/sidebar.php';
-    ?>
+<script>
+    // Add animation delays
+    document.querySelectorAll('.stat-card').forEach((card, index) => {
+        card.style.animationDelay = `${index * 0.1}s`;
+    });
+    document.querySelectorAll('.content-card').forEach((card, index) => {
+        card.style.animationDelay = `${index * 0.1 + 0.3}s`;
+    });
+</script>
+
+<?php
+// Close the main content wrapper and body (opened in sidebar.php)
+?>
+</div>
 </body>
 
 </html>

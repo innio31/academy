@@ -129,15 +129,38 @@ try {
 } catch (Exception $e) {
     error_log("Failed to get VAPID key: " . $e->getMessage());
 }
+
+// Check if we should output just the sidebar (not the whole layout)
+$standalone_sidebar = isset($standalone_sidebar) ? $standalone_sidebar : false;
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
+
+<?php if (!$standalone_sidebar): ?>
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <?php endif; ?>
+
     <style>
         /* ============================================================
-           SIDEBAR & NOTIFICATION BELL STYLES
-        ============================================================ */
-        
+       GLOBAL LAYOUT STYLES - FIXED
+    ============================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
+            background: #f5f7fb;
+            overflow-x: hidden;
+        }
+
         /* Theme CSS variables */
         :root {
             --sb-primary: <?php echo $sb_primary; ?>;
@@ -156,7 +179,8 @@ try {
             --sb-radius: 10px;
             --sb-width: 280px;
             --sb-transition: 0.22s ease;
-            
+            --header-height: 70px;
+
             /* Notification colors */
             --danger: #ef4444;
             --gray-50: #f9fafb;
@@ -166,7 +190,7 @@ try {
             --gray-600: #4b5563;
         }
 
-        /* ---------- Base Sidebar ---------- */
+        /* ---------- Sidebar (always visible on desktop) ---------- */
         .sidebar {
             width: var(--sb-width);
             height: 100vh;
@@ -183,7 +207,7 @@ try {
             scrollbar-width: thin;
             scrollbar-color: var(--sb-surface) transparent;
             font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
-            transform: translateX(-100%);
+            transform: translateX(0);
             transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -200,12 +224,202 @@ try {
             border-radius: 4px;
         }
 
-        .sidebar.active {
-            transform: translateX(0);
-            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+        /* ---------- Main Content Wrapper (shifted for sidebar) ---------- */
+        .main-content-wrapper {
+            margin-left: var(--sb-width);
+            min-height: 100vh;
+            transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* ---------- Sidebar Header ---------- */
+        /* ---------- Top Header Bar (inside main content) ---------- */
+        .top-header {
+            position: sticky;
+            top: 0;
+            right: 0;
+            left: 0;
+            height: var(--header-height);
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 99;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .header-title h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        .header-title p {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Notification Bell Styles */
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-bell i {
+            font-size: 1.3rem;
+            color: #4b5563;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 20px;
+            min-width: 18px;
+            text-align: center;
+            display: none;
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 40px;
+            right: 0;
+            width: 340px;
+            max-width: calc(100vw - 20px);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            z-index: 1100;
+            display: none;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .notification-dropdown.show {
+            display: block;
+        }
+
+        .notification-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+        }
+
+        .notification-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .notification-item:hover {
+            background: #f9fafb;
+        }
+
+        .notification-item.unread {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 3px solid var(--sb-primary);
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .notification-body {
+            font-size: 0.7rem;
+            color: #6b7280;
+        }
+
+        .notification-time {
+            font-size: 0.6rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .admin-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+
+        .admin-profile:hover {
+            background: #f3f4f6;
+        }
+
+        .admin-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--sb-primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .admin-info-header {
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .admin-info-header {
+                display: block;
+            }
+
+            .admin-info-header .name {
+                font-size: 0.85rem;
+                font-weight: 600;
+                color: #1f2937;
+            }
+
+            .admin-info-header .role {
+                font-size: 0.7rem;
+                color: #6b7280;
+            }
+        }
+
+        /* ---------- Sidebar Internal Styles ---------- */
         .sidebar-header {
             padding: 24px 20px 20px;
             border-bottom: 1px solid var(--sb-border);
@@ -260,7 +474,6 @@ try {
             margin: 0;
         }
 
-        /* ---------- Admin Info ---------- */
         .admin-info {
             display: flex;
             align-items: center;
@@ -270,7 +483,7 @@ try {
             flex-shrink: 0;
         }
 
-        .admin-avatar {
+        .admin-avatar-sidebar {
             width: 44px;
             height: 44px;
             border-radius: 50%;
@@ -302,7 +515,6 @@ try {
             text-transform: capitalize;
         }
 
-        /* ---------- Subscription Status ---------- */
         .subscription-status {
             margin: 16px 16px;
             padding: 12px 16px;
@@ -373,7 +585,6 @@ try {
             margin-top: 2px;
         }
 
-        /* ---------- Navigation ---------- */
         .sidebar-nav {
             flex: 1;
             padding: 12px 0 24px;
@@ -451,7 +662,7 @@ try {
             color: var(--sb-text-bright);
         }
 
-        .nav-group.open > .nav-group-toggle {
+        .nav-group.open>.nav-group-toggle {
             color: var(--sb-text-bright);
             background: var(--sb-hover);
         }
@@ -552,138 +763,6 @@ try {
             left: -1px;
         }
 
-        /* ---------- Top Bar with Notification Bell ---------- */
-        .admin-top-bar {
-            background: white;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--sb-border);
-            position: sticky;
-            top: 0;
-            z-index: 99;
-            margin-left: var(--sb-width);
-        }
-
-        .page-title h1 {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--gray-800);
-            margin: 0;
-        }
-
-        .page-title p {
-            font-size: 0.75rem;
-            color: #6b7280;
-            margin: 4px 0 0;
-        }
-
-        /* Notification Bell Styles */
-        .notification-bell {
-            position: relative;
-            cursor: pointer;
-        }
-
-        .notification-bell i {
-            font-size: 1.3rem;
-            color: #4b5563;
-        }
-
-        .notification-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #ef4444;
-            color: white;
-            font-size: 10px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 20px;
-            min-width: 18px;
-            text-align: center;
-            display: none;
-        }
-
-        .notification-dropdown {
-            position: absolute;
-            top: 40px;
-            right: 0;
-            width: 340px;
-            max-width: calc(100vw - 20px);
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            z-index: 1100;
-            display: none;
-            max-height: 450px;
-            overflow-y: auto;
-        }
-
-        .notification-dropdown.show {
-            display: block;
-        }
-
-        .notification-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid #e5e7eb;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            background: white;
-        }
-
-        .notification-item {
-            padding: 12px 16px;
-            border-bottom: 1px solid #f3f4f6;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .notification-item:hover {
-            background: #f9fafb;
-        }
-
-        .notification-item.unread {
-            background: rgba(59, 130, 246, 0.05);
-            border-left: 3px solid var(--sb-primary);
-        }
-
-        .notification-title {
-            font-weight: 600;
-            font-size: 0.8rem;
-            margin-bottom: 4px;
-        }
-
-        .notification-body {
-            font-size: 0.7rem;
-            color: #6b7280;
-        }
-
-        .notification-time {
-            font-size: 0.6rem;
-            color: #9ca3af;
-            margin-top: 4px;
-        }
-
-        .btn-secondary {
-            background: #e5e7eb;
-            color: #374151;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.65rem;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        .btn-secondary:hover {
-            background: #d1d5db;
-        }
-
-        /* Push Notifications Settings */
         .push-settings-section {
             margin-top: auto;
             padding: 16px;
@@ -717,11 +796,12 @@ try {
             color: white;
         }
 
-        /* ---------- Mobile Menu Button ---------- */
+        /* Mobile Menu Button */
         .mobile-menu-btn {
+            display: none;
             position: fixed;
-            top: 16px;
-            left: 16px;
+            top: 15px;
+            left: 15px;
             z-index: 1001;
             width: 44px;
             height: 44px;
@@ -731,11 +811,10 @@ try {
             border-radius: 10px;
             font-size: 20px;
             cursor: pointer;
-            display: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
 
-        /* ---------- Overlay ---------- */
+        /* Sidebar Overlay */
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -749,611 +828,649 @@ try {
             display: block;
         }
 
-        /* ---------- Responsive ---------- */
-        @media (min-width: 768px) {
-            .sidebar {
-                transform: translateX(0);
-            }
-            
-            .admin-top-bar {
-                margin-left: var(--sb-width);
-            }
-            
-            .mobile-menu-btn {
-                display: none;
-            }
-        }
-
-        @media (max-width: 767px) {
+        /* Responsive Design */
+        @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
             }
-            
+
             .sidebar.active {
                 transform: translateX(0);
             }
-            
-            .admin-top-bar {
+
+            .main-content-wrapper {
                 margin-left: 0;
-                padding: 12px 16px;
             }
-            
+
             .mobile-menu-btn {
                 display: flex;
                 align-items: center;
                 justify-content: center;
             }
-            
-            .page-title h1 {
-                font-size: 1rem;
+
+            .top-header {
+                padding: 0 15px;
             }
-            
+
+            .header-title h2 {
+                font-size: 1.1rem;
+            }
+
+            .header-title p {
+                display: none;
+            }
+
             .notification-dropdown {
                 width: 300px;
                 right: -10px;
             }
+
+            .admin-info-header {
+                display: none;
+            }
         }
     </style>
-</head>
-<body>
 
-<!-- Mobile Menu Button -->
-<button class="mobile-menu-btn" id="mobileMenuBtn">
-    <i class="fas fa-bars"></i>
-</button>
+    <?php if (!$standalone_sidebar): ?>
+    </head>
 
-<!-- Top Bar with Notification Bell -->
-<div class="admin-top-bar">
-    <div class="page-title">
-        <h1><?php echo htmlspecialchars($page_title ?? 'Dashboard'); ?></h1>
-        <p><?php echo date('l, F j, Y'); ?></p>
-    </div>
-    <div class="notification-bell" id="notificationBell">
-        <i class="fas fa-bell"></i>
-        <span class="notification-badge" id="notificationCount">0</span>
-        <div class="notification-dropdown" id="notificationDropdown">
-            <div class="notification-header">
-                <strong><i class="fas fa-bell"></i> Notifications</strong>
-                <button class="btn-secondary" id="markAllReadBtn">Mark all read</button>
-            </div>
-            <div id="notificationList">
-                <div style="padding: 20px; text-align:center; color: #9ca3af;">Loading...</div>
-            </div>
-        </div>
-    </div>
-</div>
+    <body>
+    <?php endif; ?>
 
-<!-- Sidebar Overlay -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <!-- Header -->
-    <div class="sidebar-header">
-        <div class="logo">
-            <div class="logo-icon">
-                <?php
-                $logo_path = null;
-                $logo_locations = [
-                    '/msv/assets/logos/logo.png',
-                    '/assets/logos/logo.png',
-                    '../assets/logos/logo.png',
-                    'assets/logos/logo.png'
-                ];
-                if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
-                    $logo_path = SCHOOL_LOGO;
-                } else {
-                    foreach ($logo_locations as $location) {
-                        if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
-                            $logo_path = $location;
-                            break;
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <!-- Header -->
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <?php
+                    $logo_path = null;
+                    $logo_locations = [
+                        '/msv/assets/logos/logo.png',
+                        '/assets/logos/logo.png',
+                        '../assets/logos/logo.png',
+                        'assets/logos/logo.png'
+                    ];
+                    if (defined('SCHOOL_LOGO') && SCHOOL_LOGO && file_exists($_SERVER['DOCUMENT_ROOT'] . SCHOOL_LOGO)) {
+                        $logo_path = SCHOOL_LOGO;
+                    } else {
+                        foreach ($logo_locations as $location) {
+                            if (file_exists($_SERVER['DOCUMENT_ROOT'] . $location)) {
+                                $logo_path = $location;
+                                break;
+                            }
                         }
                     }
-                }
-                if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)): ?>
-                    <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
+                    if ($logo_path && file_exists($_SERVER['DOCUMENT_ROOT'] . $logo_path)): ?>
+                        <img src="<?php echo $logo_path; ?>" alt="<?php echo htmlspecialchars($school_name); ?>">
+                    <?php else: ?>
+                        <i class="fas fa-graduation-cap"></i>
+                    <?php endif; ?>
+                </div>
+                <div class="logo-text">
+                    <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
+                    <p>Admin Panel</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Info -->
+        <div class="admin-info">
+            <div class="admin-avatar-sidebar">
+                <?php echo strtoupper(substr($admin_name, 0, 1)); ?>
+            </div>
+            <div class="admin-details">
+                <h4><?php echo htmlspecialchars($admin_name); ?></h4>
+                <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
+            </div>
+        </div>
+
+        <!-- Subscription Status -->
+        <?php
+        $status_class = '';
+        $display_days = $subscription_days_remaining ?? 0;
+        if (!$subscription_active || $display_days <= 0) {
+            $status_class = 'danger';
+            $display_days = 0;
+        } elseif ($display_days <= 14) {
+            $status_class = 'danger';
+        } elseif ($display_days <= 30) {
+            $status_class = 'warning';
+        } else {
+            $status_class = 'active';
+        }
+        ?>
+        <div class="subscription-status <?php echo $status_class; ?>">
+            <div class="sub-left">
+                <i class="fas fa-calendar-alt"></i>
+                <span class="sub-label">Subscription</span>
+            </div>
+            <div class="sub-right">
+                <?php if ($display_days > 0): ?>
+                    <span class="days-badge"><?php echo $display_days; ?> days</span>
                 <?php else: ?>
-                    <i class="fas fa-graduation-cap"></i>
+                    <span class="days-badge expired">EXPIRED</span>
+                <?php endif; ?>
+                <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
+                    <span class="expiry-text">Expires <?php echo date('M j, Y', strtotime($subscription_end_date)); ?></span>
+                <?php else: ?>
+                    <span class="expiry-text">No expiry set</span>
                 <?php endif; ?>
             </div>
-            <div class="logo-text">
-                <h3 class="school-name"><?php echo htmlspecialchars($school_name); ?></h3>
-                <p>Admin Panel</p>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sidebar-nav">
+            <!-- Dashboard -->
+            <a href="index.php" class="nav-item standalone <?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
+                <span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span>
+                <span class="nav-label">Dashboard</span>
+            </a>
+
+            <!-- Portal Group -->
+            <div class="nav-group <?php echo $portal_active ? 'open' : ''; ?>" data-group="portal">
+                <button class="nav-group-toggle" aria-expanded="<?php echo $portal_active ? 'true' : 'false'; ?>">
+                    <span class="nav-icon"><i class="fas fa-school"></i></span>
+                    <span class="nav-label">Portal</span>
+                    <span class="group-badge">
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </span>
+                </button>
+                <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
+                    <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate"></i> Students</a></li>
+                    <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
+                    <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>"><i class="fas fa-layer-group"></i> Classes</a></li>
+                    <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Subjects</a></li>
+                    <li><a href="manage_attendance.php" class="<?php echo $current_page == 'manage_attendance.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-check"></i> Attendance</a></li>
+                </ul>
+            </div>
+
+            <!-- Exams & Results Group -->
+            <div class="nav-group <?php echo $exam_active ? 'open' : ''; ?>" data-group="exams">
+                <button class="nav-group-toggle" aria-expanded="<?php echo $exam_active ? 'true' : 'false'; ?>">
+                    <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
+                    <span class="nav-label">Exams & Results</span>
+                    <span class="group-badge">
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </span>
+                </button>
+                <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
+                    <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>"><i class="fas fa-pen-alt"></i> Manage Exams</a></li>
+                    <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
+                    <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Process Results</a></li>
+                </ul>
+            </div>
+
+            <!-- Resources Group -->
+            <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
+                <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">
+                    <span class="nav-icon"><i class="fas fa-cubes"></i></span>
+                    <span class="nav-label">Resources</span>
+                    <span class="group-badge">
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </span>
+                </button>
+                <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
+                    <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
+                    <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
+                    <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
+                </ul>
+            </div>
+
+            <!-- Finance Group -->
+            <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
+                <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
+                    <span class="nav-icon"><i class="fas fa-receipt"></i></span>
+                    <span class="nav-label">Finance</span>
+                    <span class="group-badge">
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </span>
+                </button>
+                <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
+                    <li><a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
+                    <li><a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>"><i class="fas fa-tags"></i> Bill Types</a></li>
+                    <li><a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Manage Bills</a></li>
+                    <li><a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>"><i class="fas fa-money-bill-wave"></i> Payments</a></li>
+                    <li><a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>"><i class="fas fa-print"></i> Receipts</a></li>
+                    <li><a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt"></i> Invoices</a></li>
+                    <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
+                    <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
+                    <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
+                </ul>
+            </div>
+
+            <!-- Push Notifications Settings -->
+            <div class="push-settings-section">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-size: 0.75rem; opacity: 0.7;">
+                        <i class="fas fa-bell"></i> Push Notifications
+                    </span>
+                    <span id="pushStatus"></span>
+                </div>
+                <button id="pushToggleBtn" class="btn-push btn-push-primary">
+                    <i class="fas fa-bell"></i> Enable Notifications
+                </button>
+                <p style="font-size: 0.6rem; opacity: 0.5; margin-top: 8px; text-align: center;">
+                    Get real-time alerts when students/staff check in/out
+                </p>
+            </div>
+
+            <!-- Logout -->
+            <a href="/msv/logout.php" class="nav-item standalone logout">
+                <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                <span class="nav-label">Logout</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content Wrapper (to be used on each page) -->
+    <div class="main-content-wrapper" id="mainContentWrapper">
+        <!-- Top Header Bar (inside main content) -->
+        <div class="top-header">
+            <div class="header-title">
+                <h2><?php echo htmlspecialchars($page_title ?? 'Dashboard'); ?></h2>
+                <p><?php echo date('l, F j, Y'); ?></p>
+            </div>
+            <div class="header-actions">
+                <div class="notification-bell" id="notificationBell">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge" id="notificationCount">0</span>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">
+                            <strong><i class="fas fa-bell"></i> Notifications</strong>
+                            <button class="btn-secondary" id="markAllReadBtn">Mark all read</button>
+                        </div>
+                        <div id="notificationList">
+                            <div style="padding: 20px; text-align:center; color: #9ca3af;">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-profile" id="adminProfile">
+                    <div class="admin-avatar">
+                        <?php echo strtoupper(substr($admin_name, 0, 1)); ?>
+                    </div>
+                    <div class="admin-info-header">
+                        <div class="name"><?php echo htmlspecialchars($admin_name); ?></div>
+                        <div class="role"><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></div>
+                    </div>
+                    <i class="fas fa-chevron-down" style="font-size: 12px; color: #9ca3af;"></i>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Admin Info -->
-    <div class="admin-info">
-        <div class="admin-avatar">
-            <?php echo strtoupper(substr($admin_name, 0, 1)); ?>
-        </div>
-        <div class="admin-details">
-            <h4><?php echo htmlspecialchars($admin_name); ?></h4>
-            <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
-        </div>
-    </div>
+        <script>
+            // ============================================================
+            // SIDEBAR ACCORDION & MOBILE
+            // ============================================================
 
-    <!-- Subscription Status -->
-    <?php
-    $status_class = '';
-    $display_days = $subscription_days_remaining ?? 0;
-    if (!$subscription_active || $display_days <= 0) {
-        $status_class = 'danger';
-        $display_days = 0;
-    } elseif ($display_days <= 14) {
-        $status_class = 'danger';
-    } elseif ($display_days <= 30) {
-        $status_class = 'warning';
-    } else {
-        $status_class = 'active';
-    }
-    ?>
-    <div class="subscription-status <?php echo $status_class; ?>">
-        <div class="sub-left">
-            <i class="fas fa-calendar-alt"></i>
-            <span class="sub-label">Subscription</span>
-        </div>
-        <div class="sub-right">
-            <?php if ($display_days > 0): ?>
-                <span class="days-badge"><?php echo $display_days; ?> days</span>
-            <?php else: ?>
-                <span class="days-badge expired">EXPIRED</span>
-            <?php endif; ?>
-            <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
-                <span class="expiry-text">Expires <?php echo date('M j, Y', strtotime($subscription_end_date)); ?></span>
-            <?php else: ?>
-                <span class="expiry-text">No expiry set</span>
-            <?php endif; ?>
-        </div>
-    </div>
+            (function() {
+                'use strict';
 
-    <!-- Navigation -->
-    <nav class="sidebar-nav">
-        <!-- Dashboard -->
-        <a href="index.php" class="nav-item standalone <?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
-            <span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span>
-            <span class="nav-label">Dashboard</span>
-        </a>
+                // Accordion groups
+                function initGroups() {
+                    document.querySelectorAll('.nav-group').forEach(function(group) {
+                        var toggle = group.querySelector('.nav-group-toggle');
+                        var items = group.querySelector('.nav-group-items');
 
-        <!-- Portal Group -->
-        <div class="nav-group <?php echo $portal_active ? 'open' : ''; ?>" data-group="portal">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $portal_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-school"></i></span>
-                <span class="nav-label">Portal</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
-                <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate"></i> Students</a></li>
-                <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
-                <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>"><i class="fas fa-layer-group"></i> Classes</a></li>
-                <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Subjects</a></li>
-                <li><a href="manage_attendance.php" class="<?php echo $current_page == 'manage_attendance.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-            </ul>
-        </div>
+                        if (!toggle || !items) return;
 
-        <!-- Exams & Results Group -->
-        <div class="nav-group <?php echo $exam_active ? 'open' : ''; ?>" data-group="exams">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $exam_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
-                <span class="nav-label">Exams & Results</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
-                <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>"><i class="fas fa-pen-alt"></i> Manage Exams</a></li>
-                <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
-                <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-            </ul>
-        </div>
+                        toggle.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var isOpen = group.classList.contains('open');
 
-        <!-- Resources Group -->
-        <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-cubes"></i></span>
-                <span class="nav-label">Resources</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
-                <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
-                <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-            </ul>
-        </div>
+                            document.querySelectorAll('.nav-group.open').forEach(function(g) {
+                                if (g !== group) {
+                                    g.classList.remove('open');
+                                    var gToggle = g.querySelector('.nav-group-toggle');
+                                    var gItems = g.querySelector('.nav-group-items');
+                                    if (gToggle) gToggle.setAttribute('aria-expanded', 'false');
+                                    if (gItems) gItems.classList.remove('expanded');
+                                }
+                            });
 
-        <!-- Finance Group -->
-        <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
-            <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-receipt"></i></span>
-                <span class="nav-label">Finance</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
-                <li><a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
-                <li><a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>"><i class="fas fa-tags"></i> Bill Types</a></li>
-                <li><a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Manage Bills</a></li>
-                <li><a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>"><i class="fas fa-money-bill-wave"></i> Payments</a></li>
-                <li><a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>"><i class="fas fa-print"></i> Receipts</a></li>
-                <li><a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt"></i> Invoices</a></li>
-                <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
-                <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
-                <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
-            </ul>
-        </div>
-
-        <!-- Logout -->
-        <a href="/msv/logout.php" class="nav-item standalone logout">
-            <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
-            <span class="nav-label">Logout</span>
-        </a>
-    </nav>
-</div>
-
-<!-- Push Notifications Settings (added dynamically by JS) -->
-<div id="pushSettingsContainer"></div>
-
-<script>
-// ============================================================
-// SIDEBAR ACCORDION & MOBILE
-// ============================================================
-
-(function() {
-    'use strict';
-
-    // Accordion groups
-    function initGroups() {
-        document.querySelectorAll('.nav-group').forEach(function(group) {
-            var toggle = group.querySelector('.nav-group-toggle');
-            var items = group.querySelector('.nav-group-items');
-
-            if (!toggle || !items) return;
-
-            toggle.addEventListener('click', function() {
-                var isOpen = group.classList.contains('open');
-
-                document.querySelectorAll('.nav-group.open').forEach(function(g) {
-                    if (g !== group) {
-                        g.classList.remove('open');
-                        g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false');
-                        g.querySelector('.nav-group-items').classList.remove('expanded');
-                    }
-                });
-
-                if (isOpen) {
-                    group.classList.remove('open');
-                    toggle.setAttribute('aria-expanded', 'false');
-                    items.classList.remove('expanded');
-                } else {
-                    group.classList.add('open');
-                    toggle.setAttribute('aria-expanded', 'true');
-                    items.classList.add('expanded');
+                            if (isOpen) {
+                                group.classList.remove('open');
+                                toggle.setAttribute('aria-expanded', 'false');
+                                items.classList.remove('expanded');
+                            } else {
+                                group.classList.add('open');
+                                toggle.setAttribute('aria-expanded', 'true');
+                                items.classList.add('expanded');
+                            }
+                        });
+                    });
                 }
-            });
-        });
-    }
 
-    // Mobile sidebar
-    function initMobileSidebar() {
-        var toggle = document.getElementById('mobileMenuBtn');
-        var sidebar = document.getElementById('sidebar');
-        var overlay = document.getElementById('sidebarOverlay');
-        var body = document.body;
+                // Mobile sidebar
+                function initMobileSidebar() {
+                    var toggle = document.getElementById('mobileMenuBtn');
+                    var sidebar = document.getElementById('sidebar');
+                    var overlay = document.getElementById('sidebarOverlay');
+                    var body = document.body;
 
-        if (!sidebar || !overlay) return;
+                    if (!sidebar || !overlay) return;
 
-        function open() {
-            sidebar.classList.add('active');
-            overlay.classList.add('active');
-            body.style.overflow = 'hidden';
-        }
+                    function open() {
+                        sidebar.classList.add('active');
+                        overlay.classList.add('active');
+                        body.style.overflow = 'hidden';
+                    }
 
-        function close() {
-            sidebar.classList.remove('active');
-            overlay.classList.remove('active');
-            body.style.overflow = '';
-        }
+                    function close() {
+                        sidebar.classList.remove('active');
+                        overlay.classList.remove('active');
+                        body.style.overflow = '';
+                    }
 
-        if (toggle) {
-            toggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sidebar.classList.contains('active') ? close() : open();
-            });
-        }
+                    if (toggle) {
+                        toggle.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            sidebar.classList.contains('active') ? close() : open();
+                        });
+                    }
 
-        overlay.addEventListener('click', close);
+                    overlay.addEventListener('click', close);
 
-        document.querySelectorAll('.nav-item.standalone, .nav-group-items a').forEach(function(link) {
-            link.addEventListener('click', function() {
-                if (window.innerWidth <= 767) setTimeout(close, 150);
-            });
-        });
+                    document.querySelectorAll('.nav-item.standalone, .nav-group-items a').forEach(function(link) {
+                        link.addEventListener('click', function() {
+                            if (window.innerWidth <= 767) setTimeout(close, 150);
+                        });
+                    });
 
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') close();
-        });
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape') close();
+                    });
 
-        var resizeTimer;
-        window.addEventListener('resize', function() {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(function() {
-                if (window.innerWidth >= 768) close();
-            }, 250);
-        });
-    }
+                    var resizeTimer;
+                    window.addEventListener('resize', function() {
+                        clearTimeout(resizeTimer);
+                        resizeTimer = setTimeout(function() {
+                            if (window.innerWidth >= 768) close();
+                        }, 250);
+                    });
+                }
 
-    // ============================================================
-    // NOTIFICATION FUNCTIONS
-    // ============================================================
+                // ============================================================
+                // NOTIFICATION FUNCTIONS
+                // ============================================================
 
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+                function escapeHtml(text) {
+                    if (!text) return '';
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
 
-    function loadNotifications() {
-        fetch('/msv/admin/attendance_api.php?action=get_notifications', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const list = document.getElementById('notificationList');
-                if (!data.notifications || data.notifications.length === 0) {
-                    list.innerHTML = '<div style="padding: 20px; text-align:center; color: #9ca3af;"><i class="fas fa-bell-slash"></i> No notifications</div>';
-                } else {
-                    list.innerHTML = data.notifications.map(n => `
+                function loadNotifications() {
+                    fetch('/msv/admin/attendance_api.php?action=get_notifications', {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const list = document.getElementById('notificationList');
+                                if (!data.notifications || data.notifications.length === 0) {
+                                    list.innerHTML = '<div style="padding: 20px; text-align:center; color: #9ca3af;"><i class="fas fa-bell-slash"></i> No notifications</div>';
+                                } else {
+                                    list.innerHTML = data.notifications.map(n => `
                         <div class="notification-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}">
                             <div class="notification-title">${escapeHtml(n.title)}</div>
                             <div class="notification-body">${escapeHtml(n.body)}</div>
                             <div class="notification-time">${n.time_ago}</div>
                         </div>
                     `).join('');
-                    
-                    document.querySelectorAll('.notification-item').forEach(item => {
-                        item.addEventListener('click', function(e) {
+
+                                    document.querySelectorAll('.notification-item').forEach(item => {
+                                        item.addEventListener('click', function(e) {
+                                            e.stopPropagation();
+                                            const id = this.dataset.id;
+                                            if (id) markNotificationRead(id);
+                                        });
+                                    });
+                                }
+                            }
+                        })
+                        .catch(err => console.error('Error loading notifications:', err));
+                }
+
+                function loadUnreadCount() {
+                    fetch('/msv/admin/attendance_api.php?action=get_unread_count', {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const badge = document.getElementById('notificationCount');
+                                if (badge) {
+                                    badge.textContent = data.count;
+                                    badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+                                }
+                            }
+                        })
+                        .catch(err => console.error('Error loading unread count:', err));
+                }
+
+                function markNotificationRead(id) {
+                    const formData = new URLSearchParams();
+                    formData.append('action', 'mark_read');
+                    formData.append('notification_id', id);
+
+                    fetch('/msv/admin/attendance_api.php', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(() => {
+                            loadNotifications();
+                            loadUnreadCount();
+                        })
+                        .catch(err => console.error('Error marking notification read:', err));
+                }
+
+                function markAllNotificationsRead() {
+                    const formData = new URLSearchParams();
+                    formData.append('action', 'mark_all_read');
+
+                    fetch('/msv/admin/attendance_api.php', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(() => {
+                            loadNotifications();
+                            loadUnreadCount();
+                        })
+                        .catch(err => console.error('Error marking all notifications read:', err));
+                }
+
+                function initNotificationBell() {
+                    const bell = document.getElementById('notificationBell');
+                    const dropdown = document.getElementById('notificationDropdown');
+
+                    if (!bell || !dropdown) return;
+
+                    bell.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        dropdown.classList.toggle('show');
+                        if (dropdown.classList.contains('show')) {
+                            loadNotifications();
+                        }
+                    });
+
+                    document.addEventListener('click', function() {
+                        dropdown.classList.remove('show');
+                    });
+
+                    dropdown.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                    });
+
+                    const markAllBtn = document.getElementById('markAllReadBtn');
+                    if (markAllBtn) {
+                        markAllBtn.addEventListener('click', function(e) {
                             e.stopPropagation();
-                            const id = this.dataset.id;
-                            if (id) markNotificationRead(id);
+                            markAllNotificationsRead();
                         });
+                    }
+
+                    loadUnreadCount();
+                    setInterval(loadUnreadCount, 30000);
+                }
+
+                // ============================================================
+                // PUSH NOTIFICATIONS
+                // ============================================================
+
+                let isSubscribed = false;
+                let swRegistration = null;
+
+                const VAPID_PUBLIC_KEY = '<?php echo $vapid_public_key; ?>';
+
+                function isPushSupported() {
+                    return 'serviceWorker' in navigator && 'PushManager' in window;
+                }
+
+                function urlBase64ToUint8Array(base64String) {
+                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                    const base64 = (base64String + padding)
+                        .replace(/\-/g, '+')
+                        .replace(/_/g, '/');
+
+                    const rawData = window.atob(base64);
+                    const outputArray = new Uint8Array(rawData.length);
+
+                    for (let i = 0; i < rawData.length; ++i) {
+                        outputArray[i] = rawData.charCodeAt(i);
+                    }
+                    return outputArray;
+                }
+
+                async function saveSubscription(subscription) {
+                    const response = await fetch('/msv/admin/attendance_api.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: `action=save_push_subscription&subscription=${encodeURIComponent(JSON.stringify(subscription))}`
+                    });
+
+                    const data = await response.json();
+                    return data.success;
+                }
+
+                async function removeSubscription(subscription) {
+                    await fetch('/msv/admin/attendance_api.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: `action=remove_push_subscription&endpoint=${encodeURIComponent(subscription.endpoint)}`
                     });
                 }
-            }
-        })
-        .catch(err => console.error('Error loading notifications:', err));
-    }
 
-    function loadUnreadCount() {
-        fetch('/msv/admin/attendance_api.php?action=get_unread_count', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const badge = document.getElementById('notificationCount');
-                if (badge) {
-                    badge.textContent = data.count;
-                    badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+                async function askPermission() {
+                    const result = await Notification.requestPermission();
+
+                    if (result === 'granted') {
+                        console.log('Notification permission granted');
+                        await subscribeUser();
+                    } else {
+                        console.log('Notification permission denied');
+                        showPushPrompt('Notifications are blocked. You can enable them in browser settings.');
+                    }
                 }
-            }
-        })
-        .catch(err => console.error('Error loading unread count:', err));
-    }
 
-    function markNotificationRead(id) {
-        const formData = new URLSearchParams();
-        formData.append('action', 'mark_read');
-        formData.append('notification_id', id);
-        
-        fetch('/msv/admin/attendance_api.php', {
-            method: 'POST',
-            body: formData,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(() => {
-            loadNotifications();
-            loadUnreadCount();
-        })
-        .catch(err => console.error('Error marking notification read:', err));
-    }
+                async function subscribeUser() {
+                    if (!swRegistration) {
+                        console.log('Service worker not ready');
+                        return;
+                    }
 
-    function markAllNotificationsRead() {
-        const formData = new URLSearchParams();
-        formData.append('action', 'mark_all_read');
-        
-        fetch('/msv/admin/attendance_api.php', {
-            method: 'POST',
-            body: formData,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(() => {
-            loadNotifications();
-            loadUnreadCount();
-        })
-        .catch(err => console.error('Error marking all notifications read:', err));
-    }
+                    try {
+                        const subscription = await swRegistration.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                        });
 
-    function initNotificationBell() {
-        const bell = document.getElementById('notificationBell');
-        const dropdown = document.getElementById('notificationDropdown');
-        
-        if (!bell || !dropdown) return;
-        
-        bell.addEventListener('click', function(e) {
-            e.stopPropagation();
-            dropdown.classList.toggle('show');
-            if (dropdown.classList.contains('show')) {
-                loadNotifications();
-            }
-        });
-        
-        document.addEventListener('click', function() {
-            dropdown.classList.remove('show');
-        });
-        
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        
-        const markAllBtn = document.getElementById('markAllReadBtn');
-        if (markAllBtn) {
-            markAllBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                markAllNotificationsRead();
-            });
-        }
-        
-        loadUnreadCount();
-        setInterval(loadUnreadCount, 30000);
-    }
+                        console.log('User subscribed:', subscription);
+                        const saved = await saveSubscription(subscription);
 
-    // ============================================================
-    // PUSH NOTIFICATIONS
-    // ============================================================
+                        if (saved) {
+                            isSubscribed = true;
+                            updatePushUI(true);
+                        }
+                    } catch (err) {
+                        console.error('Failed to subscribe:', err);
+                        showPushPrompt('Could not subscribe to notifications. Please try again.');
+                    }
+                }
 
-    let isSubscribed = false;
-    let swRegistration = null;
-    
-    // VAPID Public Key - REPLACE THIS WITH YOUR ACTUAL PUBLIC KEY
-    // Get this from admin/generate_vapid_keys.php
-    const VAPID_PUBLIC_KEY = '<?php echo $vapid_public_key; ?>';
-    
-    function isPushSupported() {
-        return 'serviceWorker' in navigator && 'PushManager' in window;
-    }
-    
-    function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
-        
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        
-        for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-    }
-    
-    async function saveSubscription(subscription) {
-        const response = await fetch('/msv/admin/attendance_api.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `action=save_push_subscription&subscription=${encodeURIComponent(JSON.stringify(subscription))}`
-        });
-        
-        const data = await response.json();
-        return data.success;
-    }
-    
-    async function removeSubscription(subscription) {
-        await fetch('/msv/admin/attendance_api.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `action=remove_push_subscription&endpoint=${encodeURIComponent(subscription.endpoint)}`
-        });
-    }
-    
-    async function askPermission() {
-        const result = await Notification.requestPermission();
-        
-        if (result === 'granted') {
-            console.log('Notification permission granted');
-            await subscribeUser();
-        } else {
-            console.log('Notification permission denied');
-            showPushPrompt('Notifications are blocked. You can enable them in browser settings.');
-        }
-    }
-    
-    async function subscribeUser() {
-        if (!swRegistration) {
-            console.log('Service worker not ready');
-            return;
-        }
-        
-        try {
-            const subscription = await swRegistration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
-            
-            console.log('User subscribed:', subscription);
-            const saved = await saveSubscription(subscription);
-            
-            if (saved) {
-                isSubscribed = true;
-                updatePushUI(true);
-            }
-        } catch (err) {
-            console.error('Failed to subscribe:', err);
-            showPushPrompt('Could not subscribe to notifications. Please try again.');
-        }
-    }
-    
-    async function unsubscribeUser() {
-        if (!swRegistration) return;
-        
-        try {
-            const subscription = await swRegistration.pushManager.getSubscription();
-            if (subscription) {
-                await subscription.unsubscribe();
-                await removeSubscription(subscription);
-                console.log('User unsubscribed');
-                isSubscribed = false;
-                updatePushUI(false);
-            }
-        } catch (err) {
-            console.error('Failed to unsubscribe:', err);
-        }
-    }
-    
-    async function checkSubscription() {
-        if (!swRegistration) return;
-        
-        const subscription = await swRegistration.pushManager.getSubscription();
-        isSubscribed = subscription !== null;
-        updatePushUI(isSubscribed);
-    }
-    
-    function updatePushUI(subscribed) {
-        const toggleBtn = document.getElementById('pushToggleBtn');
-        const statusSpan = document.getElementById('pushStatus');
-        
-        if (toggleBtn) {
-            toggleBtn.innerHTML = subscribed ? 
-                '<i class="fas fa-bell-slash"></i> Disable Notifications' : 
-                '<i class="fas fa-bell"></i> Enable Notifications';
-            toggleBtn.className = subscribed ? 'btn-push btn-push-warning' : 'btn-push btn-push-primary';
-        }
-        
-        if (statusSpan) {
-            statusSpan.innerHTML = subscribed ? 
-                '<span style="color: #10b981;"><i class="fas fa-check-circle"></i> Enabled</span>' : 
-                '<span style="color: #6b7280;"><i class="fas fa-bell-slash"></i> Disabled</span>';
-        }
-    }
-    
-    function showPushPrompt(message) {
-        const promptDiv = document.createElement('div');
-        promptDiv.style.cssText = `
+                async function unsubscribeUser() {
+                    if (!swRegistration) return;
+
+                    try {
+                        const subscription = await swRegistration.pushManager.getSubscription();
+                        if (subscription) {
+                            await subscription.unsubscribe();
+                            await removeSubscription(subscription);
+                            console.log('User unsubscribed');
+                            isSubscribed = false;
+                            updatePushUI(false);
+                        }
+                    } catch (err) {
+                        console.error('Failed to unsubscribe:', err);
+                    }
+                }
+
+                async function checkSubscription() {
+                    if (!swRegistration) return;
+
+                    const subscription = await swRegistration.pushManager.getSubscription();
+                    isSubscribed = subscription !== null;
+                    updatePushUI(isSubscribed);
+                }
+
+                function updatePushUI(subscribed) {
+                    const toggleBtn = document.getElementById('pushToggleBtn');
+                    const statusSpan = document.getElementById('pushStatus');
+
+                    if (toggleBtn) {
+                        toggleBtn.innerHTML = subscribed ?
+                            '<i class="fas fa-bell-slash"></i> Disable Notifications' :
+                            '<i class="fas fa-bell"></i> Enable Notifications';
+                        toggleBtn.className = subscribed ? 'btn-push btn-push-warning' : 'btn-push btn-push-primary';
+                    }
+
+                    if (statusSpan) {
+                        statusSpan.innerHTML = subscribed ?
+                            '<span style="color: #10b981;"><i class="fas fa-check-circle"></i> Enabled</span>' :
+                            '<span style="color: #6b7280;"><i class="fas fa-bell-slash"></i> Disabled</span>';
+                    }
+                }
+
+                function showPushPrompt(message) {
+                    const promptDiv = document.createElement('div');
+                    promptDiv.style.cssText = `
             position: fixed;
             bottom: 20px;
             right: 20px;
@@ -1372,99 +1489,70 @@ try {
             gap: 12px;
             font-size: 14px;
         `;
-        promptDiv.innerHTML = `
+                    promptDiv.innerHTML = `
             <span>${message}</span>
             <button style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">&times;</button>
         `;
-        
-        const closeBtn = promptDiv.querySelector('button');
-        closeBtn.onclick = () => promptDiv.remove();
-        
-        document.body.appendChild(promptDiv);
-        setTimeout(() => promptDiv.remove(), 5000);
-    }
-    
-    function addPushSettingsUI() {
-        const sidebarNav = document.querySelector('.sidebar-nav');
-        if (!sidebarNav) return;
-        
-        if (document.querySelector('.push-settings-section')) return;
-        
-        const pushSection = document.createElement('div');
-        pushSection.className = 'push-settings-section';
-        pushSection.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-size: 0.75rem; opacity: 0.7;">
-                    <i class="fas fa-bell"></i> Push Notifications
-                </span>
-                <span id="pushStatus"></span>
-            </div>
-            <button id="pushToggleBtn" class="btn-push btn-push-primary">
-                <i class="fas fa-bell"></i> Enable Notifications
-            </button>
-            <p style="font-size: 0.6rem; opacity: 0.5; margin-top: 8px; text-align: center;">
-                Get real-time alerts when students/staff check in/out
-            </p>
-        `;
-        
-        const logout = sidebarNav.querySelector('.nav-item.logout');
-        if (logout) {
-            sidebarNav.insertBefore(pushSection, logout);
-        } else {
-            sidebarNav.appendChild(pushSection);
-        }
-        
-        const toggleBtn = document.getElementById('pushToggleBtn');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
-                if (isSubscribed) {
-                    unsubscribeUser();
-                } else {
-                    askPermission();
+
+                    const closeBtn = promptDiv.querySelector('button');
+                    closeBtn.onclick = () => promptDiv.remove();
+
+                    document.body.appendChild(promptDiv);
+                    setTimeout(() => promptDiv.remove(), 5000);
                 }
-            });
-        }
-    }
-    
-    async function initPushNotifications() {
-        if (!isPushSupported()) {
-            console.log('Push notifications not supported');
-            return;
-        }
-        
-        if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY === '') {
-            console.log('VAPID public key not configured. Run admin/generate_vapid_keys.php');
-            return;
-        }
-        
-        try {
-            swRegistration = await navigator.serviceWorker.register('/msv/sw.js');
-            console.log('Service Worker registered');
-            
-            addPushSettingsUI();
-            await checkSubscription();
-        } catch (err) {
-            console.error('Service Worker registration failed:', err);
-        }
-    }
 
-    // ============================================================
-    // INITIALIZE
-    // ============================================================
-    
-    function init() {
-        initGroups();
-        initMobileSidebar();
-        initNotificationBell();
-        initPushNotifications();
-    }
+                async function initPushNotifications() {
+                    if (!isPushSupported()) {
+                        console.log('Push notifications not supported');
+                        return;
+                    }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
-</script>
-</body>
-</html>
+                    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY === '') {
+                        console.log('VAPID public key not configured');
+                        return;
+                    }
+
+                    try {
+                        swRegistration = await navigator.serviceWorker.register('/msv/sw.js');
+                        console.log('Service Worker registered');
+                        await checkSubscription();
+                    } catch (err) {
+                        console.error('Service Worker registration failed:', err);
+                    }
+                }
+
+                // Admin profile click
+                function initAdminProfile() {
+                    const adminProfile = document.getElementById('adminProfile');
+                    if (adminProfile) {
+                        adminProfile.addEventListener('click', function() {
+                            window.location.href = 'profile.php';
+                        });
+                    }
+                }
+
+                // ============================================================
+                // INITIALIZE
+                // ============================================================
+
+                function init() {
+                    initGroups();
+                    initMobileSidebar();
+                    initNotificationBell();
+                    initPushNotifications();
+                    initAdminProfile();
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', init);
+                } else {
+                    init();
+                }
+            })();
+        </script>
+
+        <?php if (!$standalone_sidebar): ?>
+    </body>
+
+    </html>
+<?php endif; ?>

@@ -4,25 +4,35 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Impact Digital Services — Complete School Suite</title>
+    <title>Impact Digital | Complete School Management Suite for Nigerian Schools</title>
     <meta name="description"
-        content="Transform your school with a professional website, full management app, offline CBT & real-time parent alerts. From ₦20k/term. Trusted by 120+ schools.">
+        content="Transform your school with our all-in-one platform: website, management app, offline CBT, parent alerts & AI tools. From ₦20k/term. Trusted by 120+ schools." />
     <meta name="keywords"
-        content="school management software Nigeria, school website design Nigeria, offline CBT system, school app Nigeria, school digital transformation">
-    <meta name="author" content="Impact Digital Services">
-    <meta name="robots" content="index, follow">
-    <meta property="og:title" content="Impact Digital — Complete Digital Suite for Nigerian Schools">
+        content="school management software Nigeria, school website design Nigeria, offline CBT system, school app Nigeria, school digital transformation, education technology Nigeria, school ERP, result processing, attendance system" />
+    <meta name="author" content="Impact Digital Services" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
+    <meta name="geo.region" content="NG-LA" />
+    <meta name="geo.placename" content="Lagos" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Impact Digital — Smart School Platform for Nigerian Educators" />
     <meta property="og:description"
-        content="Professional website + school management app + offline CBT + parent alerts. From ₦20,000/term.">
-    <meta property="og:image" content="https://acad.com.ng/og-school-suite.jpg">
-    <meta property="og:url" content="https://acad.com.ng/proposal">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="canonical" href="https://acad.com.ng/proposal">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
-        rel="stylesheet">
+        content="Professional website + school management app + offline CBT + parent alerts. Starting at ₦20,000/term. Over 120 schools served." />
+    <meta property="og:url" content="https://acad.com.ng/proposal" />
+    <meta property="og:image" content="https://acad.com.ng/og-school-suite.jpg" />
+    <meta property="og:site_name" content="Impact Digital Services" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Impact Digital | Digital School Suite Proposal" />
+    <meta name="twitter:description"
+        content="Website, management app, offline CBT, social media — all in one affordable package for Nigerian schools." />
+    <link rel="canonical" href="https://acad.com.ng/proposal" />
+    <!-- Favicon Links -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
     <style>
         * {
             margin: 0;
@@ -31,448 +41,387 @@
         }
 
         :root {
-            --deep-navy: #0A1128;
-            --rich-navy: #121F3F;
-            --teal-bright: #00E5FF;
-            --teal-deep: #0096A0;
-            --gold: #FFB347;
-            --white: #FFFFFF;
-            --off-white: #F8FAFE;
-            --gray-light: #E2E8F0;
-            --gray-mid: #94A3B8;
-            --text-light: #CBD5E1;
-            --card-glass: rgba(255, 255, 255, 0.03);
-            --card-border: rgba(0, 229, 255, 0.15);
-            --gradient-1: linear-gradient(135deg, #0A1128 0%, #1A2A4A 100%);
-            --gradient-gold: linear-gradient(135deg, #FFB347 0%, #FF8C00 100%);
-            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            --font-head: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
+            --bg-dark: #020617;
+            --bg-card: #0f172a;
+            --bg-elevated: #1e293b;
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-glow: rgba(59, 130, 246, 0.25);
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.2);
+            --text-white: #ffffff;
+            --text-gray: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-dim: rgba(59, 130, 246, 0.2);
+            --success: #10b981;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+            --transition: all 0.25s ease;
         }
 
         body {
-            font-family: var(--font-body);
-            background: var(--deep-navy);
-            color: var(--text-light);
+            background: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-gray);
+            line-height: 1.5;
             overflow-x: hidden;
         }
 
-        /* Custom Scroll */
-        ::-webkit-scrollbar {
-            width: 5px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--deep-navy);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--teal-bright);
-            border-radius: 10px;
+        /* smooth scroll */
+        html {
+            scroll-behavior: smooth;
         }
 
         ::selection {
-            background: var(--teal-bright);
-            color: var(--deep-navy);
+            background: var(--primary);
+            color: var(--bg-dark);
         }
 
-        /* Animated Background */
-        .bg-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -2;
-            background: radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.08) 0%, rgba(10, 17, 40, 0) 70%);
+        /* custom scroll */
+        ::-webkit-scrollbar {
+            width: 4px;
         }
 
-        .bg-glow-2 {
-            position: fixed;
-            bottom: 0;
-            right: 0;
-            width: 80%;
-            height: 80%;
-            z-index: -1;
-            background: radial-gradient(circle at 90% 80%, rgba(255, 179, 71, 0.05) 0%, rgba(10, 17, 40, 0) 70%);
-            pointer-events: none;
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
         }
 
-        /* Navigation */
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+
+        /* glassmorphism backdrop */
+        .glass-nav {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        /* typography */
+        h1,
+        h2,
+        h3,
+        .font-heading {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--text-white);
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* buttons */
+        .btn-primary {
+            background: linear-gradient(105deg, var(--primary), var(--primary-dark));
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.8rem;
+            border-radius: 60px;
+            border: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 18px rgba(59, 130, 246, 0.2);
+            text-decoration: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(59, 130, 246, 0.3);
+            background: linear-gradient(105deg, var(--primary-dark), var(--primary));
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+            padding: 0.7rem 1.6rem;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-outline:hover {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        /* nav - mobile first */
         nav {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 100;
+            padding: 1rem 1.5rem;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 1.2rem 6%;
-            background: rgba(10, 17, 40, 0.85);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid rgba(0, 229, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        nav.scrolled {
-            padding: 0.8rem 6%;
-            background: rgba(10, 17, 40, 0.98);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            align-items: center;
+            transition: var(--transition);
         }
 
         .logo {
-            font-family: var(--font-head);
-            font-weight: 800;
-            font-size: 1.3rem;
-            color: var(--white);
-            letter-spacing: -0.02em;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 1.35rem;
+            color: white;
         }
 
         .logo span {
-            color: var(--teal-bright);
-            background: linear-gradient(135deg, #00E5FF, #0096A0);
+            color: var(--primary);
+            background: linear-gradient(135deg, #3b82f6, #a855f7);
             background-clip: text;
             -webkit-background-clip: text;
             color: transparent;
         }
 
         .nav-links {
-            display: flex;
-            gap: 2.5rem;
-            list-style: none;
+            display: none;
+            gap: 2rem;
+            align-items: center;
         }
 
         .nav-links a {
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--gray-mid);
+            color: var(--text-gray);
             text-decoration: none;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
+            font-weight: 500;
+            font-size: 0.9rem;
             transition: color 0.2s;
         }
 
         .nav-links a:hover {
-            color: var(--teal-bright);
+            color: var(--primary);
         }
 
-        .nav-cta {
-            background: var(--gradient-gold);
-            color: var(--deep-navy);
-            font-weight: 800;
-            font-size: 0.8rem;
-            padding: 0.6rem 1.6rem;
-            border-radius: 40px;
-            text-decoration: none;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(255, 179, 71, 0.2);
+        .mobile-menu-btn {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
         }
 
-        .nav-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(255, 179, 71, 0.4);
-        }
-
-        .hamburger {
-            display: none;
+        /* mobile menu drawer */
+        .mobile-drawer {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 80%;
+            max-width: 320px;
+            height: 100%;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            z-index: 200;
+            padding: 2rem 1.5rem;
+            transition: right 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            box-shadow: -5px 0 30px rgba(0, 0, 0, 0.6);
+            display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 2rem;
+            border-left: 1px solid var(--border-dim);
+        }
+
+        .mobile-drawer.open {
+            right: 0;
+        }
+
+        .drawer-close {
+            align-self: flex-end;
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            color: var(--text-gray);
             cursor: pointer;
         }
 
-        .hamburger span {
-            width: 25px;
-            height: 2px;
-            background: var(--teal-bright);
-            display: block;
-            transition: 0.3s;
+        .mobile-drawer a {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--text-white);
+            text-decoration: none;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Hero Section */
+        /* hero */
         .hero {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            padding: 8rem 6% 5rem;
-            position: relative;
+            padding: 7rem 1.5rem 4rem;
+            background: radial-gradient(circle at 10% 30%, rgba(59, 130, 246, 0.08), transparent 60%);
         }
 
-        .hero-content {
-            max-width: 700px;
-            z-index: 2;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0, 229, 255, 0.1);
-            border: 1px solid rgba(0, 229, 255, 0.3);
-            border-radius: 40px;
-            padding: 0.4rem 1.2rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--teal-bright);
-            margin-bottom: 1.8rem;
+        .hero-badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.15);
             backdrop-filter: blur(4px);
+            border-radius: 40px;
+            padding: 0.3rem 1rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--primary);
+            margin-bottom: 1.2rem;
         }
 
-        .badge i {
-            font-size: 1rem;
-        }
-
-        h1 {
-            font-family: var(--font-head);
-            font-size: clamp(2.8rem, 6vw, 5rem);
-            font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -0.02em;
-            color: var(--white);
-            margin-bottom: 1.5rem;
+        .hero h1 {
+            font-size: clamp(2rem, 7vw, 3.5rem);
+            line-height: 1.2;
+            margin-bottom: 1rem;
         }
 
         .gradient-text {
-            background: linear-gradient(135deg, #00E5FF, #FFB347);
+            background: linear-gradient(135deg, #3b82f6, #f97316, #a855f7);
             background-clip: text;
             -webkit-background-clip: text;
             color: transparent;
         }
 
-        .hero-desc {
-            font-size: 1.1rem;
-            line-height: 1.7;
-            margin-bottom: 2rem;
-            color: var(--gray-light);
-            max-width: 550px;
-        }
-
-        .btn-group {
+        .stats-flex {
             display: flex;
-            gap: 1rem;
             flex-wrap: wrap;
-            margin-bottom: 3rem;
+            gap: 2rem;
+            margin-top: 2rem;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            padding-top: 1.8rem;
         }
 
-        .btn-primary {
-            background: var(--gradient-gold);
-            color: var(--deep-navy);
-            font-weight: 700;
-            padding: 0.9rem 2rem;
-            border-radius: 40px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px -5px rgba(255, 179, 71, 0.4);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 1.5px solid rgba(0, 229, 255, 0.5);
-            color: var(--teal-bright);
-            padding: 0.9rem 2rem;
-            border-radius: 40px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(0, 229, 255, 0.1);
-            border-color: var(--teal-bright);
-        }
-
-        .stats {
-            display: flex;
-            gap: 2.5rem;
-            flex-wrap: wrap;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 2rem;
-        }
-
-        .stat-item h3 {
-            font-family: var(--font-head);
-            font-size: 2rem;
-            color: var(--teal-bright);
-        }
-
-        /* Section Styles */
-        section {
-            padding: 6rem 6%;
-        }
-
-        .section-header {
-            text-align: center;
-            max-width: 700px;
-            margin: 0 auto 3rem;
-        }
-
-        .section-tag {
-            color: var(--teal-bright);
-            font-size: 0.75rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            margin-bottom: 1rem;
+        /* cards */
+        .section {
+            padding: 4rem 1.5rem;
         }
 
         .section-title {
-            font-family: var(--font-head);
-            font-size: clamp(1.8rem, 4vw, 2.8rem);
-            font-weight: 800;
-            color: var(--white);
-            margin-bottom: 1rem;
+            font-size: clamp(1.6rem, 5vw, 2.2rem);
+            margin-bottom: 0.5rem;
         }
 
-        /* Cards Grid */
-        .grid-2col {
+        .grid-2 {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: var(--card-glass);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            padding: 2rem;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(8px);
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--teal-bright);
-            box-shadow: 0 20px 35px -15px rgba(0, 229, 255, 0.2);
-        }
-
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.3rem;
-            margin-bottom: 0.8rem;
-            color: var(--white);
-        }
-
-        /* Modules Grid */
-        .modules-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 1.5px;
-            background: var(--card-border);
-            border-radius: 20px;
-            overflow: hidden;
-        }
-
-        .module {
-            background: rgba(10, 17, 40, 0.8);
-            padding: 2rem;
-            backdrop-filter: blur(4px);
-            transition: 0.2s;
-        }
-
-        .module:hover {
-            background: rgba(0, 229, 255, 0.05);
-        }
-
-        /* Pricing Cards */
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 2rem;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
             margin-top: 2rem;
         }
 
-        .price-card {
-            background: var(--card-glass);
-            border: 1px solid var(--card-border);
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: var(--radius-md);
+            padding: 1.8rem;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .icon-large {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+
+        /* modules grid */
+        .modules-masonry {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 24px;
+            overflow: hidden;
+            margin-top: 2rem;
+        }
+
+        .module-item {
+            background: var(--bg-card);
+            padding: 1.6rem;
+            transition: 0.2s;
+        }
+
+        /* pricing cards */
+        .pricing-row {
+            display: flex;
+            flex-direction: column;
+            gap: 1.8rem;
+            margin-top: 2rem;
+        }
+
+        .pricing-card {
+            background: var(--bg-card);
             border-radius: 28px;
-            padding: 2.5rem;
-            transition: all 0.3s;
+            padding: 1.8rem;
+            border: 1px solid var(--border-dim);
+            transition: 0.2s;
+        }
+
+        .pricing-card.featured {
+            border-color: var(--primary);
+            background: linear-gradient(145deg, #0f172a, #0a0f25);
             position: relative;
         }
 
-        .price-card.featured {
-            border-color: var(--teal-bright);
-            background: linear-gradient(145deg, rgba(0, 229, 255, 0.08), rgba(10, 17, 40, 0.6));
-            transform: scale(1.02);
-        }
-
-        .popular-badge {
+        .popular-tag {
             position: absolute;
             top: -12px;
-            left: 2rem;
-            background: var(--gradient-gold);
-            color: var(--deep-navy);
+            left: 1.5rem;
+            background: var(--accent);
+            color: white;
             font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 1rem;
+            border-radius: 30px;
+        }
+
+        .price-number {
+            font-size: 2.6rem;
             font-weight: 800;
-            padding: 0.3rem 1rem;
-            border-radius: 40px;
-            letter-spacing: 0.1em;
+            font-family: 'Space Grotesk', sans-serif;
+            color: white;
         }
 
-        .price {
-            font-family: var(--font-head);
-            font-size: 2.8rem;
-            font-weight: 800;
-            color: var(--white);
-            margin: 1rem 0 0.5rem;
-        }
-
-        .price span {
-            font-size: 1rem;
-            font-weight: 400;
-            color: var(--gray-mid);
-        }
-
-        .price-note {
-            font-size: 0.8rem;
-            color: var(--gray-mid);
-            margin-bottom: 1.5rem;
-        }
-
-        .features-list {
+        .feature-list {
             list-style: none;
-            margin: 1.5rem 0;
+            margin: 1.2rem 0;
         }
 
-        .features-list li {
-            padding: 0.5rem 0;
+        .feature-list li {
+            margin: 0.6rem 0;
             display: flex;
-            gap: 0.8rem;
+            gap: 0.6rem;
+            align-items: center;
             font-size: 0.9rem;
         }
 
-        .features-list li::before {
+        .feature-list li::before {
             content: "✓";
-            color: var(--teal-bright);
+            color: var(--primary);
             font-weight: bold;
         }
 
-        /* Contact Form */
-        .contact-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            background: var(--card-glass);
+        /* contact form */
+        .contact-wrapper {
+            background: var(--bg-card);
             border-radius: 32px;
-            padding: 2.5rem;
-            border: 1px solid var(--card-border);
+            padding: 1.8rem;
+            border: 1px solid var(--border-dim);
         }
 
         .form-group {
-            margin-bottom: 1.2rem;
+            margin-bottom: 1rem;
         }
 
         input,
@@ -480,11 +429,11 @@
         textarea {
             width: 100%;
             background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 0.9rem 1rem;
-            color: var(--white);
-            font-family: var(--font-body);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 20px;
+            padding: 0.9rem 1.2rem;
+            color: white;
+            font-size: 0.9rem;
             transition: 0.2s;
         }
 
@@ -492,78 +441,80 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: var(--teal-bright);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
 
-        .form-row {
+        .row-2 {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 1rem;
         }
 
-        .btn-submit {
-            background: var(--gradient-gold);
-            color: var(--deep-navy);
-            font-weight: 800;
-            padding: 1rem;
-            border: none;
-            border-radius: 40px;
-            width: 100%;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: 0.3s;
-        }
-
-        /* Footer */
+        /* footer */
         footer {
-            background: #050A18;
-            padding: 3rem 6% 2rem;
-            border-top: 1px solid rgba(0, 229, 255, 0.1);
+            background: #020617;
+            border-top: 1px solid var(--border-dim);
+            padding: 2rem 1.5rem;
+            text-align: center;
         }
 
-        /* Responsive */
-        @media (max-width: 900px) {
+        /* back to top */
+        #btt {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.2rem;
+            background: var(--primary);
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: 0.2s;
+            z-index: 90;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+        }
 
-            .nav-links,
-            .nav-cta {
-                display: none;
+        @media (min-width: 768px) {
+
+            .container,
+            .hero,
+            .section {
+                padding-left: 2rem;
+                padding-right: 2rem;
             }
 
-            .hamburger {
+            .grid-2 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pricing-row {
+                flex-direction: row;
+                align-items: stretch;
+            }
+
+            .pricing-card {
+                flex: 1;
+            }
+
+            .row-2 {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .nav-links {
                 display: flex;
             }
 
-            .grid-2col,
-            .contact-grid,
-            .form-row {
-                grid-template-columns: 1fr;
+            .mobile-menu-btn {
+                display: none;
             }
-
-            .price-card.featured {
-                transform: scale(1);
-            }
-        }
-
-        /* Mobile Menu */
-        .mobile-menu {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 200;
-            background: var(--deep-navy);
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 2rem;
-        }
-
-        .mobile-menu.open {
-            display: flex;
         }
 
         .fade-in {
             opacity: 0;
-            transform: translateY(20px);
+            transform: translateY(18px);
             transition: opacity 0.6s ease, transform 0.6s ease;
         }
 
@@ -572,245 +523,259 @@
             transform: translateY(0);
         }
 
-        #btt {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            background: var(--teal-bright);
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            cursor: pointer;
-            opacity: 0;
-            transition: 0.3s;
-            z-index: 90;
+        .success-msg {
+            text-align: center;
+            padding: 2rem;
+            color: var(--success);
         }
     </style>
 </head>
 
 <body>
-    <div class="bg-glow"></div>
-    <div class="bg-glow-2"></div>
 
-    <nav id="navbar">
-        <div class="logo">Impact<span>Digital</span></div>
-        <ul class="nav-links">
-            <li><a href="#features">Features</a></li>
-            <li><a href="#modules">Modules</a></li>
-            <li><a href="#pricing">Pricing</a></li>
-            <li><a href="#contact">Contact</a></li>
-        </ul>
-        <a href="#contact" class="nav-cta">Get Demo</a>
-        <div class="hamburger" id="hamburger">
-            <span></span><span></span><span></span>
+    <!-- Navigation -->
+    <nav id="navbar" class="glass-nav">
+        <a href="#" class="logo" style="text-decoration: none;">Impact<span>Digital</span></a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#modules">Modules</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#contact">Contact</a>
+            <a href="#contact" class="btn-primary" style="padding: 0.5rem 1.4rem;">Book Demo</a>
         </div>
+        <button class="mobile-menu-btn" id="menuToggle" aria-label="Menu">☰</button>
     </nav>
 
-    <div class="mobile-menu" id="mobileMenu">
-        <button id="closeMenu" style="position:absolute;top:20px;right:20px;background:none;border:none;font-size:2rem;color:white;">✕</button>
+    <!-- Mobile Drawer -->
+    <div class="mobile-drawer" id="mobileDrawer">
+        <button class="drawer-close" id="closeDrawer">✕</button>
         <a href="#features">Features</a>
         <a href="#modules">Modules</a>
         <a href="#pricing">Pricing</a>
         <a href="#contact">Book Demo</a>
+        <a href="#contact" style="color: var(--primary);">Get Started →</a>
     </div>
 
-    <!-- Hero -->
+    <!-- Hero Section -->
     <section class="hero">
-        <div class="hero-content">
-            <div class="badge">✨ Trusted by 120+ Schools Nationwide</div>
-            <h1>We Build Beautiful <span class="gradient-text">Digital Schools</span><br>That Work Flawlessly</h1>
-            <p class="hero-desc">From a stunning website to an all-in-one management portal, offline CBT, and real-time parent alerts — we handle everything. Your school, transformed.</p>
-            <div class="btn-group">
-                <a href="#contact" class="btn-primary">✨ Start Your Transformation →</a>
-                <a href="#features" class="btn-secondary">See How It Works</a>
-            </div>
-            <div class="stats">
-                <div class="stat-item"><h3>₦20k</h3><p>Starting per term</p></div>
-                <div class="stat-item"><h3>2 Weeks</h3><p>To Launch</p></div>
-                <div class="stat-item"><h3>24/7</h3><p>Support Included</p></div>
-            </div>
+        <div class="hero-badge">✨ Trusted by 120+ Schools in Nigeria</div>
+        <h1>Modernize Your School <span class="gradient-text">Without Breaking the Bank</span></h1>
+        <p style="font-size: 1.05rem; max-width: 560px; margin: 1rem 0 1.6rem;">Professional website, complete management app, offline CBT, parent alerts & AI tools — all in one platform. From ₦20k/term.</p>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <a href="#contact" class="btn-primary">🚀 Start Free Demo</a>
+            <a href="#features" class="btn-outline">Explore Features</a>
+        </div>
+        <div class="stats-flex">
+            <div><strong style="font-size: 1.6rem; color:white;">9</strong><br />Core Modules</div>
+            <div><strong style="font-size: 1.6rem; color:white;">2wks</strong><br />Launch Time</div>
+            <div><strong style="font-size: 1.6rem; color:white;">24/7</strong><br />Support</div>
         </div>
     </section>
 
-    <!-- Features Overview -->
-    <section id="features">
-        <div class="section-header">
-            <div class="section-tag">Why Schools Love Us</div>
-            <h2 class="section-title">Everything You Need, Beautifully Packaged</h2>
-            <p style="color: var(--gray-light);">No technical headaches. We do the heavy lifting, you enjoy a smooth-running school.</p>
-        </div>
-        <div class="grid-2col">
-            <div class="feature-card fade-in"><div class="feature-icon">🎓</div><h3>Complete School Portal</h3><p>Admin, Staff, Parent, and Student dashboards. One login for everyone.</p></div>
-            <div class="feature-card fade-in"><div class="feature-icon">📱</div><h3>Parent SMS & Alerts</h3><p>Instant notifications: "Your child has arrived at school." Peace of mind for parents.</p></div>
-            <div class="feature-card fade-in"><div class="feature-icon">📊</div><h3>Smart Report Cards</h3><p>Auto-calculated, beautifully formatted reports. Ready in minutes.</p></div>
-            <div class="feature-card fade-in"><div class="feature-icon">💻</div><h3>Offline CBT Suite</h3><p>Run exams without internet. Results sync automatically.</p></div>
-            <div class="feature-card fade-in"><div class="feature-icon">💰</div><h3>Fee Management</h3><p>Track payments, send reminders, and generate receipts instantly.</p></div>
-            <div class="feature-card fade-in"><div class="feature-icon">🤖</div><h3>AI Tools for Teachers</h3><p>Generate lesson plans and quizzes with AI. Save hours of prep time.</p></div>
+    <!-- Features Section -->
+    <section id="features" class="section">
+        <div style="text-align: center; margin-bottom: 1rem;"><span style="color: var(--primary); font-weight: 600;">WHY SCHOOLS LOVE US</span></div>
+        <h2 class="section-title" style="text-align: center;">Everything You Need, Beautifully Simple</h2>
+        <div class="grid-2">
+            <div class="card fade-in"><div class="icon-large">📱</div><h3>Parent Connect & Alerts</h3><p>Real-time SMS when child arrives/leaves school. Parents stay informed and happy.</p></div>
+            <div class="card fade-in"><div class="icon-large">📊</div><h3>Smart Report Cards</h3><p>Auto-calculated grades, termly reports generated in minutes instead of weeks.</p></div>
+            <div class="card fade-in"><div class="icon-large">💻</div><h3>Offline CBT Suite</h3><p>Run computer-based exams without internet. Results sync automatically.</p></div>
+            <div class="card fade-in"><div class="icon-large">🤖</div><h3>AI Lesson & Quiz Tools</h3><p>Teachers generate lesson notes & exam questions with AI — saving hours daily.</p></div>
+            <div class="card fade-in"><div class="icon-large">💰</div><h3>Fee Management</h3><p>Track payments, send reminders, generate receipts. Real-time financial dashboard.</p></div>
+            <div class="card fade-in"><div class="icon-large">🌐</div><h3>School Website + Admissions</h3><p>Beautiful, mobile-friendly website with online admission portal.</p></div>
         </div>
     </section>
 
-    <!-- Modules -->
-    <section id="modules" style="background: rgba(0,0,0,0.2);">
-        <div class="section-header">
-            <div class="section-tag">All-in-One Suite</div>
-            <h2 class="section-title">Every Module Your School Needs</h2>
-        </div>
-        <div class="modules-grid">
-            <div class="module"><h3>👔 Staff Management</h3><p>Attendance, payroll, document storage, and leave management.</p></div>
-            <div class="module"><h3>🎒 Student Management</h3><p>Enrollment, records, academic history, and digital IDs.</p></div>
-            <div class="module"><h3>📢 Parent Connect</h3><p>QR gate pass, attendance alerts, fee notifications, and messaging.</p></div>
-            <div class="module"><h3>📚 AI Lesson Planner</h3><p>Generate detailed lesson notes and exam questions with AI.</p></div>
-            <div class="module"><h3>📈 Report Card Engine</h3><p>Auto-calculation, grading, and bulk PDF generation.</p></div>
-            <div class="module"><h3>💻 Offline CBT</h3><p>Install on any lab computer. Works without internet.</p></div>
-            <div class="module"><h3>💰 Finance & Fees</h3><p>Invoicing, payment tracking, expense reports, and analytics.</p></div>
-            <div class="module"><h3>🌐 Professional Website</h3><p>Custom design, online admissions, and SEO ready.</p></div>
+    <!-- Modules Section (all-in-one) -->
+    <section id="modules" class="section" style="background: rgba(0,0,0,0.2); border-radius: 2rem;">
+        <div style="text-align: center;"><span style="color: var(--primary);">FULLY INTEGRATED</span></div>
+        <h2 class="section-title" style="text-align: center;">Complete Digital Ecosystem</h2>
+        <div class="modules-masonry">
+            <div class="module-item"><strong>👔 Staff Management</strong><br />Attendance, leave, records, payroll sync</div>
+            <div class="module-item"><strong>🎒 Student Management</strong><br />Enrollment, profiles, digital ID cards</div>
+            <div class="module-item"><strong>📢 Parent App & SMS</strong><br />Real-time alerts, fee reminders, progress</div>
+            <div class="module-item"><strong>📚 AI Lesson Planner</strong><br />Generate notes & CBT questions instantly</div>
+            <div class="module-item"><strong>📈 Report Card Engine</strong><br />Auto-grade, positions, bulk PDF</div>
+            <div class="module-item"><strong>💻 Offline CBT</strong><br />Zero internet dependency, auto-sync</div>
+            <div class="module-item"><strong>💰 Finance Suite</strong><br />Fee tracking, expenses, analytics</div>
+            <div class="module-item"><strong>🌐 Professional Website</strong><br />SEO, online admission, news portal</div>
         </div>
     </section>
 
-    <!-- PRICING (UPDATED) -->
-    <section id="pricing">
-        <div class="section-header">
-            <div class="section-tag">Simple, Fair Pricing</div>
-            <h2 class="section-title">Pay Per Term. No Huge Upfront Cost.</h2>
-            <p>Affordable termly subscription. Includes everything — hosting, support, and free updates.</p>
-        </div>
-        <div class="pricing-grid">
-            <div class="price-card featured fade-in">
-                <div class="popular-badge">MOST POPULAR</div>
-                <h3>Full School Platform</h3>
-                <div class="price">₦20,000 <span>/ term</span></div>
-                <div class="price-note">Billed per term. No hidden fees.</div>
-                <ul class="features-list">
+    <!-- PRICING (UPDATED: two packages termly) -->
+    <section id="pricing" class="section">
+        <div style="text-align: center;"><span style="color: var(--primary);">TRANSPARENT PRICING</span></div>
+        <h2 class="section-title" style="text-align: center;">Pay Per Term. No Huge Upfront Cost.</h2>
+        <p style="text-align: center; max-width: 520px; margin: 0 auto 2rem;">Everything included — hosting, support, updates. Flexible and affordable for Nigerian schools.</p>
+        <div class="pricing-row">
+            <!-- Package 1 : Full School Platform -->
+            <div class="pricing-card featured fade-in">
+                <div class="popular-tag">MOST POPULAR</div>
+                <h3 style="font-size: 1.6rem;">Full School Platform</h3>
+                <div class="price-number">₦20,000 <span style="font-size: 1rem;">/ term</span></div>
+                <p style="margin: 0.5rem 0 1rem;">Billed per term, no hidden fees</p>
+                <ul class="feature-list">
                     <li>Professional Website + Online Admission</li>
                     <li>Staff & Student Management</li>
-                    <li>Digital ID Cards</li>
+                    <li>Digital ID Cards Generation</li>
                     <li>Parent Connect & Real-time SMS Alerts</li>
                     <li>Smart Report Card Processing</li>
                     <li>AI Lesson & Quiz Generator</li>
-                    <li>Finance Management System</li>
+                    <li>Complete Finance Management</li>
                     <li>Free Training & 24/7 Support</li>
                 </ul>
-                <a href="#contact" class="btn-primary" style="display:block;text-align:center;">Book a Demo →</a>
+                <a href="#contact" class="btn-primary" style="display: block; text-align: center;">Book a Demo →</a>
             </div>
-            <div class="price-card fade-in">
-                <h3>Offline CBT + Portal Suite</h3>
-                <div class="price">₦30,000 <span>/ term</span></div>
-                <div class="price-note">Everything in Full Platform, plus CBT</div>
-                <ul class="features-list">
-                    <li><strong>✅ Everything in Full Platform</strong></li>
+
+            <!-- Package 2 : Offline CBT + Portal Suite -->
+            <div class="pricing-card fade-in">
+                <h3 style="font-size: 1.6rem;">Offline CBT + Portal</h3>
+                <div class="price-number">₦30,000 <span style="font-size: 1rem;">/ term</span></div>
+                <p style="margin: 0.5rem 0 1rem;">Everything in Full Platform + Advanced CBT</p>
+                <ul class="feature-list">
+                    <li>✅ All Full Platform features</li>
                     <li>💻 Offline CBT Engine (No internet required)</li>
                     <li>🔄 Automatic Portal Sync</li>
                     <li>📝 Unlimited Exam Creation</li>
-                    <li>⚡ Instant Auto-grading</li>
-                    <li>🛡️ Cheat Prevention (Tab-switch monitoring)</li>
-                    <li>📱 Multi-device Support</li>
+                    <li>⚡ Instant Auto-grading + Analytics</li>
+                    <li>🛡️ Cheat Prevention (Tab-switch monitor)</li>
+                    <li>📱 Multi-device Lab Support</li>
                     <li>🎓 Multi-campus / Branch Support</li>
                     <li>⭐ Priority Support & Account Manager</li>
                 </ul>
-                <a href="#contact" class="btn-secondary" style="display:block;text-align:center;">Book a Demo →</a>
+                <a href="#contact" class="btn-outline" style="display: block; text-align: center;">Get Demo →</a>
             </div>
         </div>
-        <div style="text-align:center; margin-top: 2rem; padding: 1rem; background: rgba(255,179,71,0.1); border-radius: 60px; max-width: 500px; margin-left: auto; margin-right: auto;">
-            💳 Flexible payment: Pay 50% now, 50% at go-live. Ask about annual discount.
+        <div style="background: rgba(249,115,22,0.1); border-radius: 60px; padding: 0.8rem; text-align: center; margin-top: 2rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+            💳 Flexible payment: 50% upfront, 50% at go-live. Ask about annual discount.
         </div>
     </section>
 
-    <!-- Contact -->
-    <section id="contact">
-        <div class="contact-grid">
-            <div>
-                <div class="section-tag" style="text-align:left;">Let's Talk</div>
-                <h2 class="section-title" style="text-align:left;">Ready to Transform Your School?</h2>
-                <p style="margin-bottom: 2rem;">Book a free 30-minute demo. We'll show you a live prototype built specifically for your school.</p>
-                <div>📧 schools@impactdigital.com</div>
-                <div>📞 +234 903 544 8295</div>
-                <div>📍 Lagos, Nigeria (Nationwide)</div>
+    <!-- Contact & Demo Booking -->
+    <section id="contact" class="section">
+        <div class="contact-wrapper">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <span style="color: var(--primary);">READY TO TRANSFORM?</span>
+                <h2 class="section-title" style="margin-top: 0.5rem;">Book Your Free Demo</h2>
+                <p>See a live prototype tailored to your school. No pressure, just solutions.</p>
             </div>
-            <div>
-                <form id="demoForm">
-                    <div class="form-row">
-                        <div class="form-group"><input type="text" id="fname" placeholder="First Name *" required></div>
-                        <div class="form-group"><input type="text" id="lname" placeholder="Last Name *" required></div>
-                    </div>
-                    <div class="form-group"><input type="text" id="school" placeholder="School Name *" required></div>
-                    <div class="form-group">
-                        <select id="role" required>
-                            <option value="">Your Role *</option>
-                            <option>Proprietor/Owner</option>
-                            <option>Principal</option>
-                            <option>Administrator</option>
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><input type="tel" id="phone" placeholder="Phone Number *" required></div>
-                        <div class="form-group"><input type="email" id="email" placeholder="Email Address *" required></div>
-                    </div>
-                    <div class="form-group"><select id="package"><option>Full School Platform (₦20k/term)</option><option>Offline CBT + Portal (₦30k/term)</option></select></div>
-                    <button type="submit" class="btn-submit">🚀 Send Request → Book Demo</button>
-                </form>
-                <div id="formSuccess" style="display:none; text-align:center; margin-top:1rem; color: var(--teal-bright);">✅ Request sent! We'll contact you within 24 hours.</div>
+            <form id="demoForm">
+                <div class="row-2">
+                    <div class="form-group"><input type="text" id="fname" placeholder="First name *" required /></div>
+                    <div class="form-group"><input type="text" id="lname" placeholder="Last name *" required /></div>
+                </div>
+                <div class="form-group"><input type="text" id="school" placeholder="School name *" required /></div>
+                <div class="row-2">
+                    <div class="form-group"><input type="tel" id="phone" placeholder="Phone / WhatsApp *" required /></div>
+                    <div class="form-group"><input type="email" id="email" placeholder="Email address *" required /></div>
+                </div>
+                <div class="form-group">
+                    <select id="role" required>
+                        <option value="">Your role *</option>
+                        <option>School Proprietor / Owner</option>
+                        <option>Principal / Head Teacher</option>
+                        <option>Administrator / Bursar</option>
+                        <option>Board Member</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <select id="packageSelect">
+                        <option value="Full School Platform (₦20k/term)">Full School Platform (₦20k/term)</option>
+                        <option value="Offline CBT + Portal Suite (₦30k/term)">Offline CBT + Portal Suite (₦30k/term)</option>
+                    </select>
+                </div>
+                <div class="form-group"><textarea rows="2" id="message" placeholder="Tell us about your school (optional)"></textarea></div>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;" id="submitBtn">Send Request → Book Demo</button>
+            </form>
+            <div id="formSuccess" style="display: none; text-align: center; margin-top: 1.5rem;">
+                <div style="background: rgba(16,185,129,0.1); border-radius: 32px; padding: 1rem;">
+                    ✅ <strong>Request sent!</strong> We'll contact you within 24 hours. Check your email & WhatsApp.
+                </div>
             </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 2rem; margin-top: 2rem; text-align: center;">
+            <div><strong>📧 schools@impactdigital.com</strong></div>
+            <div><strong>📞 +234 903 544 8295</strong></div>
+            <div><strong>📍 Lagos, Nigeria (nationwide)</strong></div>
         </div>
     </section>
 
     <footer>
-        <p style="text-align:center;">© 2025 Impact Digital Services — Built for Nigerian Schools 🇳🇬</p>
+        <p>© 2025 Impact Digital Services — Empowering Nigerian schools with modern technology 🇳🇬</p>
+        <p style="margin-top: 0.5rem; font-size: 0.75rem;">All data is 100% school-owned | Secure & reliable</p>
     </footer>
+
     <button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 
     <script>
-        // Nav scroll
+        // Nav background on scroll
+        const navbar = document.getElementById('navbar');
         window.addEventListener('scroll', () => {
-            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+            if (window.scrollY > 50) navbar.style.background = 'rgba(2, 6, 23, 0.95)';
+            else navbar.style.background = 'rgba(2, 6, 23, 0.85)';
             const btt = document.getElementById('btt');
-            btt.style.opacity = window.scrollY > 300 ? '1' : '0';
+            btt.style.opacity = window.scrollY > 400 ? '1' : '0';
         });
 
-        // Mobile menu
-        const hamburger = document.getElementById('hamburger');
-        const mobileMenu = document.getElementById('mobileMenu');
-        const closeMenu = document.getElementById('closeMenu');
-        hamburger.onclick = () => mobileMenu.classList.add('open');
-        closeMenu.onclick = () => mobileMenu.classList.remove('open');
-        document.querySelectorAll('.mobile-menu a').forEach(a => a.onclick = () => mobileMenu.classList.remove('open'));
+        // Mobile drawer
+        const menuToggle = document.getElementById('menuToggle');
+        const drawer = document.getElementById('mobileDrawer');
+        const closeDrawer = document.getElementById('closeDrawer');
+        menuToggle.onclick = () => drawer.classList.add('open');
+        closeDrawer.onclick = () => drawer.classList.remove('open');
+        document.querySelectorAll('.mobile-drawer a').forEach(link => {
+            link.addEventListener('click', () => drawer.classList.remove('open'));
+        });
 
-        // Scroll animation
+        // scroll fade-in observer
+        const fadeElements = document.querySelectorAll('.fade-in');
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => entry.target.classList.add('visible'));
-        }, { threshold: 0.1 });
-        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+        }, { threshold: 0.1, rootMargin: '0px 0px -20px 0px' });
+        fadeElements.forEach(el => observer.observe(el));
 
-        // Form Submit to existing API
-        document.getElementById('demoForm').addEventListener('submit', async (e) => {
+        // FORM SUBMIT TO API ( existing /api/book-demo.php )
+        const demoForm = document.getElementById('demoForm');
+        const successDiv = document.getElementById('formSuccess');
+        const submitBtn = document.getElementById('submitBtn');
+
+        demoForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = {
-                first_name: document.getElementById('fname').value,
-                last_name: document.getElementById('lname').value,
-                school_name: document.getElementById('school').value,
+            const payload = {
+                first_name: document.getElementById('fname').value.trim(),
+                last_name: document.getElementById('lname').value.trim(),
+                school_name: document.getElementById('school').value.trim(),
                 role: document.getElementById('role').value,
-                phone: document.getElementById('phone').value,
-                email: document.getElementById('email').value,
-                package: document.getElementById('package').value
+                phone: document.getElementById('phone').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                package: document.getElementById('packageSelect').value,
+                message: document.getElementById('message').value.trim()
             };
-            const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            btn.textContent = 'Sending...';
+            if (!payload.first_name || !payload.last_name || !payload.school_name || !payload.role || !payload.phone || !payload.email) {
+                alert('Please fill all required fields.');
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
             try {
-                const res = await fetch('/api/book-demo.php', {
+                const response = await fetch('/api/book-demo.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify(payload)
                 });
-                const result = await res.json();
-                if (result.success) {
-                    document.getElementById('demoForm').style.display = 'none';
-                    document.getElementById('formSuccess').style.display = 'block';
-                } else alert(result.message || 'Error, please call us directly.');
+                const result = await response.json();
+                if (result.success === true) {
+                    demoForm.style.display = 'none';
+                    successDiv.style.display = 'block';
+                } else {
+                    alert(result.message || 'Unable to submit. Please call +2349035448295 directly.');
+                }
             } catch (err) {
-                alert('Network error. Please check your connection.');
+                console.error(err);
+                alert('Network error. Kindly contact us via WhatsApp for demo.');
             } finally {
-                btn.disabled = false;
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Request → Book Demo';
             }
         });
     </script>

@@ -3,112 +3,102 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Impact Digital Services — School Digitalization</title>
-    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Impact Digital Services — Complete School Suite</title>
     <meta name="description"
-        content="Transform your school with a professional website, full management app, offline CBT system & social media. Trusted by 120+ schools. Packages from ₦20k/term. Free demo.">
+        content="Transform your school with a professional website, full management app, offline CBT & real-time parent alerts. From ₦20k/term. Trusted by 120+ schools.">
     <meta name="keywords"
-        content="school management software Nigeria, school website design Nigeria, offline CBT system, school app Nigeria, acad.com.ng, school digital transformation, education technology Nigeria, school ERP, result processing, attendance system">
-    <meta name="author" content="acad.com.ng">
-    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
-    <meta name="geo.region" content="NG-OG">
-    <meta name="geo.placename" content="Ota">
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="acad.com.ng — Complete Digital Suite for Nigerian Schools">
+        content="school management software Nigeria, school website design Nigeria, offline CBT system, school app Nigeria, school digital transformation">
+    <meta name="author" content="Impact Digital Services">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="Impact Digital — Complete Digital Suite for Nigerian Schools">
     <meta property="og:description"
-        content="Professional website + school management app + offline CBT + social media. Starting at ₦20,000/term. Over 120 schools served.">
-    <meta property="og:url" content="https://acad.com.ng/proposal">
+        content="Professional website + school management app + offline CBT + parent alerts. From ₦20,000/term.">
     <meta property="og:image" content="https://acad.com.ng/og-school-suite.jpg">
-    <meta property="og:site_name" content="acad.com.ng">
+    <meta property="og:url" content="https://acad.com.ng/proposal">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="acad.com.ng | Digital School Suite Proposal">
-    <meta name="twitter:description"
-        content="Website, management app, offline CBT, social media — all in one affordable package for Nigerian schools.">
     <link rel="canonical" href="https://acad.com.ng/proposal">
-    <!-- Favicon - Add inside <head> -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
         href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
         rel="stylesheet">
     <style>
-        :root {
-            --navy: #0D1F3C;
-            --navy-mid: #162845;
-            --navy-light: #1E3560;
-            --teal: #00C2CB;
-            --teal-dim: #009FA7;
-            --teal-glow: rgba(0, 194, 203, 0.15);
-            --amber: #F5A623;
-            --white: #FFFFFF;
-            --off-white: #F0F4F8;
-            --gray-light: #E2EAF4;
-            --gray-mid: #8FA3BF;
-            --text-body: #C8D8EC;
-            --text-muted: #6B85A3;
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --card-border: rgba(0, 194, 203, 0.18);
-            --font-head: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
-        }
-
-        *,
-        *::before,
-        *::after {
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        html {
-            scroll-behavior: smooth;
-            font-size: 16px;
+        :root {
+            --deep-navy: #0A1128;
+            --rich-navy: #121F3F;
+            --teal-bright: #00E5FF;
+            --teal-deep: #0096A0;
+            --gold: #FFB347;
+            --white: #FFFFFF;
+            --off-white: #F8FAFE;
+            --gray-light: #E2E8F0;
+            --gray-mid: #94A3B8;
+            --text-light: #CBD5E1;
+            --card-glass: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(0, 229, 255, 0.15);
+            --gradient-1: linear-gradient(135deg, #0A1128 0%, #1A2A4A 100%);
+            --gradient-gold: linear-gradient(135deg, #FFB347 0%, #FF8C00 100%);
+            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            --font-head: 'Syne', sans-serif;
+            --font-body: 'DM Sans', sans-serif;
         }
 
         body {
             font-family: var(--font-body);
-            background: var(--navy);
-            color: var(--text-body);
+            background: var(--deep-navy);
+            color: var(--text-light);
             overflow-x: hidden;
-            cursor: default;
         }
 
-        /* ── SCROLLBAR ── */
+        /* Custom Scroll */
         ::-webkit-scrollbar {
-            width: 4px;
+            width: 5px;
         }
 
         ::-webkit-scrollbar-track {
-            background: var(--navy);
+            background: var(--deep-navy);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--teal);
-            border-radius: 2px;
+            background: var(--teal-bright);
+            border-radius: 10px;
         }
 
-        /* ── SELECTION ── */
         ::selection {
-            background: var(--teal);
-            color: var(--navy);
+            background: var(--teal-bright);
+            color: var(--deep-navy);
         }
 
-        /* ── NOISE OVERLAY ── */
-        body::before {
-            content: '';
+        /* Animated Background */
+        .bg-glow {
             position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-            opacity: 0.5;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.08) 0%, rgba(10, 17, 40, 0) 70%);
         }
 
-        /* ── NAV ── */
+        .bg-glow-2 {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 80%;
+            height: 80%;
+            z-index: -1;
+            background: radial-gradient(circle at 90% 80%, rgba(255, 179, 71, 0.05) 0%, rgba(10, 17, 40, 0) 70%);
+            pointer-events: none;
+        }
+
+        /* Navigation */
         nav {
             position: fixed;
             top: 0;
@@ -119,32 +109,37 @@
             align-items: center;
             justify-content: space-between;
             padding: 1.2rem 6%;
-            background: rgba(13, 31, 60, 0.82);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(0, 194, 203, 0.1);
+            background: rgba(10, 17, 40, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(0, 229, 255, 0.1);
             transition: all 0.3s ease;
         }
 
         nav.scrolled {
-            padding: 0.85rem 6%;
-            background: rgba(13, 31, 60, 0.97);
+            padding: 0.8rem 6%;
+            background: rgba(10, 17, 40, 0.98);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
-        .nav-logo {
+        .logo {
             font-family: var(--font-head);
             font-weight: 800;
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             color: var(--white);
             letter-spacing: -0.02em;
         }
 
-        .nav-logo span {
-            color: var(--teal);
+        .logo span {
+            color: var(--teal-bright);
+            background: linear-gradient(135deg, #00E5FF, #0096A0);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
         }
 
         .nav-links {
             display: flex;
-            gap: 2rem;
+            gap: 2.5rem;
             list-style: none;
         }
 
@@ -153,32 +148,32 @@
             font-weight: 500;
             color: var(--gray-mid);
             text-decoration: none;
-            letter-spacing: 0.05em;
             text-transform: uppercase;
+            letter-spacing: 0.08em;
             transition: color 0.2s;
         }
 
         .nav-links a:hover {
-            color: var(--teal);
+            color: var(--teal-bright);
         }
 
         .nav-cta {
-            background: var(--teal);
-            color: var(--navy);
-            font-family: var(--font-head);
-            font-weight: 700;
-            font-size: 0.82rem;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
+            background: var(--gradient-gold);
+            color: var(--deep-navy);
+            font-weight: 800;
+            font-size: 0.8rem;
+            padding: 0.6rem 1.6rem;
+            border-radius: 40px;
             text-decoration: none;
-            padding: 0.6rem 1.4rem;
-            border-radius: 3px;
-            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(255, 179, 71, 0.2);
         }
 
         .nav-cta:hover {
-            background: #00E5EF;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 179, 71, 0.4);
         }
 
         .hamburger {
@@ -189,1010 +184,315 @@
         }
 
         .hamburger span {
-            width: 24px;
+            width: 25px;
             height: 2px;
-            background: var(--teal);
+            background: var(--teal-bright);
             display: block;
-            transition: all 0.3s;
+            transition: 0.3s;
         }
 
-        /* ── HERO ── */
-        #hero {
+        /* Hero Section */
+        .hero {
             min-height: 100vh;
             display: flex;
             align-items: center;
-            padding: 7rem 6% 4rem;
+            padding: 8rem 6% 5rem;
             position: relative;
-            overflow: hidden;
-        }
-
-        .hero-grid-bg {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            background-image:
-                linear-gradient(rgba(0, 194, 203, 0.06) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 194, 203, 0.06) 1px, transparent 1px);
-            background-size: 60px 60px;
-            mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
-        }
-
-        .hero-orb {
-            position: absolute;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .orb-1 {
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(0, 194, 203, 0.18) 0%, transparent 70%);
-            top: -200px;
-            right: -200px;
-            animation: floatOrb 8s ease-in-out infinite;
-        }
-
-        .orb-2 {
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(245, 166, 35, 0.1) 0%, transparent 70%);
-            bottom: 0;
-            left: 5%;
-            animation: floatOrb 11s ease-in-out infinite reverse;
-        }
-
-        @keyframes floatOrb {
-
-            0%,
-            100% {
-                transform: translateY(0) scale(1);
-            }
-
-            50% {
-                transform: translateY(-30px) scale(1.05);
-            }
         }
 
         .hero-content {
-            position: relative;
-            z-index: 1;
-            max-width: 780px;
+            max-width: 700px;
+            z-index: 2;
         }
 
-        .hero-tag {
+        .badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(0, 194, 203, 0.1);
-            border: 1px solid rgba(0, 194, 203, 0.3);
-            color: var(--teal);
-            font-size: 0.78rem;
-            font-weight: 500;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            padding: 0.4rem 1rem;
-            border-radius: 20px;
+            gap: 8px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 40px;
+            padding: 0.4rem 1.2rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--teal-bright);
             margin-bottom: 1.8rem;
-            animation: fadeUp 0.6s ease both;
+            backdrop-filter: blur(4px);
         }
 
-        .hero-tag::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            background: var(--teal);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+        .badge i {
+            font-size: 1rem;
         }
 
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.3;
-            }
-        }
-
-        .hero-title {
+        h1 {
             font-family: var(--font-head);
-            font-size: clamp(2.8rem, 6vw, 5.2rem);
+            font-size: clamp(2.8rem, 6vw, 5rem);
             font-weight: 800;
-            line-height: 1.06;
-            letter-spacing: -0.03em;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
             color: var(--white);
-            margin-bottom: 1.6rem;
-            animation: fadeUp 0.6s 0.1s ease both;
+            margin-bottom: 1.5rem;
         }
 
-        .hero-title .line-teal {
-            color: var(--teal);
-        }
-
-        .hero-title .line-outline {
-            -webkit-text-stroke: 2px var(--teal);
+        .gradient-text {
+            background: linear-gradient(135deg, #00E5FF, #FFB347);
+            background-clip: text;
+            -webkit-background-clip: text;
             color: transparent;
         }
 
         .hero-desc {
             font-size: 1.1rem;
-            font-weight: 300;
-            line-height: 1.75;
-            color: var(--text-body);
-            max-width: 560px;
-            margin-bottom: 2.5rem;
-            animation: fadeUp 0.6s 0.2s ease both;
+            line-height: 1.7;
+            margin-bottom: 2rem;
+            color: var(--gray-light);
+            max-width: 550px;
         }
 
-        .hero-actions {
+        .btn-group {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
-            animation: fadeUp 0.6s 0.3s ease both;
+            margin-bottom: 3rem;
         }
 
         .btn-primary {
-            background: var(--teal);
-            color: var(--navy);
-            font-family: var(--font-head);
+            background: var(--gradient-gold);
+            color: var(--deep-navy);
             font-weight: 700;
-            font-size: 0.9rem;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            text-decoration: none;
             padding: 0.9rem 2rem;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.25s;
+            border-radius: 40px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 8px;
         }
 
         .btn-primary:hover {
-            background: #00E5EF;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(0, 194, 203, 0.35);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px -5px rgba(255, 179, 71, 0.4);
         }
 
         .btn-secondary {
             background: transparent;
-            color: var(--white);
-            font-family: var(--font-head);
-            font-weight: 600;
-            font-size: 0.9rem;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            text-decoration: none;
+            border: 1.5px solid rgba(0, 229, 255, 0.5);
+            color: var(--teal-bright);
             padding: 0.9rem 2rem;
-            border-radius: 4px;
-            border: 1.5px solid rgba(255, 255, 255, 0.25);
-            transition: all 0.25s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+            border-radius: 40px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
         }
 
         .btn-secondary:hover {
-            border-color: var(--teal);
-            color: var(--teal);
-            transform: translateY(-2px);
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--teal-bright);
         }
 
-        .hero-stats {
+        .stats {
             display: flex;
-            gap: 3rem;
-            margin-top: 3.5rem;
-            padding-top: 2.5rem;
-            border-top: 1px solid rgba(0, 194, 203, 0.12);
-            animation: fadeUp 0.6s 0.4s ease both;
+            gap: 2.5rem;
+            flex-wrap: wrap;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 2rem;
         }
 
-        .stat-val {
+        .stat-item h3 {
             font-family: var(--font-head);
             font-size: 2rem;
-            font-weight: 800;
-            color: var(--teal);
+            color: var(--teal-bright);
         }
 
-        .stat-label {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            margin-top: 0.2rem;
-        }
-
-        /* ── SECTION COMMONS ── */
+        /* Section Styles */
         section {
             padding: 6rem 6%;
-            position: relative;
         }
 
-        .section-label {
-            font-size: 0.72rem;
-            font-weight: 600;
-            letter-spacing: 0.16em;
+        .section-header {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 3rem;
+        }
+
+        .section-tag {
+            color: var(--teal-bright);
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
             text-transform: uppercase;
-            color: var(--teal);
-            margin-bottom: 0.8rem;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .section-label::before {
-            content: '';
-            width: 28px;
-            height: 1.5px;
-            background: var(--teal);
+            margin-bottom: 1rem;
         }
 
         .section-title {
             font-family: var(--font-head);
-            font-size: clamp(2rem, 4vw, 3rem);
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
             font-weight: 800;
             color: var(--white);
-            letter-spacing: -0.03em;
-            line-height: 1.12;
-            margin-bottom: 1.2rem;
-        }
-
-        .section-sub {
-            font-size: 1.05rem;
-            font-weight: 300;
-            color: var(--text-body);
-            line-height: 1.7;
-            max-width: 560px;
-        }
-
-        .fade-in {
-            opacity: 0;
-            transform: translateY(28px);
-            transition: opacity 0.7s ease, transform 0.7s ease;
-        }
-
-        .fade-in.visible {
-            opacity: 1;
-            transform: none;
-        }
-
-        @keyframes fadeUp {
-            from {
-                opacity: 0;
-                transform: translateY(22px);
-            }
-
-            to {
-                opacity: 1;
-                transform: none;
-            }
-        }
-
-        /* ── SERVICES ── */
-        #services {
-            background: var(--navy-mid);
-        }
-
-        .services-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-            margin-bottom: 3.5rem;
-        }
-
-        .modules-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 1.5px;
-        }
-
-        .module-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            padding: 2.2rem 2rem 2rem;
-            transition: all 0.3s ease;
-            cursor: default;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .module-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--teal), transparent);
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.4s ease;
-        }
-
-        .module-card:hover {
-            background: rgba(0, 194, 203, 0.06);
-            border-color: rgba(0, 194, 203, 0.35);
-            transform: translateY(-3px);
-        }
-
-        .module-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .module-icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-            display: block;
-        }
-
-        .module-num {
-            position: absolute;
-            top: 1.8rem;
-            right: 1.8rem;
-            font-family: var(--font-head);
-            font-size: 0.68rem;
-            font-weight: 700;
-            color: rgba(0, 194, 203, 0.3);
-            letter-spacing: 0.1em;
-        }
-
-        .module-title {
-            font-family: var(--font-head);
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: var(--white);
-            margin-bottom: 0.7rem;
-        }
-
-        .module-desc {
-            font-size: 0.9rem;
-            line-height: 1.7;
-            color: var(--text-body);
-            margin-bottom: 1.2rem;
-        }
-
-        .module-features {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-        }
-
-        .module-features li {
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            line-height: 1.5;
-        }
-
-        .module-features li::before {
-            content: '▸';
-            color: var(--teal);
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-
-        /* ── WEBSITE SECTION ── */
-        #website {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5rem;
-            align-items: center;
-        }
-
-        .website-mockup {
-            position: relative;
-            background: var(--navy-light);
-            border: 1px solid var(--card-border);
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
-        }
-
-        .mockup-bar {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 0.7rem 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .mock-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        .mock-url {
-            flex: 1;
-            margin-left: 0.5rem;
-            background: rgba(255, 255, 255, 0.07);
-            border-radius: 4px;
-            padding: 0.25rem 0.8rem;
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-
-        .mock-content {
-            padding: 1.5rem;
-        }
-
-        .mock-hero-band {
-            background: linear-gradient(135deg, var(--navy) 0%, var(--teal-dim) 100%);
-            height: 80px;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .mock-hero-band span {
-            font-family: var(--font-head);
-            font-size: 0.8rem;
-            color: var(--white);
-            font-weight: 700;
-            opacity: 0.9;
-        }
-
-        .mock-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.5rem;
             margin-bottom: 1rem;
         }
 
-        .mock-card {
-            background: rgba(0, 194, 203, 0.08);
-            border: 1px solid rgba(0, 194, 203, 0.12);
-            border-radius: 4px;
-            height: 50px;
-        }
-
-        .mock-form {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
-            padding: 1rem;
-        }
-
-        .mock-input {
-            background: rgba(255, 255, 255, 0.06);
-            height: 20px;
-            border-radius: 3px;
-            margin-bottom: 0.5rem;
-        }
-
-        .mock-btn {
-            background: var(--teal);
-            height: 22px;
-            border-radius: 3px;
-            width: 60%;
-        }
-
-        .website-content {}
-
-        .feature-list {
-            margin-top: 2rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .feat-item {
-            display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-
-        .feat-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 8px;
-            background: var(--teal-glow);
-            border: 1px solid rgba(0, 194, 203, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            flex-shrink: 0;
-        }
-
-        .feat-text strong {
-            display: block;
-            font-family: var(--font-head);
-            color: var(--white);
-            font-size: 0.9rem;
-            margin-bottom: 0.2rem;
-        }
-
-        .feat-text span {
-            font-size: 0.83rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-
-        /* ── PROCESS ── */
-        #process {
-            background: var(--navy-mid);
-        }
-
-        .process-timeline {
-            margin-top: 3rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-            position: relative;
-        }
-
-        .process-timeline::before {
-            content: '';
-            position: absolute;
-            left: 23px;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: linear-gradient(to bottom, var(--teal), rgba(0, 194, 203, 0.1));
-        }
-
-        .process-step {
-            display: flex;
+        /* Cards Grid */
+        .grid-2col {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
-            padding: 1.5rem 0 1.5rem 0;
-            align-items: flex-start;
         }
 
-        .step-marker {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            flex-shrink: 0;
-            background: var(--navy-mid);
-            border: 2px solid var(--teal);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: var(--font-head);
-            font-weight: 800;
-            font-size: 0.9rem;
-            color: var(--teal);
-            position: relative;
-            z-index: 1;
-            transition: all 0.3s;
-        }
-
-        .process-step:hover .step-marker {
-            background: var(--teal);
-            color: var(--navy);
-        }
-
-        .step-body {
-            padding-top: 0.6rem;
-        }
-
-        .step-title {
-            font-family: var(--font-head);
-            font-weight: 700;
-            color: var(--white);
-            font-size: 1rem;
-            margin-bottom: 0.4rem;
-        }
-
-        .step-desc {
-            font-size: 0.88rem;
-            color: var(--text-muted);
-            line-height: 1.65;
-        }
-
-        .step-week {
-            font-size: 0.72rem;
-            letter-spacing: 0.1em;
-            color: var(--teal);
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 0.3rem;
-        }
-
-        /* ── PRICING ── */
-        #pricing {}
-
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-top: 3rem;
-        }
-
-        .price-card {
-            background: var(--card-bg);
+        .feature-card {
+            background: var(--card-glass);
             border: 1px solid var(--card-border);
-            border-radius: 10px;
-            padding: 2.2rem 2rem;
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s;
+            border-radius: 24px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(8px);
         }
 
-        .price-card:hover {
+        .feature-card:hover {
             transform: translateY(-5px);
-            border-color: rgba(0, 194, 203, 0.5);
+            border-color: var(--teal-bright);
+            box-shadow: 0 20px 35px -15px rgba(0, 229, 255, 0.2);
         }
 
-        .price-card.featured {
-            background: linear-gradient(135deg, rgba(0, 194, 203, 0.12) 0%, rgba(0, 159, 167, 0.06) 100%);
-            border-color: var(--teal);
-        }
-
-        .price-card.featured::after {
-            content: 'MOST POPULAR';
-            position: absolute;
-            top: 1.2rem;
-            right: -0.5rem;
-            background: var(--teal);
-            color: var(--navy);
-            font-family: var(--font-head);
-            font-size: 0.62rem;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            padding: 0.25rem 0.9rem;
-            border-radius: 3px 0 0 3px;
-        }
-
-        .price-label {
-            font-size: 0.72rem;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--teal);
-            font-weight: 600;
-            margin-bottom: 0.8rem;
-        }
-
-        .price-name {
-            font-family: var(--font-head);
-            font-size: 1.4rem;
-            font-weight: 800;
-            color: var(--white);
-            margin-bottom: 1rem;
-        }
-
-        .price-amount {
-            font-family: var(--font-head);
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: var(--white);
-            margin-bottom: 0.3rem;
-        }
-
-        .price-amount span {
-            font-size: 1rem;
-            font-weight: 400;
-            color: var(--text-muted);
-        }
-
-        .price-note {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            margin-bottom: 1.8rem;
-        }
-
-        .price-divider {
-            height: 1px;
-            background: rgba(0, 194, 203, 0.1);
+        .feature-icon {
+            font-size: 2.5rem;
             margin-bottom: 1.5rem;
         }
 
-        .price-features {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.7rem;
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 0.8rem;
+            color: var(--white);
         }
 
-        .price-features li {
-            font-size: 0.86rem;
-            color: var(--text-body);
-            display: flex;
-            gap: 0.6rem;
-            align-items: flex-start;
+        /* Modules Grid */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5px;
+            background: var(--card-border);
+            border-radius: 20px;
+            overflow: hidden;
         }
 
-        .price-features li::before {
-            content: '✓';
-            color: var(--teal);
-            font-weight: 700;
-            flex-shrink: 0;
+        .module {
+            background: rgba(10, 17, 40, 0.8);
+            padding: 2rem;
+            backdrop-filter: blur(4px);
+            transition: 0.2s;
         }
 
-        .price-cta {
-            display: block;
+        .module:hover {
+            background: rgba(0, 229, 255, 0.05);
+        }
+
+        /* Pricing Cards */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
             margin-top: 2rem;
-            text-align: center;
-            text-decoration: none;
-            padding: 0.85rem;
-            border-radius: 5px;
-            font-family: var(--font-head);
-            font-size: 0.85rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            transition: all 0.25s;
         }
 
-        .price-cta.outline {
-            border: 1.5px solid rgba(0, 194, 203, 0.4);
-            color: var(--teal);
-        }
-
-        .price-cta.outline:hover {
-            background: var(--teal);
-            color: var(--navy);
-            border-color: var(--teal);
-        }
-
-        .price-cta.solid {
-            background: var(--teal);
-            color: var(--navy);
-        }
-
-        .price-cta.solid:hover {
-            background: #00E5EF;
-            box-shadow: 0 6px 24px rgba(0, 194, 203, 0.35);
-        }
-
-        /* ── TESTIMONIAL / TRUST ── */
-        #trust {
-            background: var(--navy-mid);
-        }
-
-        .trust-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.5rem;
-            margin-top: 3rem;
-        }
-
-        .trust-card {
-            background: var(--card-bg);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 8px;
-            padding: 1.8rem 1.6rem;
-        }
-
-        .trust-quote {
-            font-size: 0.9rem;
-            line-height: 1.75;
-            color: var(--text-body);
-            margin-bottom: 1.4rem;
-            font-style: italic;
-        }
-
-        .trust-quote::before {
-            content: '"';
-            font-size: 2.5rem;
-            color: var(--teal);
-            font-family: var(--font-head);
-            display: block;
-            line-height: 1;
-            margin-bottom: 0.5rem;
-        }
-
-        .trust-author {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        }
-
-        .trust-avatar {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--teal), var(--navy-light));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: var(--font-head);
-            font-weight: 800;
-            color: var(--navy);
-            font-size: 0.85rem;
-        }
-
-        .trust-name {
-            font-weight: 600;
-            color: var(--white);
-            font-size: 0.85rem;
-        }
-
-        .trust-role {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        /* ── FAQ ── */
-        #faq {}
-
-        .faq-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-top: 3rem;
-        }
-
-        .faq-item {
-            border: 1px solid rgba(0, 194, 203, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .faq-q {
-            padding: 1.3rem 1.5rem;
-            font-family: var(--font-head);
-            font-size: 0.92rem;
-            font-weight: 600;
-            color: var(--white);
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            background: var(--card-bg);
-            transition: background 0.2s;
-            user-select: none;
-        }
-
-        .faq-q:hover {
-            background: rgba(0, 194, 203, 0.07);
-        }
-
-        .faq-q .arrow {
-            font-size: 0.8rem;
-            color: var(--teal);
-            transition: transform 0.3s;
-            flex-shrink: 0;
-        }
-
-        .faq-a {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.35s ease, padding 0.35s ease;
-        }
-
-        .faq-a p {
-            font-size: 0.88rem;
-            line-height: 1.7;
-            color: var(--text-body);
-            padding: 0 1.5rem 1.3rem;
-        }
-
-        .faq-item.open .faq-q {
-            background: rgba(0, 194, 203, 0.07);
-        }
-
-        .faq-item.open .faq-a {
-            max-height: 300px;
-        }
-
-        .faq-item.open .arrow {
-            transform: rotate(180deg);
-        }
-
-        /* ── CONTACT ── */
-        #contact {
-            background: var(--navy-mid);
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5rem;
-            align-items: start;
-        }
-
-        .contact-info {}
-
-        .contact-block {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.6rem;
-            align-items: flex-start;
-        }
-
-        .contact-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 8px;
-            background: var(--teal-glow);
-            border: 1px solid rgba(0, 194, 203, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .contact-label {
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-muted);
-            margin-bottom: 0.2rem;
-        }
-
-        .contact-val {
-            color: var(--white);
-            font-weight: 500;
-            font-size: 0.95rem;
-        }
-
-        .contact-val a {
-            color: var(--teal);
-            text-decoration: none;
-        }
-
-        .contact-form {
-            background: var(--card-bg);
+        .price-card {
+            background: var(--card-glass);
             border: 1px solid var(--card-border);
-            border-radius: 10px;
-            padding: 2.5rem 2rem;
+            border-radius: 28px;
+            padding: 2.5rem;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .price-card.featured {
+            border-color: var(--teal-bright);
+            background: linear-gradient(145deg, rgba(0, 229, 255, 0.08), rgba(10, 17, 40, 0.6));
+            transform: scale(1.02);
+        }
+
+        .popular-badge {
+            position: absolute;
+            top: -12px;
+            left: 2rem;
+            background: var(--gradient-gold);
+            color: var(--deep-navy);
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 0.3rem 1rem;
+            border-radius: 40px;
+            letter-spacing: 0.1em;
+        }
+
+        .price {
+            font-family: var(--font-head);
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--white);
+            margin: 1rem 0 0.5rem;
+        }
+
+        .price span {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--gray-mid);
+        }
+
+        .price-note {
+            font-size: 0.8rem;
+            color: var(--gray-mid);
+            margin-bottom: 1.5rem;
+        }
+
+        .features-list {
+            list-style: none;
+            margin: 1.5rem 0;
+        }
+
+        .features-list li {
+            padding: 0.5rem 0;
+            display: flex;
+            gap: 0.8rem;
+            font-size: 0.9rem;
+        }
+
+        .features-list li::before {
+            content: "✓";
+            color: var(--teal-bright);
+            font-weight: bold;
+        }
+
+        /* Contact Form */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            background: var(--card-glass);
+            border-radius: 32px;
+            padding: 2.5rem;
+            border: 1px solid var(--card-border);
         }
 
         .form-group {
             margin-bottom: 1.2rem;
         }
 
-        .form-label {
-            display: block;
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-
-        .form-input,
-        .form-select,
-        .form-textarea {
+        input,
+        select,
+        textarea {
             width: 100%;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
             color: var(--white);
             font-family: var(--font-body);
-            font-size: 0.9rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: 0.2s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
             outline: none;
-            -webkit-appearance: none;
-        }
-
-        .form-input:focus,
-        .form-select:focus,
-        .form-textarea:focus {
-            border-color: var(--teal);
-            box-shadow: 0 0 0 3px rgba(0, 194, 203, 0.1);
-        }
-
-        .form-input::placeholder,
-        .form-textarea::placeholder {
-            color: var(--text-muted);
-        }
-
-        .form-select option {
-            background: var(--navy-mid);
-        }
-
-        .form-textarea {
-            resize: vertical;
-            min-height: 110px;
+            border-color: var(--teal-bright);
         }
 
         .form-row {
@@ -1201,176 +501,28 @@
             gap: 1rem;
         }
 
-        .form-submit {
-            width: 100%;
-            background: var(--teal);
-            color: var(--navy);
-            font-family: var(--font-head);
+        .btn-submit {
+            background: var(--gradient-gold);
+            color: var(--deep-navy);
             font-weight: 800;
-            font-size: 0.9rem;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            border: none;
-            border-radius: 5px;
             padding: 1rem;
+            border: none;
+            border-radius: 40px;
+            width: 100%;
             cursor: pointer;
-            transition: all 0.25s;
-            margin-top: 0.5rem;
+            font-size: 1rem;
+            transition: 0.3s;
         }
 
-        .form-submit:hover {
-            background: #00E5EF;
-            box-shadow: 0 6px 24px rgba(0, 194, 203, 0.35);
-            transform: translateY(-1px);
-        }
-
-        .form-success {
-            display: none;
-            text-align: center;
-            padding: 1.5rem;
-        }
-
-        .form-success .check {
-            font-size: 2.5rem;
-            margin-bottom: 0.8rem;
-        }
-
-        .form-success p {
-            color: var(--white);
-            font-family: var(--font-head);
-            font-size: 1.1rem;
-            font-weight: 700;
-        }
-
-        .form-success small {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        /* ── FOOTER ── */
+        /* Footer */
         footer {
-            background: #080F1E;
+            background: #050A18;
             padding: 3rem 6% 2rem;
-            border-top: 1px solid rgba(0, 194, 203, 0.1);
+            border-top: 1px solid rgba(0, 229, 255, 0.1);
         }
 
-        .footer-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 2rem;
-            flex-wrap: wrap;
-            margin-bottom: 2.5rem;
-        }
-
-        .footer-brand .nav-logo {
-            font-size: 1.2rem;
-            display: block;
-            margin-bottom: 0.6rem;
-        }
-
-        .footer-tagline {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            max-width: 240px;
-            line-height: 1.6;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 4rem;
-            flex-wrap: wrap;
-        }
-
-        .footer-col h4 {
-            font-family: var(--font-head);
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--white);
-            margin-bottom: 1rem;
-        }
-
-        .footer-col ul {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .footer-col a {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-col a:hover {
-            color: var(--teal);
-        }
-
-        .footer-bottom {
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            padding-top: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .footer-bottom p {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .social-links {
-            display: flex;
-            gap: 0.8rem;
-        }
-
-        .social-link {
-            width: 34px;
-            height: 34px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .social-link:hover {
-            border-color: var(--teal);
-            color: var(--teal);
-            background: var(--teal-glow);
-        }
-
-        /* ── MOBILE ── */
+        /* Responsive */
         @media (max-width: 900px) {
-
-            #website,
-            #contact {
-                grid-template-columns: 1fr;
-                gap: 3rem;
-            }
-
-            .faq-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .hero-stats {
-                gap: 1.5rem;
-                flex-wrap: wrap;
-            }
-
-            .footer-links {
-                gap: 2rem;
-            }
 
             .nav-links,
             .nav-cta {
@@ -1381,36 +533,24 @@
                 display: flex;
             }
 
+            .grid-2col,
+            .contact-grid,
             .form-row {
                 grid-template-columns: 1fr;
             }
-        }
 
-        @media (max-width: 600px) {
-            section {
-                padding: 4rem 5%;
-            }
-
-            nav {
-                padding: 1rem 5%;
-            }
-
-            .hero-title {
-                font-size: 2.4rem;
-            }
-
-            .modules-grid {
-                grid-template-columns: 1fr;
+            .price-card.featured {
+                transform: scale(1);
             }
         }
 
-        /* ── MOBILE MENU ── */
+        /* Mobile Menu */
         .mobile-menu {
             display: none;
             position: fixed;
             inset: 0;
-            z-index: 99;
-            background: var(--navy);
+            z-index: 200;
+            background: var(--deep-navy);
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -1421,884 +561,258 @@
             display: flex;
         }
 
-        .mobile-menu a {
-            font-family: var(--font-head);
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--white);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .mobile-menu a:hover {
-            color: var(--teal);
-        }
-
-        .mobile-close {
-            position: absolute;
-            top: 1.5rem;
-            right: 5%;
-            font-size: 1.8rem;
-            cursor: pointer;
-            color: var(--gray-mid);
-            background: none;
-            border: none;
-        }
-
-        /* ── BACK TO TOP ── */
-        #btt {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            z-index: 50;
-            width: 42px;
-            height: 42px;
-            border-radius: 8px;
-            background: var(--teal);
-            color: var(--navy);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            cursor: pointer;
-            border: none;
+        .fade-in {
             opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s;
-            box-shadow: 0 4px 20px rgba(0, 194, 203, 0.4);
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
         }
 
-        #btt.show {
+        .fade-in.visible {
             opacity: 1;
             transform: translateY(0);
         }
 
-        #btt:hover {
-            background: #00E5EF;
-            transform: translateY(-2px);
+        #btt {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--teal-bright);
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            opacity: 0;
+            transition: 0.3s;
+            z-index: 90;
         }
     </style>
 </head>
 
 <body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
 
-    <!-- NAV -->
     <nav id="navbar">
-        <a href="#" class="nav-logo">Impact<span>Digital</span></a>
+        <div class="logo">Impact<span>Digital</span></div>
         <ul class="nav-links">
-            <li><a href="#services">Services</a></li>
-            <li><a href="#website">Website</a></li>
-            <li><a href="#process">Process</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#modules">Modules</a></li>
             <li><a href="#pricing">Pricing</a></li>
-            <li><a href="#faq">FAQ</a></li>
+            <li><a href="#contact">Contact</a></li>
         </ul>
-        <a href="#contact" class="nav-cta">Book a Demo</a>
+        <a href="#contact" class="nav-cta">Get Demo</a>
         <div class="hamburger" id="hamburger">
             <span></span><span></span><span></span>
         </div>
     </nav>
 
-    <!-- MOBILE MENU -->
     <div class="mobile-menu" id="mobileMenu">
-        <button class="mobile-close" id="mobileClose">✕</button>
-        <a href="#services" class="mobile-link">Services</a>
-        <a href="#website" class="mobile-link">Website</a>
-        <a href="#process" class="mobile-link">Process</a>
-        <a href="#pricing" class="mobile-link">Pricing</a>
-        <a href="#faq" class="mobile-link">FAQ</a>
-        <a href="#contact" class="mobile-link" style="color:var(--teal)">Book a Demo →</a>
+        <button id="closeMenu" style="position:absolute;top:20px;right:20px;background:none;border:none;font-size:2rem;color:white;">✕</button>
+        <a href="#features">Features</a>
+        <a href="#modules">Modules</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#contact">Book Demo</a>
     </div>
 
-    <!-- HERO -->
-    <section id="hero">
-        <div class="hero-grid-bg"></div>
-        <div class="hero-orb orb-1"></div>
-        <div class="hero-orb orb-2"></div>
+    <!-- Hero -->
+    <section class="hero">
         <div class="hero-content">
-            <div class="hero-tag">School Digitalization Experts</div>
-            <h1 class="hero-title">
-                The Digital<br>
-                <span class="line-teal">School Platform</span><br>
-                <span class="line-outline">Your School Needs.</span>
-            </h1>
-            <p class="hero-desc">
-                From online admissions to AI-powered teaching tools, real-time parent alerts, digital ID cards, offline
-                CBT, and full finance management — one platform, fully tailored to your school.
-            </p>
-            <div class="hero-actions">
-                <a href="#contact" class="btn-primary">Book a Free Demo ↗</a>
-                <a href="#services" class="btn-secondary">Explore Platform</a>
+            <div class="badge">✨ Trusted by 120+ Schools Nationwide</div>
+            <h1>We Build Beautiful <span class="gradient-text">Digital Schools</span><br>That Work Flawlessly</h1>
+            <p class="hero-desc">From a stunning website to an all-in-one management portal, offline CBT, and real-time parent alerts — we handle everything. Your school, transformed.</p>
+            <div class="btn-group">
+                <a href="#contact" class="btn-primary">✨ Start Your Transformation →</a>
+                <a href="#features" class="btn-secondary">See How It Works</a>
             </div>
-            <div class="hero-stats">
-                <div>
-                    <div class="stat-val">9</div>
-                    <div class="stat-label">Core Modules</div>
-                </div>
-                <div>
-                    <div class="stat-val">13</div>
-                    <div class="stat-label">Weeks to Go-Live</div>
-                </div>
-                <div>
-                    <div class="stat-val">24/7</div>
-                    <div class="stat-label">Support & Uptime</div>
-                </div>
-                <div>
-                    <div class="stat-val">100%</div>
-                    <div class="stat-label">School-Owned Data</div>
-                </div>
+            <div class="stats">
+                <div class="stat-item"><h3>₦20k</h3><p>Starting per term</p></div>
+                <div class="stat-item"><h3>2 Weeks</h3><p>To Launch</p></div>
+                <div class="stat-item"><h3>24/7</h3><p>Support Included</p></div>
             </div>
         </div>
     </section>
 
-    <!-- SERVICES / MODULES -->
-    <section id="services">
-        <div class="services-header fade-in">
-            <div>
-                <p class="section-label">Platform Modules</p>
-                <h2 class="section-title">Everything Your School<br>Needs in One Place</h2>
-            </div>
-            <p class="section-sub">Each module is purpose-built for Nigerian schools and can be deployed as a full suite
-                or in phases.</p>
+    <!-- Features Overview -->
+    <section id="features">
+        <div class="section-header">
+            <div class="section-tag">Why Schools Love Us</div>
+            <h2 class="section-title">Everything You Need, Beautifully Packaged</h2>
+            <p style="color: var(--gray-light);">No technical headaches. We do the heavy lifting, you enjoy a smooth-running school.</p>
         </div>
+        <div class="grid-2col">
+            <div class="feature-card fade-in"><div class="feature-icon">🎓</div><h3>Complete School Portal</h3><p>Admin, Staff, Parent, and Student dashboards. One login for everyone.</p></div>
+            <div class="feature-card fade-in"><div class="feature-icon">📱</div><h3>Parent SMS & Alerts</h3><p>Instant notifications: "Your child has arrived at school." Peace of mind for parents.</p></div>
+            <div class="feature-card fade-in"><div class="feature-icon">📊</div><h3>Smart Report Cards</h3><p>Auto-calculated, beautifully formatted reports. Ready in minutes.</p></div>
+            <div class="feature-card fade-in"><div class="feature-icon">💻</div><h3>Offline CBT Suite</h3><p>Run exams without internet. Results sync automatically.</p></div>
+            <div class="feature-card fade-in"><div class="feature-icon">💰</div><h3>Fee Management</h3><p>Track payments, send reminders, and generate receipts instantly.</p></div>
+            <div class="feature-card fade-in"><div class="feature-icon">🤖</div><h3>AI Tools for Teachers</h3><p>Generate lesson plans and quizzes with AI. Save hours of prep time.</p></div>
+        </div>
+    </section>
 
+    <!-- Modules -->
+    <section id="modules" style="background: rgba(0,0,0,0.2);">
+        <div class="section-header">
+            <div class="section-tag">All-in-One Suite</div>
+            <h2 class="section-title">Every Module Your School Needs</h2>
+        </div>
         <div class="modules-grid">
-            <div class="module-card fade-in">
-                <span class="module-icon">👔</span>
-                <span class="module-num">01</span>
-                <div class="module-title">Staff Management</div>
-                <p class="module-desc">Centralize all HR functions — from onboarding to attendance tracking — in one
-                    secure dashboard.</p>
-                <ul class="module-features">
-                    <li>Digital staff profiles with documents & qualifications</li>
-                    <li>QR/biometric attendance with late-arrival alerts</li>
-                    <li>Leave requests & management approvals</li>
-                    <li>Performance records & payroll-linked summaries</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">🎒</span>
-                <span class="module-num">02</span>
-                <div class="module-title">Student Management & Parent Connect</div>
-                <p class="module-desc">Keep parents meaningfully connected with real-time updates on their child's
-                    school life.</p>
-                <ul class="module-features">
-                    <li>QR check-in/out at the school gate</li>
-                    <li>Instant SMS & app alert: "Child has arrived / left school"</li>
-                    <li>Parent dashboard: attendance, grades, fees, messages</li>
-                    <li>Direct parent–teacher communication channel</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">🪪</span>
-                <span class="module-num">03</span>
-                <div class="module-title">Digital ID Cards</div>
-                <p class="module-desc">Auto-generate professional digital ID cards for every student and staff member —
-                    each with a scannable QR code.</p>
-                <ul class="module-features">
-                    <li>Auto-generated on enrollment/registration</li>
-                    <li>QR code links to live portal profile</li>
-                    <li>One-click PDF for printing or sharing</li>
-                    <li>Auto-renews each academic session</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">📚</span>
-                <span class="module-num">04</span>
-                <div class="module-title">Teacher Resources & AI Tools</div>
-                <p class="module-desc">Give your teachers a professional toolkit powered by AI — cutting lesson prep
-                    time dramatically.</p>
-                <ul class="module-features">
-                    <li>Digital lesson note preparation & HOD review</li>
-                    <li>AI Lesson Plan Generator from any topic</li>
-                    <li>AI Quiz & CBT Question Generator</li>
-                    <li>Assignment distribution & digital submissions</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">📊</span>
-                <span class="module-num">05</span>
-                <div class="module-title">Smart Report Card Processing</div>
-                <p class="module-desc">Eliminate manual computation errors. Generate every student's report card in
-                    minutes, not days.</p>
-                <ul class="module-features">
-                    <li>CA + exam score entry with auto-calculation</li>
-                    <li>Configurable grading systems (your school's format)</li>
-                    <li>Auto class positions & subject rankings</li>
-                    <li>One-click PDF generation for all students</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">💻</span>
-                <span class="module-num">06</span>
-                <div class="module-title">Offline CBT + Portal Sync</div>
-                <p class="module-desc">Run Computer-Based Tests in your lab with zero internet dependency — then sync
-                    results instantly.</p>
-                <ul class="module-features">
-                    <li>Installable CBT software for any computer lab</li>
-                    <li>Question bank managed from the portal</li>
-                    <li>Auto-grading + one-click result sync to portal</li>
-                    <li>Instant result notifications to students & parents</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in">
-                <span class="module-icon">💰</span>
-                <span class="module-num">07</span>
-                <div class="module-title">Finance Management</div>
-                <p class="module-desc">A full school accounting system — from fee invoicing to expenditure tracking and
-                    financial reporting.</p>
-                <ul class="module-features">
-                    <li>Multi-category fee structure & per-student invoicing</li>
-                    <li>Online payment tracking & automated receipts</li>
-                    <li>Outstanding fees reports with parent reminders</li>
-                    <li>Income vs. expense dashboard, PDF/Excel exports</li>
-                </ul>
-            </div>
-
-            <div class="module-card fade-in"
-                style="border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.03);">
-                <span class="module-icon">🌐</span>
-                <span class="module-num">08</span>
-                <div class="module-title">School Website + Online Admission</div>
-                <p class="module-desc">A professional, branded website that is your school's digital front door — with a
-                    built-in admission system.</p>
-                <ul class="module-features">
-                    <li>Custom-designed, mobile-first school website</li>
-                    <li>Online admission application + document upload</li>
-                    <li>Application status tracking for parents</li>
-                    <li>SEO-optimized for local Google search</li>
-                </ul>
-            </div>
+            <div class="module"><h3>👔 Staff Management</h3><p>Attendance, payroll, document storage, and leave management.</p></div>
+            <div class="module"><h3>🎒 Student Management</h3><p>Enrollment, records, academic history, and digital IDs.</p></div>
+            <div class="module"><h3>📢 Parent Connect</h3><p>QR gate pass, attendance alerts, fee notifications, and messaging.</p></div>
+            <div class="module"><h3>📚 AI Lesson Planner</h3><p>Generate detailed lesson notes and exam questions with AI.</p></div>
+            <div class="module"><h3>📈 Report Card Engine</h3><p>Auto-calculation, grading, and bulk PDF generation.</p></div>
+            <div class="module"><h3>💻 Offline CBT</h3><p>Install on any lab computer. Works without internet.</p></div>
+            <div class="module"><h3>💰 Finance & Fees</h3><p>Invoicing, payment tracking, expense reports, and analytics.</p></div>
+            <div class="module"><h3>🌐 Professional Website</h3><p>Custom design, online admissions, and SEO ready.</p></div>
         </div>
     </section>
 
-    <!-- WEBSITE SECTION -->
-    <section id="website">
-        <div class="website-mockup fade-in">
-            <div class="mockup-bar">
-                <div class="mock-dot" style="background:#ff5f57"></div>
-                <div class="mock-dot" style="background:#febc2e"></div>
-                <div class="mock-dot" style="background:#28c840"></div>
-                <div class="mock-url">www.yourschool.edu.ng</div>
+    <!-- PRICING (UPDATED) -->
+    <section id="pricing">
+        <div class="section-header">
+            <div class="section-tag">Simple, Fair Pricing</div>
+            <h2 class="section-title">Pay Per Term. No Huge Upfront Cost.</h2>
+            <p>Affordable termly subscription. Includes everything — hosting, support, and free updates.</p>
+        </div>
+        <div class="pricing-grid">
+            <div class="price-card featured fade-in">
+                <div class="popular-badge">MOST POPULAR</div>
+                <h3>Full School Platform</h3>
+                <div class="price">₦20,000 <span>/ term</span></div>
+                <div class="price-note">Billed per term. No hidden fees.</div>
+                <ul class="features-list">
+                    <li>Professional Website + Online Admission</li>
+                    <li>Staff & Student Management</li>
+                    <li>Digital ID Cards</li>
+                    <li>Parent Connect & Real-time SMS Alerts</li>
+                    <li>Smart Report Card Processing</li>
+                    <li>AI Lesson & Quiz Generator</li>
+                    <li>Finance Management System</li>
+                    <li>Free Training & 24/7 Support</li>
+                </ul>
+                <a href="#contact" class="btn-primary" style="display:block;text-align:center;">Book a Demo →</a>
             </div>
-            <div class="mock-content">
-                <div class="mock-hero-band">
-                    <span>Welcome to Excellence Academy</span>
-                </div>
-                <div class="mock-grid">
-                    <div class="mock-card"></div>
-                    <div class="mock-card"></div>
-                    <div class="mock-card"></div>
-                </div>
-                <div class="mock-form">
-                    <div class="mock-input" style="width:70%; margin-bottom: 0.4rem;"></div>
-                    <div class="mock-input" style="width:100%; margin-bottom: 0.4rem;"></div>
-                    <div class="mock-input" style="width:100%; margin-bottom: 0.7rem;"></div>
-                    <div class="mock-btn"></div>
-                </div>
+            <div class="price-card fade-in">
+                <h3>Offline CBT + Portal Suite</h3>
+                <div class="price">₦30,000 <span>/ term</span></div>
+                <div class="price-note">Everything in Full Platform, plus CBT</div>
+                <ul class="features-list">
+                    <li><strong>✅ Everything in Full Platform</strong></li>
+                    <li>💻 Offline CBT Engine (No internet required)</li>
+                    <li>🔄 Automatic Portal Sync</li>
+                    <li>📝 Unlimited Exam Creation</li>
+                    <li>⚡ Instant Auto-grading</li>
+                    <li>🛡️ Cheat Prevention (Tab-switch monitoring)</li>
+                    <li>📱 Multi-device Support</li>
+                    <li>🎓 Multi-campus / Branch Support</li>
+                    <li>⭐ Priority Support & Account Manager</li>
+                </ul>
+                <a href="#contact" class="btn-secondary" style="display:block;text-align:center;">Book a Demo →</a>
             </div>
         </div>
-
-        <div class="website-content fade-in">
-            <p class="section-label">School Website</p>
-            <h2 class="section-title">Your School's<br>Digital Front Door</h2>
-            <p class="section-sub">A professionally designed, mobile-first website that builds trust with prospective
-                families and converts visitors into applicants — with a built-in online admission portal.</p>
-            <div class="feature-list">
-                <div class="feat-item">
-                    <div class="feat-icon">🎨</div>
-                    <div class="feat-text">
-                        <strong>Fully Branded & Custom Designed</strong>
-                        <span>Every element — colors, fonts, photos, copy — tailored to reflect your school's identity
-                            and values.</span>
-                    </div>
-                </div>
-                <div class="feat-item">
-                    <div class="feat-icon">📋</div>
-                    <div class="feat-text">
-                        <strong>Online Admission Application</strong>
-                        <span>Parents apply, upload documents, and track application status entirely online — no
-                            physical paperwork.</span>
-                    </div>
-                </div>
-                <div class="feat-item">
-                    <div class="feat-icon">📣</div>
-                    <div class="feat-text">
-                        <strong>News, Events & Announcements</strong>
-                        <span>Publish school news, upcoming events, and important notices from a simple admin
-                            dashboard.</span>
-                    </div>
-                </div>
-                <div class="feat-item">
-                    <div class="feat-icon">🔍</div>
-                    <div class="feat-text">
-                        <strong>SEO-Optimized & Secure</strong>
-                        <span>Rank on Google for local searches. SSL-secured, fast-loading, and accessible on all
-                            devices.</span>
-                    </div>
-                </div>
-            </div>
+        <div style="text-align:center; margin-top: 2rem; padding: 1rem; background: rgba(255,179,71,0.1); border-radius: 60px; max-width: 500px; margin-left: auto; margin-right: auto;">
+            💳 Flexible payment: Pay 50% now, 50% at go-live. Ask about annual discount.
         </div>
     </section>
 
-    <!-- PROCESS -->
-    <section id="process">
-        <div class="fade-in" style="max-width:540px;">
-            <p class="section-label">How It Works</p>
-            <h2 class="section-title">From Kickoff to<br>Go-Live in 4 Weeks</h2>
-            <p class="section-sub">A structured, zero-disruption deployment. We do the heavy lifting — you just provide
-                your school's information and feedback.</p>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0 5rem; margin-top: 1rem;">
-            <div class="process-timeline fade-in">
-                <div class="process-step">
-                    <div class="step-marker">1</div>
-                    <div class="step-body">
-                        <div class="step-week">Week 1</div>
-                        <div class="step-title">Phase 1: Discovery, Planning & Website</div>
-                        <div class="step-desc">We learn your school's structure, workflows, branding, and goals.
-                            Database architecture and project scope finalized. Your custom school website and online
-                            admission portal are designed, built, and reviewed with you before launch.</div>
-                    </div>
-                </div>
-                <div class="process-step">
-                    <div class="step-marker">2</div>
-                    <div class="step-body">
-                        <div class="step-week">Week 2</div>
-                        <div class="step-title">Phase 2: Portal & Advanced Modules</div>
-                        <div class="step-desc">Core school portal modules built: Admin, Staff, Student, Parent
-                            dashboards, digital IDs, and parent alerts. CBT software, AI tools, report card engine,
-                            and the full finance management system are integrated and tested.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="process-timeline fade-in">
-                <div class="process-step">
-                    <div class="step-marker">3</div>
-                    <div class="step-body">
-                        <div class="step-week">Week 3</div>
-                        <div class="step-title">Phase 3: Training & Data Migration</div>
-                        <div class="step-desc">On-site or virtual training for all staff groups. Historical data
-                            migrated. Full User Acceptance Testing (UAT) completed.</div>
-                    </div>
-                </div>
-                <div class="process-step">
-                    <div class="step-marker">4</div>
-                    <div class="step-body">
-                        <div class="step-week">Week 4</div>
-                        <div class="step-title">Phase 4: Go-Live & Hypercare</div>
-                        <div class="step-desc">Systems go live. Our team is on standby for 2 weeks of intensive
-                            post-launch support. Full handover documentation provided.</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- PRICING -->
-<section id="pricing">
-    <div class="fade-in" style="max-width:540px; margin-bottom: 0;">
-        <p class="section-label">Simple, Transparent Pricing</p>
-        <h2 class="section-title">Pay Per Term.<br>No Huge Upfront Cost.</h2>
-        <p class="section-sub">Affordable termly subscription. No long-term contracts. Cancel anytime. Flexible payment terms available.</p>
-    </div>
-
-    <div class="pricing-grid">
-        <div class="price-card featured fade-in">
-            <div class="price-label">Most Popular</div>
-            <div class="price-name">Full School Platform</div>
-            <div class="price-amount">₦20,000 <span>/ term</span></div>
-            <div class="price-note">Billed per term — includes all core modules</div>
-            <div class="price-divider"></div>
-            <ul class="price-features">
-                <li>✅ Professional school website + online admission</li>
-                <li>✅ Staff & student management</li>
-                <li>✅ Digital ID cards generation</li>
-                <li>✅ Parent connect & real-time SMS/alerts</li>
-                <li>✅ Smart report card processing (auto-calculation)</li>
-                <li>✅ AI teaching tools (lesson plan & quiz generator)</li>
-                <li>✅ Finance management system (fees, expenses, reports)</li>
-                <li>✅ Free training & support</li>
-                <li>✅ 24/7 uptime & secure cloud hosting</li>
-            </ul>
-            <a href="#contact" class="price-cta solid">Book a Demo →</a>
-        </div>
-
-        <div class="price-card fade-in">
-            <div class="price-label">Advanced</div>
-            <div class="price-name">Offline CBT + Portal Suite</div>
-            <div class="price-amount">₦30,000 <span>/ term</span></div>
-            <div class="price-note">Everything in Full Platform, plus offline CBT engine</div>
-            <div class="price-divider"></div>
-            <ul class="price-features">
-                <li>✅ Everything in Full School Platform, plus:</li>
-                <li>💻 <strong>Offline CBT Engine</strong> – No internet required</li>
-                <li>🔄 <strong>Automatic Portal Sync</strong> – Seamless online/offline merge</li>
-                <li>📝 <strong>Unlimited exam creation</strong> – Objective & theory questions</li>
-                <li>⚡ <strong>Instant auto-grading</strong> with detailed analytics</li>
-                <li>🛡️ <strong>Cheat prevention</strong> – Tab-switch monitoring & timers</li>
-                <li>📱 <strong>Multi-device support</strong> – Laptops, tablets, school labs</li>
-                <li>📤 <strong>Export results to portal</strong> – One-click sync to reports</li>
-                <li>🎓 <strong>Multi-campus / branch support</strong></li>
-                <li>⭐ <strong>Priority support & dedicated account manager</strong></li>
-            </ul>
-            <a href="#contact" class="price-cta outline">Book a Demo →</a>
-        </div>
-    </div>
-
-    <div style="margin-top: 2rem; padding: 1.2rem 1.5rem; background: rgba(245,166,35,0.07); border: 1px solid rgba(245,166,35,0.2); border-radius: 8px; max-width: 700px;"
-        class="fade-in">
-        <p style="font-size: 0.85rem; color: var(--text-body);">💳 <strong style="color: var(--amber);">Simple termly payment — no huge upfront cost</strong><br>
-        Pay as you go. No long-term contracts. You can cancel anytime. We also offer annual billing at a discounted rate — ask us.</p>
-    </div>
-</section>
-
-    <!-- TRUST / TESTIMONIALS -->
-    <section id="trust">
-        <div class="fade-in" style="text-align:center; max-width: 480px; margin: 0 auto 3rem;">
-            <p class="section-label" style="justify-content:center;">Testimonials</p>
-            <h2 class="section-title">Schools Trust Us</h2>
-        </div>
-        <div class="trust-grid">
-            <div class="trust-card fade-in">
-                <p class="trust-quote">The parent alert system alone was worth every kobo. Parents now call us to say
-                    how much they love knowing when their child arrives. Our school's reputation improved overnight.</p>
-                <div class="trust-author">
-                    <div class="trust-avatar">AO</div>
-                    <div>
-                        <div class="trust-name">Mr. Adeyemi Okonkwo</div>
-                        <div class="trust-role">Principal, Greenfield Academy, Lagos</div>
-                    </div>
-                </div>
-            </div>
-            <div class="trust-card fade-in">
-                <p class="trust-quote">Report cards that used to take our teachers two weeks of stress now take two
-                    hours. The system auto-calculates everything and the parents get it on their phones the same day.
-                </p>
-                <div class="trust-author">
-                    <div class="trust-avatar">FN</div>
-                    <div>
-                        <div class="trust-name">Mrs. Fatima Nwosu</div>
-                        <div class="trust-role">Head of Academics, Crown Heights School, Abuja</div>
-                    </div>
-                </div>
-            </div>
-            <div class="trust-card fade-in">
-                <p class="trust-quote">We used to lose track of fee payments across multiple classes. Now the finance
-                    module gives us a real-time view of everything. Our bursar says it's the best tool she's ever used.
-                </p>
-                <div class="trust-author">
-                    <div class="trust-avatar">TI</div>
-                    <div>
-                        <div class="trust-name">Dr. Tunde Ibrahim</div>
-                        <div class="trust-role">School Director, Dayspring International, Port Harcourt</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- FAQ -->
-    <section id="faq">
-        <div class="fade-in" style="max-width:480px; margin-bottom: 0;">
-            <p class="section-label">FAQ</p>
-            <h2 class="section-title">Common Questions</h2>
-        </div>
-        <div class="faq-grid fade-in">
-            <div class="faq-item">
-                <div class="faq-q">Do we need a fast internet connection to use the platform? <span
-                        class="arrow">▾</span></div>
-                <div class="faq-a">
-                    <p>The school portal works on standard broadband. The CBT module is fully offline — students sit
-                        their exams without internet, and results sync to the portal when connectivity is restored.
-                        Parent notifications use SMS as backup when data is unavailable.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">Who owns the school data? <span class="arrow">▾</span></div>
-                <div class="faq-a">
-                    <p>Your school owns 100% of its data at all times. You can export all records (students, staff,
-                        finance, results) in standard formats at any time. We never share your data with third parties.
-                    </p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">Can the system handle multiple arms/classes per year group? <span
-                        class="arrow">▾</span></div>
-                <div class="faq-a">
-                    <p>Yes. The platform is built to support any school structure — multiple arms per class (JSS1A,
-                        JSS1B, etc.), different subject combinations per class level, and multiple teachers per subject.
-                        It scales from small schools to large multi-section institutions.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">What happens after the 13-week deployment? <span class="arrow">▾</span></div>
-                <div class="faq-a">
-                    <p>After go-live, you're covered by our annual maintenance plan, which includes bug fixes, security
-                        patches, 2 major feature updates per year, and priority support. Our team remains your dedicated
-                        technology partner.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">Can parents access the system on their phones? <span class="arrow">▾</span></div>
-                <div class="faq-a">
-                    <p>Yes. The parent portal is fully mobile-responsive and works on any smartphone browser — no app
-                        download required. Parents can view attendance, results, fee status, and communicate with
-                        teachers from their phones.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">Is the grading system flexible for our school format? <span class="arrow">▾</span>
-                </div>
-                <div class="faq-a">
-                    <p>Absolutely. The report card and grading system is fully configurable — you define the score
-                        breakdowns (CA percentages, exam weight), grade boundaries, remarks, and the report card layout.
-                        We replicate your existing format exactly.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">Do you provide training for our staff and teachers? <span class="arrow">▾</span>
-                </div>
-                <div class="faq-a">
-                    <p>Yes, training is included in the deployment. We conduct role-specific sessions: one for
-                        administrators, one for teachers, and a guide for parents. Training can be done on-site or
-                        virtually, and we provide written documentation for reference.</p>
-                </div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-q">What payment methods are supported for school fees? <span class="arrow">▾</span>
-                </div>
-                <div class="faq-a">
-                    <p>The finance module supports bank transfer reference verification, and can be integrated with
-                        Nigerian payment gateways including Paystack and Flutterwave for direct card/bank payments.
-                        Remita integration is available for government schools on request.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CONTACT -->
+    <!-- Contact -->
     <section id="contact">
-        <div class="contact-info fade-in">
-            <p class="section-label">Contact Us</p>
-            <h2 class="section-title">Let's Build Your<br>Digital School</h2>
-            <p class="section-sub" style="margin-bottom: 2.5rem;">Book a free 30-minute demo and we'll walk you through
-                a live prototype built specifically for your school type.</p>
-
-            <div class="contact-block">
-                <div class="contact-icon">📧</div>
-                <div>
-                    <div class="contact-label">Email</div>
-                    <div class="contact-val"><a href="mailto:schools@acad.com.ng">schools@acad.com.ng</a>
+        <div class="contact-grid">
+            <div>
+                <div class="section-tag" style="text-align:left;">Let's Talk</div>
+                <h2 class="section-title" style="text-align:left;">Ready to Transform Your School?</h2>
+                <p style="margin-bottom: 2rem;">Book a free 30-minute demo. We'll show you a live prototype built specifically for your school.</p>
+                <div>📧 schools@impactdigital.com</div>
+                <div>📞 +234 903 544 8295</div>
+                <div>📍 Lagos, Nigeria (Nationwide)</div>
+            </div>
+            <div>
+                <form id="demoForm">
+                    <div class="form-row">
+                        <div class="form-group"><input type="text" id="fname" placeholder="First Name *" required></div>
+                        <div class="form-group"><input type="text" id="lname" placeholder="Last Name *" required></div>
                     </div>
-                </div>
-            </div>
-            <div class="contact-block">
-                <div class="contact-icon">📞</div>
-                <div>
-                    <div class="contact-label">Phone / WhatsApp</div>
-                    <div class="contact-val"><a href="tel:+2349035448295">+234 903 544 8295</a></div>
-                </div>
-            </div>
-            <div class="contact-block">
-                <div class="contact-icon">📍</div>
-                <div>
-                    <div class="contact-label">Location</div>
-                    <div class="contact-val">Lagos, Nigeria (Nationwide Service)</div>
-                </div>
-            </div>
-            <div class="contact-block">
-                <div class="contact-icon">🕐</div>
-                <div>
-                    <div class="contact-label">Office Hours</div>
-                    <div class="contact-val">Monday – Friday, 8am – 6pm WAT</div>
-                </div>
-            </div>
-
-            <div
-                style="margin-top: 2rem; padding: 1.5rem; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;">
-                <p
-                    style="font-family: var(--font-head); font-size: 1rem; color: var(--white); margin-bottom: 0.5rem; font-weight: 700;">
-                    🎯 Free Demo Includes:</p>
-                <ul style="list-style:none; display:flex; flex-direction:column; gap:0.5rem; margin-top: 0.8rem;">
-                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Live walkthrough
-                        of all 9 modules</li>
-                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Prototype mockup
-                        of your school's portal</li>
-                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ Custom pricing
-                        based on your school size</li>
-                    <li style="font-size:0.86rem; color:var(--text-body); display:flex; gap:0.6rem;">✓ No obligation, no
-                        pressure</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="contact-form fade-in">
-            <div id="formContent">
-                <p
-                    style="font-family: var(--font-head); font-size: 1.1rem; color: var(--white); font-weight: 700; margin-bottom: 1.5rem;">
-                    Book Your Free Demo
-                </p>
-                <div class="form-row">
+                    <div class="form-group"><input type="text" id="school" placeholder="School Name *" required></div>
                     <div class="form-group">
-                        <label class="form-label">First Name <span style="color: var(--teal);">*</span></label>
-                        <input type="text" class="form-input" placeholder="John" id="fname" required>
+                        <select id="role" required>
+                            <option value="">Your Role *</option>
+                            <option>Proprietor/Owner</option>
+                            <option>Principal</option>
+                            <option>Administrator</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Last Name <span style="color: var(--teal);">*</span></label>
-                        <input type="text" class="form-input" placeholder="Doe" id="lname" required>
+                    <div class="form-row">
+                        <div class="form-group"><input type="tel" id="phone" placeholder="Phone Number *" required></div>
+                        <div class="form-group"><input type="email" id="email" placeholder="Email Address *" required></div>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">School Name <span style="color: var(--teal);">*</span></label>
-                    <input type="text" class="form-input" placeholder="e.g. Excellence Academy" id="school" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Your Role <span style="color: var(--teal);">*</span></label>
-                    <select class="form-select" id="role" required>
-                        <option value="">Select your role</option>
-                        <option>School Proprietor / Owner</option>
-                        <option>Principal / Head Teacher</option>
-                        <option>Administrator</option>
-                        <option>Board Member</option>
-                        <option>Other</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Phone / WhatsApp <span style="color: var(--teal);">*</span></label>
-                        <input type="tel" class="form-input" placeholder="+234 800 000 0000" id="phone" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Email Address <span style="color: var(--teal);">*</span></label>
-                        <input type="email" class="form-input" placeholder="you@school.com" id="email" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Package of Interest</label>
-                    <select class="form-select" id="package">
-                        <option value="">Select a package</option>
-                        <option>Starter — Website Package</option>
-                        <option>Complete — Full School Platform</option>
-                        <option>Custom / Multi-Branch</option>
-                        <option>Not sure yet — need a demo first</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Tell Us About Your School (optional)</label>
-                    <textarea class="form-textarea"
-                        placeholder="e.g. We are a private primary and secondary school in Ibadan with about 400 students..."
-                        id="message"></textarea>
-                </div>
-                <button class="form-submit" id="demoSubmitBtn">Send Request → Book Demo</button>
-            </div>
-            <div class="form-success" id="formSuccess" style="display: none;">
-                <div class="check">✅</div>
-                <p>Request Sent Successfully!</p>
-                <small>Thank you. A member of our team will contact you within 24 hours.<br><br>
-                    <strong>Check your email (inbox or spam) </strong> — we've sent your demo portal login credentials
-                    to the email
-                    address you provided.</small>
+                    <div class="form-group"><select id="package"><option>Full School Platform (₦20k/term)</option><option>Offline CBT + Portal (₦30k/term)</option></select></div>
+                    <button type="submit" class="btn-submit">🚀 Send Request → Book Demo</button>
+                </form>
+                <div id="formSuccess" style="display:none; text-align:center; margin-top:1rem; color: var(--teal-bright);">✅ Request sent! We'll contact you within 24 hours.</div>
             </div>
         </div>
     </section>
 
-    <!-- FOOTER -->
     <footer>
-        <div class="footer-top">
-            <div class="footer-brand">
-                <span class="nav-logo">Impact<span>Digital</span> Services</span>
-                <p class="footer-tagline">Empowering Nigerian schools through purposeful, practical technology.</p>
-            </div>
-            <div class="footer-links">
-                <div class="footer-col">
-                    <h4>Platform</h4>
-                    <ul>
-                        <li><a href="#services">All Modules</a></li>
-                        <li><a href="#website">School Website</a></li>
-                        <li><a href="#process">Deployment Process</a></li>
-                        <li><a href="#pricing">Pricing</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4>Company</h4>
-                    <ul>
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Case Studies</a></li>
-                        <li><a href="#">Blog</a></li>
-                        <li><a href="#contact">Contact</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4>Legal</h4>
-                    <ul>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Terms of Service</a></li>
-                        <li><a href="#">Data Processing Agreement</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <p>© 2026 Impact Digital Services. All rights reserved. Built in Nigeria 🇳🇬</p>
-            <div class="social-links">
-                <a href="#" class="social-link" title="LinkedIn">in</a>
-                <a href="#" class="social-link" title="Twitter">𝕏</a>
-                <a href="#" class="social-link" title="Facebook">f</a>
-                <a href="#" class="social-link" title="WhatsApp">W</a>
-            </div>
-        </div>
+        <p style="text-align:center;">© 2025 Impact Digital Services — Built for Nigerian Schools 🇳🇬</p>
     </footer>
-
-    <!-- BACK TO TOP -->
     <button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 
     <script>
-        // NAV scroll
-        const navbar = document.getElementById('navbar');
+        // Nav scroll
         window.addEventListener('scroll', () => {
-            navbar.classList.toggle('scrolled', window.scrollY > 60);
-            document.getElementById('btt').classList.toggle('show', window.scrollY > 400);
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+            const btt = document.getElementById('btt');
+            btt.style.opacity = window.scrollY > 300 ? '1' : '0';
         });
 
         // Mobile menu
-        document.getElementById('hamburger').addEventListener('click', () => {
-            document.getElementById('mobileMenu').classList.add('open');
-        });
-        document.getElementById('mobileClose').addEventListener('click', () => {
-            document.getElementById('mobileMenu').classList.remove('open');
-        });
-        document.querySelectorAll('.mobile-link').forEach(link => {
-            link.addEventListener('click', () => document.getElementById('mobileMenu').classList.remove('open'));
-        });
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const closeMenu = document.getElementById('closeMenu');
+        hamburger.onclick = () => mobileMenu.classList.add('open');
+        closeMenu.onclick = () => mobileMenu.classList.remove('open');
+        document.querySelectorAll('.mobile-menu a').forEach(a => a.onclick = () => mobileMenu.classList.remove('open'));
 
-        // FAQ accordion
-        document.querySelectorAll('.faq-q').forEach(q => {
-            q.addEventListener('click', () => {
-                const item = q.parentElement;
-                const isOpen = item.classList.contains('open');
-                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-                if (!isOpen) item.classList.add('open');
-            });
-        });
-
-        // Scroll animations
+        // Scroll animation
         const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry, i) => {
-                if (entry.isIntersecting) {
-                    setTimeout(() => entry.target.classList.add('visible'), i * 80);
-                }
-            });
-        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+            entries.forEach(entry => entry.target.classList.add('visible'));
+        }, { threshold: 0.1 });
         document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-        // ============================================
-        // DEMO BOOKING FORM SUBMIT FUNCTION
-        // ============================================
-        function submitForm() {
-            // Get form values
-            const fname = document.getElementById('fname').value.trim();
-            const lname = document.getElementById('lname').value.trim();
-            const school = document.getElementById('school').value.trim();
-            const role = document.getElementById('role').value;
-            const phone = document.getElementById('phone').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const packageInt = document.getElementById('package').value;
-            const message = document.getElementById('message').value.trim();
-
-            // Validate required fields
-            if (!fname) {
-                alert('Please enter your first name.');
-                document.getElementById('fname').focus();
-                return false;
-            }
-            if (!lname) {
-                alert('Please enter your last name.');
-                document.getElementById('lname').focus();
-                return false;
-            }
-            if (!school) {
-                alert('Please enter your school name.');
-                document.getElementById('school').focus();
-                return false;
-            }
-            if (!role) {
-                alert('Please select your role.');
-                document.getElementById('role').focus();
-                return false;
-            }
-            if (!phone) {
-                alert('Please enter your phone number.');
-                document.getElementById('phone').focus();
-                return false;
-            }
-            if (!email) {
-                alert('Please enter your email address.');
-                document.getElementById('email').focus();
-                return false;
-            }
-
-            // Validate email format
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                alert('Please enter a valid email address (e.g., name@school.com).');
-                document.getElementById('email').focus();
-                return false;
-            }
-
-            // Disable button to prevent double submission
-            const submitBtn = document.getElementById('demoSubmitBtn');
-            const originalText = submitBtn.textContent;
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Sending...';
-
-            // Send data to backend
-            fetch('/api/book-demo.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    first_name: fname,
-                    last_name: lname,
-                    school_name: school,
-                    role: role,
-                    phone: phone,
-                    email: email,
-                    package: packageInt,
-                    message: message
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Hide form, show success message
-                        document.getElementById('formContent').style.display = 'none';
-                        document.getElementById('formSuccess').style.display = 'block';
-                    } else {
-                        alert(data.message || 'Something went wrong. Please try again or call us directly.');
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Network error. Please check your internet connection and try again.');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = originalText;
+        // Form Submit to existing API
+        document.getElementById('demoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                first_name: document.getElementById('fname').value,
+                last_name: document.getElementById('lname').value,
+                school_name: document.getElementById('school').value,
+                role: document.getElementById('role').value,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
+                package: document.getElementById('package').value
+            };
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                const res = await fetch('/api/book-demo.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
                 });
-
-            return false;
-        }
-
-        // Attach submit function to button
-        document.getElementById('demoSubmitBtn').addEventListener('click', submitForm);
+                const result = await res.json();
+                if (result.success) {
+                    document.getElementById('demoForm').style.display = 'none';
+                    document.getElementById('formSuccess').style.display = 'block';
+                } else alert(result.message || 'Error, please call us directly.');
+            } catch (err) {
+                alert('Network error. Please check your connection.');
+            } finally {
+                btn.disabled = false;
+            }
+        });
     </script>
 </body>
 

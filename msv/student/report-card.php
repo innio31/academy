@@ -154,7 +154,7 @@ $total_students = 0;
 if ($record) {
     $session = $record['session'];
     $term    = $record['term'];
-    
+
     // Get display settings
     $show_class_position   = (int)($record['show_class_position'] ?? 1);
     $show_subject_position = (int)($record['show_subject_position'] ?? 1);
@@ -632,14 +632,14 @@ $psychomotor_fields = [
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
         }
-        
+
         .rc-student-name h2 {
             font-size: 0.95rem;
             font-weight: 600;
             margin: 0;
             text-transform: uppercase;
         }
-        
+
         .rc-student-name p {
             font-size: 0.6rem;
             opacity: 0.9;
@@ -656,19 +656,19 @@ $psychomotor_fields = [
             gap: 5px;
             font-size: 0.6rem;
         }
-        
+
         .rc-student-details .detail-item {
             display: inline-flex;
             align-items: baseline;
             gap: 4px;
             justify-content: center;
         }
-        
+
         .detail-label {
             font-weight: 600;
             color: #666;
         }
-        
+
         .detail-value {
             font-weight: 500;
             color: #222;
@@ -735,11 +735,30 @@ $psychomotor_fields = [
             font-weight: 700;
         }
 
-        .g-a { background: #d4edda; color: #155724; }
-        .g-b { background: #cce5ff; color: #004085; }
-        .g-c { background: #fff3cd; color: #856404; }
-        .g-d { background: #fce4ec; color: #880e4f; }
-        .g-f { background: #f8d7da; color: #721c24; }
+        .g-a {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .g-b {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .g-c {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .g-d {
+            background: #fce4ec;
+            color: #880e4f;
+        }
+
+        .g-f {
+            background: #f8d7da;
+            color: #721c24;
+        }
 
         /* Summary stats */
         .rc-summary {
@@ -814,12 +833,35 @@ $psychomotor_fields = [
             font-weight: 600;
         }
 
-        .tv-a { background: #d4edda; color: #155724; }
-        .tv-b { background: #cce5ff; color: #004085; }
-        .tv-c { background: #fff3cd; color: #856404; }
-        .tv-d { background: #ffe0b2; color: #e65100; }
-        .tv-e { background: #f8d7da; color: #721c24; }
-        .tv-null { background: #f0f0f0; color: #999; }
+        .tv-a {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .tv-b {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .tv-c {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .tv-d {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+
+        .tv-e {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .tv-null {
+            background: #f0f0f0;
+            color: #999;
+        }
 
         /* Comments - Compact */
         .comments-row {
@@ -882,10 +924,12 @@ $psychomotor_fields = [
                 size: A4 portrait;
                 margin: 3mm;
             }
+
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+
             .no-print,
             .mobile-toggle,
             .top-bar,
@@ -896,10 +940,12 @@ $psychomotor_fields = [
             .sidebar-overlay {
                 display: none !important;
             }
+
             .content-area {
                 margin-left: 0 !important;
                 padding: 0 !important;
             }
+
             .rc-card {
                 box-shadow: none;
                 border-radius: 0;
@@ -1004,7 +1050,7 @@ $psychomotor_fields = [
                     <!-- Header -->
                     <div class="rc-header">
                         <?php if (!empty($school_logo)): ?>
-                            <?php 
+                            <?php
                             $logo_displayed = false;
                             $logo_paths_to_try = [
                                 $school_logo,
@@ -1095,7 +1141,7 @@ $psychomotor_fields = [
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
+                            <?php
                             $total_sum = 0;
                             $scored_count = 0;
                             foreach ($subjects as $sub):
@@ -1130,15 +1176,33 @@ $psychomotor_fields = [
 
                     <!-- Summary stats -->
                     <div class="rc-summary">
-                        <div class="summary-item"><div class="value"><?php echo $scored_count; ?></div><div class="label">Subjects</div></div>
-                        <div class="summary-item"><div class="value"><?php echo number_format($total_sum, 0); ?></div><div class="label">Total Marks</div></div>
-                        <div class="summary-item"><div class="value"><?php echo number_format($avg, 1); ?>%</div><div class="label">Average</div></div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo $scored_count; ?></div>
+                            <div class="label">Subjects</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo number_format($total_sum, 0); ?></div>
+                            <div class="label">Total Marks</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo number_format($avg, 1); ?>%</div>
+                            <div class="label">Average</div>
+                        </div>
                         <?php if ($show_class_position): ?>
-                            <div class="summary-item"><div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div><div class="label">Class Position</div></div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div>
+                                <div class="label">Class Position</div>
+                            </div>
                         <?php endif; ?>
                         <?php if ($show_lowest_highest_avg && $total_students > 0): ?>
-                            <div class="summary-item"><div class="value"><?php echo number_format($highest_avg, 1); ?>%</div><div class="label">Highest in Class</div></div>
-                            <div class="summary-item"><div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div><div class="label">Lowest in Class</div></div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo number_format($highest_avg, 1); ?>%</div>
+                                <div class="label">Highest in Class</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div>
+                                <div class="label">Lowest in Class</div>
+                            </div>
                         <?php endif; ?>
                     </div>
 
@@ -1344,12 +1408,12 @@ $psychomotor_fields = [
                     unit: 'mm',
                     format: 'a4'
                 });
-                
+
                 const pdfW = pdf.internal.pageSize.getWidth();
                 const pdfH = pdf.internal.pageSize.getHeight();
                 const imgW = pdfW - 10;
                 const imgH = (canvas.height * imgW) / canvas.width;
-                
+
                 // Calculate if content fits on one page
                 if (imgH <= pdfH - 10) {
                     // Fits on one page

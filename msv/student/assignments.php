@@ -644,22 +644,22 @@ $completed_assignments = $stmt->fetchAll();
                         <span class="grade-badge" style="background:#fee2e2; color:#b91c1c;"><i class="fas fa-hourglass-end"></i> Expired</span>
                     <?php endif; ?>
                 </div>
-                
+
                 <div style="margin-bottom: 20px;">
                     <div class="assignment-meta" style="margin-bottom: 12px;">
                         <span><i class="fas fa-book-open"></i> <?php echo htmlspecialchars($assignment['subject_name']); ?></span>
                         <span><i class="fas fa-calendar-alt"></i> Due: <?php echo date('M d, Y g:i A', strtotime($assignment['deadline'])); ?></span>
                         <span><i class="fas fa-star"></i> Max Marks: <?php echo $assignment['max_marks']; ?></span>
                     </div>
-                    
+
                     <div style="background: var(--light); padding: 15px; border-radius: 10px; margin: 15px 0;">
                         <strong><i class="fas fa-info-circle"></i> Instructions</strong>
                         <p style="margin-top: 8px; line-height: 1.6;"><?php echo nl2br(htmlspecialchars($assignment['instructions'])); ?></p>
                     </div>
-                    
+
                     <?php if ($assignment['file_path']): ?>
                         <div class="file-attachment" style="margin: 12px 0;">
-                            <i class="fas fa-paperclip"></i> 
+                            <i class="fas fa-paperclip"></i>
                             <a href="/msv/<?php echo $assignment['file_path']; ?>" target="_blank" style="color: var(--primary-color);">📄 Download Assignment File</a>
                             <a href="/msv/<?php echo $assignment['file_path']; ?>" download class="btn btn-outline btn-sm" style="margin-left: 8px;"><i class="fas fa-download"></i></a>
                         </div>
@@ -671,7 +671,7 @@ $completed_assignments = $stmt->fetchAll();
                         <i class="fas fa-pen-fancy"></i> Written only: Submit physically to your teacher.
                     </div>
                     <a href="assignments.php" class="btn btn-warning"><i class="fas fa-arrow-left"></i> Back to List</a>
-                    
+
                 <?php elseif ($assignment['submission_type'] == 'online' || $assignment['submission_type'] == 'both'): ?>
                     <?php $is_expired = strtotime($assignment['deadline']) < time(); ?>
                     <?php if ($is_expired): ?>
@@ -681,20 +681,20 @@ $completed_assignments = $stmt->fetchAll();
                         <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="assignment_id" value="<?php echo $assignment['id']; ?>">
                             <input type="hidden" name="submission_method" id="finalMethod" value="online">
-                            
+
                             <?php if ($assignment['submission_type'] == 'both'): ?>
                                 <div class="submission-type-selector" id="methodToggle">
                                     <div class="type-option active" data-method="online"><i class="fas fa-globe"></i> Online Submission</div>
                                     <div class="type-option" data-method="written"><i class="fas fa-pen-fancy"></i> Written Submission</div>
                                 </div>
                             <?php endif; ?>
-                            
+
                             <div id="onlineBox">
                                 <div class="form-group">
                                     <label><i class="fas fa-paragraph"></i> Your Answer</label>
                                     <textarea name="submitted_text" class="form-control" rows="6" placeholder="Write your answer here..."></textarea>
                                 </div>
-                                
+
                                 <?php if ($assignment['allow_attachment']): ?>
                                     <div class="form-group">
                                         <label><i class="fas fa-paperclip"></i> Attachment (Max 10MB)</label>
@@ -702,12 +702,12 @@ $completed_assignments = $stmt->fetchAll();
                                         <small style="color: #666; font-size: 0.7rem;">Supported: PDF, DOC, DOCX, JPG, PNG, ZIP</small>
                                     </div>
                                 <?php endif; ?>
-                                
+
                                 <button type="submit" name="submit_assignment" class="btn btn-success" style="width: 100%;">
                                     <i class="fas fa-paper-plane"></i> Submit Online
                                 </button>
                             </div>
-                            
+
                             <div id="writtenBox" style="display: none;">
                                 <div class="alert alert-info" style="margin: 10px 0;">
                                     <i class="fas fa-info-circle"></i> You've selected written submission. Please submit your assignment physically in class.
@@ -716,7 +716,7 @@ $completed_assignments = $stmt->fetchAll();
                                     <i class="fas fa-check"></i> Confirm Written Submission
                                 </button>
                             </div>
-                            
+
                             <a href="assignments.php" class="btn btn-outline" style="margin-top: 12px; width: 100%;">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
@@ -732,14 +732,14 @@ $completed_assignments = $stmt->fetchAll();
                 <div class="card-header">
                     <h3><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($assignment['title']); ?></h3>
                 </div>
-                
+
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> 
+                    <i class="fas fa-check-circle"></i>
                     Already submitted on <?php echo date('M d, Y \a\t g:i A', strtotime($existing_submission['submitted_at'])); ?>
                 </div>
-                
+
                 <div class="submission-detail">
-                    <p><strong>Status:</strong> 
+                    <p><strong>Status:</strong>
                         <span class="grade-badge grade-<?php echo $existing_submission['status']; ?>">
                             <?php echo ucfirst($existing_submission['status']); ?>
                         </span>
@@ -749,7 +749,7 @@ $completed_assignments = $stmt->fetchAll();
                         <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($existing_submission['teacher_feedback'] ?? '')); ?></p>
                     <?php endif; ?>
                 </div>
-                
+
                 <a href="assignments.php" class="btn btn-primary" style="margin-top: 16px;">
                     <i class="fas fa-arrow-left"></i> Back to List
                 </a>
@@ -762,37 +762,37 @@ $completed_assignments = $stmt->fetchAll();
                 <div class="card-header">
                     <h3><i class="fas fa-eye"></i> <?php echo htmlspecialchars($submission['title']); ?></h3>
                 </div>
-                
+
                 <div class="assignment-meta">
                     <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($submission['subject_name']); ?></span>
                     <span><i class="fas fa-calendar-check"></i> Submitted: <?php echo date('M d, Y', strtotime($submission['submitted_at'])); ?></span>
                 </div>
-                
+
                 <div class="submission-detail">
-                    <p><strong>Status:</strong> 
+                    <p><strong>Status:</strong>
                         <span class="grade-badge grade-<?php echo $submission['status']; ?>">
                             <?php echo ucfirst($submission['status']); ?>
                         </span>
                     </p>
-                    
+
                     <?php if ($submission['status'] === 'graded'): ?>
                         <p style="margin-top: 10px;"><strong>Grade:</strong> <?php echo $submission['grade']; ?>/<?php echo $submission['max_marks']; ?></p>
                         <p><strong>Feedback:</strong> <?php echo nl2br(htmlspecialchars($submission['teacher_feedback'] ?? '')); ?></p>
                     <?php endif; ?>
-                    
+
                     <p style="margin-top: 15px;"><strong>Your Answer:</strong></p>
                     <div style="background: white; padding: 15px; border-radius: 10px; margin-top: 5px;">
                         <?php echo nl2br(htmlspecialchars($submission['submitted_text'])); ?>
                     </div>
-                    
+
                     <?php if ($submission['file_path']): ?>
                         <div class="file-attachment" style="margin-top: 12px;">
-                            <i class="fas fa-file"></i> 
+                            <i class="fas fa-file"></i>
                             <a href="/msv/<?php echo $submission['file_path']; ?>" target="_blank">View Attachment</a>
                         </div>
                     <?php endif; ?>
                 </div>
-                
+
                 <a href="assignments.php" class="btn btn-outline" style="margin-top: 16px;">
                     <i class="fas fa-arrow-left"></i> Back to List
                 </a>
@@ -801,14 +801,14 @@ $completed_assignments = $stmt->fetchAll();
 
         <!-- ========== DASHBOARD: Pending & Completed ========== -->
         <?php if (!$assignment_id && !$view_submission): ?>
-            
+
             <!-- Pending Assignments -->
             <div class="content-card">
                 <div class="card-header">
                     <h3><i class="fas fa-hourglass-half"></i> Pending Assignments</h3>
                     <span class="badge-count"><?php echo count($pending_assignments); ?></span>
                 </div>
-                
+
                 <?php if (empty($pending_assignments)): ?>
                     <div class="empty-state">
                         <i class="fas fa-check-circle fa-3x"></i>
@@ -839,14 +839,14 @@ $completed_assignments = $stmt->fetchAll();
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            
+
                             <?php if ($task['file_path']): ?>
                                 <div class="file-attachment">
-                                    <i class="fas fa-paperclip"></i> 
+                                    <i class="fas fa-paperclip"></i>
                                     <a href="/msv/<?php echo $task['file_path']; ?>" target="_blank">Attachment Available</a>
                                 </div>
                             <?php endif; ?>
-                            
+
                             <?php if (!$expired && $task['submission_type'] != 'written'): ?>
                                 <a href="assignments.php?id=<?php echo $task['id']; ?>" class="btn btn-primary btn-sm" style="margin-top: 10px;">
                                     <i class="fas fa-arrow-right"></i> Submit Assignment
@@ -871,7 +871,7 @@ $completed_assignments = $stmt->fetchAll();
                     <h3><i class="fas fa-check-double"></i> Completed Assignments</h3>
                     <span class="badge-count"><?php echo count($completed_assignments); ?></span>
                 </div>
-                
+
                 <?php if (empty($completed_assignments)): ?>
                     <div class="empty-state">
                         <i class="fas fa-folder-open fa-3x"></i>
@@ -908,7 +908,6 @@ $completed_assignments = $stmt->fetchAll();
     </div>
 
     <script>
-
         // Method toggle for both submission types
         const methodDivs = document.querySelectorAll('.type-option');
         const onlineBox = document.getElementById('onlineBox');

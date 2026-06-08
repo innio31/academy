@@ -717,6 +717,12 @@ function getActiveSchoolQRCode($pdo, $school_id)
                 <button class="tab-btn" data-tab="email_settings">
                     <i class="fas fa-envelope"></i> Email
                 </button>
+                <button class="tab-btn" data-tab="take_attendance">
+                    <i class="fas fa-user-check"></i> Take Attendance
+                </button>
+                <button class="tab-btn" data-tab="staff_permissions">
+                    <i class="fas fa-user-shield"></i> Staff Permissions
+                </button>
             </div>
 
             <!-- Tab 1: School QR -->
@@ -988,6 +994,228 @@ function getActiveSchoolQRCode($pdo, $school_id)
                     </button>
                 </div>
             </div>
+
+            <!-- TAB: TAKE ATTENDANCE (Admin) -->
+            <div id="tab-take_attendance" class="tab-content">
+
+                <!-- Today's Stats -->
+                <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+                    <div class="card" style="text-align:center;padding:16px;margin-bottom:0;">
+                        <div class="report-stat" style="background:linear-gradient(135deg,#10b981,#059669);border-radius:10px;padding:16px;">
+                            <div class="value" id="adm_present">—</div>
+                            <div class="label">Present</div>
+                        </div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;margin-bottom:0;">
+                        <div class="report-stat" style="background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:10px;padding:16px;">
+                            <div class="value" id="adm_absent">—</div>
+                            <div class="label">Absent</div>
+                        </div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;margin-bottom:0;">
+                        <div class="report-stat" style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:10px;padding:16px;">
+                            <div class="value" id="adm_late">—</div>
+                            <div class="label">Late</div>
+                        </div>
+                    </div>
+                    <div class="card" style="text-align:center;padding:16px;margin-bottom:0;">
+                        <div class="report-stat" style="background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));border-radius:10px;padding:16px;">
+                            <div class="value" id="adm_total">—</div>
+                            <div class="label">Total</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="height:16px;"></div>
+
+                <!-- Mode toggle -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-user-check"></i> Mark Student Attendance</h2>
+                    </div>
+
+                    <div style="display:flex;gap:8px;margin-bottom:16px;">
+                        <button class="btn btn-primary" id="admModeQR"    onclick="admSetMode('qr')">
+                            <i class="fas fa-qrcode"></i> QR Scan
+                        </button>
+                        <button class="btn btn-secondary" id="admModeManual" onclick="admSetMode('manual')">
+                            <i class="fas fa-list-check"></i> Manual (Class List)
+                        </button>
+                    </div>
+
+                    <!-- QR Mode -->
+                    <div id="admQrMode">
+                        <div style="display:flex;gap:8px;margin-bottom:12px;">
+                            <button class="btn btn-success" id="admScanTypeIn"  onclick="admSetScanType('check_in')"  style="flex:1;">
+                                <i class="fas fa-sign-in-alt"></i> Check In
+                            </button>
+                            <button class="btn btn-secondary" id="admScanTypeOut" onclick="admSetScanType('check_out')" style="flex:1;">
+                                <i class="fas fa-sign-out-alt"></i> Check Out
+                            </button>
+                        </div>
+
+                        <div id="admScannerWrap" style="background:#111827;border-radius:12px;overflow:hidden;min-height:300px;display:flex;align-items:center;justify-content:center;">
+                            <div id="admScannerPlaceholder" style="text-align:center;color:white;padding:60px 20px;">
+                                <i class="fas fa-camera" style="font-size:48px;opacity:0.6;margin-bottom:12px;display:block;"></i>
+                                Camera not started
+                            </div>
+                            <div id="adm-qr-reader" style="width:100%;display:none;"></div>
+                        </div>
+
+                        <div style="display:flex;gap:10px;margin-top:12px;">
+                            <button class="btn btn-primary" id="admStartScanBtn" onclick="admStartScanner()" style="flex:1;">
+                                <i class="fas fa-camera"></i> Start Camera
+                            </button>
+                            <button class="btn btn-secondary" id="admStopScanBtn" onclick="admStopScanner()" style="display:none;flex:1;">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        </div>
+
+                        <div id="admScanResult" style="margin-top:12px;"></div>
+                    </div>
+
+                    <!-- Manual / Class List Mode -->
+                    <div id="admManualMode" style="display:none;">
+                        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:160px;">
+                                <label class="form-label" style="font-size:0.75rem;font-weight:500;color:var(--gray-700);display:block;margin-bottom:4px;">Class</label>
+                                <select id="admClassSelect" class="form-select" onchange="admLoadClassStudents()">
+                                    <option value="">Select class…</option>
+                                    <?php foreach ($all_classes as $c): ?>
+                                        <option value="<?php echo $c['id']; ?>"><?php echo htmlspecialchars($c['class_name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div style="flex:1;min-width:140px;">
+                                <label class="form-label" style="font-size:0.75rem;font-weight:500;color:var(--gray-700);display:block;margin-bottom:4px;">Date</label>
+                                <input type="date" id="admAttDate" class="form-control" value="<?php echo date('Y-m-d'); ?>" onchange="admLoadClassStudents()">
+                            </div>
+                        </div>
+
+                        <div id="admClassStudentsWrap">
+                            <p style="color:var(--gray-500);font-size:0.8rem;">Select a class to load students.</p>
+                        </div>
+
+                        <div id="admBulkActions" style="display:none;margin-top:12px;">
+                            <div style="display:flex;gap:10px;">
+                                <button class="btn btn-success" onclick="admMarkAllPresent()" style="flex:1;">
+                                    <i class="fas fa-check-double"></i> Mark All Present
+                                </button>
+                                <button class="btn btn-primary" onclick="admSaveBulk()" style="flex:1;">
+                                    <i class="fas fa-save"></i> Save Attendance
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="admBulkResult" style="margin-top:12px;"></div>
+                    </div>
+                </div>
+
+                <!-- Recent Scans -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-history"></i> Recent Scans Today</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="admLoadRecentScans()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Time</th><th>Name</th><th>Class</th><th>Type</th><th>Status</th></tr>
+                            </thead>
+                            <tbody id="admRecentScansBody">
+                                <tr><td colspan="5" style="text-align:center;">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- TAB: STAFF PERMISSIONS -->
+            <div id="tab-staff_permissions" class="tab-content">
+
+                <!-- Grant / Edit Permission form -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-user-shield"></i> Grant / Edit Permission</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Staff Member</label>
+                        <select id="permStaffSelect" class="form-select">
+                            <option value="">Select staff…</option>
+                            <?php foreach ($all_staff as $sm): ?>
+                                <option value="<?php echo $sm['id']; ?>">
+                                    <?php echo htmlspecialchars($sm['full_name'] . ' (' . $sm['staff_id'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer;">
+                            <input type="checkbox" id="permCanTake" checked style="width:16px;height:16px;">
+                            Can take attendance
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer;">
+                            <input type="checkbox" id="permCanView" checked style="width:16px;height:16px;">
+                            Can view reports
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Assigned Classes <span style="font-size:0.7rem;color:var(--gray-500);">(leave empty = all classes)</span></label>
+                        <div id="permClassCheckboxes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:200px;overflow-y:auto;border:2px solid var(--gray-200);border-radius:10px;padding:12px;">
+                            <?php foreach ($all_classes as $c): ?>
+                                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;">
+                                    <input type="checkbox" class="perm-class-cb" value="<?php echo $c['id']; ?>" style="width:14px;height:14px;">
+                                    <?php echo htmlspecialchars($c['class_name']); ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn btn-primary" onclick="savePermissions()" style="flex:1;">
+                            <i class="fas fa-save"></i> Save Permissions
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearPermForm()" style="flex:1;">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+
+                    <div id="permSaveResult" style="margin-top:12px;"></div>
+                </div>
+
+                <!-- Current Permissions Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-table"></i> Current Staff Permissions</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="loadPermissions()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Staff</th>
+                                    <th>Code</th>
+                                    <th>Take Att.</th>
+                                    <th>View Reports</th>
+                                    <th>Assigned Classes</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="permTableBody">
+                                <tr><td colspan="6" style="text-align:center;">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1026,6 +1254,13 @@ function getActiveSchoolQRCode($pdo, $school_id)
 
                 if (tabName === 'attendance_report') {
                     loadAttendanceReport();
+                }
+                if (tabName === 'take_attendance') {
+                    admLoadTodayStats();
+                    admLoadRecentScans();
+                }
+                if (tabName === 'staff_permissions') {
+                    loadPermissions();
                 }
             });
         });
@@ -1561,6 +1796,311 @@ function getActiveSchoolQRCode($pdo, $school_id)
             return div.innerHTML;
         }
 
+        // ==================== ADMIN TAKE ATTENDANCE ====================
+        let admScanner      = null;
+        let admScannerActive = false;
+        let admCurrentMode  = 'qr';
+        let admCurrentScan  = 'check_in';
+
+        function admSetMode(mode) {
+            admCurrentMode = mode;
+            document.getElementById('admQrMode').style.display    = mode === 'qr'     ? 'block' : 'none';
+            document.getElementById('admManualMode').style.display = mode === 'manual' ? 'block' : 'none';
+            document.getElementById('admModeQR').className     = 'btn ' + (mode === 'qr'     ? 'btn-primary' : 'btn-secondary');
+            document.getElementById('admModeManual').className  = 'btn ' + (mode === 'manual' ? 'btn-primary' : 'btn-secondary');
+            if (mode === 'manual') admLoadClassStudents();
+        }
+
+        function admSetScanType(type) {
+            admCurrentScan = type;
+            document.getElementById('admScanTypeIn').className  = 'btn ' + (type === 'check_in'  ? 'btn-success'   : 'btn-secondary');
+            document.getElementById('admScanTypeOut').className = 'btn ' + (type === 'check_out' ? 'btn-warning'   : 'btn-secondary');
+        }
+
+        function admStartScanner() {
+            document.getElementById('admScannerPlaceholder').style.display = 'none';
+            const reader = document.getElementById('adm-qr-reader');
+            reader.style.display = 'block';
+            document.getElementById('admStartScanBtn').style.display = 'none';
+            document.getElementById('admStopScanBtn').style.display  = 'inline-flex';
+
+            admScanner = new Html5Qrcode('adm-qr-reader');
+            admScanner.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decoded) => admHandleScan(decoded),
+                () => {}
+            ).then(() => { admScannerActive = true; })
+             .catch(() => {
+                alert('Camera access denied or not available.');
+                admStopScanner();
+             });
+        }
+
+        function admStopScanner() {
+            if (admScanner && admScannerActive) {
+                admScanner.stop().then(() => {
+                    admScannerActive = false;
+                    document.getElementById('adm-qr-reader').style.display = 'none';
+                    document.getElementById('admScannerPlaceholder').style.display = 'block';
+                    document.getElementById('admStartScanBtn').style.display = 'inline-flex';
+                    document.getElementById('admStopScanBtn').style.display  = 'none';
+                });
+            }
+        }
+
+        function admHandleScan(text) {
+            try {
+                const data = JSON.parse(decodeURIComponent(text));
+                const sid  = data.id || data.student_id;
+                if (sid) { admRecordStudent(sid); return; }
+            } catch (e) {}
+            const sid = parseInt(text);
+            if (sid > 0) admRecordStudent(sid);
+            else admShowScanResult('Invalid QR code', 'error');
+        }
+
+        async function admRecordStudent(studentId) {
+            const result = await apiCall('admin_record_student_attendance', {
+                student_id: studentId,
+                scan_type:  admCurrentScan
+            }, 'POST');
+
+            if (result.success) {
+                const emoji = admCurrentScan === 'check_in' ? '✅' : '👋';
+                admShowScanResult(`${emoji} ${result.student_name} (${result.class_name}) — ${result.message} [${result.status}]`, 'success');
+                admLoadTodayStats();
+                admLoadRecentScans();
+            } else {
+                admShowScanResult('❌ ' + result.error, 'error');
+            }
+        }
+
+        function admShowScanResult(msg, type) {
+            const div = document.getElementById('admScanResult');
+            div.innerHTML = `<div class="alert-${type === 'success' ? 'success' : 'danger'}" style="padding:10px;border-radius:8px;font-size:0.82rem;">${msg}</div>`;
+            setTimeout(() => { div.innerHTML = ''; }, 4000);
+        }
+
+        async function admLoadTodayStats() {
+            const r = await apiCall('admin_today_stats');
+            if (r.success) {
+                document.getElementById('adm_present').textContent = r.present;
+                document.getElementById('adm_absent').textContent  = r.absent;
+                document.getElementById('adm_late').textContent    = r.late;
+                document.getElementById('adm_total').textContent   = r.total;
+            }
+        }
+
+        async function admLoadRecentScans() {
+            const r = await apiCall('admin_recent_scans', { limit: 20 });
+            const tbody = document.getElementById('admRecentScansBody');
+            if (!r.success || !r.scans.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No scans today</td></tr>';
+                return;
+            }
+            tbody.innerHTML = r.scans.map(s => `
+                <tr>
+                    <td>${s.time_formatted}</td>
+                    <td><strong>${escapeHtml(s.full_name)}</strong></td>
+                    <td>${escapeHtml(s.class_name || '—')}</td>
+                    <td><span class="status-badge" style="background:#dbeafe;color:#1e40af;">${s.scan_type === 'check_in' ? 'In' : 'Out'}</span></td>
+                    <td><span class="status-badge status-${s.status}">${s.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Manual / class list mode
+        let admStudentData = [];
+
+        async function admLoadClassStudents() {
+            const classId = document.getElementById('admClassSelect').value;
+            const date    = document.getElementById('admAttDate').value;
+            const wrap    = document.getElementById('admClassStudentsWrap');
+
+            if (!classId) {
+                wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Select a class to load students.</p>';
+                document.getElementById('admBulkActions').style.display = 'none';
+                return;
+            }
+
+            wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Loading…</p>';
+            const r = await apiCall('admin_get_class_students', { class_id: classId, date });
+
+            if (!r.success) {
+                wrap.innerHTML = `<p style="color:red;font-size:0.8rem;">${r.error}</p>`;
+                return;
+            }
+
+            admStudentData = r.students;
+            const s = r.summary;
+
+            wrap.innerHTML = `
+                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                    <span class="status-badge status-present">Present: ${s.present}</span>
+                    <span class="status-badge status-absent">Absent: ${s.absent}</span>
+                    <span class="status-badge status-late">Late: ${s.late}</span>
+                    <span class="status-badge" style="background:#e5e7eb;color:#374151;">Total: ${s.total}</span>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>#</th><th>Adm. No</th><th>Name</th><th>Status</th><th>Time</th><th>Mark</th></tr>
+                        </thead>
+                        <tbody id="admStudentListBody">
+                            ${r.students.map((st, i) => {
+                                const status = st.attendance_status;
+                                const time   = st.scan_time
+                                    ? new Date(st.scan_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                                    : '—';
+                                const badge  = status === 'present'
+                                    ? `<span class="status-badge status-${st.log_status === 'late' ? 'late' : 'present'}">${st.log_status === 'late' ? 'Late' : 'Present'}</span>`
+                                    : '<span class="status-badge status-absent">Absent</span>';
+                                return `
+                                    <tr id="admRow_${st.id}">
+                                        <td>${i+1}</td>
+                                        <td>${escapeHtml(st.admission_number)}</td>
+                                        <td><strong>${escapeHtml(st.full_name)}</strong></td>
+                                        <td>${badge}</td>
+                                        <td>${time}</td>
+                                        <td>
+                                            ${status !== 'present'
+                                                ? `<button class="btn btn-success btn-sm" onclick="admMarkOne(${st.id})">
+                                                       <i class="fas fa-check"></i>
+                                                   </button>`
+                                                : '<span style="color:var(--gray-400);font-size:0.7rem;">Done</span>'}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('admBulkActions').style.display = 'flex';
+        }
+
+        async function admMarkOne(studentId) {
+            const result = await apiCall('admin_record_student_attendance', {
+                student_id: studentId,
+                scan_type:  'check_in'
+            }, 'POST');
+            if (result.success) {
+                showAlert(`✅ ${result.student_name} marked present`, 'success');
+                admLoadClassStudents();
+                admLoadTodayStats();
+            } else {
+                showAlert('❌ ' + result.error, 'error');
+            }
+        }
+
+        function admMarkAllPresent() {
+            const absent = admStudentData.filter(s => s.attendance_status !== 'present');
+            if (!absent.length) { showAlert('All students already marked', 'success'); return; }
+            if (!confirm(`Mark all ${absent.length} absent student(s) as present?`)) return;
+            absent.forEach(s => admMarkOne(s.id));
+        }
+
+        async function admSaveBulk() {
+            const classId    = document.getElementById('admClassSelect').value;
+            const date       = document.getElementById('admAttDate').value;
+            const presentIds = [];
+            const absentIds  = [];
+
+            admStudentData.forEach(s => {
+                if (s.attendance_status === 'present') presentIds.push(s.id);
+                else absentIds.push(s.id);
+            });
+
+            const result = await apiCall('admin_bulk_mark_attendance', {
+                class_id:    classId,
+                date,
+                present_ids: presentIds,
+                absent_ids:  absentIds
+            }, 'POST');
+
+            const div = document.getElementById('admBulkResult');
+            if (result.success) {
+                div.innerHTML = `<div class="alert-success" style="padding:10px;border-radius:8px;">${result.message}</div>`;
+                admLoadTodayStats();
+            } else {
+                div.innerHTML = `<div class="alert-danger" style="padding:10px;border-radius:8px;">${result.error}</div>`;
+            }
+            setTimeout(() => { div.innerHTML = ''; }, 4000);
+        }
+
+        // ==================== STAFF PERMISSIONS ====================
+        async function loadPermissions() {
+            const r = await apiCall('get_staff_permissions');
+            const tbody = document.getElementById('permTableBody');
+            if (!r.success || !r.permissions.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No permissions set yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = r.permissions.map(p => `
+                <tr>
+                    <td><strong>${escapeHtml(p.full_name)}</strong></td>
+                    <td>${escapeHtml(p.staff_code)}</td>
+                    <td>${p.can_take_attendance ? '<span class="status-badge status-present">Yes</span>' : '<span class="status-badge status-absent">No</span>'}</td>
+                    <td>${p.can_view_reports    ? '<span class="status-badge status-present">Yes</span>' : '<span class="status-badge status-absent">No</span>'}</td>
+                    <td style="font-size:0.7rem;max-width:200px;">${escapeHtml(p.assigned_class_names)}</td>
+                    <td>
+                        <button class="btn btn-secondary btn-sm" onclick="editPermission(${p.staff_id})" style="margin-right:4px;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="revokePermission(${p.staff_id}, '${escapeHtml(p.full_name)}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function editPermission(staffId) {
+            document.getElementById('permStaffSelect').value = staffId;
+            document.getElementById('permStaffSelect').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function revokePermission(staffId, name) {
+            if (!confirm(`Revoke all attendance permissions for ${name}?`)) return;
+            const r = await apiCall('revoke_staff_permissions', { staff_id: staffId }, 'POST');
+            if (r.success) { showAlert('Permissions revoked', 'success'); loadPermissions(); }
+            else            showAlert('Error: ' + r.error, 'error');
+        }
+
+        async function savePermissions() {
+            const staffId = document.getElementById('permStaffSelect').value;
+            if (!staffId) { showAlert('Please select a staff member', 'error'); return; }
+
+            const canTake = document.getElementById('permCanTake').checked ? 1 : 0;
+            const canView = document.getElementById('permCanView').checked ? 1 : 0;
+            const classes = [...document.querySelectorAll('.perm-class-cb:checked')].map(cb => cb.value);
+
+            const result = await apiCall('save_staff_permissions', {
+                staff_id:            staffId,
+                can_take_attendance: canTake,
+                can_view_reports:    canView,
+                assigned_classes:    classes
+            }, 'POST');
+
+            const div = document.getElementById('permSaveResult');
+            if (result.success) {
+                div.innerHTML = `<div class="alert-success" style="padding:10px;border-radius:8px;">✅ ${result.message}</div>`;
+                loadPermissions();
+                clearPermForm();
+            } else {
+                div.innerHTML = `<div class="alert-danger" style="padding:10px;border-radius:8px;">❌ ${result.error}</div>`;
+            }
+            setTimeout(() => { div.innerHTML = ''; }, 4000);
+        }
+
+        function clearPermForm() {
+            document.getElementById('permStaffSelect').value = '';
+            document.getElementById('permCanTake').checked = true;
+            document.getElementById('permCanView').checked = true;
+            document.querySelectorAll('.perm-class-cb').forEach(cb => cb.checked = false);
+        }
+
         // ==================== EVENT LISTENERS ====================
         document.getElementById('notificationBell').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1579,6 +2119,13 @@ function getActiveSchoolQRCode($pdo, $school_id)
         // ==================== INIT ====================
         loadUnreadCount();
         setInterval(loadUnreadCount, 30000);
+        admLoadTodayStats();
+        setInterval(() => {
+            if (document.getElementById('tab-take_attendance')?.classList.contains('active')) {
+                admLoadTodayStats();
+                admLoadRecentScans();
+            }
+        }, 15000);
 
         // Set default duration
         const defaultBtn = document.querySelector('#qrDurationOptions .duration-btn[data-hours="72"]');

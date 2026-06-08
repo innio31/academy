@@ -48,7 +48,9 @@ if (empty($assigned_class_ids)) {
 $classes = $stmt->fetchAll();
 
 // Handle API requests (AJAX)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && (
+    $_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])
+)) {
     header('Content-Type: application/json');
     
     $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -62,20 +64,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $scan_type = $_POST['scan_type'] ?? $input['scan_type'] ?? 'check_in';
             $current_time = date('H:i:s');
             $current_date = date('Y-m-d');
-            $staff_id_string = $_POST['staff_id'] ?? $input['staff_id'] ?? null;
-            
-            if (!$staff_id_string) {
-                $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ?");
-                $stmt->execute([$staff_numeric_id]);
-                $staff_id_string = $stmt->fetchColumn();
-            }
             
             // Check if already clocked in today
             if ($scan_type === 'check_in') {
                 $stmt = $pdo->prepare("SELECT id FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
-                $stmt->execute([$staff_id_string, $current_date, $school_id]);
+                $stmt->execute([$staff_numeric_id, $current_date, $school_id]);
                 if ($stmt->fetch()) {
                     echo json_encode(['success' => false, 'error' => 'Already clocked in today']);
+                    exit();
+                }
+            }
+            
+            // Check if already clocked out for check_out
+            if ($scan_type === 'check_out') {
+                $stmt = $pdo->prepare("SELECT clock_out FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
+                $stmt->execute([$staff_numeric_id, $current_date, $school_id]);
+                $record = $stmt->fetch();
+                if (!$record) {
+                    echo json_encode(['success' => false, 'error' => 'Not clocked in yet']);
+                    exit();
+                }
+                if ($record['clock_out']) {
+                    echo json_encode(['success' => false, 'error' => 'Already clocked out today']);
                     exit();
                 }
             }
@@ -90,44 +100,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     INSERT INTO staff_attendance (staff_id, school_id, date, clock_in, status, attendance_source, created_at)
                     VALUES (?, ?, ?, ?, ?, 'self_scan', NOW())
                 ");
-                $stmt->execute([$staff_id_string, $school_id, $current_date, $current_time, $status]);
+                $stmt->execute([$staff_numeric_id, $school_id, $current_date, $current_time, $status]);
             } else {
                 $stmt = $pdo->prepare("
                     UPDATE staff_attendance SET clock_out = ? 
                     WHERE staff_id = ? AND date = ? AND school_id = ?
                 ");
-                $stmt->execute([$current_time, $staff_id_string, $current_date, $school_id]);
+                $stmt->execute([$current_time, $staff_numeric_id, $current_date, $school_id]);
             }
             
             // Create notification for admin
-            createAttendanceNotification(
-                $pdo, $school_id,
-                $scan_type === 'check_in' ? 'staff_clock_in' : 'staff_clock_out',
-                1, 'admin',
-                $staff_numeric_id, 'staff',
-                $staff_name, null, null, null, null,
-                $status, true, false
-            );
+            if (function_exists('createAttendanceNotification')) {
+                createAttendanceNotification(
+                    $pdo, $school_id,
+                    $scan_type === 'check_in' ? 'staff_clock_in' : 'staff_clock_out',
+                    1, 'admin',
+                    $staff_numeric_id, 'staff',
+                    $staff_name, null, null, null, null,
+                    $status, true, false
+                );
+            }
             
             echo json_encode(['success' => true, 'message' => ucfirst($scan_type) . ' successful', 'status' => $status]);
             break;
             
         case 'mark_friend':
-            $friend_staff_id = $_POST['friend_staff_id'] ?? $input['friend_staff_id'] ?? '';
+            $friend_staff_numeric_id = $_POST['friend_staff_id'] ?? $input['friend_staff_id'] ?? '';
             $proof_photo = null;
             
             // Handle photo upload
             if (isset($_FILES['proof_photo']) && $_FILES['proof_photo']['error'] === UPLOAD_ERR_OK) {
                 $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/msv/uploads/attendance_proofs/';
-                $result = uploadAndCompressImage($_FILES['proof_photo'], $upload_dir, 'friend_proof_', 100);
-                if ($result['success']) {
-                    $proof_photo = $result['path'];
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                if (function_exists('uploadAndCompressImage')) {
+                    $result = uploadAndCompressImage($_FILES['proof_photo'], $upload_dir, 'friend_proof_', 100);
+                    if ($result['success']) {
+                        $proof_photo = $result['path'];
+                    }
+                } else {
+                    // Simple upload without compression
+                    $filename = 'friend_proof_' . time() . '_' . rand(1000, 9999) . '.jpg';
+                    $target_path = $upload_dir . $filename;
+                    if (move_uploaded_file($_FILES['proof_photo']['tmp_name'], $target_path)) {
+                        $proof_photo = '/msv/uploads/attendance_proofs/' . $filename;
+                    }
                 }
             } elseif (isset($input['proof_photo_base64'])) {
                 $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/msv/uploads/attendance_proofs/';
-                $result = uploadBase64Image($input['proof_photo_base64'], $upload_dir, 'friend_proof_', 100);
-                if ($result['success']) {
-                    $proof_photo = $result['path'];
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                if (function_exists('uploadBase64Image')) {
+                    $result = uploadBase64Image($input['proof_photo_base64'], $upload_dir, 'friend_proof_', 100);
+                    if ($result['success']) {
+                        $proof_photo = $result['path'];
+                    }
                 }
             }
             
@@ -136,22 +165,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit();
             }
             
-            // Verify friend staff exists
-            $stmt = $pdo->prepare("SELECT id, staff_id, full_name FROM staff WHERE staff_id = ? AND school_id = ? AND is_active = 1");
-            $stmt->execute([$friend_staff_id, $school_id]);
+            // Verify friend staff exists (using numeric ID)
+            $stmt = $pdo->prepare("SELECT id, full_name FROM staff WHERE id = ? AND school_id = ? AND is_active = 1");
+            $stmt->execute([$friend_staff_numeric_id, $school_id]);
             $friend = $stmt->fetch();
             
             if (!$friend) {
-                echo json_encode(['success' => false, 'error' => 'Staff member not found']);
+                echo json_encode(['success' => false, 'error' => 'Staff member not found. Please enter numeric Staff ID.']);
                 exit();
             }
             
             $current_date = date('Y-m-d');
             $current_time = date('H:i:s');
+            $current_staff_numeric_id = $_SESSION['user_id'];
+            $current_staff_name = $_SESSION['user_name'] ?? 'Staff Member';
             
             // Check if friend already clocked in
             $stmt = $pdo->prepare("SELECT id FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
-            $stmt->execute([$friend['staff_id'], $current_date, $school_id]);
+            $stmt->execute([$friend['id'], $current_date, $school_id]);
             if ($stmt->fetch()) {
                 echo json_encode(['success' => false, 'error' => $friend['full_name'] . ' already clocked in today']);
                 exit();
@@ -164,35 +195,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'friend_marked', NOW())
             ");
             $stmt->execute([
-                $friend['staff_id'], $school_id, $current_date, $current_time, $status,
-                $staff_numeric_id, $staff_name, $proof_photo
+                $friend['id'], $school_id, $current_date, $current_time, $status,
+                $current_staff_numeric_id, $current_staff_name, $proof_photo
             ]);
             
             // Create notification for admin with photo proof
-            createAttendanceNotification(
-                $pdo, $school_id,
-                'friend_marked',
-                1, 'admin',
-                $friend['id'], 'staff',
-                $friend['full_name'], null,
-                $staff_numeric_id, $staff_name,
-                $proof_photo, $current_time, $status,
-                true, false
-            );
+            if (function_exists('createAttendanceNotification')) {
+                createAttendanceNotification(
+                    $pdo, $school_id,
+                    'friend_marked',
+                    1, 'admin',
+                    $friend['id'], 'staff',
+                    $friend['full_name'], null,
+                    $current_staff_numeric_id, $current_staff_name,
+                    $proof_photo, $current_time, $status,
+                    true, false
+                );
+            }
             
             echo json_encode(['success' => true, 'message' => 'Marked attendance for ' . $friend['full_name']]);
             break;
             
         case 'get_my_attendance':
+            // Simple query using numeric ID
             $stmt = $pdo->prepare("
-                SELECT staff_id, date, clock_in, clock_out, status, attendance_source, marked_by_name, proof_photo
+                SELECT 
+                    staff_id,
+                    date,
+                    clock_in,
+                    clock_out,
+                    status,
+                    attendance_source,
+                    marked_by_name,
+                    proof_photo,
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
                 FROM staff_attendance
-                WHERE staff_id = (SELECT staff_id FROM staff WHERE id = ?) AND school_id = ?
+                WHERE staff_id = ? AND school_id = ?
                 ORDER BY date DESC
                 LIMIT 30
             ");
             $stmt->execute([$staff_numeric_id, $school_id]);
-            $history = $stmt->fetchAll();
+            $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
             echo json_encode(['success' => true, 'history' => $history]);
             break;
             
@@ -242,14 +286,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 // Get today's staff attendance status for current staff
 $stmt = $pdo->prepare("
     SELECT sa.* FROM staff_attendance sa
-    JOIN staff s ON sa.staff_id = s.staff_id
-    WHERE s.id = ? AND sa.date = CURDATE() AND sa.school_id = ?
+    WHERE sa.staff_id = ? AND sa.date = CURDATE() AND sa.school_id = ?
 ");
 $stmt->execute([$staff_numeric_id, $school_id]);
 $today_attendance = $stmt->fetch();
-
-// Get active school QR code
-$active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -355,6 +395,11 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
             color: #374151;
         }
         
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
         .form-group {
             margin-bottom: 16px;
         }
@@ -456,22 +501,6 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
             display: block;
         }
         
-        .qr-display {
-            text-align: center;
-            padding: 20px;
-            background: #f9fafb;
-            border-radius: 14px;
-        }
-        
-        .qr-image {
-            max-width: 200px;
-            width: 100%;
-            margin: 0 auto;
-            border: 3px solid white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }
-        
         .alert-success {
             background: #d1fae5;
             color: #065f46;
@@ -490,6 +519,26 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
             display: flex;
             gap: 10px;
             margin-top: 16px;
+        }
+        
+        .staff-clock-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .clock-btn {
+            padding: 20px;
+            font-size: 1.2rem;
+            margin: 0 10px;
+            width: auto;
+            min-width: 150px;
+        }
+        
+        .info-text {
+            font-size: 0.7rem;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 8px;
         }
         
         @media (max-width: 767px) {
@@ -512,6 +561,12 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
             
             .status-time {
                 font-size: 1.5rem;
+            }
+            
+            .clock-btn {
+                padding: 15px;
+                font-size: 1rem;
+                min-width: 120px;
             }
         }
     </style>
@@ -538,39 +593,57 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
             </div>
         </div>
         
+        <!-- Staff Self Clock In/Out Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-clock"></i> My Attendance</h2>
+            </div>
+            <div class="staff-clock-section">
+                <?php if (!$today_attendance || !$today_attendance['clock_in']): ?>
+                    <button class="btn btn-primary clock-btn" onclick="recordSelfAttendance('check_in')">
+                        <i class="fas fa-sign-in-alt"></i> Clock In
+                    </button>
+                <?php elseif ($today_attendance['clock_in'] && !$today_attendance['clock_out']): ?>
+                    <button class="btn btn-warning clock-btn" onclick="recordSelfAttendance('check_out')">
+                        <i class="fas fa-sign-out-alt"></i> Clock Out
+                    </button>
+                <?php else: ?>
+                    <div class="alert-success" style="padding: 12px; text-align: center;">
+                        <i class="fas fa-check-circle"></i> Completed for today
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div id="selfClockResult" style="margin-top: 12px;"></div>
+        </div>
+        
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('scan')">📷 Scan QR</button>
+            <button class="tab-btn active" onclick="switchTab('scan')">📷 Scan Student QR</button>
             <button class="tab-btn" onclick="switchTab('friend')">👥 Mark Friend</button>
             <button class="tab-btn" onclick="switchTab('history')">📜 My History</button>
         </div>
         
-        <!-- Tab 1: Scan QR -->
+        <!-- Tab 1: Scan Student QR -->
         <div id="tab-scan" class="tab-content active">
             <div class="card">
                 <div class="card-header">
-                    <h2><i class="fas fa-qrcode"></i> Scan School QR Code</h2>
+                    <h2><i class="fas fa-qrcode"></i> Scan Student QR Code</h2>
                 </div>
-                <?php if ($active_school_qr): ?>
-                    <div class="qr-display">
-                        <img src="<?php echo htmlspecialchars($active_school_qr['qr_image']); ?>" class="qr-image">
-                        <p style="font-size: 0.7rem; margin-top: 8px;">Expires: <?php echo date('g:i A', strtotime($active_school_qr['expires_at'])); ?></p>
-                    </div>
-                    <div id="scannerContainer" style="display: none;">
-                        <div id="qr-reader" style="width: 100%;"></div>
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" id="startScannerBtn" onclick="startScanner()">
-                            <i class="fas fa-camera"></i> Start Camera
-                        </button>
-                        <button class="btn btn-secondary" id="stopScannerBtn" onclick="stopScanner()" style="display: none;">
-                            <i class="fas fa-stop"></i> Stop Camera
-                        </button>
-                    </div>
-                    <div id="scanResult" style="margin-top: 16px;"></div>
-                <?php else: ?>
-                    <p style="text-align:center; color: #6b7280;">No active school QR code. Please contact admin.</p>
-                <?php endif; ?>
+                <div id="studentScannerContainer" style="display: none;">
+                    <div id="qr-reader" style="width: 100%;"></div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="startScannerBtn" onclick="startStudentScanner()">
+                        <i class="fas fa-camera"></i> Start Camera
+                    </button>
+                    <button class="btn btn-secondary" id="stopScannerBtn" onclick="stopStudentScanner()" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop Camera
+                    </button>
+                </div>
+                <div id="scanResult" style="margin-top: 16px;"></div>
+                <div class="info-text">
+                    <i class="fas fa-info-circle"></i> Scan the student's QR code to mark their attendance
+                </div>
             </div>
         </div>
         
@@ -581,8 +654,11 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
                     <h2><i class="fas fa-user-friends"></i> Mark Attendance for Colleague</h2>
                 </div>
                 <div class="form-group">
-                    <label>Colleague's Staff ID</label>
-                    <input type="text" id="friendStaffId" class="form-control" placeholder="Enter staff ID">
+                    <label>Colleague's Numeric Staff ID</label>
+                    <input type="number" id="friendStaffId" class="form-control" placeholder="Enter numeric staff ID (e.g., 1, 2, 3)">
+                    <div class="info-text" style="margin-top: 5px;">
+                        <i class="fas fa-info-circle"></i> Use the numeric ID, not the staff code (e.g., use "1" not "MSV0030")
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Take Photo Proof</label>
@@ -590,7 +666,7 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
                         <i class="fas fa-camera" style="font-size: 2rem; color: #9ca3af;"></i>
                     </div>
                     <button class="btn btn-secondary" id="openFriendCameraBtn" style="margin-top: 8px;">
-                        <i class="fas fa-camera"></i> Open Camera
+                        <i class="fas fa-camera"></i> Take Photo
                     </button>
                     <input type="file" id="friendPhotoInput" accept="image/*" capture="environment" style="display: none;">
                 </div>
@@ -647,55 +723,12 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
         event.target.classList.add('active');
         document.getElementById(`tab-${tabName}`).classList.add('active');
         
-        if (tabName === 'history') loadMyHistory();
-    }
-    
-    // QR Scanner
-    function startScanner() {
-        const scannerContainer = document.getElementById('scannerContainer');
-        scannerContainer.style.display = 'block';
-        document.getElementById('startScannerBtn').style.display = 'none';
-        document.getElementById('stopScannerBtn').style.display = 'inline-block';
-        
-        html5QrScanner = new Html5Qrcode("qr-reader");
-        html5QrScanner.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText) => handleScan(decodedText),
-            (error) => console.log("Scanning...")
-        ).then(() => {
-            isScannerActive = true;
-        }).catch(err => {
-            alert("Camera access denied. Please grant permissions.");
-            stopScanner();
-        });
-    }
-    
-    function stopScanner() {
-        if (html5QrScanner && isScannerActive) {
-            html5QrScanner.stop().then(() => {
-                isScannerActive = false;
-                document.getElementById('scannerContainer').style.display = 'none';
-                document.getElementById('startScannerBtn').style.display = 'inline-block';
-                document.getElementById('stopScannerBtn').style.display = 'none';
-            });
+        if (tabName === 'history') {
+            loadMyHistory();
         }
     }
     
-    function handleScan(decodedText) {
-        try {
-            const data = JSON.parse(decodedText);
-            if (data.type === 'school_attendance') {
-                stopScanner();
-                recordSelfAttendance('check_in');
-            } else {
-                alert("Invalid QR code. Please scan the School QR code.");
-            }
-        } catch (e) {
-            alert("Invalid QR code format");
-        }
-    }
-    
+    // Self Attendance Recording
     function recordSelfAttendance(scanType) {
         const formData = new URLSearchParams();
         formData.append('action', 'clock_self');
@@ -708,13 +741,107 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
         })
         .then(response => response.json())
         .then(data => {
-            const resultDiv = document.getElementById('scanResult');
+            const resultDiv = document.getElementById('selfClockResult');
             if (data.success) {
                 resultDiv.innerHTML = `<div class="alert-success">✅ ${data.message}</div>`;
                 setTimeout(() => location.reload(), 2000);
             } else {
                 resultDiv.innerHTML = `<div class="alert-danger">❌ ${data.error}</div>`;
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('selfClockResult').innerHTML = `<div class="alert-danger">❌ Network error. Please try again.</div>`;
+        });
+    }
+    
+    // Student QR Scanner
+    function startStudentScanner() {
+        const scannerContainer = document.getElementById('studentScannerContainer');
+        scannerContainer.style.display = 'block';
+        document.getElementById('startScannerBtn').style.display = 'none';
+        document.getElementById('stopScannerBtn').style.display = 'inline-block';
+        
+        html5QrScanner = new Html5Qrcode("qr-reader");
+        html5QrScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => handleStudentScan(decodedText),
+            (error) => {
+                // Silent error - scanning in progress
+                if (error && error.includes('NotFoundException')) {
+                    // This is normal when no QR is found
+                }
+            }
+        ).then(() => {
+            isScannerActive = true;
+        }).catch(err => {
+            alert("Camera access denied or not supported. Please grant permissions.");
+            stopStudentScanner();
+        });
+    }
+    
+    function stopStudentScanner() {
+        if (html5QrScanner && isScannerActive) {
+            html5QrScanner.stop().then(() => {
+                isScannerActive = false;
+                document.getElementById('studentScannerContainer').style.display = 'none';
+                document.getElementById('startScannerBtn').style.display = 'inline-block';
+                document.getElementById('stopScannerBtn').style.display = 'none';
+            }).catch(err => {
+                console.error('Error stopping scanner:', err);
+            });
+        }
+    }
+    
+    function handleStudentScan(decodedText) {
+        try {
+            const data = JSON.parse(decodedText);
+            if (data.type === 'student_attendance') {
+                stopStudentScanner();
+                recordStudentAttendance(data.student_id);
+            } else {
+                alert("Invalid QR code. Please scan a Student QR code.");
+            }
+        } catch (e) {
+            // Try to see if it's just a student ID
+            if (decodedText.match(/^[0-9]+$/)) {
+                stopStudentScanner();
+                recordStudentAttendance(decodedText);
+            } else {
+                alert("Invalid QR code format. Please scan a valid Student QR code.");
+            }
+        }
+    }
+    
+    function recordStudentAttendance(studentId) {
+        fetch('/msv/staff/attendance_api.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: 'record_attendance',
+                student_id: studentId,
+                scan_type: 'check_in'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('scanResult');
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert-success">✅ ${data.student_name} checked in successfully at ${data.time}</div>`;
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert-danger">❌ ${data.error}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('scanResult').innerHTML = `<div class="alert-danger">❌ Network error. Please try again.</div>`;
         });
     }
     
@@ -740,9 +867,16 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
     function markFriendAttendance() {
         const friendStaffId = document.getElementById('friendStaffId').value;
         if (!friendStaffId) {
-            alert('Please enter colleague\'s Staff ID');
+            alert('Please enter colleague\'s numeric Staff ID');
             return;
         }
+        
+        // Validate it's a number
+        if (isNaN(friendStaffId)) {
+            alert('Please enter a valid numeric Staff ID');
+            return;
+        }
+        
         if (!friendPhotoData) {
             alert('Please take a photo proof');
             return;
@@ -770,33 +904,55 @@ $active_school_qr = getActiveSchoolQRCode($pdo, $school_id);
                         document.getElementById('friendStaffId').value = '';
                         document.getElementById('friendCameraPreview').innerHTML = '<i class="fas fa-camera" style="font-size: 2rem; color: #9ca3af;"></i>';
                         friendPhotoData = null;
+                        loadMyHistory(); // Refresh history
                     } else {
                         alert('❌ ' + data.error);
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('❌ Network error. Please try again.');
                 });
             });
     }
     
     function loadMyHistory() {
+        const historyBody = document.getElementById('historyBody');
+        historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
+        
         fetch(window.location.href + '?action=get_my_attendance', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: { 
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         })
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('historyBody');
-            if (data.success && data.history.length > 0) {
-                tbody.innerHTML = data.history.map(h => `
-                    <tr>
-                        <td>${new Date(h.date).toLocaleDateString()}</td>
-                        <td>${h.clock_in ? new Date('1970-01-01T' + h.clock_in).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
-                        <td>${h.clock_out ? new Date('1970-01-01T' + h.clock_out).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
-                        <td><span style="background:${h.status === 'late' ? '#fed7aa' : '#d1fae5'}; padding:2px 8px; border-radius:20px;">${h.status === 'late' ? 'Late' : 'Present'}</span></td>
-                        <td>${h.attendance_source === 'self_scan' ? 'Self' : (h.attendance_source === 'friend_marked' ? `By ${h.marked_by_name}` : 'Manual')}</td>
-                    </tr>
-                `).join('');
+            if (data.success && data.history && data.history.length > 0) {
+                tbody.innerHTML = data.history.map(h => {
+                    let statusClass = h.status === 'late' ? '#fed7aa' : '#d1fae5';
+                    let statusText = h.status === 'late' ? 'Late' : (h.status === 'present' ? 'Present' : h.status);
+                    let sourceText = 'Manual';
+                    if (h.attendance_source === 'self_scan') sourceText = 'Self';
+                    else if (h.attendance_source === 'friend_marked') sourceText = `By ${h.marked_by_name || 'Friend'}`;
+                    
+                    return `
+                        <tr>
+                            <td>${new Date(h.date + 'T00:00:00').toLocaleDateString()}</td>
+                            <td>${h.clock_in ? new Date('1970-01-01T' + h.clock_in).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+                            <td>${h.clock_out ? new Date('1970-01-01T' + h.clock_out).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+                            <td><span style="background:${statusClass}; padding:2px 8px; border-radius:20px;">${statusText}</span></td>
+                            <td>${sourceText}</td>
+                        </tr>
+                    `;
+                }).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No attendance records found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No attendance records found. Try clocking in first!</td></tr>';
             }
+        })
+        .catch(error => {
+            console.error('Error loading history:', error);
+            document.getElementById('historyBody').innerHTML = '<tr><td colspan="5" style="text-align:center;">Error loading history. Please try again.</td></td>';
         });
     }
     

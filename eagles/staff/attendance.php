@@ -1,5 +1,5 @@
 <?php
-// eagles/staff/attendance.php - Staff Attendance Tracking with QR Scanning
+// staff/attendance.php - Staff Self Attendance with Self Clock In/Out & Friend Marking
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
@@ -8,1528 +8,956 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'staff') {
 }
 
 require_once '../includes/config.php';
+require_once '../includes/qr_helper.php';
+require_once '../includes/notification_helper.php';
+require_once '../includes/image_helper.php';
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
-$staff_id = $_SESSION['user_id'];
+$staff_numeric_id = $_SESSION['user_id'];
 $staff_name = $_SESSION['user_name'] ?? 'Staff Member';
-$staff_role = $_SESSION['staff_role'] ?? 'staff';
 
-// Get staff permissions and assigned classes from admin settings
-$staff_permission = null;
-$assigned_class_ids = [];
-$can_take_attendance = false;
-$can_view_reports = false;
-$has_permission_error = false;
-
-try {
-    // Get staff_id string
-    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ? AND school_id = ?");
-    $stmt->execute([$staff_id, $school_id]);
-    $staff_id_string = $stmt->fetchColumn();
-
-    if (!$staff_id_string) {
-        $has_permission_error = true;
-        $permission_error = "Staff record not found. Please contact administrator.";
-    } else {
-        // Check attendance permissions from admin settings
-        $stmt = $pdo->prepare("
-            SELECT can_take_attendance, can_view_reports, assigned_classes 
-            FROM attendance_permissions 
-            WHERE staff_id = ? AND school_id = ?
-        ");
-        $stmt->execute([$staff_id, $school_id]);
-        $staff_permission = $stmt->fetch();
-
-        if ($staff_permission) {
-            $can_take_attendance = (bool)$staff_permission['can_take_attendance'];
-            $can_view_reports = (bool)$staff_permission['can_view_reports'];
-
-            if ($staff_permission['assigned_classes']) {
-                $assigned_class_ids = explode(',', $staff_permission['assigned_classes']);
-            }
-        } else {
-            $can_take_attendance = false;
-            $can_view_reports = false;
-            $has_permission_error = true;
-            $permission_error = "You have not been granted attendance permissions. Please contact administrator.";
-        }
-
-        // Also check staff_classes as backup (for backward compatibility)
-        if (empty($assigned_class_ids)) {
-            $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
-            $stmt->execute([$staff_id_string, $school_id]);
-            $staff_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-            if (!empty($staff_classes)) {
-                // Convert class names to IDs
-                $placeholders = str_repeat('?,', count($staff_classes) - 1) . '?';
-                $stmt = $pdo->prepare("SELECT id FROM classes WHERE school_id = ? AND class_name IN ($placeholders)");
-                $stmt->execute(array_merge([$school_id], $staff_classes));
-                $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            }
-        }
-    }
-} catch (Exception $e) {
-    error_log("Staff permission error: " . $e->getMessage());
-    $has_permission_error = true;
-    $permission_error = "An error occurred while loading your permissions.";
-}
-
-// Get all classes for dropdown (filtered by permissions if not all classes)
-$all_classes = [];
-$stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
-$stmt->execute([$school_id]);
-$all_classes = $stmt->fetchAll();
-
-// Filter classes based on permissions (if assigned_classes is set, otherwise can access all)
-$accessible_classes = [];
-if ($can_take_attendance || $can_view_reports) {
-    if (empty($assigned_class_ids)) {
-        // Can access all classes
-        $accessible_classes = $all_classes;
-    } else {
-        // Can only access assigned classes
-        foreach ($all_classes as $class) {
-            if (in_array($class['id'], $assigned_class_ids)) {
-                $accessible_classes[] = $class;
-            }
-        }
-    }
-}
-
-// Get active attendance sessions
-$active_sessions = [];
+// Get staff permissions
 $stmt = $pdo->prepare("
-    SELECT * FROM attendance_sessions 
-    WHERE school_id = ? AND status = 'active' 
-    ORDER BY start_time DESC
+    SELECT can_take_attendance, can_view_reports, assigned_classes 
+    FROM attendance_permissions 
+    WHERE staff_id = ? AND school_id = ?
 ");
-$stmt->execute([$school_id]);
-$active_sessions = $stmt->fetchAll();
+$stmt->execute([$staff_numeric_id, $school_id]);
+$permission = $stmt->fetch();
 
-// Process API requests (AJAX) - API endpoint
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+$can_take_attendance = $permission && $permission['can_take_attendance'];
+$can_view_reports = $permission && $permission['can_view_reports'];
+
+// Get assigned class IDs
+$assigned_class_ids = [];
+if ($permission && $permission['assigned_classes']) {
+    $assigned_class_ids = explode(',', $permission['assigned_classes']);
+}
+
+// Get classes for dropdown
+if (empty($assigned_class_ids)) {
+    $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY class_name");
+    $stmt->execute([$school_id]);
+} else {
+    $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
+    $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE id IN ($placeholders) AND status = 'active' ORDER BY class_name");
+    $stmt->execute($assigned_class_ids);
+}
+$classes = $stmt->fetchAll();
+
+// Handle API requests (AJAX)
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && (
+    $_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])
+)) {
     header('Content-Type: application/json');
-
+    
+    $action = $_POST['action'] ?? $_GET['action'] ?? '';
     $input = json_decode(file_get_contents('php://input'), true);
-    $action = $input['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
-
-    if (!$can_take_attendance && $action !== 'get_stats' && $action !== 'get_history') {
-        echo json_encode(['success' => false, 'error' => 'You do not have permission to take attendance']);
-        exit();
+    if ($input) {
+        $action = $input['action'] ?? $action;
     }
-
+    
     switch ($action) {
-        case 'record_attendance':
-            $student_id = $input['student_id'] ?? 0;
-            $scan_type = $input['scan_type'] ?? 'check_in';
-            $session_id = $input['session_id'] ?? null;
-            $latitude = $input['latitude'] ?? null;
-            $longitude = $input['longitude'] ?? null;
-
-            if (!$student_id) {
-                echo json_encode(['success' => false, 'error' => 'Invalid student ID']);
-                exit();
-            }
-
-            // Get student info and verify staff has permission for this student's class
-            $stmt = $pdo->prepare("
-                SELECT s.*, c.class_name 
-                FROM students s
-                LEFT JOIN classes c ON s.class_id = c.id
-                WHERE s.id = ? AND s.school_id = ?
-            ");
-            $stmt->execute([$student_id, $school_id]);
-            $student = $stmt->fetch();
-
-            if (!$student) {
-                echo json_encode(['success' => false, 'error' => 'Student not found']);
-                exit();
-            }
-
-            // Check if staff has permission for this class
-            $has_class_permission = empty($assigned_class_ids) || in_array($student['class_id'], $assigned_class_ids);
-            if (!$has_class_permission && !$can_take_attendance) {
-                echo json_encode(['success' => false, 'error' => 'You do not have permission to take attendance for this class']);
-                exit();
-            }
-
-            // Check if already checked in/out for today
-            $today = date('Y-m-d');
-
-            $stmt = $pdo->prepare("
-                SELECT * FROM attendance_logs 
-                WHERE student_id = ? AND school_id = ? 
-                AND DATE(scan_time) = ? AND scan_type = ?
-                ORDER BY scan_time DESC LIMIT 1
-            ");
-            $stmt->execute([$student_id, $school_id, $today, $scan_type]);
-            $existing = $stmt->fetch();
-
-            if ($existing && $scan_type === 'check_in') {
-                echo json_encode(['success' => false, 'error' => 'Student already checked in today', 'student_name' => $student['full_name']]);
-                exit();
-            }
-
-            // Determine status based on time
+        case 'clock_self':
+            $scan_type = $_POST['scan_type'] ?? $input['scan_type'] ?? 'check_in';
             $current_time = date('H:i:s');
+            $current_date = date('Y-m-d');
+            
+            // Check if already clocked in today
+            if ($scan_type === 'check_in') {
+                $stmt = $pdo->prepare("SELECT id FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
+                $stmt->execute([$staff_numeric_id, $current_date, $school_id]);
+                if ($stmt->fetch()) {
+                    echo json_encode(['success' => false, 'error' => 'Already clocked in today']);
+                    exit();
+                }
+            }
+            
+            // Check if already clocked out for check_out
+            if ($scan_type === 'check_out') {
+                $stmt = $pdo->prepare("SELECT clock_out FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
+                $stmt->execute([$staff_numeric_id, $current_date, $school_id]);
+                $record = $stmt->fetch();
+                if (!$record) {
+                    echo json_encode(['success' => false, 'error' => 'Not clocked in yet']);
+                    exit();
+                }
+                if ($record['clock_out']) {
+                    echo json_encode(['success' => false, 'error' => 'Already clocked out today']);
+                    exit();
+                }
+            }
+            
             $status = 'present';
             if ($scan_type === 'check_in' && $current_time > '09:00:00') {
                 $status = 'late';
             }
-
-            // Record attendance
+            
+            if ($scan_type === 'check_in') {
+                $stmt = $pdo->prepare("
+                    INSERT INTO staff_attendance (staff_id, school_id, date, clock_in, status, attendance_source, created_at)
+                    VALUES (?, ?, ?, ?, ?, 'self_scan', NOW())
+                ");
+                $stmt->execute([$staff_numeric_id, $school_id, $current_date, $current_time, $status]);
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE staff_attendance SET clock_out = ? 
+                    WHERE staff_id = ? AND date = ? AND school_id = ?
+                ");
+                $stmt->execute([$current_time, $staff_numeric_id, $current_date, $school_id]);
+            }
+            
+            // Create notification for admin
+            if (function_exists('createAttendanceNotification')) {
+                createAttendanceNotification(
+                    $pdo, $school_id,
+                    $scan_type === 'check_in' ? 'staff_clock_in' : 'staff_clock_out',
+                    1, 'admin',
+                    $staff_numeric_id, 'staff',
+                    $staff_name, null, null, null, null,
+                    $status, true, false
+                );
+            }
+            
+            echo json_encode(['success' => true, 'message' => ucfirst($scan_type) . ' successful', 'status' => $status]);
+            break;
+            
+        case 'mark_friend':
+            $friend_staff_numeric_id = $_POST['friend_staff_id'] ?? $input['friend_staff_id'] ?? '';
+            $proof_photo = null;
+            
+            // Handle photo upload
+            if (isset($_FILES['proof_photo']) && $_FILES['proof_photo']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/eagles/uploads/attendance_proofs/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                if (function_exists('uploadAndCompressImage')) {
+                    $result = uploadAndCompressImage($_FILES['proof_photo'], $upload_dir, 'friend_proof_', 100);
+                    if ($result['success']) {
+                        $proof_photo = $result['path'];
+                    }
+                } else {
+                    // Simple upload without compression
+                    $filename = 'friend_proof_' . time() . '_' . rand(1000, 9999) . '.jpg';
+                    $target_path = $upload_dir . $filename;
+                    if (move_uploaded_file($_FILES['proof_photo']['tmp_name'], $target_path)) {
+                        $proof_photo = '/eagles/uploads/attendance_proofs/' . $filename;
+                    }
+                }
+            } elseif (isset($input['proof_photo_base64'])) {
+                $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/eagles/uploads/attendance_proofs/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                if (function_exists('uploadBase64Image')) {
+                    $result = uploadBase64Image($input['proof_photo_base64'], $upload_dir, 'friend_proof_', 100);
+                    if ($result['success']) {
+                        $proof_photo = $result['path'];
+                    }
+                }
+            }
+            
+            if (!$proof_photo) {
+                echo json_encode(['success' => false, 'error' => 'Photo proof required']);
+                exit();
+            }
+            
+            // Verify friend staff exists (using numeric ID)
+            $stmt = $pdo->prepare("SELECT id, full_name FROM staff WHERE id = ? AND school_id = ? AND is_active = 1");
+            $stmt->execute([$friend_staff_numeric_id, $school_id]);
+            $friend = $stmt->fetch();
+            
+            if (!$friend) {
+                echo json_encode(['success' => false, 'error' => 'Staff member not found. Please enter numeric Staff ID.']);
+                exit();
+            }
+            
+            $current_date = date('Y-m-d');
+            $current_time = date('H:i:s');
+            $current_staff_numeric_id = $_SESSION['user_id'];
+            $current_staff_name = $_SESSION['user_name'] ?? 'Staff Member';
+            
+            // Check if friend already clocked in
+            $stmt = $pdo->prepare("SELECT id FROM staff_attendance WHERE staff_id = ? AND date = ? AND school_id = ?");
+            $stmt->execute([$friend['id'], $current_date, $school_id]);
+            if ($stmt->fetch()) {
+                echo json_encode(['success' => false, 'error' => $friend['full_name'] . ' already clocked in today']);
+                exit();
+            }
+            
+            // Record friend's attendance
+            $status = $current_time > '09:00:00' ? 'late' : 'present';
             $stmt = $pdo->prepare("
-                INSERT INTO attendance_logs (school_id, session_id, student_id, staff_id, scan_time, scan_type, status, latitude, longitude, ip_address, created_at)
-                VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, NOW())
+                INSERT INTO staff_attendance (staff_id, school_id, date, clock_in, status, marked_by, marked_by_name, proof_photo, attendance_source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'friend_marked', NOW())
             ");
             $stmt->execute([
-                $school_id,
-                $session_id,
-                $student_id,
-                $staff_id,
-                $scan_type,
-                $status,
-                $latitude,
-                $longitude,
-                $_SERVER['REMOTE_ADDR']
+                $friend['id'], $school_id, $current_date, $current_time, $status,
+                $current_staff_numeric_id, $current_staff_name, $proof_photo
             ]);
-
-            // Also update the main attendance table
-            $stmt = $pdo->prepare("
-                INSERT INTO attendance (school_id, student_id, date, status, created_at)
-                VALUES (?, ?, ?, ?, NOW())
-                ON DUPLICATE KEY UPDATE status = ?, created_at = NOW()
-            ");
-            $stmt->execute([$school_id, $student_id, $today, $status, $status]);
-
-            echo json_encode([
-                'success' => true,
-                'student_name' => $student['full_name'],
-                'status' => $status,
-                'scan_type' => $scan_type,
-                'time' => date('h:i A')
-            ]);
+            
+            // Create notification for admin with photo proof
+            if (function_exists('createAttendanceNotification')) {
+                createAttendanceNotification(
+                    $pdo, $school_id,
+                    'friend_marked',
+                    1, 'admin',
+                    $friend['id'], 'staff',
+                    $friend['full_name'], null,
+                    $current_staff_numeric_id, $current_staff_name,
+                    $proof_photo, $current_time, $status,
+                    true, false
+                );
+            }
+            
+            echo json_encode(['success' => true, 'message' => 'Marked attendance for ' . $friend['full_name']]);
             break;
-
+            
+        case 'get_my_attendance':
+            // Simple query using numeric ID
+            $stmt = $pdo->prepare("
+                SELECT 
+                    staff_id,
+                    date,
+                    clock_in,
+                    clock_out,
+                    status,
+                    attendance_source,
+                    marked_by_name,
+                    proof_photo,
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
+                FROM staff_attendance
+                WHERE staff_id = ? AND school_id = ?
+                ORDER BY date DESC
+                LIMIT 30
+            ");
+            $stmt->execute([$staff_numeric_id, $school_id]);
+            $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            echo json_encode(['success' => true, 'history' => $history]);
+            break;
+            
         case 'get_today_stats':
             $today = date('Y-m-d');
-
-            // Get total students (filtered by accessible classes)
+            
             if (empty($assigned_class_ids)) {
+                $stmt = $pdo->prepare("
+                    SELECT COUNT(DISTINCT al.student_id) as present
+                    FROM attendance_logs al
+                    WHERE al.school_id = ? AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
+                ");
+                $stmt->execute([$school_id, $today]);
+                $present = $stmt->fetch()['present'];
+                
                 $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM students WHERE school_id = ? AND status = 'active'");
                 $stmt->execute([$school_id]);
+                $total = $stmt->fetch()['total'];
             } else {
                 $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
+                $stmt = $pdo->prepare("
+                    SELECT COUNT(DISTINCT al.student_id) as present
+                    FROM attendance_logs al
+                    JOIN students s ON al.student_id = s.id
+                    WHERE al.school_id = ? AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
+                    AND s.class_id IN ($placeholders)
+                ");
+                $stmt->execute(array_merge([$school_id, $today], $assigned_class_ids));
+                $present = $stmt->fetch()['present'];
+                
                 $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM students WHERE school_id = ? AND status = 'active' AND class_id IN ($placeholders)");
                 $stmt->execute(array_merge([$school_id], $assigned_class_ids));
+                $total = $stmt->fetch()['total'];
             }
-            $total = $stmt->fetch()['total'];
-
-            // Get present count
-            $stmt = $pdo->prepare("
-                SELECT COUNT(DISTINCT student_id) as count 
-                FROM attendance_logs 
-                WHERE school_id = ? AND DATE(scan_time) = ? AND scan_type = 'check_in'
-            ");
-            $stmt->execute([$school_id, $today]);
-            $present = $stmt->fetch()['count'];
-
-            // Get late count
-            $stmt = $pdo->prepare("
-                SELECT COUNT(DISTINCT student_id) as count 
-                FROM attendance_logs 
-                WHERE school_id = ? AND DATE(scan_time) = ? AND scan_type = 'check_in' AND status = 'late'
-            ");
-            $stmt->execute([$school_id, $today]);
-            $late = $stmt->fetch()['count'];
-
+            
             $absent = max(0, $total - $present);
-
-            echo json_encode([
-                'success' => true,
-                'present' => $present,
-                'late' => $late,
-                'absent' => $absent,
-                'total' => $total
-            ]);
+            
+            echo json_encode(['success' => true, 'present' => $present, 'absent' => $absent, 'total' => $total]);
             break;
-
-        case 'get_recent_scans':
-            $today = date('Y-m-d');
-
-            $query = "
-                SELECT al.*, s.full_name, s.admission_number, c.class_name
-                FROM attendance_logs al
-                JOIN students s ON al.student_id = s.id
-                LEFT JOIN classes c ON s.class_id = c.id
-                WHERE al.school_id = ? AND DATE(al.scan_time) = ?
-                ORDER BY al.scan_time DESC LIMIT 20
-            ";
-            $stmt = $pdo->prepare($query);
-            $stmt->execute([$school_id, $today]);
-            $scans = $stmt->fetchAll();
-
-            echo json_encode([
-                'success' => true,
-                'scans' => $scans
-            ]);
-            break;
-
-        case 'get_daily_stats':
-            $date = $input['date'] ?? $_GET['date'] ?? date('Y-m-d');
-            $class_id = $input['class_id'] ?? $_GET['class_id'] ?? null;
-
-            $query = "
-                SELECT s.id, s.full_name, s.admission_number, c.class_name,
-                       al.scan_type, al.status, al.scan_time, al.latitude, al.longitude
-                FROM students s
-                LEFT JOIN classes c ON s.class_id = c.id
-                LEFT JOIN attendance_logs al ON s.id = al.student_id AND DATE(al.scan_time) = ? AND al.scan_type = 'check_in'
-                WHERE s.school_id = ? AND s.status = 'active'
-            ";
-            $params = [$date, $school_id];
-
-            if ($class_id && $class_id != 'all') {
-                $query .= " AND s.class_id = ?";
-                $params[] = $class_id;
-            } elseif (!empty($assigned_class_ids) && !$class_id) {
-                $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
-                $query .= " AND s.class_id IN ($placeholders)";
-                $params = array_merge($params, $assigned_class_ids);
-            }
-
-            $query .= " ORDER BY c.class_name, s.full_name";
-            $stmt = $pdo->prepare($query);
-            $stmt->execute($params);
-            $attendance = $stmt->fetchAll();
-
-            echo json_encode([
-                'success' => true,
-                'date' => $date,
-                'attendance' => $attendance
-            ]);
-            break;
-
-        case 'get_history':
-            $date = $input['date'] ?? $_GET['date'] ?? date('Y-m-d');
-
-            $query = "
-                SELECT al.*, s.full_name, s.admission_number, c.class_name
-                FROM attendance_logs al
-                JOIN students s ON al.student_id = s.id
-                LEFT JOIN classes c ON s.class_id = c.id
-                WHERE al.school_id = ? AND DATE(al.scan_time) = ?
-                ORDER BY al.scan_time DESC
-            ";
-            $stmt = $pdo->prepare($query);
-            $stmt->execute([$school_id, $date]);
-            $logs = $stmt->fetchAll();
-
-            echo json_encode([
-                'success' => true,
-                'date' => $date,
-                'logs' => $logs
-            ]);
-            break;
-
+            
         default:
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }
     exit();
 }
-?>
 
+// Get today's staff attendance status for current staff
+$stmt = $pdo->prepare("
+    SELECT sa.* FROM staff_attendance sa
+    WHERE sa.staff_id = ? AND sa.date = CURDATE() AND sa.school_id = ?
+");
+$stmt->execute([$staff_numeric_id, $school_id]);
+$today_attendance = $stmt->fetch();
+?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title><?php echo htmlspecialchars($school_name); ?> - Attendance</title>
-
+    <title><?php echo htmlspecialchars($school_name); ?> - Staff Attendance</title>
+    
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary-color: <?php echo $primary_color; ?>;
-            --primary-dark: #1a5a8a;
-            --secondary-color: #d4af7a;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --info-color: #3b82f6;
-            --gray-50: #f9fafb;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-400: #9ca3af;
-            --gray-500: #6b7280;
-            --gray-600: #4b5563;
-            --gray-700: #374151;
-            --gray-800: #1f2937;
-            --gray-900: #111827;
-            --sidebar-width: 280px;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--gray-100);
-            color: var(--gray-800);
-            min-height: 100vh;
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 0;
-            padding: 0;
-            min-height: 100vh;
-            transition: margin-left 0.28s ease;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            background: white;
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            box-shadow: var(--shadow-sm);
-            position: sticky;
-            top: 0;
-            z-index: 99;
-        }
-
-        .menu-toggle {
-            background: none;
-            border: none;
-            font-size: 22px;
-            cursor: pointer;
-            color: var(--gray-700);
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .menu-toggle:hover {
-            background: var(--gray-100);
-        }
-
-        .page-title {
-            flex: 1;
-        }
-
-        .page-title h1 {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--gray-800);
-            margin-bottom: 2px;
-        }
-
-        .page-title h1 i {
-            color: var(--primary-color);
-            margin-right: 10px;
-        }
-
-        .page-title p {
-            font-size: 0.75rem;
-            color: var(--gray-500);
-        }
-
-        .info-item {
-            background: var(--gray-100);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: var(--gray-800);
-            font-weight: 500;
-        }
-
-        .info-item i {
-            margin-right: 6px;
-            color: var(--primary-color);
-        }
-
-        /* Container */
+        /* Page-specific styles only - sidebar styles are in staff_sidebar.php */
         .container {
-            padding: 20px;
-            max-width: 1400px;
+            max-width: 800px;
             margin: 0 auto;
         }
-
-        /* Cards */
+        
         .card {
             background: white;
-            border-radius: var(--radius-lg);
+            border-radius: 14px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+            border: 1px solid #e5e7eb;
         }
-
-        .card-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 16px;
+        
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
+            margin-bottom: 16px;
             padding-bottom: 12px;
-            border-bottom: 2px solid var(--gray-200);
+            border-bottom: 2px solid #e5e7eb;
         }
-
-        .card-title i {
-            color: var(--primary-color);
+        
+        .card-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .card-header h2 i {
+            color: <?php echo $primary_color; ?>;
             margin-right: 8px;
         }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
+        
+        .status-card {
+            text-align: center;
+            padding: 24px;
+            background: linear-gradient(135deg, <?php echo $primary_color; ?>, #1a3a5c);
+            color: white;
+            border-radius: 14px;
             margin-bottom: 20px;
         }
-
-        .stat-card {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 20px;
-            text-align: center;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--gray-200);
-            transition: transform 0.2s ease;
-            cursor: pointer;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .stat-number {
+        
+        .status-time {
             font-size: 2rem;
-            font-weight: 800;
-            color: var(--primary-color);
-            line-height: 1;
+            font-weight: 700;
         }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--gray-500);
-            margin-top: 8px;
-            font-weight: 500;
+        
+        .status-label {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            margin-top: 4px;
         }
-
-        /* Scanner */
-        .scanner-container {
-            background: var(--gray-900);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            position: relative;
-            min-height: 400px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #reader {
-            width: 100%;
-            min-height: 400px;
-            display: none;
-        }
-
-        #reader.active {
-            display: block;
-        }
-
-        .scanner-placeholder {
-            text-align: center;
-            padding: 80px 20px;
-            color: white;
-        }
-
-        .scanner-placeholder i {
-            font-size: 64px;
-            margin-bottom: 16px;
-            opacity: 0.8;
-        }
-
-        .scanner-placeholder p {
-            font-size: 14px;
-            opacity: 0.8;
-            margin-bottom: 20px;
-        }
-
-        /* Buttons */
+        
         .btn {
-            padding: 10px 20px;
-            border-radius: var(--radius-md);
+            padding: 12px 20px;
+            border-radius: 10px;
             border: none;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-            font-family: inherit;
-            transition: all 0.2s ease;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: var(--gray-200);
-            color: var(--gray-700);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-300);
-        }
-
-        .camera-btn {
-            background: var(--primary-color);
-            color: white;
-            padding: 14px 28px;
-            border: none;
-            border-radius: var(--radius-md);
             font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        .stop-camera-btn {
-            background: var(--danger-color);
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            font-size: 0.8rem;
-            cursor: pointer;
-            margin-top: 12px;
-            font-family: inherit;
-        }
-
-        /* Scan Type Selector */
-        .scan-type-selector {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .scan-type-btn {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid var(--gray-200);
-            background: white;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: inherit;
-        }
-
-        .scan-type-btn.active {
-            border-color: var(--primary-color);
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .scan-type-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Tables */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .data-table th {
-            font-weight: 600;
-            color: var(--gray-600);
-            background: var(--gray-50);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .data-table tr:hover td {
-            background: var(--gray-50);
-        }
-
-        .data-table td strong {
             font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        /* Status Badges */
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .status-present {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-late {
-            background: #fed7aa;
-            color: #92400e;
-        }
-
-        .status-absent {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        /* Feedback Toast */
-        .scan-feedback {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            left: 20px;
-            max-width: 400px;
-            margin: 0 auto;
-            background: var(--gray-900);
-            color: white;
-            padding: 16px;
-            border-radius: var(--radius-md);
-            text-align: center;
-            animation: slideUp 0.3s ease;
-            z-index: 1100;
-            box-shadow: var(--shadow-lg);
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(100%);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1050;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: var(--radius-lg);
-            width: 90%;
-            max-width: 500px;
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            background: white;
-        }
-
-        .modal-header h3 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .modal-body {
-            padding: 20px;
-        }
-
-        .modal-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-200);
-            display: flex;
-            gap: 12px;
-        }
-
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 24px;
             cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 100%;
+            font-family: inherit;
+            transition: all 0.2s;
         }
-
-        .close-modal:hover {
-            background: var(--gray-100);
+        
+        .btn-primary {
+            background: <?php echo $primary_color; ?>;
+            color: white;
         }
-
-        /* Form Elements */
+        
+        .btn-primary:active {
+            transform: scale(0.97);
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
         .form-group {
             margin-bottom: 16px;
         }
-
+        
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: 500;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            color: #4b5563;
         }
-
-        .form-control {
+        
+        .form-control, .form-select {
             width: 100%;
             padding: 12px;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
             font-family: inherit;
             font-size: 0.85rem;
-            transition: all 0.2s ease;
         }
-
-        .form-control:focus {
+        
+        .form-control:focus, .form-select:focus {
             outline: none;
-            border-color: var(--primary-color);
+            border-color: <?php echo $primary_color; ?>;
         }
-
-        /* Alert */
-        .alert {
-            padding: 12px 16px;
-            border-radius: var(--radius-md);
-            margin-bottom: 16px;
+        
+        .camera-preview {
+            width: 100%;
+            height: 200px;
+            background: #f3f4f6;
+            border-radius: 10px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            overflow: hidden;
         }
-
+        
+        .camera-preview video, .camera-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+        
+        .data-table th, .data-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .data-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #6b7280;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 6px;
+            border-radius: 14px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: none;
+            border: none;
+            font-weight: 600;
+            font-size: 0.8rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            color: #6b7280;
+        }
+        
+        .tab-btn.active {
+            background: <?php echo $primary_color; ?>;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .alert-success {
             background: #d1fae5;
             color: #065f46;
-            border-left: 4px solid var(--success-color);
+            padding: 12px;
+            border-radius: 10px;
         }
-
-        .alert-error {
+        
+        .alert-danger {
             background: #fee2e2;
             color: #991b1b;
-            border-left: 4px solid var(--danger-color);
+            padding: 12px;
+            border-radius: 10px;
         }
-
-        .alert-warning {
-            background: #fed7aa;
-            color: #92400e;
-            border-left: 4px solid var(--warning-color);
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
         }
-
-        .permission-denied {
+        
+        .staff-clock-section {
             text-align: center;
-            padding: 60px 20px;
-        }
-
-        .permission-denied i {
-            font-size: 64px;
-            color: var(--danger-color);
             margin-bottom: 20px;
         }
-
-        .permission-denied h3 {
+        
+        .clock-btn {
+            padding: 20px;
             font-size: 1.2rem;
-            margin-bottom: 10px;
+            margin: 0 10px;
+            width: auto;
+            min-width: 150px;
         }
-
-        .live-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #10b981;
-            margin-right: 8px;
-            animation: pulse 1.5s infinite;
+        
+        .info-text {
+            font-size: 0.7rem;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 8px;
         }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
-        }
-
-        /* Responsive */
-        @media (min-width: 768px) {
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
-
-            .scan-feedback {
-                left: auto;
-                right: 20px;
-            }
-        }
-
+        
         @media (max-width: 767px) {
             .container {
-                padding: 16px;
+                padding: 0;
             }
-
+            
             .card {
                 padding: 16px;
             }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
+            
+            .tabs {
+                flex-wrap: wrap;
             }
-
-            .top-bar {
-                padding: 12px 16px;
+            
+            .tab-btn {
+                font-size: 0.7rem;
+                padding: 8px;
             }
-
-            .page-title h1 {
-                font-size: 1.1rem;
+            
+            .status-time {
+                font-size: 1.5rem;
+            }
+            
+            .clock-btn {
+                padding: 15px;
+                font-size: 1rem;
+                min-width: 120px;
             }
         }
     </style>
 </head>
-
 <body>
-    <!-- Mobile Menu Button -->
-    <button class="menu-toggle" id="mobileMenuBtn">
-        <i class="fas fa-bars"></i>
-    </button>
 
-    <!-- Include Staff Sidebar -->
-    <?php include_once 'includes/staff_sidebar.php'; ?>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="page-title">
-                <h1><i class="fas fa-calendar-check"></i> Attendance Management</h1>
-                <p><i class="fas fa-chevron-right"></i> Scan QR codes to mark student attendance</p>
-            </div>
-            <div>
-                <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
+<!-- Main content wrapper - staff_sidebar.php will add the sidebar -->
+<div class="main-content">
+    <div class="container">
+        <!-- Status Card -->
+        <div class="status-card">
+            <div class="status-time" id="currentTime">--:-- --</div>
+            <div class="status-label" id="attendanceStatus">
+                <?php if ($today_attendance && $today_attendance['clock_in']): ?>
+                    Clocked in at <?php echo date('g:i A', strtotime($today_attendance['clock_in'])); ?>
+                    <?php if ($today_attendance['clock_out']): ?>
+                        <br>Clocked out at <?php echo date('g:i A', strtotime($today_attendance['clock_out'])); ?>
+                    <?php else: ?>
+                        <br>Not clocked out yet
+                    <?php endif; ?>
+                <?php else: ?>
+                    Not clocked in today
+                <?php endif; ?>
             </div>
         </div>
-
-        <div class="container">
-            <?php if ($has_permission_error): ?>
-                <div class="alert alert-error">
-                    <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($permission_error); ?>
+        
+        <!-- Staff Self Clock In/Out Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-clock"></i> My Attendance</h2>
+            </div>
+            <div class="staff-clock-section">
+                <?php if (!$today_attendance || !$today_attendance['clock_in']): ?>
+                    <button class="btn btn-primary clock-btn" onclick="recordSelfAttendance('check_in')">
+                        <i class="fas fa-sign-in-alt"></i> Clock In
+                    </button>
+                <?php elseif ($today_attendance['clock_in'] && !$today_attendance['clock_out']): ?>
+                    <button class="btn btn-warning clock-btn" onclick="recordSelfAttendance('check_out')">
+                        <i class="fas fa-sign-out-alt"></i> Clock Out
+                    </button>
+                <?php else: ?>
+                    <div class="alert-success" style="padding: 12px; text-align: center;">
+                        <i class="fas fa-check-circle"></i> Completed for today
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div id="selfClockResult" style="margin-top: 12px;"></div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('scan')">📷 Scan Student QR</button>
+            <button class="tab-btn" onclick="switchTab('friend')">👥 Mark Friend</button>
+            <button class="tab-btn" onclick="switchTab('history')">📜 My History</button>
+        </div>
+        
+        <!-- Tab 1: Scan Student QR -->
+        <div id="tab-scan" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-qrcode"></i> Scan Student QR Code</h2>
                 </div>
-                <div class="card permission-denied">
-                    <i class="fas fa-lock"></i>
-                    <h3>Access Denied</h3>
-                    <p>You do not have permission to access the attendance system.</p>
-                    <p style="margin-top: 10px; font-size: 13px;">Please contact the administrator to request attendance permissions.</p>
+                <div id="studentScannerContainer" style="display: none;">
+                    <div id="qr-reader" style="width: 100%;"></div>
                 </div>
-            <?php elseif (!$can_take_attendance && !$can_view_reports): ?>
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i> You have limited access. You can only view reports but cannot take attendance.
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="startScannerBtn" onclick="startStudentScanner()">
+                        <i class="fas fa-camera"></i> Start Camera
+                    </button>
+                    <button class="btn btn-secondary" id="stopScannerBtn" onclick="stopStudentScanner()" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop Camera
+                    </button>
                 </div>
-            <?php endif; ?>
-
-            <?php if (!$has_permission_error): ?>
-                <!-- Scanner Card -->
-                <div class="card">
-                    <div class="card-title">
-                        <span><i class="fas fa-qrcode"></i> QR Scanner</span>
-                        <?php if (!$can_take_attendance): ?>
-                            <span class="status-badge status-late"><i class="fas fa-lock"></i> View Only</span>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="scan-type-selector">
-                        <button class="scan-type-btn active" onclick="setScanType('check_in')" <?php echo !$can_take_attendance ? 'disabled' : ''; ?>>
-                            <i class="fas fa-sign-in-alt"></i> Check In
-                        </button>
-                        <button class="scan-type-btn" onclick="setScanType('check_out')" <?php echo !$can_take_attendance ? 'disabled' : ''; ?>>
-                            <i class="fas fa-sign-out-alt"></i> Check Out
-                        </button>
-                    </div>
-
-                    <div class="scanner-container">
-                        <div id="reader"></div>
-                        <div id="scannerPlaceholder" class="scanner-placeholder">
-                            <i class="fas fa-camera"></i>
-                            <p>Camera is off</p>
-                            <button class="camera-btn" onclick="startScanner()" <?php echo !$can_take_attendance ? 'disabled style="opacity:0.5;"' : ''; ?>>
-                                <i class="fas fa-video"></i> Start Camera
-                            </button>
-                        </div>
-                    </div>
-                    <div id="scanStatus" style="margin-top: 12px; text-align: center; font-size: 12px; color: var(--gray-500);">
-                        <span class="live-indicator"></span> Click "Start Camera" to begin scanning
-                    </div>
+                <div id="scanResult" style="margin-top: 16px;"></div>
+                <div class="info-text">
+                    <i class="fas fa-info-circle"></i> Scan the student's QR code to mark their attendance
                 </div>
-
-                <!-- Today's Stats -->
-                <div class="card">
-                    <div class="card-title">
-                        <span><i class="fas fa-chart-line"></i> Today's Summary</span>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-card" onclick="showAttendanceList('present')">
-                            <div class="stat-number" id="totalPresent">-</div>
-                            <div class="stat-label">Present</div>
-                        </div>
-                        <div class="stat-card" onclick="showAttendanceList('late')">
-                            <div class="stat-number" id="totalLate">-</div>
-                            <div class="stat-label">Late</div>
-                        </div>
-                        <div class="stat-card" onclick="showAttendanceList('absent')">
-                            <div class="stat-number" id="totalAbsent">-</div>
-                            <div class="stat-label">Absent</div>
-                        </div>
-                        <div class="stat-card" onclick="showAttendanceList('all')">
-                            <div class="stat-number" id="totalStudents">-</div>
-                            <div class="stat-label">Total Enrolled</div>
-                        </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: Mark Friend -->
+        <div id="tab-friend" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-user-friends"></i> Mark Attendance for Colleague</h2>
+                </div>
+                <div class="form-group">
+                    <label>Colleague's Numeric Staff ID</label>
+                    <input type="number" id="friendStaffId" class="form-control" placeholder="Enter numeric staff ID (e.g., 1, 2, 3)">
+                    <div class="info-text" style="margin-top: 5px;">
+                        <i class="fas fa-info-circle"></i> Use the numeric ID, not the staff code (e.g., use "1" not "eagles0030")
                     </div>
                 </div>
-
-                <!-- Recent Scans -->
-                <div class="card">
-                    <div class="card-title">
-                        <span><i class="fas fa-clock"></i> Recent Scans</span>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem;" onclick="loadRecentScans()">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
+                <div class="form-group">
+                    <label>Take Photo Proof</label>
+                    <div class="camera-preview" id="friendCameraPreview">
+                        <i class="fas fa-camera" style="font-size: 2rem; color: #9ca3af;"></i>
                     </div>
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Student Name</th>
-                                    <th>Admission No</th>
-                                    <th>Class</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentScansBody">
-                                <tr>
-                                    <td colspan="6" style="text-align:center;">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <button class="btn btn-secondary" id="openFriendCameraBtn" style="margin-top: 8px;">
+                        <i class="fas fa-camera"></i> Take Photo
+                    </button>
+                    <input type="file" id="friendPhotoInput" accept="image/*" capture="environment" style="display: none;">
                 </div>
-
-                <!-- Class Filter for Reports -->
-                <div class="card">
-                    <div class="card-title">
-                        <span><i class="fas fa-filter"></i> Filter by Class</span>
-                    </div>
-                    <select id="classFilter" class="form-control" onchange="loadDailyStats()">
-                        <option value="all">All Classes</option>
-                        <?php foreach ($accessible_classes as $class): ?>
-                            <option value="<?php echo $class['id']; ?>"><?php echo htmlspecialchars($class['class_name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <button class="btn btn-primary" id="markFriendBtn" onclick="markFriendAttendance()">
+                    <i class="fas fa-user-check"></i> Mark Attendance
+                </button>
+            </div>
+        </div>
+        
+        <!-- Tab 3: History -->
+        <div id="tab-history" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-history"></i> My Attendance History</h2>
+                    <button class="btn btn-secondary" style="width: auto; padding: 6px 12px;" onclick="loadMyHistory()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
                 </div>
-
-                <!-- Daily Attendance Table -->
-                <div class="card">
-                    <div class="card-title">
-                        <span><i class="fas fa-calendar-day"></i> Today's Attendance</span>
-                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.7rem;" onclick="loadDailyStats()">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>S/N</th>
-                                    <th>Admission No</th>
-                                    <th>Student Name</th>
-                                    <th>Class</th>
-                                    <th>Status</th>
-                                    <th>Time</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dailyStatsBody">
-                                <tr>
-                                    <td colspan="6" style="text-align:center;">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Status</th><th>Source</th></tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
     </div>
+</div>
 
-    <!-- Attendance List Modal -->
-    <div class="modal" id="attendanceListModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="attendanceListTitle">Attendance List</h3>
-                <button class="close-modal" onclick="closeAttendanceListModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="attendanceListBody"></div>
-        </div>
-    </div>
+<!-- Include staff sidebar at the bottom -->
+<?php require_once 'includes/staff_sidebar.php'; ?>
 
-    <script>
-        let html5QrcodeScanner = null;
-        let currentScanType = 'check_in';
-        let isScannerActive = false;
-        let canTakeAttendance = <?php echo $can_take_attendance ? 'true' : 'false'; ?>;
-
-        // Sidebar toggle - handled in staff_sidebar.php
-        document.getElementById('mobileMenuBtn').onclick = () => {
-            document.getElementById('staffSidebar').classList.toggle('active');
-            document.getElementById('sidebarOverlay').classList.toggle('active');
-        };
-
-        function setScanType(type) {
-            if (!canTakeAttendance) {
-                showFeedback('You do not have permission to take attendance', 'error');
-                return;
-            }
-            currentScanType = type;
-            document.querySelectorAll('.scan-type-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+<script>
+    let html5QrScanner = null;
+    let isScannerActive = false;
+    let friendPhotoData = null;
+    
+    // Update current time
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('currentTime').innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+    
+    // Tab switching
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        
+        if (tabName === 'history') {
+            loadMyHistory();
         }
-
-        function startScanner() {
-            if (!canTakeAttendance) {
-                showFeedback('You do not have permission to take attendance', 'error');
-                return;
+    }
+    
+    // Self Attendance Recording
+    function recordSelfAttendance(scanType) {
+        const formData = new URLSearchParams();
+        formData.append('action', 'clock_self');
+        formData.append('scan_type', scanType);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('selfClockResult');
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert-success">✅ ${data.message}</div>`;
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert-danger">❌ ${data.error}</div>`;
             }
-
-            if (html5QrcodeScanner && isScannerActive) {
-                showFeedback('Camera is already active', 'info');
-                return;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('selfClockResult').innerHTML = `<div class="alert-danger">❌ Network error. Please try again.</div>`;
+        });
+    }
+    
+    // Student QR Scanner
+    function startStudentScanner() {
+        const scannerContainer = document.getElementById('studentScannerContainer');
+        scannerContainer.style.display = 'block';
+        document.getElementById('startScannerBtn').style.display = 'none';
+        document.getElementById('stopScannerBtn').style.display = 'inline-block';
+        
+        html5QrScanner = new Html5Qrcode("qr-reader");
+        html5QrScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => handleStudentScan(decodedText),
+            (error) => {
+                // Silent error - scanning in progress
+                if (error && error.includes('NotFoundException')) {
+                    // This is normal when no QR is found
+                }
             }
-
-            document.getElementById('scannerPlaceholder').style.display = 'none';
-            document.getElementById('reader').classList.add('active');
-            document.getElementById('reader').style.display = 'block';
-
-            html5QrcodeScanner = new Html5Qrcode("reader");
-            html5QrcodeScanner.start({
-                    facingMode: "environment"
-                }, {
-                    fps: 10,
-                    qrbox: {
-                        width: 250,
-                        height: 250
-                    }
-                },
-                (decodedText) => {
-                    handleScan(decodedText);
-                },
-                (error) => {
-                    // Silent error handling
-                }
-            ).then(() => {
-                isScannerActive = true;
-                document.getElementById('scanStatus').innerHTML = '<span class="live-indicator"></span> Camera active - Ready to scan QR codes';
-
-                if (!document.getElementById('stopCameraBtn')) {
-                    const container = document.querySelector('.scanner-container');
-                    const stopBtn = document.createElement('button');
-                    stopBtn.id = 'stopCameraBtn';
-                    stopBtn.className = 'stop-camera-btn';
-                    stopBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Camera';
-                    stopBtn.onclick = stopScanner;
-                    container.appendChild(stopBtn);
-                }
+        ).then(() => {
+            isScannerActive = true;
+        }).catch(err => {
+            alert("Camera access denied or not supported. Please grant permissions.");
+            stopStudentScanner();
+        });
+    }
+    
+    function stopStudentScanner() {
+        if (html5QrScanner && isScannerActive) {
+            html5QrScanner.stop().then(() => {
+                isScannerActive = false;
+                document.getElementById('studentScannerContainer').style.display = 'none';
+                document.getElementById('startScannerBtn').style.display = 'inline-block';
+                document.getElementById('stopScannerBtn').style.display = 'none';
             }).catch(err => {
-                console.error("Failed to start scanner:", err);
-                document.getElementById('scanStatus').innerHTML = '<span style="color: #ef4444;">⚠️ Camera access denied. Please check permissions.</span>';
-                document.getElementById('scannerPlaceholder').style.display = 'block';
-                document.getElementById('reader').style.display = 'none';
+                console.error('Error stopping scanner:', err);
             });
         }
-
-        function stopScanner() {
-            if (html5QrcodeScanner && isScannerActive) {
-                html5QrcodeScanner.stop().then(() => {
-                    isScannerActive = false;
-                    document.getElementById('reader').style.display = 'none';
-                    document.getElementById('reader').classList.remove('active');
-                    document.getElementById('scannerPlaceholder').style.display = 'block';
-                    document.getElementById('scanStatus').innerHTML = '<span class="live-indicator"></span> Camera stopped - Click "Start Camera" to begin scanning';
-
-                    const stopBtn = document.getElementById('stopCameraBtn');
-                    if (stopBtn) stopBtn.remove();
-                }).catch(err => {
-                    console.error("Error stopping scanner:", err);
-                });
+    }
+    
+    function handleStudentScan(decodedText) {
+        try {
+            const data = JSON.parse(decodedText);
+            if (data.type === 'student_attendance') {
+                stopStudentScanner();
+                recordStudentAttendance(data.student_id);
+            } else {
+                alert("Invalid QR code. Please scan a Student QR code.");
+            }
+        } catch (e) {
+            // Try to see if it's just a student ID
+            if (decodedText.match(/^[0-9]+$/)) {
+                stopStudentScanner();
+                recordStudentAttendance(decodedText);
+            } else {
+                alert("Invalid QR code format. Please scan a valid Student QR code.");
             }
         }
-
-        function handleScan(decodedText) {
-            try {
-                let studentId;
-                try {
-                    const data = JSON.parse(decodeURIComponent(decodedText));
-                    if (data.type === 'student' && data.id) {
-                        studentId = data.id;
-                    } else if (data.id) {
-                        studentId = data.id;
-                    } else {
-                        studentId = parseInt(decodedText);
-                    }
-                } catch (e) {
-                    studentId = parseInt(decodedText);
-                }
-
-                if (studentId && studentId > 0) {
-                    recordAttendance(studentId);
-                } else {
-                    showFeedback('Invalid QR code format', 'error');
-                }
-            } catch (e) {
-                showFeedback('Invalid QR code', 'error');
-            }
-        }
-
-        function recordAttendance(studentId) {
-            const requestData = {
+    }
+    
+    function recordStudentAttendance(studentId) {
+        fetch('/eagles/staff/attendance_api.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
                 action: 'record_attendance',
                 student_id: studentId,
-                scan_type: currentScanType
+                scan_type: 'check_in'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('scanResult');
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert-success">✅ ${data.student_name} checked in successfully at ${data.time}</div>`;
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert-danger">❌ ${data.error}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('scanResult').innerHTML = `<div class="alert-danger">❌ Network error. Please try again.</div>`;
+        });
+    }
+    
+    // Friend marking with camera
+    document.getElementById('openFriendCameraBtn').addEventListener('click', function() {
+        const input = document.getElementById('friendPhotoInput');
+        input.click();
+    });
+    
+    document.getElementById('friendPhotoInput').addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const preview = document.getElementById('friendCameraPreview');
+                preview.innerHTML = `<img src="${event.target.result}" style="width:100%; height:100%; object-fit:cover;">`;
+                friendPhotoData = event.target.result;
             };
-
-            fetch('attendance.php', {
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    function markFriendAttendance() {
+        const friendStaffId = document.getElementById('friendStaffId').value;
+        if (!friendStaffId) {
+            alert('Please enter colleague\'s numeric Staff ID');
+            return;
+        }
+        
+        // Validate it's a number
+        if (isNaN(friendStaffId)) {
+            alert('Please enter a valid numeric Staff ID');
+            return;
+        }
+        
+        if (!friendPhotoData) {
+            alert('Please take a photo proof');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('action', 'mark_friend');
+        formData.append('friend_staff_id', friendStaffId);
+        
+        // Convert base64 to blob
+        fetch(friendPhotoData)
+            .then(res => res.blob())
+            .then(blob => {
+                formData.append('proof_photo', blob, 'proof.jpg');
+                
+                fetch(window.location.href, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify(requestData)
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const emoji = currentScanType === 'check_in' ? '✅' : '👋';
-                        showFeedback(`${emoji} ${data.student_name} - ${currentScanType === 'check_in' ? 'Checked In' : 'Checked Out'} (${data.status})`, 'success');
-                        loadTodayStats();
-                        loadRecentScans();
-                        loadDailyStats();
+                        alert('✅ ' + data.message);
+                        document.getElementById('friendStaffId').value = '';
+                        document.getElementById('friendCameraPreview').innerHTML = '<i class="fas fa-camera" style="font-size: 2rem; color: #9ca3af;"></i>';
+                        friendPhotoData = null;
+                        loadMyHistory(); // Refresh history
                     } else {
-                        showFeedback(`❌ ${data.error || 'Failed to record attendance'}`, 'error');
+                        alert('❌ ' + data.error);
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showFeedback('Network error. Please check your connection.', 'error');
+                    alert('❌ Network error. Please try again.');
                 });
-        }
-
-        function showFeedback(message, type) {
-            const feedback = document.createElement('div');
-            feedback.className = 'scan-feedback';
-            if (type === 'success') {
-                feedback.style.background = '#10b981';
-            } else if (type === 'error') {
-                feedback.style.background = '#ef4444';
+            });
+    }
+    
+    function loadMyHistory() {
+        const historyBody = document.getElementById('historyBody');
+        historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
+        
+        fetch(window.location.href + '?action=get_my_attendance', {
+            headers: { 
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('historyBody');
+            if (data.success && data.history && data.history.length > 0) {
+                tbody.innerHTML = data.history.map(h => {
+                    let statusClass = h.status === 'late' ? '#fed7aa' : '#d1fae5';
+                    let statusText = h.status === 'late' ? 'Late' : (h.status === 'present' ? 'Present' : h.status);
+                    let sourceText = 'Manual';
+                    if (h.attendance_source === 'self_scan') sourceText = 'Self';
+                    else if (h.attendance_source === 'friend_marked') sourceText = `By ${h.marked_by_name || 'Friend'}`;
+                    
+                    return `
+                        <tr>
+                            <td>${new Date(h.date + 'T00:00:00').toLocaleDateString()}</td>
+                            <td>${h.clock_in ? new Date('1970-01-01T' + h.clock_in).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+                            <td>${h.clock_out ? new Date('1970-01-01T' + h.clock_out).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—'}</td>
+                            <td><span style="background:${statusClass}; padding:2px 8px; border-radius:20px;">${statusText}</span></td>
+                            <td>${sourceText}</td>
+                        </tr>
+                    `;
+                }).join('');
             } else {
-                feedback.style.background = '#3b82f6';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No attendance records found. Try clocking in first!</td></tr>';
             }
-            feedback.innerHTML = message;
-            document.body.appendChild(feedback);
-
-            setTimeout(() => {
-                feedback.remove();
-            }, 3000);
-        }
-
-        function loadTodayStats() {
-            fetch('attendance.php?action=get_today_stats', {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById('totalPresent').innerText = data.present || 0;
-                        document.getElementById('totalLate').innerText = data.late || 0;
-                        document.getElementById('totalAbsent').innerText = data.absent || 0;
-                        document.getElementById('totalStudents').innerText = data.total || 0;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading stats:', error);
-                });
-        }
-
-        function loadRecentScans() {
-            fetch('attendance.php?action=get_recent_scans', {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.scans) {
-                        const tbody = document.getElementById('recentScansBody');
-                        if (!data.scans || data.scans.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No scans yet today</td></tr>';
-                            return;
-                        }
-                        tbody.innerHTML = '';
-                        data.scans.forEach(scan => {
-                            tbody.innerHTML += `
-                            <tr>
-                                <td>${new Date(scan.scan_time).toLocaleTimeString()}</td>
-                                <td><strong>${escapeHtml(scan.full_name)}</strong></td>
-                                <td>${escapeHtml(scan.admission_number)}</td>
-                                <td>${escapeHtml(scan.class_name || '-')}</td>
-                                <td><span class="status-badge">${scan.scan_type === 'check_in' ? 'In' : 'Out'}</span></td>
-                                <td><span class="status-badge status-${scan.status}">${scan.status}</span></td>
-                            </tr>
-                        `;
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading scans:', error);
-                });
-        }
-
-        function loadDailyStats() {
-            const classId = document.getElementById('classFilter').value;
-            const today = new Date().toISOString().split('T')[0];
-
-            fetch(`attendance.php?action=get_daily_stats&date=${today}&class_id=${classId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const tbody = document.getElementById('dailyStatsBody');
-                        if (!data.attendance || data.attendance.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No students found</td></tr>';
-                            return;
-                        }
-
-                        let sn = 1;
-                        tbody.innerHTML = '';
-                        data.attendance.forEach(student => {
-                            const status = student.scan_type ? student.status : 'absent';
-                            const time = student.scan_time ? new Date(student.scan_time).toLocaleTimeString() : '-';
-
-                            tbody.innerHTML += `
-                            <tr>
-                                <td>${sn++}</td>
-                                <td>${escapeHtml(student.admission_number)}</td>
-                                <td><strong>${escapeHtml(student.full_name)}</strong></td>
-                                <td>${escapeHtml(student.class_name || '-')}</td>
-                                <td><span class="status-badge status-${status}">${status === 'present' ? 'Present' : (status === 'late' ? 'Late' : 'Absent')}</span></td>
-                                <td>${time}</td>
-                            </tr>
-                        `;
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading daily stats:', error);
-                });
-        }
-
-        function showAttendanceList(type) {
-            const classId = document.getElementById('classFilter').value;
-            const today = new Date().toISOString().split('T')[0];
-
-            fetch(`attendance.php?action=get_daily_stats&date=${today}&class_id=${classId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const modal = document.getElementById('attendanceListModal');
-                        const title = document.getElementById('attendanceListTitle');
-                        const body = document.getElementById('attendanceListBody');
-
-                        let filteredStudents = data.attendance;
-                        if (type === 'present') {
-                            filteredStudents = data.attendance.filter(s => s.scan_type && s.status !== 'late');
-                            title.innerHTML = `Present Students (${filteredStudents.length})`;
-                        } else if (type === 'late') {
-                            filteredStudents = data.attendance.filter(s => s.status === 'late');
-                            title.innerHTML = `Late Students (${filteredStudents.length})`;
-                        } else if (type === 'absent') {
-                            filteredStudents = data.attendance.filter(s => !s.scan_type);
-                            title.innerHTML = `Absent Students (${filteredStudents.length})`;
-                        } else {
-                            title.innerHTML = `All Students (${filteredStudents.length})`;
-                        }
-
-                        if (filteredStudents.length === 0) {
-                            body.innerHTML = '<p style="text-align:center; padding: 20px;">No students found</p>';
-                        } else {
-                            body.innerHTML = `
-                            <div class="table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr><th>Admission No</th><th>Student Name</th><th>Class</th><th>Status</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        ${filteredStudents.map(s => `
-                                            <tr>
-                                                <td>${escapeHtml(s.admission_number)}</td>
-                                                <td><strong>${escapeHtml(s.full_name)}</strong></td>
-                                                <td>${escapeHtml(s.class_name || '-')}</td>
-                                                <td><span class="status-badge status-${s.scan_type ? (s.status === 'late' ? 'late' : 'present') : 'absent'}">
-                                                    ${s.scan_type ? (s.status === 'late' ? 'Late' : 'Present') : 'Absent'}
-                                                </span></td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                        }
-
-                        modal.classList.add('show');
-                    }
-                });
-        }
-
-        function closeAttendanceListModal() {
-            document.getElementById('attendanceListModal').classList.remove('show');
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Auto-refresh every 10 seconds
-        setInterval(() => {
-            loadTodayStats();
-            loadRecentScans();
-            loadDailyStats();
-        }, 10000);
-
-        // Close modal on outside click
-        window.onclick = function(event) {
-            const listModal = document.getElementById('attendanceListModal');
-            if (event.target === listModal) {
-                closeAttendanceListModal();
-            }
-        };
-
-        // Close sidebar overlay
-        const overlay = document.getElementById('sidebarOverlay');
-        if (overlay) {
-            overlay.onclick = () => {
-                document.getElementById('staffSidebar').classList.remove('active');
-                overlay.classList.remove('active');
-            };
-        }
-
-        // Initial load
-        loadTodayStats();
-        loadRecentScans();
-        loadDailyStats();
-
-        // Clean up on page unload
-        window.addEventListener('beforeunload', function() {
-            if (html5QrcodeScanner && isScannerActive) {
-                html5QrcodeScanner.stop();
-            }
+        })
+        .catch(error => {
+            console.error('Error loading history:', error);
+            document.getElementById('historyBody').innerHTML = '<tr><td colspan="5" style="text-align:center;">Error loading history. Please try again.</td></td>';
         });
-    </script>
+    }
+    
+    // Initial load
+    loadMyHistory();
+</script>
 </body>
-
 </html>

@@ -55,6 +55,20 @@ try {
     if (!$stmt->fetch()) {
         $pdo->exec("ALTER TABLE topics ADD COLUMN term ENUM('First','Second','Third') NULL AFTER topic_name");
     }
+
+    // Ensure subjects table has central_subject_id column
+    $stmt = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'central_subject_id'");
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE subjects ADD COLUMN central_subject_id INT NULL DEFAULT NULL");
+        // Auto-link existing school subjects to central subjects by name
+        $pdo->exec("
+            UPDATE subjects s
+            JOIN subjects c ON c.subject_name = s.subject_name AND c.school_id IS NULL AND c.is_central = 1
+            SET s.central_subject_id = c.id
+            WHERE s.school_id IS NOT NULL AND s.is_central = 0 AND s.central_subject_id IS NULL
+        ");
+    }
+
 } catch (Exception $e) {
     error_log("Table check error: " . $e->getMessage());
 }
@@ -63,7 +77,7 @@ try {
 // HANDLE FORM SUBMISSIONS
 // ============================================
 
-// Add manual topic (NEW)
+// Add manual topic
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_topic'])) {
     try {
         $subject_id_post = (int)$_POST['subject_id'];
@@ -283,7 +297,14 @@ $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $selected_subject = null;
 if ($subject_id) {
     try {
-        $stmt = $pdo->prepare("SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) as assigned_classes FROM subjects s LEFT JOIN subject_classes sc ON s.id = sc.subject_id LEFT JOIN classes c ON sc.class_id = c.id WHERE s.id = ? AND s.school_id = ? GROUP BY s.id");
+        $stmt = $pdo->prepare("
+            SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) as assigned_classes 
+            FROM subjects s 
+            LEFT JOIN subject_classes sc ON s.id = sc.subject_id 
+            LEFT JOIN classes c ON sc.class_id = c.id 
+            WHERE s.id = ? AND s.school_id = ? 
+            GROUP BY s.id
+        ");
         $stmt->execute([$subject_id, $school_id]);
         $selected_subject = $stmt->fetch();
     } catch (Exception $e) {
@@ -336,19 +357,21 @@ $subjects = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY s
 $subjects->execute([$school_id]);
 $subjects = $subjects->fetchAll();
 
-// Get available central topics
+// Get available central topics (FIXED: uses central_subject_id instead of name matching)
 $available_central_topics = [];
 if ($subject_id) {
-    $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ?");
+    $stmt = $pdo->prepare("SELECT id, subject_name, central_subject_id FROM subjects WHERE id = ? AND school_id = ?");
     $stmt->execute([$subject_id, $school_id]);
     $current_subject = $stmt->fetch();
 
-    if ($current_subject) {
+    if ($current_subject && $current_subject['central_subject_id']) {
         $stmt = $pdo->prepare("
             SELECT * FROM topics 
             WHERE school_id IS NULL AND is_central = 1 
-            AND subject_id = (SELECT id FROM subjects WHERE subject_name = ? AND school_id IS NULL AND is_central = 1)
-            AND topic_name NOT IN (SELECT topic_name FROM topics WHERE subject_id = ? AND school_id = ?)
+            AND subject_id = ?
+            AND topic_name NOT IN (
+                SELECT topic_name FROM topics WHERE subject_id = ? AND school_id = ?
+            )
             ORDER BY 
                 CASE 
                     WHEN term = 'First' THEN 1
@@ -358,7 +381,7 @@ if ($subject_id) {
                 END,
                 topic_name
         ");
-        $stmt->execute([$current_subject['subject_name'], $subject_id, $school_id]);
+        $stmt->execute([$current_subject['central_subject_id'], $subject_id, $school_id]);
         $available_central_topics = $stmt->fetchAll();
     }
 }

@@ -1,36 +1,50 @@
 <?php
 // admin/manage-subjects.php - Complete Subject Management with Card Layout & Modal Actions
+// Supports both Admin (full access) and Staff (view-only for assigned subjects)
 session_start();
 
-// Check if admin is logged in
+// Check if user is logged in
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header("Location: /msv/login.php");
     exit();
 }
 
-// Get admin info
-if (isset($_SESSION['admin_id'])) {
+// Determine user type and role
+$user_type = $_SESSION['user_type'] ?? 'admin';
+$is_staff = ($user_type === 'staff');
+
+// Get user info based on type
+if (!$is_staff && isset($_SESSION['admin_id'])) {
     $admin_id = $_SESSION['admin_id'];
     $admin_name = $_SESSION['admin_name'] ?? 'Administrator';
     $admin_role = $_SESSION['admin_role'] ?? 'super_admin';
+    $staff_id = null;
+} elseif ($is_staff && isset($_SESSION['user_id'])) {
+    $staff_id = $_SESSION['user_id'];
+    $admin_name = $_SESSION['user_name'] ?? 'Staff Member';
+    $admin_role = 'staff';
+    $admin_id = $staff_id;
 } else {
-    $admin_id = $_SESSION['user_id'];
-    $admin_name = $_SESSION['user_name'] ?? 'Administrator';
-    $admin_role = $_SESSION['admin_role'] ?? 'admin';
-}
-
-// Check permission
-if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
-    header("Location: index.php?message=Access+denied&type=error");
+    header("Location: /msv/login.php");
     exit();
 }
 
+// Check permission - staff can view only, admins have full access
+$is_admin = ($admin_role === 'super_admin' || $admin_role === 'admin');
+
 require_once '../includes/config.php';
+require_once 'includes/staff_permissions.php';
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
 $primary_color = SCHOOL_PRIMARY;
 $page_title = "Manage Subjects";
+
+// Get staff's assigned subject IDs if user is staff
+$staff_assigned_subject_ids = [];
+if ($is_staff && $staff_id) {
+    $staff_assigned_subject_ids = getStaffAssignedSubjectIds($pdo, $staff_id, $school_id);
+}
 
 // ============================================
 // AJAX HANDLER FOR GETTING SUBJECT DETAILS
@@ -39,6 +53,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_subject' && isset($_GET['id'])
     header('Content-Type: application/json');
     try {
         $subject_id = intval($_GET['id']);
+        
+        // For staff, verify they have access to this subject
+        if ($is_staff && !in_array($subject_id, $staff_assigned_subject_ids)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Access denied. This subject is not assigned to you.'
+            ]);
+            exit();
+        }
 
         $stmt = $pdo->prepare("
             SELECT s.*, 
@@ -134,165 +157,168 @@ try {
 }
 
 // ============================================
-// HANDLE FORM SUBMISSIONS
+// HANDLE FORM SUBMISSIONS (ADMIN ONLY)
 // ============================================
 
 $message = '';
 $message_type = '';
 
-// Add multiple subjects
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
-    try {
-        $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
-        $selected_class_ids = $_POST['class_ids'] ?? [];
+// Staff cannot perform these actions - skip processing
+if (!$is_staff) {
+    // Add multiple subjects
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_subjects'])) {
+        try {
+            $selected_subject_ids = $_POST['central_subject_ids'] ?? [];
+            $selected_class_ids = $_POST['class_ids'] ?? [];
 
-        if (empty($selected_subject_ids)) {
-            throw new Exception("Please select at least one subject to add");
-        }
-
-        if (empty($selected_class_ids)) {
-            throw new Exception("Please select at least one class to assign these subjects to");
-        }
-
-        $added_count = 0;
-        $skipped_count = 0;
-
-        foreach ($selected_subject_ids as $central_subject_id) {
-            $stmt = $pdo->prepare("SELECT subject_name, description FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
-            $stmt->execute([$central_subject_id]);
-            $central_subject = $stmt->fetch();
-
-            if (!$central_subject) {
-                continue;
+            if (empty($selected_subject_ids)) {
+                throw new Exception("Please select at least one subject to add");
             }
 
-            $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ?");
-            $stmt->execute([$central_subject['subject_name'], $school_id]);
-            if ($stmt->fetch()) {
-                $skipped_count++;
-                continue;
+            if (empty($selected_class_ids)) {
+                throw new Exception("Please select at least one class to assign these subjects to");
             }
 
-            $stmt = $pdo->prepare("INSERT INTO subjects (subject_name, description, school_id, is_central, created_at) VALUES (?, ?, ?, 0, NOW())");
-            $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
-            $new_subject_id = $pdo->lastInsertId();
+            $added_count = 0;
+            $skipped_count = 0;
 
+            foreach ($selected_subject_ids as $central_subject_id) {
+                $stmt = $pdo->prepare("SELECT subject_name, description FROM subjects WHERE id = ? AND school_id IS NULL AND is_central = 1");
+                $stmt->execute([$central_subject_id]);
+                $central_subject = $stmt->fetch();
+
+                if (!$central_subject) {
+                    continue;
+                }
+
+                $stmt = $pdo->prepare("SELECT id FROM subjects WHERE subject_name = ? AND school_id = ?");
+                $stmt->execute([$central_subject['subject_name'], $school_id]);
+                if ($stmt->fetch()) {
+                    $skipped_count++;
+                    continue;
+                }
+
+                $stmt = $pdo->prepare("INSERT INTO subjects (subject_name, description, school_id, is_central, created_at) VALUES (?, ?, ?, 0, NOW())");
+                $stmt->execute([$central_subject['subject_name'], $central_subject['description'], $school_id]);
+                $new_subject_id = $pdo->lastInsertId();
+
+                foreach ($selected_class_ids as $class_id) {
+                    if (!empty($class_id)) {
+                        $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class_id, school_id) VALUES (?, ?, ?)");
+                        $stmt->execute([$new_subject_id, $class_id, $school_id]);
+                    }
+                }
+                $added_count++;
+            }
+
+            if ($added_count > 0) {
+                $message = "$added_count subject(s) added successfully";
+                if ($skipped_count > 0) {
+                    $message .= ". $skipped_count subject(s) already existed.";
+                }
+                $message_type = "success";
+            } else {
+                throw new Exception("No subjects were added. " . ($skipped_count > 0 ? "Selected subjects already exist." : "Please select subjects."));
+            }
+        } catch (Exception $e) {
+            $message = $e->getMessage();
+            $message_type = "error";
+        }
+    }
+
+    // Update subject
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
+        try {
+            $subject_id = $_POST['subject_id'];
+            $description = trim($_POST['description'] ?? '');
+            $selected_class_ids = $_POST['class_ids'] ?? [];
+
+            $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
+            $stmt->execute([$subject_id, $school_id]);
+            if (!$stmt->fetch()) {
+                throw new Exception("Subject not found");
+            }
+
+            $stmt = $pdo->prepare("UPDATE subjects SET description = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$description, $subject_id]);
+
+            // Delete existing class assignments
+            $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ? AND school_id = ?");
+            $stmt->execute([$subject_id, $school_id]);
+
+            // Insert new class assignments
             foreach ($selected_class_ids as $class_id) {
                 if (!empty($class_id)) {
                     $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class_id, school_id) VALUES (?, ?, ?)");
-                    $stmt->execute([$new_subject_id, $class_id, $school_id]);
+                    $stmt->execute([$subject_id, $class_id, $school_id]);
                 }
             }
-            $added_count++;
-        }
 
-        if ($added_count > 0) {
-            $message = "$added_count subject(s) added successfully";
-            if ($skipped_count > 0) {
-                $message .= ". $skipped_count subject(s) already existed.";
-            }
+            $message = "Subject updated successfully";
             $message_type = "success";
-        } else {
-            throw new Exception("No subjects were added. " . ($skipped_count > 0 ? "Selected subjects already exist." : "Please select subjects."));
-        }
-    } catch (Exception $e) {
-        $message = $e->getMessage();
-        $message_type = "error";
-    }
-}
 
-// Update subject
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_subject'])) {
-    try {
-        $subject_id = $_POST['subject_id'];
-        $description = trim($_POST['description'] ?? '');
-        $selected_class_ids = $_POST['class_ids'] ?? [];
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => $message]);
+                exit();
+            }
+        } catch (Exception $e) {
+            $message = $e->getMessage();
+            $message_type = "error";
 
-        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
-        $stmt->execute([$subject_id, $school_id]);
-        if (!$stmt->fetch()) {
-            throw new Exception("Subject not found");
-        }
-
-        $stmt = $pdo->prepare("UPDATE subjects SET description = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$description, $subject_id]);
-
-        // Delete existing class assignments
-        $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ? AND school_id = ?");
-        $stmt->execute([$subject_id, $school_id]);
-
-        // Insert new class assignments
-        foreach ($selected_class_ids as $class_id) {
-            if (!empty($class_id)) {
-                $stmt = $pdo->prepare("INSERT INTO subject_classes (subject_id, class_id, school_id) VALUES (?, ?, ?)");
-                $stmt->execute([$subject_id, $class_id, $school_id]);
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $message]);
+                exit();
             }
         }
-
-        $message = "Subject updated successfully";
-        $message_type = "success";
-
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => $message]);
-            exit();
-        }
-    } catch (Exception $e) {
-        $message = $e->getMessage();
-        $message_type = "error";
-
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => $message]);
-            exit();
-        }
     }
-}
 
-// Delete subject
-if (isset($_GET['delete'])) {
-    try {
-        $subject_id = $_GET['delete'];
+    // Delete subject
+    if (isset($_GET['delete'])) {
+        try {
+            $subject_id = $_GET['delete'];
 
-        $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
-        $stmt->execute([$subject_id, $school_id]);
-        $subject = $stmt->fetch();
-        if (!$subject) {
-            throw new Exception("Subject not found");
-        }
+            $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id = ? AND school_id = ? AND is_central = 0");
+            $stmt->execute([$subject_id, $school_id]);
+            $subject = $stmt->fetch();
+            if (!$subject) {
+                throw new Exception("Subject not found");
+            }
 
-        // Check dependencies
-        $checks = [
-            'objective_questions' => 'objective_count',
-            'subjective_questions' => 'subjective_count',
-            'theory_questions' => 'theory_count',
-            'exams' => 'exam_count',
-            'topics' => 'topic_count',
-            'student_scores' => 'score_count'
-        ];
-        $total = 0;
-        foreach ($checks as $table => $field) {
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM $table WHERE subject_id = ?");
+            // Check dependencies
+            $checks = [
+                'objective_questions' => 'objective_count',
+                'subjective_questions' => 'subjective_count',
+                'theory_questions' => 'theory_count',
+                'exams' => 'exam_count',
+                'topics' => 'topic_count',
+                'student_scores' => 'score_count'
+            ];
+            $total = 0;
+            foreach ($checks as $table => $field) {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM $table WHERE subject_id = ?");
+                $stmt->execute([$subject_id]);
+                $total += $stmt->fetchColumn();
+            }
+
+            if ($total > 0) {
+                throw new Exception("Cannot delete subject. It has associated questions, exams, or scores.");
+            }
+
+            // Delete subject classes first
+            $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ?");
             $stmt->execute([$subject_id]);
-            $total += $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("DELETE FROM subjects WHERE id = ?");
+            $stmt->execute([$subject_id]);
+
+            $message = "Subject '{$subject['subject_name']}' deleted successfully";
+            $message_type = "success";
+        } catch (Exception $e) {
+            $message = $e->getMessage();
+            $message_type = "error";
         }
-
-        if ($total > 0) {
-            throw new Exception("Cannot delete subject. It has associated questions, exams, or scores.");
-        }
-
-        // Delete subject classes first
-        $stmt = $pdo->prepare("DELETE FROM subject_classes WHERE subject_id = ?");
-        $stmt->execute([$subject_id]);
-
-        $stmt = $pdo->prepare("DELETE FROM subjects WHERE id = ?");
-        $stmt->execute([$subject_id]);
-
-        $message = "Subject '{$subject['subject_name']}' deleted successfully";
-        $message_type = "success";
-    } catch (Exception $e) {
-        $message = $e->getMessage();
-        $message_type = "error";
     }
 }
 
@@ -300,19 +326,24 @@ if (isset($_GET['delete'])) {
 // FETCH DATA
 // ============================================
 
-// Fetch available central subjects
-$stmt = $pdo->prepare("
-    SELECT s.* 
-    FROM subjects s
-    WHERE s.school_id IS NULL AND s.is_central = 1
-    AND s.subject_name NOT IN (SELECT subject_name FROM subjects WHERE school_id = ?)
-    ORDER BY s.subject_name
-");
-$stmt->execute([$school_id]);
-$available_subjects = $stmt->fetchAll();
+// Fetch available central subjects (admin only - for adding)
+$available_subjects = [];
+if (!$is_staff) {
+    $stmt = $pdo->prepare("
+        SELECT s.* 
+        FROM subjects s
+        WHERE s.school_id IS NULL AND s.is_central = 1
+        AND s.subject_name NOT IN (SELECT subject_name FROM subjects WHERE school_id = ?)
+        ORDER BY s.subject_name
+    ");
+    $stmt->execute([$school_id]);
+    $available_subjects = $stmt->fetchAll();
+}
 
-// Fetch all subjects for this school with class names
-$stmt = $pdo->prepare("
+// Fetch subjects for this school
+// For staff: only subjects assigned to them
+// For admin: all subjects
+$sql = "
     SELECT s.*, 
            GROUP_CONCAT(DISTINCT c.class_name ORDER BY c.class_name) as assigned_classes,
            (SELECT COUNT(*) FROM objective_questions WHERE subject_id = s.id) as objective_count,
@@ -325,10 +356,24 @@ $stmt = $pdo->prepare("
     LEFT JOIN subject_classes sc ON s.id = sc.subject_id AND sc.school_id = s.school_id
     LEFT JOIN classes c ON sc.class_id = c.id
     WHERE s.school_id = ?
-    GROUP BY s.id
-    ORDER BY s.subject_name
-");
-$stmt->execute([$school_id]);
+";
+
+$params = [$school_id];
+
+// For staff, filter by assigned subjects
+if ($is_staff && !empty($staff_assigned_subject_ids)) {
+    $placeholders = implode(',', array_fill(0, count($staff_assigned_subject_ids), '?'));
+    $sql .= " AND s.id IN ($placeholders)";
+    $params = array_merge($params, $staff_assigned_subject_ids);
+} elseif ($is_staff && empty($staff_assigned_subject_ids)) {
+    // No subjects assigned - query will return empty
+    $sql .= " AND 1=0";
+}
+
+$sql .= " GROUP BY s.id ORDER BY s.subject_name";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $subjects = $stmt->fetchAll();
 
 // Fetch available classes
@@ -799,6 +844,12 @@ require_once 'includes/sidebar.php';
             border-left: 4px solid var(--danger);
         }
 
+        .alert-info {
+            background: var(--info-light);
+            color: var(--info);
+            border-left: 4px solid var(--info);
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -867,10 +918,19 @@ require_once 'includes/sidebar.php';
                 <h1><i class="fas fa-book"></i> Manage Subjects</h1>
                 <p>Click any subject to view details and actions</p>
             </div>
+            <?php if (!$is_staff): ?>
             <button class="btn btn-primary" id="openSubjectModalBtn">
                 <i class="fas fa-plus-circle"></i> Add Subjects
             </button>
+            <?php endif; ?>
         </div>
+
+        <?php if ($is_staff): ?>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            You are viewing subjects assigned to you. Contact your administrator if you need access to additional subjects.
+        </div>
+        <?php endif; ?>
 
         <?php if ($message): ?>
             <div class="alert alert-<?php echo $message_type; ?>" id="alertMessage">
@@ -890,10 +950,14 @@ require_once 'includes/sidebar.php';
             <div class="empty-state">
                 <i class="fas fa-book-open"></i>
                 <h3>No Subjects Found</h3>
-                <p>Click "Add Subjects" to add subjects from the national curriculum.</p>
-                <button class="btn btn-primary" onclick="document.getElementById('openSubjectModalBtn').click()">
-                    <i class="fas fa-plus-circle"></i> Add Subjects
-                </button>
+                <?php if ($is_staff): ?>
+                    <p>No subjects have been assigned to you yet. Please contact your administrator.</p>
+                <?php else: ?>
+                    <p>Click "Add Subjects" to add subjects from the national curriculum.</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('openSubjectModalBtn').click()">
+                        <i class="fas fa-plus-circle"></i> Add Subjects
+                    </button>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="subjects-grid" id="subjectsGrid">
@@ -946,7 +1010,8 @@ require_once 'includes/sidebar.php';
         </div>
     </div>
 
-    <!-- Add Subjects Modal -->
+    <?php if (!$is_staff): ?>
+    <!-- Add Subjects Modal (Admin Only) -->
     <div class="modal" id="addSubjectsModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1012,7 +1077,7 @@ require_once 'includes/sidebar.php';
         </div>
     </div>
 
-    <!-- Edit Subject Modal (inside main modal) -->
+    <!-- Edit Subject Modal (Admin Only) -->
     <div class="modal" id="editSubjectModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1035,7 +1100,7 @@ require_once 'includes/sidebar.php';
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Delete Confirmation Modal (Admin Only) -->
     <div class="modal" id="deleteModal">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
@@ -1052,8 +1117,12 @@ require_once 'includes/sidebar.php';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <script>
+        // Pass staff status to JavaScript
+        const isStaffUser = <?php echo $is_staff ? 'true' : 'false'; ?>;
+        
         // Available classes
         const availableClasses = <?php echo json_encode($available_classes); ?>;
 
@@ -1089,7 +1158,6 @@ require_once 'includes/sidebar.php';
         const cards = document.querySelectorAll('.subject-card');
         cards.forEach(card => {
             card.addEventListener('click', function(e) {
-                // Don't open if clicking on a link inside
                 if (e.target.closest('a')) return;
                 const subjectId = this.getAttribute('data-subject-id');
                 openSubjectModal(subjectId);
@@ -1123,6 +1191,40 @@ require_once 'includes/sidebar.php';
 
                         const hasDependencies = (parseInt(subject.objective_count) + parseInt(subject.subjective_count) + parseInt(subject.theory_count) + parseInt(subject.exam_count)) > 0;
 
+                        let actionButtonsHtml = '';
+                        
+                        if (!isStaffUser) {
+                            actionButtonsHtml = `
+                                <button class="btn btn-info modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-topics.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-tags"></i> Topics
+                                </button>
+                                <button class="btn btn-success modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-questions.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-question-circle"></i> Questions
+                                </button>
+                                <button class="btn btn-warning modal-action-btn" onclick="closeModal('subjectModal'); openEditModal(${subject.id})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                ${!hasDependencies ? `
+                                    <button class="btn btn-danger modal-action-btn" onclick="closeModal('subjectModal'); confirmDelete(${subject.id}, '${escapeHtml(subject.subject_name)}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-danger modal-action-btn" disabled style="opacity:0.5; cursor:not-allowed;" title="Cannot delete - has dependencies">
+                                        <i class="fas fa-trash"></i> Delete (Has Dependencies)
+                                    </button>
+                                `}
+                            `;
+                        } else {
+                            actionButtonsHtml = `
+                                <button class="btn btn-info modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-topics.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-tags"></i> View Topics
+                                </button>
+                                <button class="btn btn-success modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-questions.php?subject_id=${subject.id}'">
+                                    <i class="fas fa-question-circle"></i> View Questions
+                                </button>
+                            `;
+                        }
+
                         modalBody.innerHTML = `
                             <div class="info-row">
                                 <div class="info-label">Subject Name:</div>
@@ -1148,24 +1250,7 @@ require_once 'includes/sidebar.php';
                                 </div>
                             </div>
                             <div class="modal-action-buttons">
-                                <button class="btn btn-info modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-topics.php?subject_id=${subject.id}'">
-                                    <i class="fas fa-tags"></i> Topics
-                                </button>
-                                <button class="btn btn-success modal-action-btn" onclick="closeModal('subjectModal'); window.location.href='manage-questions.php?subject_id=${subject.id}'">
-                                    <i class="fas fa-question-circle"></i> Questions
-                                </button>
-                                <button class="btn btn-warning modal-action-btn" onclick="closeModal('subjectModal'); openEditModal(${subject.id})">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
-                                ${!hasDependencies ? `
-                                    <button class="btn btn-danger modal-action-btn" onclick="closeModal('subjectModal'); confirmDelete(${subject.id}, '${escapeHtml(subject.subject_name)}')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                ` : `
-                                    <button class="btn btn-danger modal-action-btn" disabled style="opacity:0.5; cursor:not-allowed;" title="Cannot delete - has dependencies">
-                                        <i class="fas fa-trash"></i> Delete (Has Dependencies)
-                                    </button>
-                                `}
+                                ${actionButtonsHtml}
                             </div>
                         `;
                     } else {
@@ -1178,6 +1263,7 @@ require_once 'includes/sidebar.php';
                 });
         }
 
+        <?php if (!$is_staff): ?>
         function openEditModal(subjectId) {
             const modal = document.getElementById('editSubjectModal');
             const modalBody = document.getElementById('editModalBody');
@@ -1348,6 +1434,7 @@ require_once 'includes/sidebar.php';
                 if (deleteId) window.location.href = `manage-subjects.php?delete=${deleteId}`;
             });
         }
+        <?php endif; ?>
 
         // Helper functions
         function showAlert(message, type) {
@@ -1380,11 +1467,13 @@ require_once 'includes/sidebar.php';
             return div.innerHTML;
         }
 
-        // Open add modal
+        // Open add modal (admin only)
+        <?php if (!$is_staff): ?>
         const openAddBtn = document.getElementById('openSubjectModalBtn');
         if (openAddBtn) {
             openAddBtn.onclick = () => openModal('addSubjectsModal');
         }
+        <?php endif; ?>
 
         // Auto-hide alerts
         setTimeout(() => {
@@ -1395,8 +1484,10 @@ require_once 'includes/sidebar.php';
             });
         }, 5000);
 
+        <?php if (!$is_staff): ?>
         // Initialize selected count
         updateSelectedCount();
+        <?php endif; ?>
 
         // Close modals when clicking outside
         window.onclick = function(event) {

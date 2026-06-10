@@ -155,23 +155,28 @@ $logo_gradient  = "linear-gradient(135deg, $sb_secondary, $sb_primary)";
             <span class="nav-label">Dashboard</span>
         </a>
 
-        <!-- Students Group -->
-        <div class="nav-group <?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'open' : ''; ?>" data-group="students">
-            <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'true' : 'false'; ?>">
-                <span class="nav-icon"><i class="fas fa-users"></i></span>
-                <span class="nav-label">Students</span>
-                <span class="group-badge">
-                    <i class="fas fa-chevron-down chevron"></i>
-                </span>
-            </button>
-            <ul class="nav-group-items <?php echo in_array($current_page, ['manage-students.php', 'view-student.php']) ? 'expanded' : ''; ?>">
-                <li>
-                    <a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
-                        <i class="fas fa-user-graduate"></i> My Students
-                    </a>
-                </li>
-            </ul>
-        </div>
+        <!-- Students & Subjects Group -->
+<div class="nav-group <?php echo in_array($current_page, ['manage-students.php', 'view-student.php', 'manage-subjects.php']) ? 'open' : ''; ?>" data-group="academic">
+    <button class="nav-group-toggle" aria-expanded="<?php echo in_array($current_page, ['manage-students.php', 'view-student.php', 'manage-subjects.php']) ? 'true' : 'false'; ?>">
+        <span class="nav-icon"><i class="fas fa-users"></i></span>
+        <span class="nav-label">Academic Management</span>
+        <span class="group-badge">
+            <i class="fas fa-chevron-down chevron"></i>
+        </span>
+    </button>
+    <ul class="nav-group-items <?php echo in_array($current_page, ['manage-students.php', 'view-student.php', 'manage-subjects.php']) ? 'expanded' : ''; ?>">
+        <li>
+            <a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>">
+                <i class="fas fa-user-graduate"></i> My Students
+            </a>
+        </li>
+        <li>
+            <a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>">
+                <i class="fas fa-book"></i> Manage Subjects
+            </a>
+        </li>
+    </ul>
+</div>
 
         <!-- Exams & Results Group -->
 <div class="nav-group <?php echo in_array($current_page, ['manage-exams.php', 'view-results.php', 'staff_traits_comments.php']) ? 'open' : ''; ?>" data-group="exams">

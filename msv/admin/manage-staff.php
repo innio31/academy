@@ -1,6 +1,6 @@
 <?php
-// admin/manage-staff.php - Complete Staff Management with Attendance, Performance, and QR Tracking
-// CLEANED: Removed duplicate sidebar, uses shared sidebar.php
+// admin/manage-staff.php - Complete Staff Management with Unified Subject & Class Assignment
+// MODIFIED: Combined subject and class assignment into one page
 
 session_start();
 
@@ -275,43 +275,53 @@ if (isset($_GET['delete']) && $admin_role === 'super_admin') {
     exit();
 }
 
-// Assign Subjects
-if (isset($_POST['assign_subjects'])) {
+// UNIFIED ASSIGNMENT: Assign Subjects and Classes together
+if (isset($_POST['assign_all'])) {
     $staff_id_num = $_POST['staff_id'];
     $subjects = $_POST['subjects'] ?? [];
-
-    $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ?");
-    $stmt->execute([$staff_id_num]);
-    $staff_id_string = $stmt->fetchColumn();
-
-    $pdo->prepare("DELETE FROM staff_subjects WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
-
-    foreach ($subjects as $subject_id) {
-        $stmt = $pdo->prepare("INSERT INTO staff_subjects (staff_id, subject_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$staff_id_string, $subject_id, $school_id]);
-    }
-
-    header("Location: manage-staff.php?action=assign_subjects&id=$staff_id_num&message=Subjects+assigned+successfully&type=success");
-    exit();
-}
-
-// Assign Classes
-if (isset($_POST['assign_classes'])) {
-    $staff_id_num = $_POST['staff_id'];
     $class_ids = $_POST['classes'] ?? [];
 
+    // Get the staff_id string from the staff table
     $stmt = $pdo->prepare("SELECT staff_id FROM staff WHERE id = ?");
     $stmt->execute([$staff_id_num]);
     $staff_id_string = $stmt->fetchColumn();
 
-    $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
-
-    foreach ($class_ids as $class_id) {
-        $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$staff_id_string, $class_id, $school_id]);
+    if (!$staff_id_string) {
+        header("Location: manage-staff.php?action=list&message=Staff+not+found&type=error");
+        exit();
     }
 
-    header("Location: manage-staff.php?action=assign_classes&id=$staff_id_num&message=Classes+assigned+successfully&type=success");
+    // Begin transaction
+    $pdo->beginTransaction();
+
+    try {
+        // Delete existing subject assignments
+        $pdo->prepare("DELETE FROM staff_subjects WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
+        
+        // Delete existing class assignments
+        $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
+
+        // Insert new subject assignments
+        foreach ($subjects as $subject_id) {
+            $stmt = $pdo->prepare("INSERT INTO staff_subjects (staff_id, subject_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
+            $stmt->execute([$staff_id_string, $subject_id, $school_id]);
+        }
+
+        // Insert new class assignments
+        foreach ($class_ids as $class_id) {
+            $stmt = $pdo->prepare("INSERT INTO staff_classes (staff_id, class_id, school_id, created_at) VALUES (?, ?, ?, NOW())");
+            $stmt->execute([$staff_id_string, $class_id, $school_id]);
+        }
+
+        $pdo->commit();
+        
+        $subject_count = count($subjects);
+        $class_count = count($class_ids);
+        header("Location: manage-staff.php?action=list&message=Assigned+$subject_count+subject(s)+and+$class_count+class(es)+successfully&type=success");
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        header("Location: manage-staff.php?action=list&message=Error+assigning:+" . urlencode($e->getMessage()) . "&type=error");
+    }
     exit();
 }
 
@@ -327,13 +337,14 @@ $assigned_subject_names = [];
 $password_error = isset($_SESSION['staff_error']) ? $_SESSION['staff_error'] : null;
 unset($_SESSION['staff_error']);
 
-if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'attendance', 'performance', 'class_attendance']) && isset($_GET['id'])) {
+if (in_array($action, ['edit', 'assign', 'view', 'attendance', 'performance', 'class_attendance']) && isset($_GET['id'])) {
     $staff_id_num = $_GET['id'];
     $stmt = $pdo->prepare("SELECT * FROM staff WHERE id = ? AND school_id = ?");
     $stmt->execute([$staff_id_num, $school_id]);
     $staff = $stmt->fetch();
 
     if ($staff) {
+        // Get assigned subject IDs
         $stmt = $pdo->prepare("SELECT subject_id FROM staff_subjects WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_subject_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -341,21 +352,26 @@ if (in_array($action, ['edit', 'assign_subjects', 'assign_classes', 'view', 'att
         // Get subject names
         if (!empty($assigned_subject_ids)) {
             $placeholders = str_repeat('?,', count($assigned_subject_ids) - 1) . '?';
-            $stmt = $pdo->prepare("SELECT subject_name FROM subjects WHERE id IN ($placeholders)");
-            $stmt->execute($assigned_subject_ids);
-            $assigned_subject_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $stmt = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE id IN ($placeholders) AND school_id = ?");
+            $params = array_merge($assigned_subject_ids, [$school_id]);
+            $stmt->execute($params);
+            $assigned_subjects = $stmt->fetchAll();
+            $assigned_subject_names = array_column($assigned_subjects, 'subject_name');
         }
 
+        // Get assigned class IDs
         $stmt = $pdo->prepare("SELECT class_id FROM staff_classes WHERE staff_id = ?");
         $stmt->execute([$staff['staff_id']]);
         $assigned_class_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
+        // Get class names
         if (!empty($assigned_class_ids)) {
             $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
-            $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
+            $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE id IN ($placeholders) AND school_id = ?");
             $params = array_merge($assigned_class_ids, [$school_id]);
             $stmt->execute($params);
-            $assigned_class_names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $assigned_classes = $stmt->fetchAll();
+            $assigned_class_names = array_column($assigned_classes, 'class_name');
         }
     }
 }
@@ -373,7 +389,15 @@ $all_classes = $stmt->fetchAll();
 if (empty($all_classes)) {
     $stmt = $pdo->prepare("SELECT DISTINCT class FROM students WHERE school_id = ? AND class != '' ORDER BY class");
     $stmt->execute([$school_id]);
-    $all_classes = $stmt->fetchAll();
+    $all_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Convert to id/class_name format if needed
+    if (!empty($all_classes) && !isset($all_classes[0]['id'])) {
+        $temp = [];
+        foreach ($all_classes as $idx => $class) {
+            $temp[] = ['id' => $idx + 1, 'class_name' => $class['class']];
+        }
+        $all_classes = $temp;
+    }
 }
 
 // Build staff list for main view
@@ -970,6 +994,20 @@ require_once 'includes/sidebar.php';
             gap: 24px;
         }
 
+        .assignment-section {
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .assignment-section h3 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
         @media (max-width: 768px) {
             .split-layout {
                 grid-template-columns: 1fr;
@@ -999,7 +1037,7 @@ require_once 'includes/sidebar.php';
         <div class="top-header">
             <div class="header-title">
                 <h1>Manage Staff</h1>
-                <p><i class="fas fa-chevron-right" style="font-size: 10px;"></i> Manage staff, track attendance, assign subjects/classes, and rate performance</p>
+                <p><i class="fas fa-chevron-right" style="font-size: 10px;"></i> Manage staff, track attendance, assign subjects & classes, and rate performance</p>
             </div>
             <div class="action-buttons-group">
                 <a href="manage-staff.php?action=add" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Staff</a>
@@ -1087,8 +1125,7 @@ require_once 'includes/sidebar.php';
                                         <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                             <a href="manage-staff.php?action=view&id=<?php echo $s['id']; ?>" class="btn btn-info btn-sm"><i class="fas fa-eye"></i></a>
                                             <a href="manage-staff.php?action=edit&id=<?php echo $s['id']; ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                            <a href="manage-staff.php?action=assign_subjects&id=<?php echo $s['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-book"></i></a>
-                                            <a href="manage-staff.php?action=assign_classes&id=<?php echo $s['id']; ?>" class="btn btn-purple btn-sm"><i class="fas fa-chalkboard"></i></a>
+                                            <a href="manage-staff.php?action=assign&id=<?php echo $s['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-tasks"></i> Assign</a>
                                             <?php if ($admin_role === 'super_admin'): ?>
                                                 <a href="manage-staff.php?delete=<?php echo $s['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this staff?')"><i class="fas fa-trash"></i></a>
                                             <?php endif; ?>
@@ -1336,58 +1373,106 @@ require_once 'includes/sidebar.php';
                 });
             </script>
 
-            <!-- ASSIGN SUBJECTS -->
-        <?php elseif ($action === 'assign_subjects' && $staff): ?>
+            <!-- UNIFIED ASSIGNMENT VIEW (Subjects & Classes together) -->
+        <?php elseif ($action === 'assign' && $staff): ?>
             <div class="card">
                 <div class="card-header">
-                    <h2><i class="fas fa-book"></i> Assign Subjects to <?php echo htmlspecialchars($staff['full_name']); ?></h2>
+                    <h2><i class="fas fa-tasks"></i> Assign Subjects & Classes to <?php echo htmlspecialchars($staff['full_name']); ?></h2>
+                    <a href="manage-staff.php?action=list" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
                 </div>
-                <form method="POST">
+                <form method="POST" id="assignForm">
                     <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
-                    <input type="hidden" name="assign_subjects" value="1">
-                    <div class="checkbox-group">
-                        <?php foreach ($all_subjects as $subject): ?>
-                            <label class="checkbox-item">
-                                <input type="checkbox" name="subjects[]" value="<?php echo $subject['id']; ?>" <?php echo in_array($subject['id'], $assigned_subject_ids) ? 'checked' : ''; ?>>
-                                <span><?php echo htmlspecialchars($subject['subject_name']); ?></span>
-                            </label>
-                        <?php endforeach; ?>
+                    <input type="hidden" name="assign_all" value="1">
+                    
+                    <div class="assignment-section">
+                        <h3><i class="fas fa-book" style="color: var(--primary-color);"></i> Subjects</h3>
+                        <div class="checkbox-group" id="subjectsCheckboxGroup">
+                            <?php if (!empty($all_subjects)): ?>
+                                <?php foreach ($all_subjects as $subject): ?>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="subjects[]" value="<?php echo $subject['id']; ?>" <?php echo in_array($subject['id'], $assigned_subject_ids) ? 'checked' : ''; ?>>
+                                        <span><?php echo htmlspecialchars($subject['subject_name']); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div style="padding: 20px; text-align: center; color: var(--gray-600);">
+                                    <i class="fas fa-info-circle"></i> No subjects found. Please add subjects first.
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllCheckboxes('subjectsCheckboxGroup', 'subjects[]')">
+                                <i class="fas fa-check-double"></i> Select All Subjects
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllCheckboxes('subjectsCheckboxGroup', 'subjects[]')">
+                                <i class="fas fa-times"></i> Deselect All Subjects
+                            </button>
+                        </div>
                     </div>
-                    <div style="margin-top: 20px; display: flex; gap: 12px;">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Subjects</button>
-                        <a href="manage-staff.php?action=list" class="btn btn-outline">Back</a>
+
+                    <div class="assignment-section">
+                        <h3><i class="fas fa-chalkboard" style="color: var(--primary-color);"></i> Classes</h3>
+                        <div class="checkbox-group" id="classesCheckboxGroup">
+                            <?php if (!empty($all_classes)): ?>
+                                <?php foreach ($all_classes as $class): ?>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="classes[]" value="<?php echo $class['id']; ?>" <?php echo in_array($class['id'], $assigned_class_ids) ? 'checked' : ''; ?>>
+                                        <span><?php echo htmlspecialchars($class['class_name']); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div style="padding: 20px; text-align: center; color: var(--gray-600);">
+                                    <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <button type="button" class="btn btn-sm btn-outline" onclick="selectAllCheckboxes('classesCheckboxGroup', 'classes[]')">
+                                <i class="fas fa-check-double"></i> Select All Classes
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="deselectAllCheckboxes('classesCheckboxGroup', 'classes[]')">
+                                <i class="fas fa-times"></i> Deselect All Classes
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; display: flex; gap: 12px;">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Assignments</button>
+                        <a href="manage-staff.php?action=list" class="btn btn-outline">Cancel</a>
                     </div>
                 </form>
             </div>
 
-            <!-- ASSIGN CLASSES -->
-        <?php elseif ($action === 'assign_classes' && $staff): ?>
             <div class="card">
                 <div class="card-header">
-                    <h2><i class="fas fa-chalkboard"></i> Assign Classes to <?php echo htmlspecialchars($staff['full_name']); ?></h2>
+                    <h2><i class="fas fa-clipboard-list"></i> Current Assignments</h2>
                 </div>
-                <form method="POST">
-                    <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
-                    <input type="hidden" name="assign_classes" value="1">
-                    <div class="checkbox-group">
-                        <?php if (!empty($all_classes)): ?>
-                            <?php foreach ($all_classes as $class): ?>
-                                <label class="checkbox-item">
-                                    <input type="checkbox" name="classes[]" value="<?php echo $class['id']; ?>" <?php echo in_array($class['id'], $assigned_class_ids) ? 'checked' : ''; ?>>
-                                    <span><?php echo htmlspecialchars($class['class_name']); ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <div style="padding: 20px; text-align: center; color: var(--gray-600);">
-                                <i class="fas fa-info-circle"></i> No classes found. Please add classes first.
-                            </div>
-                        <?php endif; ?>
+                <div class="split-layout" style="gap: 20px;">
+                    <div>
+                        <h3 style="font-size: 0.9rem; margin-bottom: 12px;"><i class="fas fa-book"></i> Assigned Subjects</h3>
+                        <div class="assigned-items">
+                            <?php if (!empty($assigned_subject_names)): ?>
+                                <?php foreach ($assigned_subject_names as $subject): ?>
+                                    <span class="assigned-tag"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($subject); ?></span>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <p style="color: var(--gray-600); font-size: 0.8rem;">No subjects assigned yet.</p>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                    <div style="margin-top: 20px; display: flex; gap: 12px;">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Classes</button>
-                        <a href="manage-staff.php?action=list" class="btn btn-outline">Back</a>
+                    <div>
+                        <h3 style="font-size: 0.9rem; margin-bottom: 12px;"><i class="fas fa-chalkboard"></i> Assigned Classes</h3>
+                        <div class="assigned-items">
+                            <?php if (!empty($assigned_class_names)): ?>
+                                <?php foreach ($assigned_class_names as $class): ?>
+                                    <span class="assigned-tag"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($class); ?></span>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <p style="color: var(--gray-600); font-size: 0.8rem;">No classes assigned yet.</p>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                </form>
+                </div>
             </div>
 
             <!-- STAFF ATTENDANCE VIEW -->
@@ -1447,7 +1532,7 @@ require_once 'includes/sidebar.php';
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
-                        <table>
+                    </table>
                 </div>
             </div>
 
@@ -1598,8 +1683,7 @@ require_once 'includes/sidebar.php';
                 </div>
 
                 <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
-                    <a href="manage-staff.php?action=assign_subjects&id=<?php echo $staff['id']; ?>" class="btn btn-primary"><i class="fas fa-book"></i> Assign Subjects</a>
-                    <a href="manage-staff.php?action=assign_classes&id=<?php echo $staff['id']; ?>" class="btn btn-purple"><i class="fas fa-chalkboard"></i> Assign Classes</a>
+                    <a href="manage-staff.php?action=assign&id=<?php echo $staff['id']; ?>" class="btn btn-primary"><i class="fas fa-tasks"></i> Assign Subjects & Classes</a>
                     <a href="manage-staff.php?action=edit&id=<?php echo $staff['id']; ?>" class="btn btn-warning"><i class="fas fa-edit"></i> Edit</a>
                 </div>
             </div>
@@ -1661,8 +1745,7 @@ require_once 'includes/sidebar.php';
                 <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
                     <a href="manage-staff.php?action=view&id=${staff.id}" class="btn btn-info btn-sm"><i class="fas fa-eye"></i> View</a>
                     <a href="manage-staff.php?action=edit&id=${staff.id}" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i> Edit</a>
-                    <a href="manage-staff.php?action=assign_subjects&id=${staff.id}" class="btn btn-primary btn-sm"><i class="fas fa-book"></i> Subjects</a>
-                    <a href="manage-staff.php?action=assign_classes&id=${staff.id}" class="btn btn-purple btn-sm"><i class="fas fa-chalkboard"></i> Classes</a>
+                    <a href="manage-staff.php?action=assign&id=${staff.id}" class="btn btn-primary btn-sm"><i class="fas fa-tasks"></i> Assign</a>
                     <?php if ($admin_role === 'super_admin'): ?>
                         <a href="manage-staff.php?delete=${staff.id}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this staff?')"><i class="fas fa-trash"></i> Delete</a>
                     <?php endif; ?>
@@ -1675,6 +1758,17 @@ require_once 'includes/sidebar.php';
         function closeStaffActionModal() {
             document.getElementById('staffActionModal').style.display = 'none';
             document.body.style.overflow = '';
+        }
+
+        // Checkbox select/deselect functions
+        function selectAllCheckboxes(groupId, name) {
+            const checkboxes = document.querySelectorAll(`#${groupId} input[name="${name}"]`);
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+
+        function deselectAllCheckboxes(groupId, name) {
+            const checkboxes = document.querySelectorAll(`#${groupId} input[name="${name}"]`);
+            checkboxes.forEach(cb => cb.checked = false);
         }
 
         function escapeHtml(text) {

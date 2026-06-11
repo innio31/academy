@@ -38,9 +38,9 @@ try {
     $question = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($question) {
-        // Fix image path if needed
-        if (!empty($question['question_image']) && strpos($question['question_image'], '../') !== 0 && strpos($question['question_image'], 'uploads/') !== 0) {
-            $question['question_image'] = 'uploads/questions/' . basename($question['question_image']);
+        // Log the image path for debugging
+        if (!empty($question['question_image'])) {
+            error_log("Question ID: $id, Image path: " . $question['question_image']);
         }
         echo json_encode(['success' => true, 'question' => $question]);
     } else {

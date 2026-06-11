@@ -1578,54 +1578,56 @@ require_once 'includes/sidebar.php';
         }
 
         function renderWAECQuestions() {
-            const box = document.getElementById('waecQuestionsBox');
-            let html = `
-                <div class="select-all-bar">
-                    <input type="checkbox" id="waecSelectAll" onchange="waecToggleAll(this)">
-                    <label for="waecSelectAll" style="font-weight:500;">Select All</label>
-                    <span style="margin-left:auto;"><span id="waecCount">0</span> of ${waecQuestions.length} selected</span>
-                </div>
-                <div class="question-list">`;
-            
-            waecQuestions.forEach((q, i) => {
-                const preview = (q.question_text || '').substring(0, 120);
-                const hasImage = q.question_image && q.question_image.trim() !== '';
-                
-                html += `
-                    <div class="question-item" style="flex-direction: column; align-items: stretch;">
-                        <div style="display: flex; align-items: flex-start; gap: 12px;">
-                            <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)" style="margin-top: 4px;">
-                            <div class="question-text" style="flex: 1;">
-                                <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
-                                <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
-                            </div>
-                        </div>`;
-                
-                if (hasImage) {
-                    let imgSrc = q.question_image;
-                    if (!imgSrc.startsWith('../') && !imgSrc.startsWith('uploads/')) {
-                        imgSrc = '../uploads/central_questions/' + imgSrc.split('/').pop();
-                    } else if (imgSrc.startsWith('../')) {
-                        imgSrc = imgSrc;
-                    } else {
-                        imgSrc = '../' + imgSrc;
-                    }
-                    html += `
-                        <div style="margin-left: 32px; margin-top: 8px;">
-                            <img src="${escapeHtml(imgSrc)}" 
-                                 style="max-width: 150px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
-                                 onclick="event.stopPropagation(); window.open('${escapeHtml(imgSrc)}', '_blank')"
-                                 onerror="this.style.display='none'">
-                        </div>`;
-                }
-                
-                html += `</div>`;
-            });
-            
-            html += '</div>';
-            box.innerHTML = html;
-            updateWAECCount();
+    const box = document.getElementById('waecQuestionsBox');
+    let html = `
+        <div class="select-all-bar">
+            <input type="checkbox" id="waecSelectAll" onchange="waecToggleAll(this)">
+            <label for="waecSelectAll" style="font-weight:500;">Select All</label>
+            <span style="margin-left:auto;"><span id="waecCount">0</span> of ${waecQuestions.length} selected</span>
+        </div>
+        <div class="question-list">`;
+    
+    waecQuestions.forEach((q, i) => {
+        const preview = (q.question_text || '').substring(0, 120);
+        const hasImage = q.question_image && q.question_image.trim() !== '';
+        
+        // Fix image path - WAEC images are stored in uploads/central_questions/
+        let imgSrc = '';
+        if (hasImage) {
+            // Get just the filename from the path
+            const filename = q.question_image.split('/').pop();
+            // Build correct path relative to the admin directory (since we're in admin/)
+            imgSrc = '../uploads/central_questions/' + filename;
         }
+        
+        html += `
+            <div class="question-item" style="flex-direction: column; align-items: stretch;">
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)" style="margin-top: 4px;">
+                    <div class="question-text" style="flex: 1;">
+                        <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
+                        <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
+                    </div>
+                </div>`;
+        
+        if (hasImage) {
+            html += `
+                <div style="margin-left: 32px; margin-top: 8px;">
+                    <img src="${escapeHtml(imgSrc)}" 
+                         style="max-width: 150px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
+                         onclick="event.stopPropagation(); window.open('${escapeHtml(imgSrc)}', '_blank')"
+                         onerror="console.log('Image failed to load: ${escapeHtml(imgSrc)}'); this.style.display='none'">
+                    <small style="display: block; font-size: 11px; color: #666;">${escapeHtml(q.question_image)}</small>
+                </div>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    box.innerHTML = html;
+    updateWAECCount();
+}
 
         function waecCheck(cb) {
             const id = parseInt(cb.value);

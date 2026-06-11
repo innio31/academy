@@ -103,6 +103,10 @@ try {
         if ($c3->rowCount() == 0) {
             $pdo->exec("ALTER TABLE `$tbl` ADD COLUMN source_type ENUM('manual','central','waec','ai') DEFAULT 'manual'");
         }
+        $c4 = $pdo->query("SHOW COLUMNS FROM `$tbl` LIKE 'question_image'");
+        if ($c4->rowCount() == 0) {
+            $pdo->exec("ALTER TABLE `$tbl` ADD COLUMN question_image VARCHAR(500) DEFAULT NULL");
+        }
     }
 } catch (Exception $e) {
     error_log("Column check: " . $e->getMessage());
@@ -133,10 +137,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
             throw new Exception("You don't have permission to add questions to this topic");
         }
 
+        // Handle image upload
+        $question_image = null;
+        if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../uploads/questions/';
+            if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
+            $ext = strtolower(pathinfo($_FILES['question_image']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'obj_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                move_uploaded_file($_FILES['question_image']['tmp_name'], $upload_dir . $filename);
+                $question_image = 'uploads/questions/' . $filename;
+            }
+        }
+
         $stmt = $pdo->prepare("INSERT INTO objective_questions 
             (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-             difficulty_level, marks, subject_id, topic_id, class, school_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+             difficulty_level, marks, subject_id, topic_id, class, school_id, question_image, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
         $stmt->execute([
             $question_text,
             $option_a,
@@ -149,7 +167,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
             $selected_topic['subject_id'],
             $topic_id,
             $selected_topic['class'],
-            $school_id
+            $school_id,
+            $question_image
         ]);
 
         $message = "Objective question added successfully!";
@@ -321,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_csv_import'])) {
 }
 
 // ============================================================
-// Groq AI Function (same as admin version)
+// Groq AI Function
 // ============================================================
 function callGroqForQuestions($subject_name, $topic_name, $class_level, $count)
 {
@@ -433,7 +452,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_topics') {
     exit();
 }
 
-// WAEC Questions
+// WAEC Questions (includes image)
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
     ob_clean();
     header('Content-Type: application/json');
@@ -441,7 +460,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
     $year = (int)($_GET['year'] ?? 0);
 
     try {
-        $sql = "SELECT wq.*, ws.subject_name FROM waec_questions wq JOIN waec_subjects ws ON wq.waec_subject_id = ws.id WHERE wq.is_active = 1";
+        $sql = "SELECT wq.*, ws.subject_name 
+                FROM waec_questions wq 
+                JOIN waec_subjects ws ON wq.waec_subject_id = ws.id 
+                WHERE wq.is_active = 1";
         $params = [];
         if ($tid) {
             $sql .= " AND wq.waec_topic_id = ?";
@@ -456,6 +478,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $questions = $stmt->fetchAll();
+
+        // Fix image paths - store only the filename
+        foreach ($questions as &$q) {
+            if (!empty($q['question_image'])) {
+                $q['question_image'] = basename($q['question_image']);
+            }
+        }
 
         echo json_encode(['success' => true, 'questions' => $questions]);
     } catch (Exception $e) {
@@ -537,7 +566,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_ai_questions']
     }
 }
 
-// WAEC Import
+// WAEC Import (with image)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions'])) {
     try {
         // Verify staff has access
@@ -558,8 +587,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions
 
             $stmt = $pdo->prepare("INSERT INTO objective_questions 
                 (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-                 difficulty_level, marks, subject_id, topic_id, class, school_id, source_type, central_source_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waec', ?, NOW())");
+                 difficulty_level, marks, subject_id, topic_id, class, school_id, 
+                 question_image, source_type, central_source_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waec', ?, NOW())");
             $stmt->execute([
                 $q['question_text'],
                 $q['option_a'],
@@ -567,12 +597,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions
                 $q['option_c'],
                 $q['option_d'],
                 $q['correct_answer'],
-                'medium',
+                $q['difficulty_level'] ?? 'medium',
                 1,
                 $selected_topic['subject_id'],
                 $topic_id,
                 $selected_topic['class'],
                 $school_id,
+                $q['question_image'],
                 $wid
             ]);
             $imported++;
@@ -1227,6 +1258,11 @@ require_once 'includes/staff_sidebar.php';
                                 <input type="number" name="marks" class="form-control" value="1" min="1" max="10">
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Question Image (Optional)</label>
+                            <input type="file" name="question_image" class="form-control" accept="image/*">
+                            <small>Upload an image for the question (JPG, PNG, GIF)</small>
+                        </div>
                         <div class="checkbox-group">
                             <label><input type="checkbox" name="stay_here" value="1"> Stay on this page after adding</label>
                         </div>
@@ -1574,17 +1610,45 @@ require_once 'includes/staff_sidebar.php';
                     <span style="margin-left:auto;"><span id="waecCount">0</span> of ${waecQuestions.length} selected</span>
                 </div>
                 <div class="question-list">`;
+            
             waecQuestions.forEach((q, i) => {
                 const preview = (q.question_text || '').substring(0, 120);
+                const hasImage = q.question_image && q.question_image.trim() !== '';
+                
+                // Fix image path - from staff/ to uploads/central_questions/
+                let imgSrc = '';
+                if (hasImage) {
+                    let filename = q.question_image;
+                    if (filename.includes('/')) {
+                        filename = filename.split('/').pop();
+                    }
+                    // From staff directory: ../../ goes to root, then uploads/central_questions/
+                    imgSrc = '../../uploads/central_questions/' + filename;
+                }
+                
                 html += `
-                    <div class="question-item">
-                        <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)">
-                        <div class="question-text">
-                            <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
-                            <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
-                        </div>
-                    </div>`;
+                    <div class="question-item" style="flex-direction: column; align-items: stretch;">
+                        <div style="display: flex; align-items: flex-start; gap: 12px;">
+                            <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)" style="margin-top: 4px;">
+                            <div class="question-text" style="flex: 1;">
+                                <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
+                                <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
+                            </div>
+                        </div>`;
+                
+                if (hasImage) {
+                    html += `
+                        <div style="margin-left: 32px; margin-top: 8px;">
+                            <img src="${escapeHtml(imgSrc)}" 
+                                 style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
+                                 onclick="event.stopPropagation(); window.open('${escapeHtml(imgSrc)}', '_blank')"
+                                 onerror="this.onerror=null; this.style.display='none'; console.log('Image failed: ${escapeHtml(imgSrc)}')">
+                        </div>`;
+                }
+                
+                html += `</div>`;
             });
+            
             html += '</div>';
             box.innerHTML = html;
             updateWAECCount();

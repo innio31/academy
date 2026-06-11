@@ -1,7 +1,7 @@
 <?php
-// /central_bank/api/get_topics.php - Get topics by subject
+// /central_bank/api/get_jamb_topics.php
 
-require_once '../includes/config.php';  // Add this to get database connection
+require_once '../includes/config.php';
 
 header('Content-Type: application/json');
 
@@ -14,9 +14,9 @@ if ($subject_id <= 0) {
 
 try {
     $stmt = $pdo->prepare("
-        SELECT id, topic_name, description, created_at 
-        FROM topics 
-        WHERE subject_id = ? AND (is_central = 1 OR school_id IS NULL)
+        SELECT id, topic_name, description 
+        FROM jamb_topics 
+        WHERE jamb_subject_id = ? AND is_active = 1
         ORDER BY topic_name
     ");
     $stmt->execute([$subject_id]);

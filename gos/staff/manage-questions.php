@@ -168,6 +168,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_question'])) {
     }
 }
 
+// Handle Question Update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_question'])) {
+    $question_id = (int)$_POST['question_id'];
+    $question_type = $_POST['question_type'];
+    
+    try {
+        $table_name = '';
+        switch ($question_type) {
+            case 'objective':
+                $table_name = 'objective_questions';
+                break;
+            case 'subjective':
+                $table_name = 'subjective_questions';
+                break;
+            case 'theory':
+                $table_name = 'theory_questions';
+                break;
+            default:
+                throw new Exception("Invalid question type");
+        }
+        
+        // Verify staff has access
+        $sql = "SELECT q.*, t.subject_id 
+                FROM $table_name q
+                JOIN topics t ON q.topic_id = t.id
+                WHERE q.id = ? AND q.school_id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$question_id, $school_id]);
+        $existing = $stmt->fetch();
+        
+        if (!$existing || !in_array($existing['subject_id'], $assigned_subject_ids)) {
+            throw new Exception("You don't have permission to edit this question");
+        }
+        
+        if ($question_type === 'objective') {
+            $question_text = trim($_POST['question_text']);
+            $option_a = trim($_POST['option_a']);
+            $option_b = trim($_POST['option_b']);
+            $option_c = trim($_POST['option_c'] ?? '');
+            $option_d = trim($_POST['option_d'] ?? '');
+            $correct_answer = $_POST['correct_answer'];
+            $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
+            $marks = (int)$_POST['marks'];
+            
+            // Handle image upload
+            $question_image = $existing['question_image'];
+            if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = '../uploads/questions/';
+                if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
+                
+                // Delete old image
+                if ($question_image && file_exists('../' . $question_image)) {
+                    unlink('../' . $question_image);
+                }
+                
+                $ext = strtolower(pathinfo($_FILES['question_image']['name'], PATHINFO_EXTENSION));
+                $filename = 'obj_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                move_uploaded_file($_FILES['question_image']['tmp_name'], $upload_dir . $filename);
+                $question_image = 'uploads/questions/' . $filename;
+            }
+            
+            $stmt = $pdo->prepare("UPDATE objective_questions SET 
+                question_text = ?, option_a = ?, option_b = ?, option_c = ?, option_d = ?,
+                correct_answer = ?, difficulty_level = ?, marks = ?, question_image = ?
+                WHERE id = ?");
+            $stmt->execute([$question_text, $option_a, $option_b, $option_c, $option_d,
+                           $correct_answer, $difficulty_level, $marks, $question_image, $question_id]);
+                           
+        } elseif ($question_type === 'subjective') {
+            $question_text = trim($_POST['question_text']);
+            $correct_answer = trim($_POST['correct_answer'] ?? '');
+            $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
+            $marks = (int)$_POST['marks'];
+            
+            $stmt = $pdo->prepare("UPDATE subjective_questions SET 
+                question_text = ?, correct_answer = ?, difficulty_level = ?, marks = ?
+                WHERE id = ?");
+            $stmt->execute([$question_text, $correct_answer, $difficulty_level, $marks, $question_id]);
+            
+        } elseif ($question_type === 'theory') {
+            $question_text = trim($_POST['question_text']);
+            $difficulty_level = $_POST['difficulty_level'] ?? 'medium';
+            $marks = (int)$_POST['marks'];
+            $question_file = $existing['question_file'];
+            
+            if (isset($_FILES['question_file']) && $_FILES['question_file']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = '../uploads/questions/';
+                if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
+                
+                if ($question_file && file_exists('../' . $question_file)) {
+                    unlink('../' . $question_file);
+                }
+                
+                $ext = pathinfo($_FILES['question_file']['name'], PATHINFO_EXTENSION);
+                $filename = 'theory_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                move_uploaded_file($_FILES['question_file']['tmp_name'], $upload_dir . $filename);
+                $question_file = 'uploads/questions/' . $filename;
+            }
+            
+            $stmt = $pdo->prepare("UPDATE theory_questions SET 
+                question_text = ?, question_file = ?, difficulty_level = ?, marks = ?
+                WHERE id = ?");
+            $stmt->execute([$question_text, $question_file, $difficulty_level, $marks, $question_id]);
+        }
+        
+        $message = "Question updated successfully!";
+        $message_type = "success";
+        header("Location: manage-questions.php?topic_id=$topic_id&type=$current_tab&message=" . urlencode($message));
+        exit();
+        
+    } catch (Exception $e) {
+        $message = "Error updating question: " . $e->getMessage();
+        $message_type = "error";
+    }
+}
+
 // Get all subjects assigned to staff for dropdown
 $subjects = [];
 if ($has_assigned_subjects) {
@@ -608,7 +724,7 @@ require_once 'includes/staff_sidebar.php';
             background: white;
             border-radius: var(--radius-lg);
             width: 90%;
-            max-width: 700px;
+            max-width: 800px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -1027,7 +1143,7 @@ require_once 'includes/staff_sidebar.php';
         <?php endif; ?>
     </div>
 
-    <!-- Question Detail Modal (View & Edit & Delete) -->
+    <!-- Question Detail Modal (View) -->
     <div class="modal" id="questionModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1043,9 +1159,9 @@ require_once 'includes/staff_sidebar.php';
         </div>
     </div>
 
-    <!-- Edit Question Modal (Staff can edit all fields) -->
+    <!-- Edit Question Modal -->
     <div class="modal" id="editQuestionModal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h3 id="editModalTitle">Edit Question</h3>
                 <button class="close-modal" onclick="closeModal('editQuestionModal')">&times;</button>
@@ -1120,16 +1236,38 @@ require_once 'includes/staff_sidebar.php';
                         let html = '';
                         if (type === 'objective') {
                             const q = data.question;
+                            let imageHtml = '';
+                            if (q.question_image && q.question_image.trim() !== '') {
+                                let filename = q.question_image;
+                                if (filename.includes('/')) {
+                                    filename = filename.split('/').pop();
+                                }
+                                let imgSrc = '../../uploads/central_questions/' + filename;
+                                imageHtml = `
+                                    <div class="info-row">
+                                        <div class="info-label">Image:</div>
+                                        <div class="info-value">
+                                            <img src="${escapeHtml(imgSrc)}" 
+                                                 style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;" 
+                                                 onclick="window.open('${escapeHtml(imgSrc)}', '_blank')"
+                                                 onerror="this.onerror=null; this.style.display='none'">
+                                        </div>
+                                    </div>`;
+                            }
                             html = `
                                 <div class="info-row">
                                     <div class="info-label">Question ID:</div>
                                     <div class="info-value">#${q.id}</div>
                                 </div>
                                 <div class="info-row">
+                                    <div class="info-label">Source:</div>
+                                    <div class="info-value">${q.source_type ? q.source_type.toUpperCase() : 'Manual'}</div>
+                                </div>
+                                <div class="info-row">
                                     <div class="info-label">Question:</div>
                                     <div class="info-value">${escapeHtml(q.question_text)}</div>
                                 </div>
-                                ${q.question_image ? `<div class="info-row"><div class="info-label">Image:</div><div class="info-value"><img src="../${q.question_image}" style="max-width: 100%; border-radius: 8px;"></div></div>` : ''}
+                                ${imageHtml}
                                 <div class="info-row">
                                     <div class="info-label">Options:</div>
                                     <div class="info-value">
@@ -1183,7 +1321,7 @@ require_once 'includes/staff_sidebar.php';
                                     <div class="info-label">Question:</div>
                                     <div class="info-value">${escapeHtml(q.question_text || 'Content in attached file')}</div>
                                 </div>
-                                ${q.question_file ? `<div class="info-row"><div class="info-label">Attachment:</div><div class="info-value"><a href="../${q.question_file}" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Download File</a></div></div>` : ''}
+                                ${q.question_file ? `<div class="info-row"><div class="info-label">Attachment:</div><div class="info-value"><a href="../../${q.question_file}" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Download File</a></div></div>` : ''}
                                 <div class="info-row">
                                     <div class="info-label">Marks:</div>
                                     <div class="info-value">${q.marks}</div>
@@ -1222,6 +1360,7 @@ require_once 'includes/staff_sidebar.php';
             const modal = document.getElementById('editQuestionModal');
             const modalBody = document.getElementById('editModalBody');
             const modalTitle = document.getElementById('editModalTitle');
+            const form = document.getElementById('editQuestionForm');
 
             modalTitle.innerHTML = `<i class="fas fa-edit"></i> Edit ${type.charAt(0).toUpperCase() + type.slice(1)} Question`;
             modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading"></div><p>Loading...</p></div>';
@@ -1236,6 +1375,28 @@ require_once 'includes/staff_sidebar.php';
                         let editFormHtml = '';
 
                         if (type === 'objective') {
+                            let imagePreviewHtml = '';
+                            if (q.question_image && q.question_image.trim() !== '') {
+                                let filename = q.question_image;
+                                if (filename.includes('/')) {
+                                    filename = filename.split('/').pop();
+                                }
+                                let imgSrc = '../../uploads/central_questions/' + filename;
+                                imagePreviewHtml = `
+                                    <div class="edit-form-group">
+                                        <label>Current Image:</label>
+                                        <div><img src="${escapeHtml(imgSrc)}" style="max-width: 150px; max-height: 150px; border-radius: 8px; margin-bottom: 10px;" onerror="this.style.display='none'"></div>
+                                        <label>Replace Image (optional):</label>
+                                        <input type="file" name="question_image" class="edit-form-control" accept="image/*">
+                                    </div>`;
+                            } else {
+                                imagePreviewHtml = `
+                                    <div class="edit-form-group">
+                                        <label>Upload Image (optional):</label>
+                                        <input type="file" name="question_image" class="edit-form-control" accept="image/*">
+                                    </div>`;
+                            }
+                            
                             editFormHtml = `
                                 <input type="hidden" name="question_id" value="${q.id}">
                                 <input type="hidden" name="question_type" value="objective">
@@ -1271,6 +1432,7 @@ require_once 'includes/staff_sidebar.php';
                                         <option value="D" ${q.correct_answer === 'D' ? 'selected' : ''}>D</option>
                                     </select>
                                 </div>
+                                ${imagePreviewHtml}
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                     <div class="edit-form-group">
                                         <label>Difficulty Level</label>
@@ -1321,7 +1483,7 @@ require_once 'includes/staff_sidebar.php';
                                     <label>Question Text</label>
                                     <textarea name="question_text" class="edit-form-control" rows="4">${escapeHtml(q.question_text || '')}</textarea>
                                 </div>
-                                ${q.question_file ? `<div class="edit-form-group"><label>Current File:</label><p><a href="../${q.question_file}" target="_blank">${escapeHtml(basename(q.question_file))}</a></p><label>Replace File (optional):</label><input type="file" name="question_file" class="edit-form-control" accept=".pdf,.doc,.docx,.jpg,.png"></div>` : '<div class="edit-form-group"><label>Upload File</label><input type="file" name="question_file" class="edit-form-control" accept=".pdf,.doc,.docx,.jpg,.png"></div>'}
+                                ${q.question_file ? `<div class="edit-form-group"><label>Current File:</label><p><a href="../../${q.question_file}" target="_blank">${escapeHtml(basename(q.question_file))}</a></p><label>Replace File (optional):</label><input type="file" name="question_file" class="edit-form-control" accept=".pdf,.doc,.docx,.jpg,.png"></div>` : '<div class="edit-form-group"><label>Upload File</label><input type="file" name="question_file" class="edit-form-control" accept=".pdf,.doc,.docx,.jpg,.png"></div>'}
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                     <div class="edit-form-group">
                                         <label>Difficulty Level</label>
@@ -1340,11 +1502,9 @@ require_once 'includes/staff_sidebar.php';
                         }
 
                         modalBody.innerHTML = editFormHtml;
-                        
-                        // Update form action to submit to update_question.php
-                        const form = document.getElementById('editQuestionForm');
-                        form.action = 'update_question.php';
+                        form.action = '';
                         form.method = 'POST';
+                        form.enctype = 'multipart/form-data';
                     } else {
                         modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(data.message)}</div>`;
                     }

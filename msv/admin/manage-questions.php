@@ -1018,28 +1018,27 @@ require_once 'includes/sidebar.php';
                     const q = data.question;
                     // Fix image path for objective questions
                     let imageHtml = '';
-                    if (q.question_image && q.question_image.trim() !== '') {
-                        let imgSrc = q.question_image;
-                        // Handle different path formats
-                        if (imgSrc.startsWith('uploads/central_questions/')) {
-                            imgSrc = '../' + imgSrc;
-                        } else if (imgSrc.startsWith('central_questions/')) {
-                            imgSrc = '../uploads/' + imgSrc;
-                        } else if (!imgSrc.startsWith('../') && !imgSrc.startsWith('http')) {
-                            imgSrc = '../uploads/questions/' + imgSrc.split('/').pop();
-                        }
-                        imageHtml = `
-                            <div class="info-row">
-                                <div class="info-label">Image:</div>
-                                <div class="info-value">
-                                    <img src="${escapeHtml(imgSrc)}" 
-                                         style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;" 
-                                         onclick="window.open('${escapeHtml(imgSrc)}', '_blank')"
-                                         onerror="this.style.display='none'; this.parentElement.innerHTML += '<span style=\'color:red\'>Image not found: ${escapeHtml(q.question_image)}</span>'">
-                                    <br><small style="color: #666;">Path: ${escapeHtml(q.question_image)}</small>
-                                </div>
-                            </div>`;
-                    }
+                    // Fix image path - TWO levels up to root
+if (q.question_image && q.question_image.trim() !== '') {
+    let filename = q.question_image;
+    if (filename.includes('/')) {
+        filename = filename.split('/').pop();
+    }
+    // CORRECT: Two levels up from admin/ to root, then to uploads/central_questions/
+    let imgSrc = '../../uploads/central_questions/' + filename;
+    
+    imageHtml = `
+        <div class="info-row">
+            <div class="info-label">Image:</div>
+            <div class="info-value">
+                <img src="${escapeHtml(imgSrc)}" 
+                     style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;" 
+                     onclick="window.open('${escapeHtml(imgSrc)}', '_blank')"
+                     onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML += '<span style=\'color:red\'>Image not found at: ${escapeHtml(imgSrc)}</span>'">
+                <br><small style="color: #666;">Path: ${escapeHtml(imgSrc)}</small>
+            </div>
+        </div>`;
+}
                     
                     html = `
                         <div class="info-row">

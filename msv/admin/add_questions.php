@@ -1591,13 +1591,16 @@ require_once 'includes/sidebar.php';
         const preview = (q.question_text || '').substring(0, 120);
         const hasImage = q.question_image && q.question_image.trim() !== '';
         
-        // Fix image path - WAEC images are stored in uploads/central_questions/
         let imgSrc = '';
         if (hasImage) {
-            // Get just the filename from the path
-            const filename = q.question_image.split('/').pop();
-            // Build correct path relative to the admin directory (since we're in admin/)
-            imgSrc = '../uploads/central_questions/' + filename;
+            // Get just the filename
+            let filename = q.question_image;
+            if (filename.includes('/')) {
+                filename = filename.split('/').pop();
+            }
+            // CORRECT PATH: Two levels up to root, then to uploads/central_questions/
+            imgSrc = '../../uploads/central_questions/' + filename;
+            console.log('Image path:', imgSrc); // For debugging
         }
         
         html += `
@@ -1614,10 +1617,9 @@ require_once 'includes/sidebar.php';
             html += `
                 <div style="margin-left: 32px; margin-top: 8px;">
                     <img src="${escapeHtml(imgSrc)}" 
-                         style="max-width: 150px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
+                         style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
                          onclick="event.stopPropagation(); window.open('${escapeHtml(imgSrc)}', '_blank')"
-                         onerror="console.log('Image failed to load: ${escapeHtml(imgSrc)}'); this.style.display='none'">
-                    <small style="display: block; font-size: 11px; color: #666;">${escapeHtml(q.question_image)}</small>
+                         onerror="console.log('Failed to load: ${escapeHtml(imgSrc)}'); this.onerror=null; this.src=''; this.parentElement.innerHTML += '<span style=\'color:red; font-size:12px;\'> Image not found at: ${escapeHtml(imgSrc)}</span>';">
                 </div>`;
         }
         

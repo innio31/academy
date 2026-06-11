@@ -1000,116 +1000,144 @@ require_once 'includes/sidebar.php';
         });
 
         function viewQuestion(id, type) {
-            const modal = document.getElementById('questionModal');
-            const modalBody = document.getElementById('questionModalBody');
-            const modalTitle = document.getElementById('modalTitle');
+    const modal = document.getElementById('questionModal');
+    const modalBody = document.getElementById('questionModalBody');
+    const modalTitle = document.getElementById('modalTitle');
 
-            modalTitle.innerHTML = `<i class="fas fa-eye"></i> ${type.charAt(0).toUpperCase() + type.slice(1)} Question Details`;
-            modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading"></div><p>Loading...</p></div>';
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
+    modalTitle.innerHTML = `<i class="fas fa-eye"></i> ${type.charAt(0).toUpperCase() + type.slice(1)} Question Details`;
+    modalBody.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading"></div><p>Loading...</p></div>';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 
-            fetch(`ajax/get_question.php?id=${id}&type=${type}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        let html = '';
-                        if (type === 'objective') {
-                            const q = data.question;
-                            html = `
-                                <div class="info-row">
-                                    <div class="info-label">Question ID:</div>
-                                    <div class="info-value">#${q.id}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Question:</div>
-                                    <div class="info-value">${escapeHtml(q.question_text)}</div>
-                                </div>
-                                ${q.question_image ? `<div class="info-row"><div class="info-label">Image:</div><div class="info-value"><img src="../${q.question_image}" style="max-width: 100%; border-radius: 8px;"></div></div>` : ''}
-                                <div class="info-row">
-                                    <div class="info-label">Options:</div>
-                                    <div class="info-value">
-                                        <div><strong>A:</strong> ${escapeHtml(q.option_a)} ${q.correct_answer === 'A' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
-                                        <div><strong>B:</strong> ${escapeHtml(q.option_b)} ${q.correct_answer === 'B' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
-                                        <div><strong>C:</strong> ${escapeHtml(q.option_c)} ${q.correct_answer === 'C' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
-                                        <div><strong>D:</strong> ${escapeHtml(q.option_d)} ${q.correct_answer === 'D' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
-                                    </div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Marks:</div>
-                                    <div class="info-value">${q.marks}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Difficulty:</div>
-                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
-                                </div>
-                            `;
-                        } else if (type === 'subjective') {
-                            const q = data.question;
-                            html = `
-                                <div class="info-row">
-                                    <div class="info-label">Question ID:</div>
-                                    <div class="info-value">#${q.id}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Question:</div>
-                                    <div class="info-value">${escapeHtml(q.question_text)}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Answer Guide:</div>
-                                    <div class="info-value" style="background: var(--success-light); padding: 10px; border-radius: 8px;">${escapeHtml(q.correct_answer || 'No answer guide provided')}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Marks:</div>
-                                    <div class="info-value">${q.marks}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Difficulty:</div>
-                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
-                                </div>
-                            `;
-                        } else if (type === 'theory') {
-                            const q = data.question;
-                            html = `
-                                <div class="info-row">
-                                    <div class="info-label">Question ID:</div>
-                                    <div class="info-value">#${q.id}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Question:</div>
-                                    <div class="info-value">${escapeHtml(q.question_text || 'Content in attached file')}</div>
-                                </div>
-                                ${q.question_file ? `<div class="info-row"><div class="info-label">Attachment:</div><div class="info-value"><a href="../${q.question_file}" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Download File</a></div></div>` : ''}
-                                <div class="info-row">
-                                    <div class="info-label">Marks:</div>
-                                    <div class="info-value">${q.marks}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Difficulty:</div>
-                                    <div class="info-value">${q.difficulty_level || 'Medium'}</div>
-                                </div>
-                            `;
-                        }
-
-                        html += `
-                            <div class="modal-action-buttons">
-                                <form method="POST" onsubmit="return confirm('Delete this question?')" style="width: 100%;">
-                                    <input type="hidden" name="question_id" value="${id}">
-                                    <input type="hidden" name="question_type" value="${type}">
-                                    <button type="submit" name="delete_question" class="btn btn-danger modal-action-btn"><i class="fas fa-trash"></i> Delete Question</button>
-                                </form>
+    fetch(`ajax/get_question.php?id=${id}&type=${type}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let html = '';
+                if (type === 'objective') {
+                    const q = data.question;
+                    // Fix image path for objective questions
+                    let imageHtml = '';
+                    // Fix image path - TWO levels up to root
+if (q.question_image && q.question_image.trim() !== '') {
+    let filename = q.question_image;
+    if (filename.includes('/')) {
+        filename = filename.split('/').pop();
+    }
+    // CORRECT: Two levels up from admin/ to root, then to uploads/central_questions/
+    let imgSrc = '../../uploads/central_questions/' + filename;
+    
+    imageHtml = `
+        <div class="info-row">
+            <div class="info-label">Image:</div>
+            <div class="info-value">
+                <img src="${escapeHtml(imgSrc)}" 
+                     style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;" 
+                     onclick="window.open('${escapeHtml(imgSrc)}', '_blank')"
+                     onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML += '<span style=\'color:red\'>Image not found at: ${escapeHtml(imgSrc)}</span>'">
+                <br><small style="color: #666;">Path: ${escapeHtml(imgSrc)}</small>
+            </div>
+        </div>`;
+}
+                    
+                    html = `
+                        <div class="info-row">
+                            <div class="info-label">Question ID:</div>
+                            <div class="info-value">#${q.id}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Source:</div>
+                            <div class="info-value">${q.source_type ? q.source_type.toUpperCase() : 'Manual'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Question:</div>
+                            <div class="info-value">${escapeHtml(q.question_text)}</div>
+                        </div>
+                        ${imageHtml}
+                        <div class="info-row">
+                            <div class="info-label">Options:</div>
+                            <div class="info-value">
+                                <div><strong>A:</strong> ${escapeHtml(q.option_a)} ${q.correct_answer === 'A' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                <div><strong>B:</strong> ${escapeHtml(q.option_b)} ${q.correct_answer === 'B' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                <div><strong>C:</strong> ${escapeHtml(q.option_c)} ${q.correct_answer === 'C' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
+                                <div><strong>D:</strong> ${escapeHtml(q.option_d)} ${q.correct_answer === 'D' ? '<span class="correct-option">✓ Correct</span>' : ''}</div>
                             </div>
-                        `;
-                        modalBody.innerHTML = html;
-                    } else {
-                        modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(data.message)}</div>`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> Failed to load question details.</div>`;
-                });
-        }
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Marks:</div>
+                            <div class="info-value">${q.marks}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Difficulty:</div>
+                            <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                        </div>
+                    `;
+                } else if (type === 'subjective') {
+                    const q = data.question;
+                    html = `
+                        <div class="info-row">
+                            <div class="info-label">Question ID:</div>
+                            <div class="info-value">#${q.id}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Question:</div>
+                            <div class="info-value">${escapeHtml(q.question_text)}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Answer Guide:</div>
+                            <div class="info-value" style="background: var(--success-light); padding: 10px; border-radius: 8px;">${escapeHtml(q.correct_answer || 'No answer guide provided')}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Marks:</div>
+                            <div class="info-value">${q.marks}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Difficulty:</div>
+                            <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                        </div>
+                    `;
+                } else if (type === 'theory') {
+                    const q = data.question;
+                    html = `
+                        <div class="info-row">
+                            <div class="info-label">Question ID:</div>
+                            <div class="info-value">#${q.id}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Question:</div>
+                            <div class="info-value">${escapeHtml(q.question_text || 'Content in attached file')}</div>
+                        </div>
+                        ${q.question_file ? `<div class="info-row"><div class="info-label">Attachment:</div><div class="info-value"><a href="../${q.question_file}" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Download File</a></div></div>` : ''}
+                        <div class="info-row">
+                            <div class="info-label">Marks:</div>
+                            <div class="info-value">${q.marks}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Difficulty:</div>
+                            <div class="info-value">${q.difficulty_level || 'Medium'}</div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="modal-action-buttons">
+                        <form method="POST" onsubmit="return confirm('Delete this question?')" style="width: 100%;">
+                            <input type="hidden" name="question_id" value="${id}">
+                            <input type="hidden" name="question_type" value="${type}">
+                            <button type="submit" name="delete_question" class="btn btn-danger modal-action-btn"><i class="fas fa-trash"></i> Delete Question</button>
+                        </form>
+                    </div>
+                `;
+                modalBody.innerHTML = html;
+            } else {
+                modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(data.message)}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            modalBody.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> Failed to load question details.</div>`;
+        });
+}
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');

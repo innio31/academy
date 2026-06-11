@@ -742,21 +742,8 @@ function closeLightbox() { document.getElementById('imageLightbox').style.displa
 // EDIT MODAL (unchanged existing logic)
 // ============================================
 function openEditModal(type, id) {
-    // Get current filter parameters from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const filters = {
-        tab: type,
-        id: id,
-        page: urlParams.get('page') || 1,
-        filter_subject: urlParams.get('filter_subject') || '',
-        filter_topic: urlParams.get('filter_topic') || '',
-        filter_year: urlParams.get('filter_year') || '',
-        filter_difficulty: urlParams.get('filter_difficulty') || '',
-        search: urlParams.get('search') || ''
-    };
-    
-    const queryString = new URLSearchParams(filters).toString();
-    window.location.href = `edit_question.php?${queryString}`;
+    // Link to existing edit page
+    window.location.href = `edit_question.php?type=${type}&id=${id}`;
 }
 
 // ============================================

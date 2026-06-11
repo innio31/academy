@@ -86,6 +86,10 @@ try {
         if ($c3->rowCount() == 0) {
             $pdo->exec("ALTER TABLE `$tbl` ADD COLUMN source_type ENUM('manual','central','waec','ai') DEFAULT 'manual'");
         }
+        $c4 = $pdo->query("SHOW COLUMNS FROM `$tbl` LIKE 'question_image'");
+        if ($c4->rowCount() == 0) {
+            $pdo->exec("ALTER TABLE `$tbl` ADD COLUMN question_image VARCHAR(500) DEFAULT NULL");
+        }
     }
 } catch (Exception $e) {
     error_log("Column check: " . $e->getMessage());
@@ -111,10 +115,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
         if (empty($option_a) || empty($option_b)) throw new Exception("At least options A and B are required");
         if (empty($correct_answer)) throw new Exception("Correct answer is required");
 
+        // Handle image upload
+        $question_image = null;
+        if (isset($_FILES['question_image']) && $_FILES['question_image']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../uploads/questions/';
+            if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
+            $ext = strtolower(pathinfo($_FILES['question_image']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'obj_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                move_uploaded_file($_FILES['question_image']['tmp_name'], $upload_dir . $filename);
+                $question_image = 'uploads/questions/' . $filename;
+            }
+        }
+
         $stmt = $pdo->prepare("INSERT INTO objective_questions 
             (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-             difficulty_level, marks, subject_id, topic_id, class, school_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+             difficulty_level, marks, subject_id, topic_id, class, school_id, question_image, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
         $stmt->execute([
             $question_text,
             $option_a,
@@ -127,7 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_objective_questio
             $selected_topic['subject_id'],
             $topic_id,
             $selected_topic['class'],
-            $school_id
+            $school_id,
+            $question_image
         ]);
 
         $message = "Objective question added successfully!";
@@ -397,7 +416,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_topics') {
     exit();
 }
 
-// WAEC Questions
+// WAEC Questions (includes image)
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
     ob_clean();
     header('Content-Type: application/json');
@@ -405,7 +424,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
     $year = (int)($_GET['year'] ?? 0);
 
     try {
-        $sql = "SELECT wq.*, ws.subject_name FROM waec_questions wq JOIN waec_subjects ws ON wq.waec_subject_id = ws.id WHERE wq.is_active = 1";
+        $sql = "SELECT wq.*, ws.subject_name 
+                FROM waec_questions wq 
+                JOIN waec_subjects ws ON wq.waec_subject_id = ws.id 
+                WHERE wq.is_active = 1";
         $params = [];
         if ($tid) {
             $sql .= " AND wq.waec_topic_id = ?";
@@ -420,6 +442,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'waec_questions') {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $questions = $stmt->fetchAll();
+
+        // Fix image paths if needed
+        foreach ($questions as &$q) {
+            if (!empty($q['question_image']) && strpos($q['question_image'], '../') !== 0 && strpos($q['question_image'], 'uploads/') !== 0) {
+                $q['question_image'] = 'uploads/central_questions/' . basename($q['question_image']);
+            }
+        }
 
         echo json_encode(['success' => true, 'questions' => $questions]);
     } catch (Exception $e) {
@@ -496,7 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_ai_questions']
     }
 }
 
-// WAEC Import
+// WAEC Import (with image)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions'])) {
     try {
         $selected_ids = $_POST['selected_waec_questions'] ?? [];
@@ -512,8 +541,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions
 
             $stmt = $pdo->prepare("INSERT INTO objective_questions 
                 (question_text, option_a, option_b, option_c, option_d, correct_answer, 
-                 difficulty_level, marks, subject_id, topic_id, class, school_id, source_type, central_source_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waec', ?, NOW())");
+                 difficulty_level, marks, subject_id, topic_id, class, school_id, 
+                 question_image, source_type, central_source_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waec', ?, NOW())");
             $stmt->execute([
                 $q['question_text'],
                 $q['option_a'],
@@ -521,12 +551,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_waec_questions
                 $q['option_c'],
                 $q['option_d'],
                 $q['correct_answer'],
-                'medium',
+                $q['difficulty_level'] ?? 'medium',
                 1,
                 $selected_topic['subject_id'],
                 $topic_id,
                 $selected_topic['class'],
                 $school_id,
+                $q['question_image'],
                 $wid
             ]);
             $imported++;
@@ -575,9 +606,14 @@ require_once 'includes/sidebar.php';
             --primary-dark: #1a5a8a;
             --secondary: #3498db;
             --success: #27ae60;
+            --success-light: #d5f4e6;
             --warning: #f39c12;
+            --warning-light: #fef5e7;
             --danger: #e74c3c;
-            --purple: #8e44ad;
+            --danger-light: #fbe9e7;
+            --info: #3498db;
+            --info-light: #eaf6ff;
+            --purple: #9b59b6;
             --orange: #d35400;
             --gray-50: #f9fafb;
             --gray-100: #f0f2f5;
@@ -889,15 +925,21 @@ require_once 'includes/sidebar.php';
         }
 
         .alert-success {
-            background: #d5f4e6;
+            background: var(--success-light);
             color: var(--success);
             border-left: 4px solid var(--success);
         }
 
         .alert-error {
-            background: #fbe9e7;
+            background: var(--danger-light);
             color: var(--danger);
             border-left: 4px solid var(--danger);
+        }
+
+        .alert-info {
+            background: var(--info-light);
+            color: var(--info);
+            border-left: 4px solid var(--info);
         }
 
         /* Modal */
@@ -1184,6 +1226,11 @@ require_once 'includes/sidebar.php';
                                 <input type="number" name="marks" class="form-control" value="1" min="1" max="10">
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Question Image (Optional)</label>
+                            <input type="file" name="question_image" class="form-control" accept="image/*">
+                            <small>Upload an image for the question (JPG, PNG, GIF)</small>
+                        </div>
                         <div class="checkbox-group">
                             <label><input type="checkbox" name="stay_here" value="1"> Stay on this page after adding</label>
                         </div>
@@ -1283,7 +1330,7 @@ require_once 'includes/sidebar.php';
             </div>
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
-                    <div class="alert alert-info" style="background: #eaf6ff; border-left-color: var(--secondary); margin-bottom: 20px;">
+                    <div class="alert alert-info" style="background: var(--info-light); border-left-color: var(--info); margin-bottom: 20px;">
                         <i class="fas fa-info-circle"></i>
                         Upload a CSV file with your questions. Each row should contain: question_text, option_a, option_b, option_c, option_d, correct_answer, marks, difficulty
                     </div>
@@ -1448,11 +1495,6 @@ require_once 'includes/sidebar.php';
             openModal('aiModal');
         }
 
-        // CSV Template Download
-        function downloadCSVTemplate() {
-            window.location.href = '?download_csv_template=1';
-        }
-
         // ============================================================
         // WAEC MODAL FUNCTIONS
         // ============================================================
@@ -1538,23 +1580,48 @@ require_once 'includes/sidebar.php';
         function renderWAECQuestions() {
             const box = document.getElementById('waecQuestionsBox');
             let html = `
-        <div class="select-all-bar">
-            <input type="checkbox" id="waecSelectAll" onchange="waecToggleAll(this)">
-            <label for="waecSelectAll" style="font-weight:500;">Select All</label>
-            <span style="margin-left:auto;"><span id="waecCount">0</span> of ${waecQuestions.length} selected</span>
-        </div>
-        <div class="question-list">`;
+                <div class="select-all-bar">
+                    <input type="checkbox" id="waecSelectAll" onchange="waecToggleAll(this)">
+                    <label for="waecSelectAll" style="font-weight:500;">Select All</label>
+                    <span style="margin-left:auto;"><span id="waecCount">0</span> of ${waecQuestions.length} selected</span>
+                </div>
+                <div class="question-list">`;
+            
             waecQuestions.forEach((q, i) => {
                 const preview = (q.question_text || '').substring(0, 120);
+                const hasImage = q.question_image && q.question_image.trim() !== '';
+                
                 html += `
-            <div class="question-item">
-                <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)">
-                <div class="question-text">
-                    <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
-                    <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
-                </div>
-            </div>`;
+                    <div class="question-item" style="flex-direction: column; align-items: stretch;">
+                        <div style="display: flex; align-items: flex-start; gap: 12px;">
+                            <input type="checkbox" class="waec-chk" value="${q.id}" onchange="waecCheck(this)" style="margin-top: 4px;">
+                            <div class="question-text" style="flex: 1;">
+                                <strong>WAEC ${q.exam_year || 'N/A'}:</strong> ${escapeHtml(preview)}${q.question_text?.length > 120 ? '…' : ''}
+                                <span class="badge badge-waec"><i class="fas fa-graduation-cap"></i> WAEC Bank</span>
+                            </div>
+                        </div>`;
+                
+                if (hasImage) {
+                    let imgSrc = q.question_image;
+                    if (!imgSrc.startsWith('../') && !imgSrc.startsWith('uploads/')) {
+                        imgSrc = '../uploads/central_questions/' + imgSrc.split('/').pop();
+                    } else if (imgSrc.startsWith('../')) {
+                        imgSrc = imgSrc;
+                    } else {
+                        imgSrc = '../' + imgSrc;
+                    }
+                    html += `
+                        <div style="margin-left: 32px; margin-top: 8px;">
+                            <img src="${escapeHtml(imgSrc)}" 
+                                 style="max-width: 150px; max-height: 100px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" 
+                                 onclick="event.stopPropagation(); window.open('${escapeHtml(imgSrc)}', '_blank')"
+                                 onerror="this.style.display='none'">
+                        </div>`;
+                }
+                
+                html += `</div>`;
             });
+            
             html += '</div>';
             box.innerHTML = html;
             updateWAECCount();
@@ -1651,15 +1718,15 @@ require_once 'includes/sidebar.php';
             let html = '';
             aiGeneratedQuestions.forEach((q, i) => {
                 html += `
-            <div class="question-item">
-                <input type="checkbox" class="ai-chk" value="${i}" onchange="aiCheck(this)">
-                <div class="question-text">
-                    <strong>Q${i+1}:</strong> ${escapeHtml(q.question)}<br>
-                    <small style="color:#666;">A) ${escapeHtml(q.a)} | B) ${escapeHtml(q.b)} | C) ${escapeHtml(q.c)} | D) ${escapeHtml(q.d)}<br>
-                    <strong>Answer:</strong> ${q.answer} | <strong>Explanation:</strong> ${escapeHtml(q.explanation || 'N/A')}</small>
-                    <span class="badge badge-ai"><i class="fas fa-robot"></i> AI Generated</span>
-                </div>
-            </div>`;
+                    <div class="question-item">
+                        <input type="checkbox" class="ai-chk" value="${i}" onchange="aiCheck(this)">
+                        <div class="question-text">
+                            <strong>Q${i+1}:</strong> ${escapeHtml(q.question)}<br>
+                            <small style="color:#666;">A) ${escapeHtml(q.a)} | B) ${escapeHtml(q.b)} | C) ${escapeHtml(q.c)} | D) ${escapeHtml(q.d)}<br>
+                            <strong>Answer:</strong> ${q.answer} | <strong>Explanation:</strong> ${escapeHtml(q.explanation || 'N/A')}</small>
+                            <span class="badge badge-ai"><i class="fas fa-robot"></i> AI Generated</span>
+                        </div>
+                    </div>`;
             });
             container.innerHTML = html;
             previewBox.style.display = 'block';
@@ -1697,9 +1764,9 @@ require_once 'includes/sidebar.php';
             const form = document.createElement('form');
             form.method = 'POST';
             form.innerHTML = `
-        <input type="hidden" name="import_ai_questions" value="1">
-        <input type="hidden" name="ai_questions_data" value='${JSON.stringify(selectedQuestions)}'>
-    `;
+                <input type="hidden" name="import_ai_questions" value="1">
+                <input type="hidden" name="ai_questions_data" value='${JSON.stringify(selectedQuestions)}'>
+            `;
             document.body.appendChild(form);
             form.submit();
         }

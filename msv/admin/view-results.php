@@ -20,6 +20,7 @@ if (isset($_SESSION['admin_id'])) {
 }
 
 require_once '../includes/config.php';
+check_page_access(['admin', 'super_admin']);
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;

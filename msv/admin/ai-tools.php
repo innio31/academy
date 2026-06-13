@@ -10,6 +10,7 @@ if (!isset($_SESSION['admin_id']) && !isset($_SESSION['admin_username']) && !iss
 
 // Include database config
 require_once '../includes/config.php';
+check_page_access(['admin', 'super_admin']);
 
 $admin_name = $_SESSION['admin_name'] ?? $_SESSION['username'] ?? $_SESSION['fullname'] ?? 'Administrator';
 $admin_role = $_SESSION['admin_role'] ?? $_SESSION['role'] ?? 'admin';
@@ -25,7 +26,8 @@ $use_mock = GROQ_USE_MOCK;
 $selected_model = GROQ_DEFAULT_MODEL;
 
 // ── Fetch Subjects from Database (school-specific) ───────────────────
-function getSubjects($pdo, $school_id) {
+function getSubjects($pdo, $school_id)
+{
     try {
         $stmt = $pdo->prepare("SELECT id, subject_name FROM subjects WHERE school_id = ? ORDER BY subject_name");
         $stmt->execute([$school_id]);
@@ -36,7 +38,8 @@ function getSubjects($pdo, $school_id) {
 }
 
 // ── Fetch Topics from Database (school-specific) ─────────────────────
-function getTopics($pdo, $school_id, $subject_id = null) {
+function getTopics($pdo, $school_id, $subject_id = null)
+{
     try {
         if ($subject_id) {
             $stmt = $pdo->prepare("SELECT id, topic_name FROM topics WHERE school_id = ? AND subject_id = ? ORDER BY topic_name");
@@ -52,7 +55,8 @@ function getTopics($pdo, $school_id, $subject_id = null) {
 }
 
 // ── Fetch Classes from Database ─────────────────────────────────────
-function getClasses($pdo, $school_id) {
+function getClasses($pdo, $school_id)
+{
     try {
         $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE school_id = ? AND status = 'active' ORDER BY sort_order, class_name");
         $stmt->execute([$school_id]);
@@ -160,12 +164,13 @@ Adjust complexity to the student level. Be encouraging."
 ];
 
 // ── Groq API Function ─────────────────────────────────────
-function callGroqAPI($system_prompt, $user_message, $api_key, $model = null) {
+function callGroqAPI($system_prompt, $user_message, $api_key, $model = null)
+{
     // Use default model from config if not specified
     if ($model === null) {
         $model = GROQ_DEFAULT_MODEL;
     }
-    
+
     $full_prompt = $system_prompt . "\n\nUser Request:\n" . $user_message;
 
     $maxRetries = 3;
@@ -263,7 +268,7 @@ function getMockResponse($tool, $message)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['get_topics'])) {
     header('Content-Type: application/json');
     $subject_id = $_POST['subject_id'] ?? 0;
-    
+
     if ($subject_id) {
         $stmt = $pdo->prepare("SELECT id, topic_name FROM topics WHERE school_id = ? AND subject_id = ? ORDER BY topic_name");
         $stmt->execute([$school_id, $subject_id]);
@@ -583,8 +588,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .footer {
@@ -612,41 +622,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             .workspace {
                 grid-template-columns: 1fr;
             }
-            
+
             .container {
                 padding: 15px;
             }
-            
+
             .header {
                 flex-direction: column;
                 text-align: center;
             }
-            
+
             .header h1 {
                 font-size: 1.2rem;
             }
-            
+
             .tab {
                 padding: 8px 16px;
                 font-size: 13px;
             }
         }
-        
+
         /* Scrollbar */
         .output-area::-webkit-scrollbar {
             width: 8px;
         }
-        
+
         .output-area::-webkit-scrollbar-track {
             background: #f1f1f1;
             border-radius: 4px;
         }
-        
+
         .output-area::-webkit-scrollbar-thumb {
             background: #888;
             border-radius: 4px;
         }
-        
+
         .output-area::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
@@ -655,313 +665,314 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 
 <body>
 
-<div class="container">
-    <div class="header">
-        <div>
-            <h1>
-                <i class="fas fa-robot"></i> AI Teaching Tools
-                <span class="badge <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'groq' : 'mock'; ?>">
-    <i class="fas <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'fa-cloud' : 'fa-flask'; ?>"></i>
-    <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'Groq AI Active' : 'Mock Mode'; ?>
-</span>
-            </h1>
-            <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>! Generate lesson notes and explain concepts with AI.</p>
-        </div>
-        <a href="index.php" class="btn-dashboard">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <div class="tabs">
-        <button class="tab active" onclick="switchTool('lesson')">📚 Lesson Note</button>
-        <button class="tab" onclick="switchTool('explain')">💡 Explain Concept</button>
-    </div>
-
-    <div class="workspace">
-        <div class="card">
-            <!-- Lesson Form -->
-            <div id="form-lesson">
-                <h2><i class="fas fa-book"></i> Lesson Note Details</h2>
-                <div class="form-group">
-                    <label>Subject <span class="required">*</span></label>
-                    <select id="subject" onchange="loadTopics()">
-                        <option value="">-- Select Subject --</option>
-                        <?php foreach ($subjects as $subject): ?>
-                            <option value="<?php echo $subject['id']; ?>" data-name="<?php echo htmlspecialchars($subject['subject_name']); ?>">
-                                <?php echo htmlspecialchars($subject['subject_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Topic <span class="required">*</span></label>
-                    <select id="topic">
-                        <option value="">-- Select Topic --</option>
-                        <?php foreach ($topics as $topic): ?>
-                            <option value="<?php echo htmlspecialchars($topic['topic_name']); ?>" data-subject-id="<?php echo $topic['subject_id']; ?>">
-                                <?php echo htmlspecialchars($topic['topic_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Class Level <span class="required">*</span></label>
-                    <select id="level">
-                        <option value="">-- Select Class --</option>
-                        <?php foreach ($classes as $class): ?>
-                            <option value="<?php echo htmlspecialchars($class['class_name']); ?>">
-                                <?php echo htmlspecialchars($class['class_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Duration</label>
-                    <input type="text" id="duration" placeholder="e.g. 40 minutes" value="40 minutes">
-                </div>
-                <button class="btn-generate" onclick="generate('lesson')">
-                    <i class="fas fa-magic"></i> Generate Lesson Note
-                </button>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>
+                    <i class="fas fa-robot"></i> AI Teaching Tools
+                    <span class="badge <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'groq' : 'mock'; ?>">
+                        <i class="fas <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'fa-cloud' : 'fa-flask'; ?>"></i>
+                        <?php echo (!GROQ_USE_MOCK && !empty(GROQ_API_KEY)) ? 'Groq AI Active' : 'Mock Mode'; ?>
+                    </span>
+                </h1>
+                <p>Welcome back, <?php echo htmlspecialchars($admin_name); ?>! Generate lesson notes and explain concepts with AI.</p>
             </div>
-
-            <!-- Explain Form -->
-            <div id="form-explain" style="display:none;">
-                <h2><i class="fas fa-lightbulb"></i> Concept Details</h2>
-                <div class="form-group">
-                    <label>Concept <span class="required">*</span></label>
-                    <input type="text" id="concept" placeholder="e.g. Photosynthesis, Democracy, Fractions">
-                </div>
-                <div class="form-group">
-                    <label>Subject Area <span class="required">*</span></label>
-                    <select id="subject_area">
-                        <option value="">-- Select Subject --</option>
-                        <?php foreach ($subjects as $subject): ?>
-                            <option value="<?php echo htmlspecialchars($subject['subject_name']); ?>">
-                                <?php echo htmlspecialchars($subject['subject_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Student Level <span class="required">*</span></label>
-                    <select id="student_level">
-                        <option value="">-- Select Class --</option>
-                        <?php foreach ($classes as $class): ?>
-                            <option value="<?php echo htmlspecialchars($class['class_name']); ?>">
-                                <?php echo htmlspecialchars($class['class_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <button class="btn-generate" onclick="generate('explain')">
-                    <i class="fas fa-magic"></i> Explain Concept
-                </button>
-            </div>
-
-            <!-- Model Selector -->
-<div class="model-selector">
-    <div class="form-group">
-        <label><i class="fas fa-microchip"></i> AI Model</label>
-        <select id="ai_model">
-            <?php foreach ($GROQ_AVAILABLE_MODELS as $model_key => $model_name): ?>
-                <option value="<?php echo $model_key; ?>" <?php echo $model_key === GROQ_DEFAULT_MODEL ? 'selected' : ''; ?>>
-                    <?php echo htmlspecialchars($model_name); ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <div class="info-text">
-            <i class="fas fa-info-circle"></i>
-            Higher request limits: Llama 3.1 8B (14,400/day) | Best quality: Llama 3.3 70B
-        </div>
-    </div>
-</div>
+            <a href="index.php" class="btn-dashboard">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
         </div>
 
-        <div class="card">
-            <div class="toolbar">
-                <span><i class="fas fa-file-alt"></i> AI Output</span>
-                <div>
-                    <button class="btn-action" id="copyBtn" onclick="copyOutput()" style="display:none;">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
-                    <button class="btn-action" onclick="printOutput()" id="printBtn" style="display:none;">
-                        <i class="fas fa-print"></i> Print
+        <div class="tabs">
+            <button class="tab active" onclick="switchTool('lesson')">📚 Lesson Note</button>
+            <button class="tab" onclick="switchTool('explain')">💡 Explain Concept</button>
+        </div>
+
+        <div class="workspace">
+            <div class="card">
+                <!-- Lesson Form -->
+                <div id="form-lesson">
+                    <h2><i class="fas fa-book"></i> Lesson Note Details</h2>
+                    <div class="form-group">
+                        <label>Subject <span class="required">*</span></label>
+                        <select id="subject" onchange="loadTopics()">
+                            <option value="">-- Select Subject --</option>
+                            <?php foreach ($subjects as $subject): ?>
+                                <option value="<?php echo $subject['id']; ?>" data-name="<?php echo htmlspecialchars($subject['subject_name']); ?>">
+                                    <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Topic <span class="required">*</span></label>
+                        <select id="topic">
+                            <option value="">-- Select Topic --</option>
+                            <?php foreach ($topics as $topic): ?>
+                                <option value="<?php echo htmlspecialchars($topic['topic_name']); ?>" data-subject-id="<?php echo $topic['subject_id']; ?>">
+                                    <?php echo htmlspecialchars($topic['topic_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Class Level <span class="required">*</span></label>
+                        <select id="level">
+                            <option value="">-- Select Class --</option>
+                            <?php foreach ($classes as $class): ?>
+                                <option value="<?php echo htmlspecialchars($class['class_name']); ?>">
+                                    <?php echo htmlspecialchars($class['class_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Duration</label>
+                        <input type="text" id="duration" placeholder="e.g. 40 minutes" value="40 minutes">
+                    </div>
+                    <button class="btn-generate" onclick="generate('lesson')">
+                        <i class="fas fa-magic"></i> Generate Lesson Note
                     </button>
                 </div>
+
+                <!-- Explain Form -->
+                <div id="form-explain" style="display:none;">
+                    <h2><i class="fas fa-lightbulb"></i> Concept Details</h2>
+                    <div class="form-group">
+                        <label>Concept <span class="required">*</span></label>
+                        <input type="text" id="concept" placeholder="e.g. Photosynthesis, Democracy, Fractions">
+                    </div>
+                    <div class="form-group">
+                        <label>Subject Area <span class="required">*</span></label>
+                        <select id="subject_area">
+                            <option value="">-- Select Subject --</option>
+                            <?php foreach ($subjects as $subject): ?>
+                                <option value="<?php echo htmlspecialchars($subject['subject_name']); ?>">
+                                    <?php echo htmlspecialchars($subject['subject_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Student Level <span class="required">*</span></label>
+                        <select id="student_level">
+                            <option value="">-- Select Class --</option>
+                            <?php foreach ($classes as $class): ?>
+                                <option value="<?php echo htmlspecialchars($class['class_name']); ?>">
+                                    <?php echo htmlspecialchars($class['class_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <button class="btn-generate" onclick="generate('explain')">
+                        <i class="fas fa-magic"></i> Explain Concept
+                    </button>
+                </div>
+
+                <!-- Model Selector -->
+                <div class="model-selector">
+                    <div class="form-group">
+                        <label><i class="fas fa-microchip"></i> AI Model</label>
+                        <select id="ai_model">
+                            <?php foreach ($GROQ_AVAILABLE_MODELS as $model_key => $model_name): ?>
+                                <option value="<?php echo $model_key; ?>" <?php echo $model_key === GROQ_DEFAULT_MODEL ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($model_name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="info-text">
+                            <i class="fas fa-info-circle"></i>
+                            Higher request limits: Llama 3.1 8B (14,400/day) | Best quality: Llama 3.3 70B
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div id="spinner" class="spinner">
-                <div class="loader"></div>
-                <p>Generating content with Groq AI... (15-30 seconds)</p>
-            </div>
+            <div class="card">
+                <div class="toolbar">
+                    <span><i class="fas fa-file-alt"></i> AI Output</span>
+                    <div>
+                        <button class="btn-action" id="copyBtn" onclick="copyOutput()" style="display:none;">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <button class="btn-action" onclick="printOutput()" id="printBtn" style="display:none;">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </div>
+                </div>
 
-            <div id="output" class="output-area empty">
-                <i class="fas fa-robot" style="font-size: 48px; margin-bottom: 10px;"></i>
-                <p>Fill in the form and click Generate</p>
+                <div id="spinner" class="spinner">
+                    <div class="loader"></div>
+                    <p>Generating content with Groq AI... (15-30 seconds)</p>
+                </div>
+
+                <div id="output" class="output-area empty">
+                    <i class="fas fa-robot" style="font-size: 48px; margin-bottom: 10px;"></i>
+                    <p>Fill in the form and click Generate</p>
+                </div>
             </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - AI Teaching Tools | Powered by Groq Cloud</p>
         </div>
     </div>
 
-    <div class="footer">
-        <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - AI Teaching Tools | Powered by Groq Cloud</p>
-    </div>
-</div>
+    <script>
+        let currentTool = 'lesson';
 
-<script>
-    let currentTool = 'lesson';
-    
-    // Store subjects data
-    const subjects = <?php echo json_encode($subjects); ?>;
-    const allTopics = <?php echo json_encode($topics); ?>;
+        // Store subjects data
+        const subjects = <?php echo json_encode($subjects); ?>;
+        const allTopics = <?php echo json_encode($topics); ?>;
 
-    function loadTopics() {
-        const subjectSelect = document.getElementById('subject');
-        const topicSelect = document.getElementById('topic');
-        const selectedSubjectId = subjectSelect.value;
-        const selectedSubjectName = subjectSelect.options[subjectSelect.selectedIndex]?.getAttribute('data-name');
-        
-        // Clear current options
-        topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
-        
-        if (selectedSubjectId) {
-            // Filter topics by selected subject
-            const filteredTopics = allTopics.filter(topic => topic.subject_id == selectedSubjectId);
-            
-            filteredTopics.forEach(topic => {
-                const option = document.createElement('option');
-                option.value = topic.topic_name;
-                option.textContent = topic.topic_name;
-                topicSelect.appendChild(option);
-            });
-        }
-    }
-    
-    // Initial load of topics based on default selected subject
-    document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('subject').value) {
-            loadTopics();
-        }
-    });
-
-    function switchTool(tool) {
-        currentTool = tool;
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        event.target.classList.add('active');
-
-        document.getElementById('form-lesson').style.display = tool === 'lesson' ? 'block' : 'none';
-        document.getElementById('form-explain').style.display = tool === 'explain' ? 'block' : 'none';
-
-        resetOutput();
-    }
-
-    function resetOutput() {
-        const output = document.getElementById('output');
-        output.className = 'output-area empty';
-        output.innerHTML = '<i class="fas fa-robot" style="font-size: 48px; margin-bottom: 10px;"></i><p>Fill in the form and click Generate</p>';
-        document.getElementById('copyBtn').style.display = 'none';
-        document.getElementById('printBtn').style.display = 'none';
-    }
-
-    function getMessage() {
-        if (currentTool === 'lesson') {
+        function loadTopics() {
             const subjectSelect = document.getElementById('subject');
-            const subject = subjectSelect.options[subjectSelect.selectedIndex]?.getAttribute('data-name') || subjectSelect.value;
-            const topic = document.getElementById('topic').value.trim();
-            const level = document.getElementById('level').value.trim();
-            const duration = document.getElementById('duration').value.trim();
-            
-            if (!subject || !topic || !level) {
-                alert('Please fill in Subject, Topic, and Class Level');
-                return null;
+            const topicSelect = document.getElementById('topic');
+            const selectedSubjectId = subjectSelect.value;
+            const selectedSubjectName = subjectSelect.options[subjectSelect.selectedIndex]?.getAttribute('data-name');
+
+            // Clear current options
+            topicSelect.innerHTML = '<option value="">-- Select Topic --</option>';
+
+            if (selectedSubjectId) {
+                // Filter topics by selected subject
+                const filteredTopics = allTopics.filter(topic => topic.subject_id == selectedSubjectId);
+
+                filteredTopics.forEach(topic => {
+                    const option = document.createElement('option');
+                    option.value = topic.topic_name;
+                    option.textContent = topic.topic_name;
+                    topicSelect.appendChild(option);
+                });
             }
-            return `Create a lesson note for ${subject}, topic: ${topic}, class: ${level}, duration: ${duration}`;
         }
-        if (currentTool === 'explain') {
-            const concept = document.getElementById('concept').value.trim();
-            const subject = document.getElementById('subject_area').value.trim();
-            const level = document.getElementById('student_level').value.trim();
-            if (!concept || !subject || !level) {
-                alert('Please fill in Concept, Subject, and Student Level');
-                return null;
+
+        // Initial load of topics based on default selected subject
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('subject').value) {
+                loadTopics();
             }
-            return `Explain ${concept} (${subject}) to ${level} students in simple terms with Nigerian examples`;
-        }
-        return null;
-    }
-
-    async function generate(tool) {
-        const message = getMessage();
-        if (!message) return;
-
-        const spinner = document.getElementById('spinner');
-        const output = document.getElementById('output');
-        const model = document.getElementById('ai_model').value;
-
-        spinner.classList.add('active');
-        output.style.display = 'none';
-        document.getElementById('copyBtn').style.display = 'none';
-        document.getElementById('printBtn').style.display = 'none';
-
-        try {
-            const formData = new FormData();
-            formData.append('ajax', '1');
-            formData.append('tool', tool);
-            formData.append('message', message);
-            formData.append('model', model);
-
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            spinner.classList.remove('active');
-            output.style.display = 'block';
-
-            if (data.success) {
-                output.className = 'output-area';
-                output.textContent = data.result;
-                document.getElementById('copyBtn').style.display = 'inline-block';
-                document.getElementById('printBtn').style.display = 'inline-block';
-
-                if (data.mock) {
-                    console.warn('Using mock mode - add Groq API key for real AI');
-                }
-            } else {
-                output.className = 'output-area empty';
-                let errorHtml = `<p style="color:red;">❌ Error: ${data.error}</p>`;
-                if (data.error && data.error.includes('API')) {
-                    errorHtml += `<p style="margin-top:10px;">💡 Tip: Make sure you have a valid Groq API key.<br>
-                    Get one for free at: <a href="https://console.groq.com" target="_blank">https://console.groq.com</a></p>`;
-                } else if (data.error && data.error.includes('Rate limit')) {
-                    errorHtml += `<p style="margin-top:10px;">⏱️ Rate limit hit. Try using Llama 3.1 8B which has higher limits (14,400 requests/day).</p>`;
-                } else {
-                    errorHtml += `<p style="margin-top:10px;">💡 Tip: Check your internet connection and try again.</p>`;
-                }
-                output.innerHTML = errorHtml;
-            }
-        } catch (err) {
-            spinner.classList.remove('active');
-            output.style.display = 'block';
-            output.className = 'output-area empty';
-            output.innerHTML = `<p style="color:red;">❌ Network Error: ${err.message}</p>`;
-        }
-    }
-
-    function copyOutput() {
-        const text = document.getElementById('output').textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = document.getElementById('copyBtn');
-            const original = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            setTimeout(() => btn.innerHTML = original, 2000);
         });
-    }
 
-    function printOutput() {
-        window.print();
-    }
-</script>
+        function switchTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('form-lesson').style.display = tool === 'lesson' ? 'block' : 'none';
+            document.getElementById('form-explain').style.display = tool === 'explain' ? 'block' : 'none';
+
+            resetOutput();
+        }
+
+        function resetOutput() {
+            const output = document.getElementById('output');
+            output.className = 'output-area empty';
+            output.innerHTML = '<i class="fas fa-robot" style="font-size: 48px; margin-bottom: 10px;"></i><p>Fill in the form and click Generate</p>';
+            document.getElementById('copyBtn').style.display = 'none';
+            document.getElementById('printBtn').style.display = 'none';
+        }
+
+        function getMessage() {
+            if (currentTool === 'lesson') {
+                const subjectSelect = document.getElementById('subject');
+                const subject = subjectSelect.options[subjectSelect.selectedIndex]?.getAttribute('data-name') || subjectSelect.value;
+                const topic = document.getElementById('topic').value.trim();
+                const level = document.getElementById('level').value.trim();
+                const duration = document.getElementById('duration').value.trim();
+
+                if (!subject || !topic || !level) {
+                    alert('Please fill in Subject, Topic, and Class Level');
+                    return null;
+                }
+                return `Create a lesson note for ${subject}, topic: ${topic}, class: ${level}, duration: ${duration}`;
+            }
+            if (currentTool === 'explain') {
+                const concept = document.getElementById('concept').value.trim();
+                const subject = document.getElementById('subject_area').value.trim();
+                const level = document.getElementById('student_level').value.trim();
+                if (!concept || !subject || !level) {
+                    alert('Please fill in Concept, Subject, and Student Level');
+                    return null;
+                }
+                return `Explain ${concept} (${subject}) to ${level} students in simple terms with Nigerian examples`;
+            }
+            return null;
+        }
+
+        async function generate(tool) {
+            const message = getMessage();
+            if (!message) return;
+
+            const spinner = document.getElementById('spinner');
+            const output = document.getElementById('output');
+            const model = document.getElementById('ai_model').value;
+
+            spinner.classList.add('active');
+            output.style.display = 'none';
+            document.getElementById('copyBtn').style.display = 'none';
+            document.getElementById('printBtn').style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('ajax', '1');
+                formData.append('tool', tool);
+                formData.append('message', message);
+                formData.append('model', model);
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                spinner.classList.remove('active');
+                output.style.display = 'block';
+
+                if (data.success) {
+                    output.className = 'output-area';
+                    output.textContent = data.result;
+                    document.getElementById('copyBtn').style.display = 'inline-block';
+                    document.getElementById('printBtn').style.display = 'inline-block';
+
+                    if (data.mock) {
+                        console.warn('Using mock mode - add Groq API key for real AI');
+                    }
+                } else {
+                    output.className = 'output-area empty';
+                    let errorHtml = `<p style="color:red;">❌ Error: ${data.error}</p>`;
+                    if (data.error && data.error.includes('API')) {
+                        errorHtml += `<p style="margin-top:10px;">💡 Tip: Make sure you have a valid Groq API key.<br>
+                    Get one for free at: <a href="https://console.groq.com" target="_blank">https://console.groq.com</a></p>`;
+                    } else if (data.error && data.error.includes('Rate limit')) {
+                        errorHtml += `<p style="margin-top:10px;">⏱️ Rate limit hit. Try using Llama 3.1 8B which has higher limits (14,400 requests/day).</p>`;
+                    } else {
+                        errorHtml += `<p style="margin-top:10px;">💡 Tip: Check your internet connection and try again.</p>`;
+                    }
+                    output.innerHTML = errorHtml;
+                }
+            } catch (err) {
+                spinner.classList.remove('active');
+                output.style.display = 'block';
+                output.className = 'output-area empty';
+                output.innerHTML = `<p style="color:red;">❌ Network Error: ${err.message}</p>`;
+            }
+        }
+
+        function copyOutput() {
+            const text = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyBtn');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => btn.innerHTML = original, 2000);
+            });
+        }
+
+        function printOutput() {
+            window.print();
+        }
+    </script>
 
 </body>
+
 </html>

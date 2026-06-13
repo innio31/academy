@@ -26,6 +26,7 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 }
 
 require_once '../includes/config.php';
+check_page_access(['admin', 'super_admin']);
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;

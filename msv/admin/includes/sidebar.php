@@ -840,6 +840,8 @@ try {
                         <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
                         <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
                         <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
+                        <!-- Finance Group - Add Bank Settings link -->
+<li><a href="bank_settings.php" class="<?php echo $current_page == 'bank_settings.php' ? 'active' : ''; ?>"><i class="fas fa-university"></i> Bank Settings</a></li>
                     </ul>
                 </div>
             <?php endif; ?>

@@ -207,6 +207,12 @@ if (!empty($student['profile_picture']) && strpos($student['profile_picture'], '
             </ul>
         </div>
 
+        <!-- Bills & Payments -->
+<a href="bills.php" class="nav-item standalone <?php echo $current_page == 'bills.php' ? 'active' : ''; ?>">
+    <span class="nav-icon"><i class="fas fa-receipt"></i></span>
+    <span class="nav-label">Bills & Payments</span>
+</a>
+
         <!-- Resources Group -->
         <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
             <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">

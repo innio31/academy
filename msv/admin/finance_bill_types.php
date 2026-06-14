@@ -1,5 +1,5 @@
 <?php
-// msv/admin/finance_bill_types.php - Manage Bill Templates (FIXED - Display Issue Resolved)
+// msv/admin/finance_bill_types.php - Manage Bill Templates with Auto Account Creation
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -31,7 +31,75 @@ $secondary_color = SCHOOL_SECONDARY;
 // Get current session
 $current_session = date('Y') . '/' . (date('Y') + 1);
 
-// Ensure fin_categories table exists (create if not)
+// ──────────────────────────────────────────────────────────────
+// HELPER FUNCTION: Auto-create account for bill type
+// ──────────────────────────────────────────────────────────────
+function createIncomeAccountForBillType($pdo, $school_id, $bill_type_name, $category_name = null) {
+    try {
+        // Create account name based on bill type
+        $account_name = $bill_type_name . ' Income';
+        
+        // Check if account already exists
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name = ? AND account_type = 'income'");
+        $stmt->execute([$school_id, $account_name]);
+        $existing = $stmt->fetch();
+        
+        if ($existing) {
+            return $existing['id'];
+        }
+        
+        // Create new income account
+        $description = "Income from " . $bill_type_name . ($category_name ? " (" . $category_name . ")" : "");
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_accounts (school_id, account_name, account_type, description, opening_balance, current_balance, is_active, created_at)
+            VALUES (?, ?, 'income', ?, 0, 0, 1, NOW())
+        ");
+        $stmt->execute([$school_id, $account_name, $description]);
+        $account_id = $pdo->lastInsertId();
+        
+        error_log("Auto-created income account: $account_name (ID: $account_id) for school $school_id");
+        return $account_id;
+        
+    } catch (Exception $e) {
+        error_log("Failed to create income account: " . $e->getMessage());
+        return null;
+    }
+}
+
+// ──────────────────────────────────────────────────────────────
+// HELPER FUNCTION: Create or Get Category
+// ──────────────────────────────────────────────────────────────
+function createOrGetCategory($pdo, $school_id, $category_name, $type = 'income') {
+    if (empty($category_name)) return null;
+    
+    try {
+        // Check if category exists
+        $stmt = $pdo->prepare("SELECT id FROM fin_categories WHERE school_id = ? AND LOWER(name) = LOWER(?)");
+        $stmt->execute([$school_id, $category_name]);
+        $existing = $stmt->fetch();
+        
+        if ($existing) {
+            return $existing['id'];
+        }
+        
+        // Create new category
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_categories (school_id, name, type, is_active, created_at)
+            VALUES (?, ?, ?, 1, NOW())
+        ");
+        $stmt->execute([$school_id, $category_name, $type]);
+        $category_id = $pdo->lastInsertId();
+        
+        error_log("Auto-created category: $category_name (ID: $category_id) for school $school_id");
+        return $category_id;
+        
+    } catch (Exception $e) {
+        error_log("Failed to create category: " . $e->getMessage());
+        return null;
+    }
+}
+
+// Ensure fin_categories table exists
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `fin_categories` (
@@ -54,13 +122,15 @@ try {
     if ($stmt->fetchColumn() == 0) {
         $default_categories = [
             ['School Fees', 'income', 'Student tuition and fees'],
+            ['Examination Fees', 'income', 'Exam registration fees'],
+            ['Library Fees', 'income', 'Library fees'],
+            ['Sports Fees', 'income', 'Sports and extracurricular fees'],
             ['PTA Levies', 'income', 'PTA contributions'],
             ['Donations', 'income', 'Donations and grants'],
             ['Salaries', 'expenditure', 'Staff salaries and wages'],
             ['Maintenance', 'expenditure', 'School maintenance costs'],
             ['Stationery', 'expenditure', 'Office and school supplies'],
             ['Utilities', 'expenditure', 'Electricity, water, internet'],
-            ['Examination Fees', 'income', 'Exam registration fees'],
         ];
 
         $stmt = $pdo->prepare("INSERT INTO fin_categories (school_id, name, type, description) VALUES (?, ?, ?, ?)");
@@ -79,9 +149,11 @@ $message_type = '';
 // Process form submission for create/edit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
-        // Create new bill type
+        
+        // Create new bill type (with auto account and category creation)
         if ($_POST['action'] === 'create') {
             $name = trim($_POST['name'] ?? '');
+            $new_category_name = trim($_POST['new_category_name'] ?? '');
             $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
             $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
             $session = trim($_POST['session'] ?? $current_session);
@@ -91,22 +163,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
             $description = trim($_POST['description'] ?? '');
             $is_active = isset($_POST['is_active']) ? 1 : 0;
+            $auto_create_account = isset($_POST['auto_create_account']) ? 1 : 0;
 
             if (empty($name) || $default_amount <= 0) {
                 $message = "Please fill in all required fields (Name and Amount)";
                 $message_type = "error";
             } else {
                 try {
+                    // Handle category creation if new category name provided
+                    if (!empty($new_category_name)) {
+                        $category_id = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
+                        if ($category_id) {
+                            $message_add = "Category '$new_category_name' created. ";
+                        }
+                    }
+                    
+                    // Insert bill type
                     $stmt = $pdo->prepare("
                         INSERT INTO fin_bill_types (school_id, name, category_id, applies_to_class, session, term, default_amount, is_recurring, due_date, description, is_active, created_by, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ");
                     $stmt->execute([$school_id, $name, $category_id, $applies_to_class, $session, $term, $default_amount, $is_recurring, $due_date, $description, $is_active, $admin_id]);
-
-                    $message = "Bill template created successfully!";
+                    
+                    $bill_type_id = $pdo->lastInsertId();
+                    
+                    // Auto-create income account if requested
+                    $account_created = false;
+                    if ($auto_create_account) {
+                        $category_name = null;
+                        if ($category_id) {
+                            $stmt = $pdo->prepare("SELECT name FROM fin_categories WHERE id = ?");
+                            $stmt->execute([$category_id]);
+                            $cat = $stmt->fetch();
+                            $category_name = $cat ? $cat['name'] : null;
+                        }
+                        $account_id = createIncomeAccountForBillType($pdo, $school_id, $name, $category_name);
+                        if ($account_id) {
+                            $account_created = true;
+                        }
+                    }
+                    
+                    $message = ($message_add ?? '') . "Bill template created successfully!";
+                    if ($account_created) {
+                        $message .= " Income account '$name Income' was also created.";
+                    }
                     $message_type = "success";
 
-                    // Clear any edit parameters after successful creation
                     header("Location: finance_bill_types.php?success=1");
                     exit();
                 } catch (Exception $e) {
@@ -120,6 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($_POST['action'] === 'update') {
             $bill_type_id = intval($_POST['bill_type_id']);
             $name = trim($_POST['name'] ?? '');
+            $new_category_name = trim($_POST['new_category_name'] ?? '');
             $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
             $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
             $session = trim($_POST['session'] ?? $current_session);
@@ -135,6 +238,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message_type = "error";
             } else {
                 try {
+                    // Handle category creation if new category name provided
+                    if (!empty($new_category_name)) {
+                        $category_id = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
+                        if ($category_id) {
+                            $message = "Category '$new_category_name' created. ";
+                        }
+                    }
+                    
                     $stmt = $pdo->prepare("
                         UPDATE fin_bill_types 
                         SET name = ?, category_id = ?, applies_to_class = ?, session = ?, term = ?, default_amount = ?, is_recurring = ?, due_date = ?, description = ?, is_active = ?
@@ -142,10 +253,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ");
                     $stmt->execute([$name, $category_id, $applies_to_class, $session, $term, $default_amount, $is_recurring, $due_date, $description, $is_active, $bill_type_id, $school_id]);
 
-                    $message = "Bill template updated successfully!";
+                    $message = ($message ?? '') . "Bill template updated successfully!";
                     $message_type = "success";
 
-                    // Redirect to clear edit mode
                     header("Location: finance_bill_types.php?updated=1");
                     exit();
                 } catch (Exception $e) {
@@ -193,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $skipped = 0;
 
                 foreach ($students as $student) {
-                    // Check if bill already exists for this student, session, term, and bill type
+                    // Check if bill already exists
                     $stmt = $pdo->prepare("
                         SELECT id FROM fin_bills 
                         WHERE school_id = ? AND student_id = ? AND bill_type_id = ? AND session = ? AND term = ?
@@ -201,7 +311,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$school_id, $student['id'], $bill_type_id, $bill_type['session'], $bill_type['term']]);
 
                     if (!$stmt->fetch()) {
-                        // Create bill for student
                         $stmt = $pdo->prepare("
                             INSERT INTO fin_bills (school_id, bill_type_id, student_id, class, session, term, description, amount, due_date, status, created_by, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
@@ -241,7 +350,6 @@ if (isset($_GET['action'])) {
         $bill_type_id = intval($_GET['id']);
 
         try {
-            // Check if bills exist using this template
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bills WHERE bill_type_id = ? AND school_id = ?");
             $stmt->execute([$bill_type_id, $school_id]);
             $bill_count = $stmt->fetchColumn();
@@ -293,7 +401,7 @@ $filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $filter_term = isset($_GET['term']) ? $_GET['term'] : 'all';
 $filter_class = isset($_GET['class']) ? $_GET['class'] : 'all';
 
-// Build query - FIXED: proper WHERE clause construction
+// Build query
 $where_clauses = ["bt.school_id = ?"];
 $params = [$school_id];
 
@@ -314,19 +422,13 @@ if ($filter_class !== 'all') {
 
 $where_sql = implode(" AND ", $where_clauses);
 
-// Debug: Log the query and params
-error_log("WHERE SQL: " . $where_sql);
-error_log("PARAMS: " . print_r($params, true));
-
 // Get total count
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bill_types bt WHERE $where_sql");
 $stmt->execute($params);
 $total_records = $stmt->fetchColumn();
-error_log("Total records found: " . $total_records);
-
 $total_pages = $total_records > 0 ? ceil($total_records / $per_page) : 1;
 
-// Get bill types - FIXED: proper query with correct column references
+// Get bill types
 $stmt = $pdo->prepare("
     SELECT bt.*, c.name as category_name
     FROM fin_bill_types bt
@@ -338,10 +440,8 @@ $stmt = $pdo->prepare("
 $stmt->execute($params);
 $bill_types = $stmt->fetchAll();
 
-error_log("Bill types fetched: " . count($bill_types));
-
 // Get categories for dropdown
-$stmt = $pdo->prepare("SELECT id, name FROM fin_categories WHERE school_id = ? AND is_active = 1 ORDER BY name");
+$stmt = $pdo->prepare("SELECT id, name FROM fin_categories WHERE school_id = ? AND type IN ('income', 'both') AND is_active = 1 ORDER BY name");
 $stmt->execute([$school_id]);
 $categories = $stmt->fetchAll();
 
@@ -357,19 +457,6 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $stmt->execute([$_GET['edit'], $school_id]);
     $edit_data = $stmt->fetch();
 }
-
-// Debug: Check if there are any bill types in database
-$debug_stmt = $pdo->prepare("SELECT COUNT(*) as total FROM fin_bill_types WHERE school_id = ?");
-$debug_stmt->execute([$school_id]);
-$debug_count = $debug_stmt->fetchColumn();
-error_log("Total bill types in database for school_id $school_id: " . $debug_count);
-
-if ($debug_count > 0 && empty($bill_types)) {
-    // If there are records but none fetched, there's a filter issue
-    error_log("WARNING: Found $debug_count records but none fetched. Check filters.");
-    // Display a warning for debugging
-    $debug_message = "Debug: Found $debug_count templates but none match current filters.";
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -379,17 +466,13 @@ if ($debug_count > 0 && empty($bill_types)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $school_name; ?> - Bill Templates</title>
 
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --primary-color: <?php echo $primary_color; ?>;
             --secondary-color: <?php echo $secondary_color; ?>;
-            --accent-color: #e74c3c;
             --success-color: #27ae60;
             --warning-color: #f39c12;
             --danger-color: #e74c3c;
@@ -404,459 +487,150 @@ if ($debug_count > 0 && empty($bill_types)) {
             --transition: all 0.3s ease;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: #f5f6fa; color: #333; min-height: 100vh; overflow-x: hidden; }
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Main Content */
-        .main-content {
-            min-height: 100vh;
-            padding: 20px;
-            transition: var(--transition);
-        }
-
-        /* Mobile Menu */
+        .main-content { min-height: 100vh; padding: 20px; transition: var(--transition); }
         .mobile-menu-btn {
-            position: fixed;
-            top: 15px;
-            right: 20px;
-            z-index: 1001;
-            width: 44px;
-            height: 44px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 20px;
-            cursor: pointer;
-            display: none;
+            position: fixed; top: 15px; right: 20px; z-index: 1001; width: 44px; height: 44px;
+            background: var(--primary-color); color: white; border: none; border-radius: var(--radius-md);
+            font-size: 20px; cursor: pointer; display: none;
         }
-
         .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); z-index: 999; opacity: 0; visibility: hidden;
             transition: var(--transition);
         }
-
-        .sidebar-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .sidebar-overlay.active { opacity: 1; visibility: visible; }
 
         @media (min-width: 768px) {
-
-            .mobile-menu-btn,
-            .sidebar-overlay {
-                display: none;
-            }
-
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
+            .mobile-menu-btn, .sidebar-overlay { display: none; }
+            .main-content { margin-left: var(--sidebar-width); }
         }
-
         @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
-            }
-
-            .mobile-menu-btn {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
+            .main-content { padding-top: 70px; }
+            .mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
         }
 
-        /* Top Header */
         .top-header {
-            background: white;
-            padding: 20px;
-            border-radius: var(--radius-md);
-            margin-bottom: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
+            background: white; padding: 20px; border-radius: var(--radius-md); margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;
             box-shadow: var(--shadow-sm);
         }
+        .header-title h1 { color: var(--primary-color); font-size: 1.5rem; margin-bottom: 5px; }
+        .header-title p { color: #666; font-size: 0.85rem; }
 
-        .header-title h1 {
-            color: var(--primary-color);
-            font-size: 1.5rem;
-            margin-bottom: 5px;
+        .alert { padding: 12px 20px; border-radius: var(--radius-sm); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .alert-success { background: #d5f4e6; color: var(--success-color); border-left: 4px solid var(--success-color); }
+        .alert-error { background: #f8d7da; color: var(--danger-color); border-left: 4px solid var(--danger-color); }
+        .alert-info { background: #e3f2fd; color: var(--info-color); border-left: 4px solid var(--info-color); }
+
+        .form-card { background: white; border-radius: var(--radius-md); padding: 20px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
+        .form-title { color: var(--primary-color); font-size: 1rem; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--light-color); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 0.8rem; font-weight: 500; margin-bottom: 5px; color: #555; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px; border: 1px solid #ddd; border-radius: var(--radius-sm);
+            font-size: 0.85rem; font-family: inherit;
         }
-
-        .header-title p {
-            color: #666;
-            font-size: 0.85rem;
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none; border-color: var(--secondary-color);
         }
+        .checkbox-group { flex-direction: row; align-items: center; gap: 10px; }
+        .checkbox-group label { margin-bottom: 0; cursor: pointer; }
+        .checkbox-group input { width: auto; }
 
-        /* Message Alerts */
-        .alert {
-            padding: 12px 20px;
-            border-radius: var(--radius-sm);
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .btn { padding: 10px 20px; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: var(--transition); }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-secondary { background: var(--secondary-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; }
+        .btn-warning { background: var(--warning-color); color: white; }
+        .btn-info { background: var(--info-color); color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 0.7rem; }
 
-        .alert-success {
-            background: #d5f4e6;
-            color: var(--success-color);
-            border-left: 4px solid var(--success-color);
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: var(--danger-color);
-            border-left: 4px solid var(--danger-color);
-        }
-
-        /* Form Styles */
-        .form-card {
-            background: white;
-            border-radius: var(--radius-md);
-            padding: 20px;
-            margin-bottom: 24px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .form-title {
-            color: var(--primary-color);
-            font-size: 1rem;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--light-color);
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            font-size: 0.8rem;
-            font-weight: 500;
-            margin-bottom: 5px;
-            color: #555;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: var(--radius-sm);
-            font-size: 0.85rem;
-            font-family: inherit;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--secondary-color);
-        }
-
-        .checkbox-group {
-            flex-direction: row;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .checkbox-group label {
-            margin-bottom: 0;
-            cursor: pointer;
-        }
-
-        .checkbox-group input {
-            width: auto;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: var(--transition);
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: var(--secondary-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn-warning {
-            background: var(--warning-color);
-            color: white;
-        }
-
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.7rem;
-        }
-
-        /* Filter Bar */
         .filter-bar {
-            background: white;
-            padding: 15px;
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            box-shadow: var(--shadow-sm);
+            background: white; padding: 15px; border-radius: var(--radius-md); margin-bottom: 20px;
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: center; box-shadow: var(--shadow-sm);
         }
-
         .filter-btn {
-            padding: 6px 15px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            background: white;
-            cursor: pointer;
-            font-size: 0.8rem;
-            transition: var(--transition);
-            text-decoration: none;
-            color: #666;
+            padding: 6px 15px; border: 1px solid #ddd; border-radius: 20px; background: white;
+            cursor: pointer; font-size: 0.8rem; transition: var(--transition); text-decoration: none; color: #666;
         }
+        .filter-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .filter-btn:hover:not(.active) { border-color: var(--secondary-color); }
 
-        .filter-btn.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
+        .table-card { background: white; border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); }
+        .table-container { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.8rem; }
+        .data-table th { background: var(--light-color); font-weight: 600; }
+        .data-table tr:hover { background: #f9f9f9; }
 
-        .filter-btn:hover:not(.active) {
-            border-color: var(--secondary-color);
-        }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 500; display: inline-block; }
+        .status-active { background: #d5f4e6; color: var(--success-color); }
+        .status-inactive { background: #f8d7da; color: var(--danger-color); }
 
-        /* Table */
-        .table-card {
-            background: white;
-            border-radius: var(--radius-md);
-            padding: 20px;
-            box-shadow: var(--shadow-sm);
-        }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-icon { padding: 6px; border-radius: var(--radius-sm); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; }
+        .action-icon.edit { background: var(--info-color); color: white; }
+        .action-icon.generate { background: var(--success-color); color: white; }
+        .action-icon.toggle { background: var(--warning-color); color: white; }
+        .action-icon.delete { background: var(--danger-color); color: white; }
 
-        .table-container {
-            overflow-x: auto;
-        }
+        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+        .page-link { padding: 8px 12px; border: 1px solid #ddd; border-radius: var(--radius-sm); text-decoration: none; color: #666; transition: var(--transition); }
+        .page-link.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .page-link:hover:not(.active) { border-color: var(--secondary-color); }
 
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 2000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: var(--radius-md); max-width: 500px; width: 90%; padding: 20px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--light-color); }
+        .modal-body { margin-bottom: 20px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
 
-        .data-table th,
-        .data-table td {
-            padding: 12px 10px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            font-size: 0.8rem;
-        }
-
-        .data-table th {
-            background: var(--light-color);
-            font-weight: 600;
-        }
-
-        .data-table tr:hover {
-            background: #f9f9f9;
-        }
-
-        .status-badge {
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
-            display: inline-block;
-        }
-
-        .status-active {
-            background: #d5f4e6;
-            color: var(--success-color);
-        }
-
-        .status-inactive {
-            background: #f8d7da;
-            color: var(--danger-color);
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .action-icon {
-            padding: 6px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.7rem;
-        }
-
-        .action-icon.edit {
-            background: var(--info-color);
-            color: white;
-        }
-
-        .action-icon.generate {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .action-icon.toggle {
-            background: var(--warning-color);
-            color: white;
-        }
-
-        .action-icon.delete {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        /* Pagination */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .page-link {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: var(--radius-sm);
-            text-decoration: none;
-            color: #666;
-            transition: var(--transition);
-        }
-
-        .page-link.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .page-link:hover:not(.active) {
-            border-color: var(--secondary-color);
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: var(--radius-md);
-            max-width: 500px;
-            width: 90%;
-            padding: 20px;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--light-color);
-        }
-
-        .modal-body {
-            margin-bottom: 20px;
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 0.8rem;
-            border-top: 1px solid var(--light-color);
-            margin-top: 20px;
-        }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 0.8rem; border-top: 1px solid var(--light-color); margin-top: 20px; }
 
         @media (max-width: 767px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
+            .form-grid { grid-template-columns: 1fr; }
+            .action-buttons { flex-direction: column; }
+            .data-table th, .data-table td { padding: 8px; }
+        }
 
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 8px;
-            }
+        .category-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .category-toggle button {
+            flex: 1;
+            padding: 8px;
+            background: var(--light-color);
+            border: 1px solid #ddd;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .category-toggle button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .new-category-group {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: var(--radius-sm);
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid var(--info-color);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
         }
     </style>
 </head>
@@ -866,25 +640,22 @@ if ($debug_count > 0 && empty($bill_types)) {
     <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Main Content -->
     <div class="main-content">
-        <!-- Top Header -->
         <div class="top-header">
             <div class="header-title">
-                <h1><i class="fas fa-tags" style="margin-right: 10px; color: var(--secondary-color);"></i>Bill Templates</h1>
-                <p>Create and manage reusable bill templates for students</p>
+                <h1><i class="fas fa-tags"></i> Bill Templates</h1>
+                <p>Create and manage reusable bill templates with automatic account creation</p>
             </div>
             <div>
                 <a href="finance_dashboard.php" class="btn btn-secondary btn-sm">
-                    <i class="fas fa-chart-line"></i> Back to Dashboard
+                    <i class="fas fa-chart-line"></i> Dashboard
                 </a>
             </div>
         </div>
 
-        <!-- Message Display -->
         <?php if ($message): ?>
             <div class="alert alert-<?php echo $message_type; ?>">
-                <i class="fas <?php echo $message_type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
+                <i class="fas <?php echo $message_type === 'success' ? 'fa-check-circle' : ($message_type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'); ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
@@ -895,7 +666,7 @@ if ($debug_count > 0 && empty($bill_types)) {
                 <i class="fas fa-plus-circle"></i>
                 <?php echo $edit_data ? 'Edit Bill Template' : 'Create New Bill Template'; ?>
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="" id="billTypeForm">
                 <input type="hidden" name="action" value="<?php echo $edit_data ? 'update' : 'create'; ?>">
                 <?php if ($edit_data): ?>
                     <input type="hidden" name="bill_type_id" value="<?php echo $edit_data['id']; ?>">
@@ -909,14 +680,26 @@ if ($debug_count > 0 && empty($bill_types)) {
 
                     <div class="form-group">
                         <label>Category</label>
-                        <select name="category_id">
-                            <option value="">-- Select Category --</option>
-                            <?php foreach ($categories as $category): ?>
-                                <option value="<?php echo $category['id']; ?>" <?php echo ($edit_data && $edit_data['category_id'] == $category['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($category['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="category-toggle">
+                            <button type="button" id="selectExistingBtn" class="active">Select Existing</button>
+                            <button type="button" id="createNewBtn">Create New</button>
+                        </div>
+                        <div id="existingCategoryDiv">
+                            <select name="category_id" class="form-group">
+                                <option value="">-- Select Category --</option>
+                                <?php foreach ($categories as $category): ?>
+                                    <option value="<?php echo $category['id']; ?>" <?php echo ($edit_data && $edit_data['category_id'] == $category['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($category['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div id="newCategoryDiv" style="display: none;">
+                            <input type="text" name="new_category_name" class="form-group" placeholder="Enter new category name (e.g., 'Transport Fees')">
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> New category will be created automatically when you save.
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -970,11 +753,22 @@ if ($debug_count > 0 && empty($bill_types)) {
                         <label for="is_active">Active</label>
                     </div>
 
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" name="auto_create_account" id="auto_create_account" <?php echo (!$edit_data) ? 'checked' : ''; ?>>
+                        <label for="auto_create_account">Auto-create income account</label>
+                    </div>
+
                     <div class="form-group">
                         <label>Description</label>
                         <textarea name="description" rows="3" placeholder="Additional details about this bill"><?php echo $edit_data ? htmlspecialchars($edit_data['description'] ?? '') : ''; ?></textarea>
                     </div>
                 </div>
+
+                <?php if (!$edit_data): ?>
+                    <div class="info-box" style="margin: 15px 0;">
+                        <i class="fas fa-lightbulb"></i> <strong>Pro Tip:</strong> When you enable "Auto-create income account", a dedicated income account will be created automatically for this bill type. This helps track revenue from different fee categories separately.
+                    </div>
+                <?php endif; ?>
 
                 <div style="margin-top: 20px; display: flex; gap: 10px;">
                     <button type="submit" class="btn btn-primary">
@@ -1028,6 +822,7 @@ if ($debug_count > 0 && empty($bill_types)) {
                     <thead>
                         <tr>
                             <th>Name</th>
+                            <th>Category</th>
                             <th>Class</th>
                             <th>Session/Term</th>
                             <th>Amount (₦)</th>
@@ -1039,7 +834,7 @@ if ($debug_count > 0 && empty($bill_types)) {
                     <tbody>
                         <?php if (empty($bill_types)): ?>
                             <tr>
-                                <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                                <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
                                     <i class="fas fa-tags" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
                                     No bill templates found
                                 </td>
@@ -1049,13 +844,11 @@ if ($debug_count > 0 && empty($bill_types)) {
                                 <tr>
                                     <td>
                                         <strong><?php echo htmlspecialchars($bill_type['name']); ?></strong>
-                                        <?php if ($bill_type['category_name']): ?>
-                                            <br><small style="color: #999;"><?php echo htmlspecialchars($bill_type['category_name']); ?></small>
-                                        <?php endif; ?>
                                         <?php if ($bill_type['is_recurring']): ?>
                                             <br><small style="color: var(--secondary-color);"><i class="fas fa-sync-alt"></i> Recurring</small>
                                         <?php endif; ?>
                                     </td>
+                                    <td><?php echo htmlspecialchars($bill_type['category_name'] ?? '—'); ?></td>
                                     <td><?php echo htmlspecialchars($bill_type['applies_to_class'] ?? 'All Classes'); ?></td>
                                     <td>
                                         <?php echo htmlspecialchars($bill_type['session']); ?><br>
@@ -1094,17 +887,14 @@ if ($debug_count > 0 && empty($bill_types)) {
                 </table>
             </div>
 
-            <!-- Pagination -->
             <?php if ($total_pages > 1): ?>
                 <div class="pagination">
                     <?php if ($page > 1): ?>
                         <a href="?page=<?php echo $page - 1; ?>&status=<?php echo $filter_status; ?>&term=<?php echo $filter_term; ?>&class=<?php echo $filter_class; ?>" class="page-link">&laquo; Prev</a>
                     <?php endif; ?>
-
                     <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                         <a href="?page=<?php echo $i; ?>&status=<?php echo $filter_status; ?>&term=<?php echo $filter_term; ?>&class=<?php echo $filter_class; ?>" class="page-link <?php echo $i === $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
                     <?php endfor; ?>
-
                     <?php if ($page < $total_pages): ?>
                         <a href="?page=<?php echo $page + 1; ?>&status=<?php echo $filter_status; ?>&term=<?php echo $filter_term; ?>&class=<?php echo $filter_class; ?>" class="page-link">Next &raquo;</a>
                     <?php endif; ?>
@@ -1112,7 +902,6 @@ if ($debug_count > 0 && empty($bill_types)) {
             <?php endif; ?>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
             <p>&copy; <?php echo date('Y'); ?> <?php echo $school_name; ?> - Finance Management System</p>
         </div>
@@ -1182,6 +971,28 @@ if ($debug_count > 0 && empty($bill_types)) {
             }, 100);
         });
 
+        // Category toggle functionality
+        const selectExistingBtn = document.getElementById('selectExistingBtn');
+        const createNewBtn = document.getElementById('createNewBtn');
+        const existingCategoryDiv = document.getElementById('existingCategoryDiv');
+        const newCategoryDiv = document.getElementById('newCategoryDiv');
+
+        if (selectExistingBtn && createNewBtn) {
+            selectExistingBtn.addEventListener('click', function() {
+                selectExistingBtn.classList.add('active');
+                createNewBtn.classList.remove('active');
+                existingCategoryDiv.style.display = 'block';
+                newCategoryDiv.style.display = 'none';
+            });
+
+            createNewBtn.addEventListener('click', function() {
+                createNewBtn.classList.add('active');
+                selectExistingBtn.classList.remove('active');
+                existingCategoryDiv.style.display = 'none';
+                newCategoryDiv.style.display = 'block';
+            });
+        }
+
         function showGenerateModal(billTypeId, templateName, appliesToClass) {
             document.getElementById('generate_bill_type_id').value = billTypeId;
             document.getElementById('generate_template_name').innerHTML = '<strong>Template:</strong> ' + templateName;
@@ -1202,7 +1013,6 @@ if ($debug_count > 0 && empty($bill_types)) {
             document.getElementById('generateModal').classList.remove('active');
         }
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('generateModal');
             if (event.target === modal) {
@@ -1211,10 +1021,7 @@ if ($debug_count > 0 && empty($bill_types)) {
         }
     </script>
 
-    <?php
-    // Include sidebar
-    require_once 'includes/sidebar.php';
-    ?>
+    <?php require_once 'includes/sidebar.php'; ?>
 </body>
 
 </html>

@@ -10,6 +10,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 require_once '../includes/config.php';
+check_page_access(['acct', 'super_admin']);
 
 // Auth check
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {

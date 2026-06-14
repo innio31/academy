@@ -28,6 +28,7 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 }
 
 require_once '../includes/config.php';
+check_page_access(['admin', 'super_admin']);
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
@@ -297,7 +298,7 @@ if (isset($_POST['assign_all'])) {
     try {
         // Delete existing subject assignments
         $pdo->prepare("DELETE FROM staff_subjects WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
-        
+
         // Delete existing class assignments
         $pdo->prepare("DELETE FROM staff_classes WHERE staff_id = ? AND school_id = ?")->execute([$staff_id_string, $school_id]);
 
@@ -314,7 +315,7 @@ if (isset($_POST['assign_all'])) {
         }
 
         $pdo->commit();
-        
+
         $subject_count = count($subjects);
         $class_count = count($class_ids);
         header("Location: manage-staff.php?action=list&message=Assigned+$subject_count+subject(s)+and+$class_count+class(es)+successfully&type=success");
@@ -1383,7 +1384,7 @@ require_once 'includes/sidebar.php';
                 <form method="POST" id="assignForm">
                     <input type="hidden" name="staff_id" value="<?php echo $staff['id']; ?>">
                     <input type="hidden" name="assign_all" value="1">
-                    
+
                     <div class="assignment-section">
                         <h3><i class="fas fa-book" style="color: var(--primary-color);"></i> Subjects</h3>
                         <div class="checkbox-group" id="subjectsCheckboxGroup">

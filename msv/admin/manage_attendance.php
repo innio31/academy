@@ -25,6 +25,7 @@ if ($admin_role !== 'super_admin' && $admin_role !== 'admin') {
 }
 
 require_once '../includes/config.php';
+check_page_access(['acct', 'admin', 'super_admin']);
 
 $school_id = SCHOOL_ID;
 $school_name = SCHOOL_NAME;
@@ -1035,7 +1036,7 @@ function getActiveSchoolQRCode($pdo, $school_id)
                     </div>
 
                     <div style="display:flex;gap:8px;margin-bottom:16px;">
-                        <button class="btn btn-primary" id="admModeQR"    onclick="admSetMode('qr')">
+                        <button class="btn btn-primary" id="admModeQR" onclick="admSetMode('qr')">
                             <i class="fas fa-qrcode"></i> QR Scan
                         </button>
                         <button class="btn btn-secondary" id="admModeManual" onclick="admSetMode('manual')">
@@ -1046,7 +1047,7 @@ function getActiveSchoolQRCode($pdo, $school_id)
                     <!-- QR Mode -->
                     <div id="admQrMode">
                         <div style="display:flex;gap:8px;margin-bottom:12px;">
-                            <button class="btn btn-success" id="admScanTypeIn"  onclick="admSetScanType('check_in')"  style="flex:1;">
+                            <button class="btn btn-success" id="admScanTypeIn" onclick="admSetScanType('check_in')" style="flex:1;">
                                 <i class="fas fa-sign-in-alt"></i> Check In
                             </button>
                             <button class="btn btn-secondary" id="admScanTypeOut" onclick="admSetScanType('check_out')" style="flex:1;">
@@ -1122,10 +1123,18 @@ function getActiveSchoolQRCode($pdo, $school_id)
                     <div class="table-container">
                         <table class="data-table">
                             <thead>
-                                <tr><th>Time</th><th>Name</th><th>Class</th><th>Type</th><th>Status</th></tr>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Name</th>
+                                    <th>Class</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                </tr>
                             </thead>
                             <tbody id="admRecentScansBody">
-                                <tr><td colspan="5" style="text-align:center;">Loading…</td></tr>
+                                <tr>
+                                    <td colspan="5" style="text-align:center;">Loading…</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1210,7 +1219,9 @@ function getActiveSchoolQRCode($pdo, $school_id)
                                 </tr>
                             </thead>
                             <tbody id="permTableBody">
-                                <tr><td colspan="6" style="text-align:center;">Loading…</td></tr>
+                                <tr>
+                                    <td colspan="6" style="text-align:center;">Loading…</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1797,24 +1808,24 @@ function getActiveSchoolQRCode($pdo, $school_id)
         }
 
         // ==================== ADMIN TAKE ATTENDANCE ====================
-        let admScanner      = null;
+        let admScanner = null;
         let admScannerActive = false;
-        let admCurrentMode  = 'qr';
-        let admCurrentScan  = 'check_in';
+        let admCurrentMode = 'qr';
+        let admCurrentScan = 'check_in';
 
         function admSetMode(mode) {
             admCurrentMode = mode;
-            document.getElementById('admQrMode').style.display    = mode === 'qr'     ? 'block' : 'none';
+            document.getElementById('admQrMode').style.display = mode === 'qr' ? 'block' : 'none';
             document.getElementById('admManualMode').style.display = mode === 'manual' ? 'block' : 'none';
-            document.getElementById('admModeQR').className     = 'btn ' + (mode === 'qr'     ? 'btn-primary' : 'btn-secondary');
-            document.getElementById('admModeManual').className  = 'btn ' + (mode === 'manual' ? 'btn-primary' : 'btn-secondary');
+            document.getElementById('admModeQR').className = 'btn ' + (mode === 'qr' ? 'btn-primary' : 'btn-secondary');
+            document.getElementById('admModeManual').className = 'btn ' + (mode === 'manual' ? 'btn-primary' : 'btn-secondary');
             if (mode === 'manual') admLoadClassStudents();
         }
 
         function admSetScanType(type) {
             admCurrentScan = type;
-            document.getElementById('admScanTypeIn').className  = 'btn ' + (type === 'check_in'  ? 'btn-success'   : 'btn-secondary');
-            document.getElementById('admScanTypeOut').className = 'btn ' + (type === 'check_out' ? 'btn-warning'   : 'btn-secondary');
+            document.getElementById('admScanTypeIn').className = 'btn ' + (type === 'check_in' ? 'btn-success' : 'btn-secondary');
+            document.getElementById('admScanTypeOut').className = 'btn ' + (type === 'check_out' ? 'btn-warning' : 'btn-secondary');
         }
 
         function admStartScanner() {
@@ -1822,19 +1833,27 @@ function getActiveSchoolQRCode($pdo, $school_id)
             const reader = document.getElementById('adm-qr-reader');
             reader.style.display = 'block';
             document.getElementById('admStartScanBtn').style.display = 'none';
-            document.getElementById('admStopScanBtn').style.display  = 'inline-flex';
+            document.getElementById('admStopScanBtn').style.display = 'inline-flex';
 
             admScanner = new Html5Qrcode('adm-qr-reader');
-            admScanner.start(
-                { facingMode: 'environment' },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decoded) => admHandleScan(decoded),
-                () => {}
-            ).then(() => { admScannerActive = true; })
-             .catch(() => {
-                alert('Camera access denied or not available.');
-                admStopScanner();
-             });
+            admScanner.start({
+                        facingMode: 'environment'
+                    }, {
+                        fps: 10,
+                        qrbox: {
+                            width: 250,
+                            height: 250
+                        }
+                    },
+                    (decoded) => admHandleScan(decoded),
+                    () => {}
+                ).then(() => {
+                    admScannerActive = true;
+                })
+                .catch(() => {
+                    alert('Camera access denied or not available.');
+                    admStopScanner();
+                });
         }
 
         function admStopScanner() {
@@ -1844,7 +1863,7 @@ function getActiveSchoolQRCode($pdo, $school_id)
                     document.getElementById('adm-qr-reader').style.display = 'none';
                     document.getElementById('admScannerPlaceholder').style.display = 'block';
                     document.getElementById('admStartScanBtn').style.display = 'inline-flex';
-                    document.getElementById('admStopScanBtn').style.display  = 'none';
+                    document.getElementById('admStopScanBtn').style.display = 'none';
                 });
             }
         }
@@ -1852,8 +1871,11 @@ function getActiveSchoolQRCode($pdo, $school_id)
         function admHandleScan(text) {
             try {
                 const data = JSON.parse(decodeURIComponent(text));
-                const sid  = data.id || data.student_id;
-                if (sid) { admRecordStudent(sid); return; }
+                const sid = data.id || data.student_id;
+                if (sid) {
+                    admRecordStudent(sid);
+                    return;
+                }
             } catch (e) {}
             const sid = parseInt(text);
             if (sid > 0) admRecordStudent(sid);
@@ -1863,7 +1885,7 @@ function getActiveSchoolQRCode($pdo, $school_id)
         async function admRecordStudent(studentId) {
             const result = await apiCall('admin_record_student_attendance', {
                 student_id: studentId,
-                scan_type:  admCurrentScan
+                scan_type: admCurrentScan
             }, 'POST');
 
             if (result.success) {
@@ -1879,21 +1901,25 @@ function getActiveSchoolQRCode($pdo, $school_id)
         function admShowScanResult(msg, type) {
             const div = document.getElementById('admScanResult');
             div.innerHTML = `<div class="alert-${type === 'success' ? 'success' : 'danger'}" style="padding:10px;border-radius:8px;font-size:0.82rem;">${msg}</div>`;
-            setTimeout(() => { div.innerHTML = ''; }, 4000);
+            setTimeout(() => {
+                div.innerHTML = '';
+            }, 4000);
         }
 
         async function admLoadTodayStats() {
             const r = await apiCall('admin_today_stats');
             if (r.success) {
                 document.getElementById('adm_present').textContent = r.present;
-                document.getElementById('adm_absent').textContent  = r.absent;
-                document.getElementById('adm_late').textContent    = r.late;
-                document.getElementById('adm_total').textContent   = r.total;
+                document.getElementById('adm_absent').textContent = r.absent;
+                document.getElementById('adm_late').textContent = r.late;
+                document.getElementById('adm_total').textContent = r.total;
             }
         }
 
         async function admLoadRecentScans() {
-            const r = await apiCall('admin_recent_scans', { limit: 20 });
+            const r = await apiCall('admin_recent_scans', {
+                limit: 20
+            });
             const tbody = document.getElementById('admRecentScansBody');
             if (!r.success || !r.scans.length) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No scans today</td></tr>';
@@ -1914,28 +1940,31 @@ function getActiveSchoolQRCode($pdo, $school_id)
         let admStudentData = [];
 
         async function admLoadClassStudents() {
-            const classId = document.getElementById('admClassSelect').value;
-            const date    = document.getElementById('admAttDate').value;
-            const wrap    = document.getElementById('admClassStudentsWrap');
+        const classId = document.getElementById('admClassSelect').value;
+        const date = document.getElementById('admAttDate').value;
+        const wrap = document.getElementById('admClassStudentsWrap');
 
-            if (!classId) {
-                wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Select a class to load students.</p>';
-                document.getElementById('admBulkActions').style.display = 'none';
-                return;
-            }
+        if (!classId) {
+            wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Select a class to load students.</p>';
+            document.getElementById('admBulkActions').style.display = 'none';
+            return;
+        }
 
-            wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Loading…</p>';
-            const r = await apiCall('admin_get_class_students', { class_id: classId, date });
+        wrap.innerHTML = '<p style="color:var(--gray-500);font-size:0.8rem;">Loading…</p>';
+        const r = await apiCall('admin_get_class_students', {
+            class_id: classId,
+            date
+        });
 
-            if (!r.success) {
-                wrap.innerHTML = `<p style="color:red;font-size:0.8rem;">${r.error}</p>`;
-                return;
-            }
+        if (!r.success) {
+            wrap.innerHTML = `<p style="color:red;font-size:0.8rem;">${r.error}</p>`;
+            return;
+        }
 
-            admStudentData = r.students;
-            const s = r.summary;
+        admStudentData = r.students;
+        const s = r.summary;
 
-            wrap.innerHTML = `
+        wrap.innerHTML = `
                 <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
                     <span class="status-badge status-present">Present: ${s.present}</span>
                     <span class="status-badge status-absent">Absent: ${s.absent}</span>
@@ -1954,9 +1983,10 @@ function getActiveSchoolQRCode($pdo, $school_id)
                                     ? new Date(st.scan_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
                                     : '—';
                                 const badge  = status === 'present'
-                                    ? `<span class="status-badge status-${st.log_status === 'late' ? 'late' : 'present'}">${st.log_status === 'late' ? 'Late' : 'Present'}</span>`
-                                    : '<span class="status-badge status-absent">Absent</span>';
-                                return `
+                                    ? ` < span class = "status-badge status-${st.log_status === 'late' ? 'late' : 'present'}" > $ {
+            st.log_status === 'late' ? 'Late' : 'Present'
+        } < /span>`: '<span class="status-badge status-absent">Absent</span>';
+        return `
                                     <tr id="admRow_${st.id}">
                                         <td>${i+1}</td>
                                         <td>${escapeHtml(st.admission_number)}</td>
@@ -1972,11 +2002,12 @@ function getActiveSchoolQRCode($pdo, $school_id)
                                         </td>
                                     </tr>
                                 `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
+        }).join('')
+        } <
+        /tbody> <
+        /table> <
+        /div>
+        `;
             document.getElementById('admBulkActions').style.display = 'flex';
         }
 
@@ -1986,7 +2017,11 @@ function getActiveSchoolQRCode($pdo, $school_id)
                 scan_type:  'check_in'
             }, 'POST');
             if (result.success) {
-                showAlert(`✅ ${result.student_name} marked present`, 'success');
+                showAlert(`✅
+        $ {
+            result.student_name
+        }
+        marked present`, 'success');
                 admLoadClassStudents();
                 admLoadTodayStats();
             } else {
@@ -1997,7 +2032,11 @@ function getActiveSchoolQRCode($pdo, $school_id)
         function admMarkAllPresent() {
             const absent = admStudentData.filter(s => s.attendance_status !== 'present');
             if (!absent.length) { showAlert('All students already marked', 'success'); return; }
-            if (!confirm(`Mark all ${absent.length} absent student(s) as present?`)) return;
+            if (!confirm(`
+        Mark all $ {
+            absent.length
+        }
+        absent student(s) as present ? `)) return;
             absent.forEach(s => admMarkOne(s.id));
         }
 
@@ -2021,12 +2060,18 @@ function getActiveSchoolQRCode($pdo, $school_id)
 
             const div = document.getElementById('admBulkResult');
             if (result.success) {
-                div.innerHTML = `<div class="alert-success" style="padding:10px;border-radius:8px;">${result.message}</div>`;
-                admLoadTodayStats();
-            } else {
-                div.innerHTML = `<div class="alert-danger" style="padding:10px;border-radius:8px;">${result.error}</div>`;
-            }
-            setTimeout(() => { div.innerHTML = ''; }, 4000);
+                div.innerHTML = ` < div class = "alert-success"
+        style = "padding:10px;border-radius:8px;" > $ {
+            result.message
+        } < /div>`;
+        admLoadTodayStats();
+        }
+        else {
+            div.innerHTML = `<div class="alert-danger" style="padding:10px;border-radius:8px;">${result.error}</div>`;
+        }
+        setTimeout(() => {
+            div.innerHTML = '';
+        }, 4000);
         }
 
         // ==================== STAFF PERMISSIONS ====================
@@ -2058,29 +2103,38 @@ function getActiveSchoolQRCode($pdo, $school_id)
 
         function editPermission(staffId) {
             document.getElementById('permStaffSelect').value = staffId;
-            document.getElementById('permStaffSelect').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('permStaffSelect').scrollIntoView({
+                behavior: 'smooth'
+            });
         }
 
         async function revokePermission(staffId, name) {
             if (!confirm(`Revoke all attendance permissions for ${name}?`)) return;
-            const r = await apiCall('revoke_staff_permissions', { staff_id: staffId }, 'POST');
-            if (r.success) { showAlert('Permissions revoked', 'success'); loadPermissions(); }
-            else            showAlert('Error: ' + r.error, 'error');
+            const r = await apiCall('revoke_staff_permissions', {
+                staff_id: staffId
+            }, 'POST');
+            if (r.success) {
+                showAlert('Permissions revoked', 'success');
+                loadPermissions();
+            } else showAlert('Error: ' + r.error, 'error');
         }
 
         async function savePermissions() {
             const staffId = document.getElementById('permStaffSelect').value;
-            if (!staffId) { showAlert('Please select a staff member', 'error'); return; }
+            if (!staffId) {
+                showAlert('Please select a staff member', 'error');
+                return;
+            }
 
             const canTake = document.getElementById('permCanTake').checked ? 1 : 0;
             const canView = document.getElementById('permCanView').checked ? 1 : 0;
             const classes = [...document.querySelectorAll('.perm-class-cb:checked')].map(cb => cb.value);
 
             const result = await apiCall('save_staff_permissions', {
-                staff_id:            staffId,
+                staff_id: staffId,
                 can_take_attendance: canTake,
-                can_view_reports:    canView,
-                assigned_classes:    classes
+                can_view_reports: canView,
+                assigned_classes: classes
             }, 'POST');
 
             const div = document.getElementById('permSaveResult');
@@ -2091,7 +2145,9 @@ function getActiveSchoolQRCode($pdo, $school_id)
             } else {
                 div.innerHTML = `<div class="alert-danger" style="padding:10px;border-radius:8px;">❌ ${result.error}</div>`;
             }
-            setTimeout(() => { div.innerHTML = ''; }, 4000);
+            setTimeout(() => {
+                div.innerHTML = '';
+            }, 4000);
         }
 
         function clearPermForm() {

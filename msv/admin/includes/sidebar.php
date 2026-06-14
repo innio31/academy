@@ -46,6 +46,11 @@ if (!isset($subscription_active)) {
     }
 }
 
+// Role-based access control
+$is_super_admin = ($admin_role === 'super_admin');
+$is_admin = ($admin_role === 'admin');
+$is_acct = ($admin_role === 'acct');
+
 // Determine which nav group is active based on current page
 $portal_pages = ['manage-students.php', 'manage-staff.php', 'manage-classes.php', 'manage-subjects.php', 'manage_attendance.php'];
 $exam_pages   = ['manage-exams.php', 'view-results.php', 'exam_record_setup.php', 'exam_generate_cards.php'];
@@ -167,6 +172,32 @@ try {
             --gray-200: #e5e7eb;
             --gray-500: #6b7280;
             --gray-600: #4b5563;
+        }
+
+        /* Role Badge Styles */
+        .role-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+
+        .role-badge.super_admin {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .role-badge.admin {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .role-badge.acct {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
         }
 
         /* ---------- Base Sidebar ---------- */
@@ -656,7 +687,7 @@ try {
             </div>
         </div>
 
-        <!-- Admin Info -->
+        <!-- Admin Info with Role Badge -->
         <div class="admin-info">
             <div class="admin-avatar">
                 <?php echo strtoupper(substr($admin_name, 0, 1)); ?>
@@ -664,124 +695,156 @@ try {
             <div class="admin-details">
                 <h4><?php echo htmlspecialchars($admin_name); ?></h4>
                 <p><?php echo ucfirst(str_replace('_', ' ', $admin_role)); ?></p>
+                <span class="role-badge <?php echo $admin_role; ?>">
+                    <?php
+                    if ($is_super_admin) echo 'SUPER ADMIN';
+                    elseif ($is_admin) echo 'ADMIN';
+                    else echo 'ACCOUNTANT';
+                    ?>
+                </span>
             </div>
         </div>
 
-        <!-- Subscription Status -->
-        <?php
-        $status_class = '';
-        $display_days = $subscription_days_remaining ?? 0;
-        if (!$subscription_active || $display_days <= 0) {
-            $status_class = 'danger';
-            $display_days = 0;
-        } elseif ($display_days <= 14) {
-            $status_class = 'danger';
-        } elseif ($display_days <= 30) {
-            $status_class = 'warning';
-        } else {
-            $status_class = 'active';
-        }
-        ?>
-        <div class="subscription-status <?php echo $status_class; ?>">
-            <div class="sub-left">
-                <i class="fas fa-calendar-alt"></i>
-                <span class="sub-label">Subscription</span>
+        <!-- Subscription Status (only for super_admin and admin) -->
+        <?php if ($is_super_admin || $is_admin): ?>
+            <?php
+            $status_class = '';
+            $display_days = $subscription_days_remaining ?? 0;
+            if (!$subscription_active || $display_days <= 0) {
+                $status_class = 'danger';
+                $display_days = 0;
+            } elseif ($display_days <= 14) {
+                $status_class = 'danger';
+            } elseif ($display_days <= 30) {
+                $status_class = 'warning';
+            } else {
+                $status_class = 'active';
+            }
+            ?>
+            <div class="subscription-status <?php echo $status_class; ?>">
+                <div class="sub-left">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span class="sub-label">Subscription</span>
+                </div>
+                <div class="sub-right">
+                    <?php if ($display_days > 0): ?>
+                        <span class="days-badge"><?php echo $display_days; ?> days</span>
+                    <?php else: ?>
+                        <span class="days-badge expired">EXPIRED</span>
+                    <?php endif; ?>
+                    <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
+                        <span class="expiry-text">Expires <?php echo date('M j, Y', strtotime($subscription_end_date)); ?></span>
+                    <?php else: ?>
+                        <span class="expiry-text">No expiry set</span>
+                    <?php endif; ?>
+                </div>
             </div>
-            <div class="sub-right">
-                <?php if ($display_days > 0): ?>
-                    <span class="days-badge"><?php echo $display_days; ?> days</span>
-                <?php else: ?>
-                    <span class="days-badge expired">EXPIRED</span>
-                <?php endif; ?>
-                <?php if (isset($subscription_end_date) && $subscription_end_date && $subscription_end_date !== '0000-00-00'): ?>
-                    <span class="expiry-text">Expires <?php echo date('M j, Y', strtotime($subscription_end_date)); ?></span>
-                <?php else: ?>
-                    <span class="expiry-text">No expiry set</span>
-                <?php endif; ?>
-            </div>
-        </div>
+        <?php endif; ?>
 
         <!-- Navigation -->
         <nav class="sidebar-nav">
-            <!-- Dashboard -->
+            <!-- Dashboard (accessible to all) -->
             <a href="index.php" class="nav-item standalone <?php echo $current_page == 'index.php' ? 'active' : ''; ?>">
                 <span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span>
                 <span class="nav-label">Dashboard</span>
             </a>
 
-            <!-- Portal Group -->
-            <div class="nav-group <?php echo $portal_active ? 'open' : ''; ?>" data-group="portal">
-                <button class="nav-group-toggle" aria-expanded="<?php echo $portal_active ? 'true' : 'false'; ?>">
-                    <span class="nav-icon"><i class="fas fa-school"></i></span>
-                    <span class="nav-label">Portal</span>
-                    <span class="group-badge">
-                        <i class="fas fa-chevron-down chevron"></i>
-                    </span>
-                </button>
-                <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
-                    <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate"></i> Students</a></li>
-                    <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
-                    <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>"><i class="fas fa-layer-group"></i> Classes</a></li>
-                    <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Subjects</a></li>
-                    <li><a href="manage_attendance.php" class="<?php echo $current_page == 'manage_attendance.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-check"></i> Attendance</a></li>
-                </ul>
-            </div>
+            <!-- Portal Group (accessible to super_admin, admin, and acct for students & attendance only) -->
+            <?php if ($is_super_admin || $is_admin || $is_acct): ?>
+                <div class="nav-group <?php echo $portal_active ? 'open' : ''; ?>" data-group="portal">
+                    <button class="nav-group-toggle" aria-expanded="<?php echo $portal_active ? 'true' : 'false'; ?>">
+                        <span class="nav-icon"><i class="fas fa-school"></i></span>
+                        <span class="nav-label">Portal</span>
+                        <span class="group-badge">
+                            <i class="fas fa-chevron-down chevron"></i>
+                        </span>
+                    </button>
+                    <ul class="nav-group-items <?php echo $portal_active ? 'expanded' : ''; ?>">
+                        <!-- Students - accessible to all roles -->
+                        <li><a href="manage-students.php" class="<?php echo $current_page == 'manage-students.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate"></i> Students</a></li>
 
-            <!-- Exams & Results Group -->
-            <div class="nav-group <?php echo $exam_active ? 'open' : ''; ?>" data-group="exams">
-                <button class="nav-group-toggle" aria-expanded="<?php echo $exam_active ? 'true' : 'false'; ?>">
-                    <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
-                    <span class="nav-label">Exams & Results</span>
-                    <span class="group-badge">
-                        <i class="fas fa-chevron-down chevron"></i>
-                    </span>
-                </button>
-                <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
-                    <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>"><i class="fas fa-pen-alt"></i> Manage Exams</a></li>
-                    <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
-                    <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Process Results</a></li>
-                </ul>
-            </div>
+                        <!-- Staff - only super_admin and admin -->
+                        <?php if ($is_super_admin || $is_admin): ?>
+                            <li><a href="manage-staff.php" class="<?php echo $current_page == 'manage-staff.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher"></i> Staff</a></li>
+                        <?php endif; ?>
 
-            <!-- Resources Group -->
-            <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
-                <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">
-                    <span class="nav-icon"><i class="fas fa-cubes"></i></span>
-                    <span class="nav-label">Resources</span>
-                    <span class="group-badge">
-                        <i class="fas fa-chevron-down chevron"></i>
-                    </span>
-                </button>
-                <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
-                    <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
-                    <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
-                    <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li>
-                </ul>
-            </div>
+                        <!-- Classes - only super_admin and admin -->
+                        <?php if ($is_super_admin || $is_admin): ?>
+                            <li><a href="manage-classes.php" class="<?php echo $current_page == 'manage-classes.php' ? 'active' : ''; ?>"><i class="fas fa-layer-group"></i> Classes</a></li>
+                        <?php endif; ?>
 
-            <!-- Finance Group -->
-            <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
-                <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
-                    <span class="nav-icon"><i class="fas fa-receipt"></i></span>
-                    <span class="nav-label">Finance</span>
-                    <span class="group-badge">
-                        <i class="fas fa-chevron-down chevron"></i>
-                    </span>
-                </button>
-                <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
-                    <li><a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
-                    <li><a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>"><i class="fas fa-tags"></i> Bill Types</a></li>
-                    <li><a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Manage Bills</a></li>
-                    <li><a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>"><i class="fas fa-money-bill-wave"></i> Payments</a></li>
-                    <li><a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>"><i class="fas fa-print"></i> Receipts</a></li>
-                    <li><a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt"></i> Invoices</a></li>
-                    <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
-                    <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
-                    <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
-                </ul>
-            </div>
+                        <!-- Subjects - only super_admin and admin -->
+                        <?php if ($is_super_admin || $is_admin): ?>
+                            <li><a href="manage-subjects.php" class="<?php echo $current_page == 'manage-subjects.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> Subjects</a></li>
+                        <?php endif; ?>
 
-            <!-- Logout -->
+                        <!-- Attendance - accessible to all roles -->
+                        <li><a href="manage_attendance.php" class="<?php echo $current_page == 'manage_attendance.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-check"></i> Attendance</a></li>
+                    </ul>
+                </div>
+
+                <!-- Exams & Results Group (accessible to super_admin and admin only, not acct) -->
+                <?php if ($is_super_admin || $is_admin): ?>
+                    <div class="nav-group <?php echo $exam_active ? 'open' : ''; ?>" data-group="exams">
+                        <button class="nav-group-toggle" aria-expanded="<?php echo $exam_active ? 'true' : 'false'; ?>">
+                            <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
+                            <span class="nav-label">Exams & Results</span>
+                            <span class="group-badge">
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </span>
+                        </button>
+                        <ul class="nav-group-items <?php echo $exam_active ? 'expanded' : ''; ?>">
+                            <li><a href="manage-exams.php" class="<?php echo $current_page == 'manage-exams.php' ? 'active' : ''; ?>"><i class="fas fa-pen-alt"></i> Manage Exams</a></li>
+                            <li><a href="view-results.php" class="<?php echo $current_page == 'view-results.php' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
+                            <li><a href="exam_record_setup.php" class="<?php echo $current_page == 'exam_record_setup.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Process Results</a></li>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Resources Group (accessible to super_admin and admin only, not acct) -->
+                <?php if ($is_super_admin || $is_admin): ?>
+                    <div class="nav-group <?php echo $resources_active ? 'open' : ''; ?>" data-group="resources">
+                        <button class="nav-group-toggle" aria-expanded="<?php echo $resources_active ? 'true' : 'false'; ?>">
+                            <span class="nav-icon"><i class="fas fa-cubes"></i></span>
+                            <span class="nav-label">Resources</span>
+                            <span class="group-badge">
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </span>
+                        </button>
+                        <ul class="nav-group-items <?php echo $resources_active ? 'expanded' : ''; ?>">
+                            <li><a href="ai-tools.php" class="<?php echo $current_page == 'ai-tools.php' ? 'active' : ''; ?>"><i class="fas fa-robot"></i> AI Teaching Tools</a></li>
+                            <!-- <li><a href="reports.php" class="<?php echo $current_page == 'reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li> -->
+                            <!-- <li><a href="sync.php" class="<?php echo $current_page == 'sync.php' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Sync to Cloud</a></li> -->
+                        </ul>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- Finance Group (accessible only to super_admin and acct) -->
+            <?php if ($is_super_admin || $is_acct): ?>
+                <div class="nav-group <?php echo $bills_active ? 'open' : ''; ?>" data-group="bills">
+                    <button class="nav-group-toggle" aria-expanded="<?php echo $bills_active ? 'true' : 'false'; ?>">
+                        <span class="nav-icon"><i class="fas fa-receipt"></i></span>
+                        <span class="nav-label">Finance</span>
+                        <span class="group-badge">
+                            <i class="fas fa-chevron-down chevron"></i>
+                        </span>
+                    </button>
+                    <ul class="nav-group-items <?php echo $bills_active ? 'expanded' : ''; ?>">
+                        <li><a href="finance_dashboard.php" class="<?php echo $current_page == 'finance_dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
+                        <li><a href="finance_bill_types.php" class="<?php echo $current_page == 'finance_bill_types.php' ? 'active' : ''; ?>"><i class="fas fa-tags"></i> Bill Types</a></li>
+                        <li><a href="finance_bills.php" class="<?php echo $current_page == 'finance_bills.php' ? 'active' : ''; ?>"><i class="fas fa-file-invoice"></i> Manage Bills</a></li>
+                        <li><a href="finance_payments.php" class="<?php echo $current_page == 'finance_payments.php' ? 'active' : ''; ?>"><i class="fas fa-money-bill-wave"></i> Payments</a></li>
+                        <li><a href="finance_receipts.php" class="<?php echo $current_page == 'finance_receipts.php' ? 'active' : ''; ?>"><i class="fas fa-print"></i> Receipts</a></li>
+                        <li><a href="finance_invoices.php" class="<?php echo $current_page == 'finance_invoices.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt"></i> Invoices</a></li>
+                        <li><a href="finance_income_expenditure.php" class="<?php echo $current_page == 'finance_income_expenditure.php' ? 'active' : ''; ?>"><i class="fas fa-exchange-alt"></i> Income/Expenditure</a></li>
+                        <li><a href="finance_ledger.php" class="<?php echo $current_page == 'finance_ledger.php' ? 'active' : ''; ?>"><i class="fas fa-book"></i> General Ledger</a></li>
+                        <li><a href="finance_reports.php" class="<?php echo $current_page == 'finance_reports.php' ? 'active' : ''; ?>"><i class="fas fa-chart-line"></i> Reports</a></li>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <!-- Logout (accessible to all) -->
             <a href="/msv/logout.php" class="nav-item standalone logout">
                 <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
                 <span class="nav-label">Logout</span>

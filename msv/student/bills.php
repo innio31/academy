@@ -114,13 +114,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Insert payment record
-                $stmt = $pdo->prepare("
-                    INSERT INTO fin_payments (
-                        school_id, bill_id, student_id, amount_paid, 
-                        payment_date, payment_method, reference_number, 
-                        notes, proof_path, status, recorded_by, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_verification', NULL, NOW())
-                ");
+$stmt = $pdo->prepare("
+    INSERT INTO fin_payments (
+        school_id, bill_id, student_id, amount_paid, 
+        payment_date, payment_method, reference_number, 
+        notes, proof_path, status, recorded_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW())
+");
                 $stmt->execute([
                     $school_id, 
                     $bill_id ?: null, 

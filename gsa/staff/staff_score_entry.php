@@ -35,7 +35,7 @@ $record_id = isset($_GET['record_id']) ? (int)$_GET['record_id'] : 0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
     $post_subject_id = (int)($_POST['subject_id'] ?? 0);
     $scores_post = $_POST['scores'] ?? [];
-
+    
     // First, load the exam record to get grading scale and score types
     try {
         $stmt = $pdo->prepare("SELECT * FROM report_card_settings WHERE id = ? AND school_id = ?");
@@ -44,18 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
     } catch (Exception $e) {
         $record_data = null;
     }
-
+    
     if (!$record_data) {
         $_SESSION['flash_error'] = "Exam record not found.";
         header("Location: staff_score_entry.php?record_id={$record_id}");
         exit();
     }
-
+    
     // Decode score types & grading
     $decoded = json_decode($record_data['score_types'] ?? '{}', true);
     $score_types = $decoded['score_types'] ?? (is_array($decoded) && isset($decoded[0]['label']) ? $decoded : []);
     $grading_scale = $decoded['grading_scale'] ?? [];
-
+    
     if (empty($grading_scale)) {
         $grading_scale = [
             ['grade' => 'A', 'min' => 75, 'max' => 100, 'remark' => 'Excellent'],
@@ -65,17 +65,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
             ['grade' => 'F', 'min' => 0, 'max' => 39, 'remark' => 'Fail'],
         ];
     }
-
+    
     $class_name = $record_data['class'];
+    $class_id_record = $record_data['class_id'] ?? 0;  // Use class_id from record if available
     $session = $record_data['session'];
     $term = $record_data['term'];
-
-    // Get class_id from class name
-    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
-    $stmt->execute([$class_name, $school_id]);
-    $class_row = $stmt->fetch();
-    $class_id = $class_row ? $class_row['id'] : 0;
-
+    
+    // Get class_id from class name if not already present
+    $class_id = $class_id_record;
+    if ($class_id == 0) {
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class_name, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+    }
+    
     // Get subject name
     $subj_name_val = '';
     try {
@@ -86,17 +90,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
     } catch (Exception $e) {
         $subj_name_val = '';
     }
-
+    
     // Helper function for grade
-    function getGradeInfoStaff($total, $scale)
-    {
+    function getGradeInfoStaff($total, $scale) {
         foreach ($scale as $row) {
             if ($total >= (float)$row['min'] && $total <= (float)$row['max'])
                 return ['grade' => $row['grade'], 'remark' => $row['remark']];
         }
         return ['grade' => 'F', 'remark' => 'Fail'];
     }
-
+    
     // Get students in this class using class_id
     $students = [];
     if ($class_id > 0) {
@@ -111,13 +114,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
             $students = [];
         }
     }
-
+    
     if (empty($students)) {
         $_SESSION['flash_error'] = "No students found in this class.";
         header("Location: staff_score_entry.php?record_id={$record_id}&subject_id={$post_subject_id}");
         exit();
     }
-
+    
     $pdo->beginTransaction();
     try {
         foreach ($students as $stu) {
@@ -126,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
             $sdata = [];
             $total = 0.0;
             $hasAny = false;
-
+            
             foreach ($score_types as $st) {
                 $label = $st['label'];
                 $maxVal = (float)($st['max'] ?? 0);
@@ -140,13 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
                     $sdata[$label] = null;
                 }
             }
-
+            
             if (!$hasAny) continue;
-
+            
             $graded = getGradeInfoStaff($total, $grading_scale);
             $max_score = (int)($record_data['max_score'] ?? 100);
             $pct = $max_score > 0 ? round(($total / $max_score) * 100, 2) : 0;
-
+            
             // Check if score already exists
             $chk = $pdo->prepare("
                 SELECT id FROM student_scores
@@ -155,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
             ");
             $chk->execute([$school_id, $sid, $post_subject_id, $session, $term]);
             $eid = $chk->fetchColumn();
-
+            
             if ($eid) {
                 $stmt = $pdo->prepare("
                     UPDATE student_scores
@@ -172,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
                 $stmt->execute([$school_id, $sid, $post_subject_id, $subj_name_val, $session, $term, json_encode($sdata), $total, $pct, $graded['grade']]);
             }
         }
-
+        
         // Recalculate subject positions
         $stmt = $pdo->prepare("
             SELECT id, student_id, total_score FROM student_scores
@@ -184,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
         $pos = 1;
         foreach ($ranked as $r) {
             $pdo->prepare("UPDATE student_scores SET subject_position=? WHERE id=?")->execute([$pos, $r['id']]);
-
+            
             // Update student_subject_positions
             $chk2 = $pdo->prepare("
                 SELECT id FROM student_subject_positions
@@ -204,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
             }
             $pos++;
         }
-
+        
         $pdo->commit();
         $_SESSION['flash_success'] = "Scores saved for {$subj_name_val}. Subject positions recalculated.";
         header("Location: staff_score_entry.php?record_id={$record_id}&subject_id={$post_subject_id}");
@@ -222,22 +225,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
 if ($record_id === 0) {
     // Get all active exam records for classes the staff is assigned to
     try {
-        // Get staff's assigned classes
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+        // Get staff's assigned classes (with class_id now)
+        $stmt = $pdo->prepare("
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+        ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        if (!empty($assigned_classes)) {
-            $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+        $assigned_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $assigned_class_ids = array_column($assigned_classes, 'class_id');
+        
+        if (!empty($assigned_class_ids)) {
+            $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
             $stmt = $pdo->prepare("
-                SELECT rcs.id, rcs.record_name, rcs.class, rcs.session, rcs.term, rcs.status
+                SELECT rcs.id, rcs.record_name, rcs.class, rcs.session, rcs.term, rcs.status, c.class_name as display_class_name
                 FROM report_card_settings rcs
+                JOIN classes c ON rcs.class_id = c.id
                 WHERE rcs.school_id = ? 
-                AND rcs.class IN ($placeholders)
+                AND rcs.class_id IN ($placeholders)
                 AND rcs.status != 'archived'
                 ORDER BY rcs.created_at DESC
             ");
-            $stmt->execute(array_merge([$school_id], $assigned_classes));
+            $stmt->execute(array_merge([$school_id], $assigned_class_ids));
             $available_records = $stmt->fetchAll();
         } else {
             $available_records = [];
@@ -246,12 +256,11 @@ if ($record_id === 0) {
         error_log("staff_score_entry records fetch: " . $e->getMessage());
         $available_records = [];
     }
-
+    
     // Display the list page
-?>
+    ?>
     <!DOCTYPE html>
     <html lang="en">
-
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -262,30 +271,22 @@ if ($record_id === 0) {
             :root {
                 --primary-color: <?php echo $primary_color; ?>;
                 --sidebar-width: 280px;
-                --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+                --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
                 --radius-md: 12px;
             }
-
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 font-family: 'Poppins', sans-serif;
                 background: #f5f6fa;
                 color: #333;
                 min-height: 100vh;
             }
-
             .main-content {
                 margin-left: 0;
                 padding: 20px;
                 min-height: 100vh;
                 transition: margin-left 0.28s ease;
             }
-
             .top-header {
                 background: white;
                 padding: 20px 25px;
@@ -298,13 +299,11 @@ if ($record_id === 0) {
                 gap: 15px;
                 box-shadow: var(--shadow-sm);
             }
-
             .header-title h1 {
                 color: var(--primary-color);
                 font-size: 1.4rem;
                 font-weight: 700;
             }
-
             .card {
                 background: white;
                 border-radius: var(--radius-md);
@@ -312,30 +311,24 @@ if ($record_id === 0) {
                 margin-bottom: 20px;
                 box-shadow: var(--shadow-sm);
             }
-
             .card-header {
                 padding-bottom: 12px;
                 margin-bottom: 15px;
                 border-bottom: 2px solid #e0e0e0;
             }
-
             .data-table {
                 width: 100%;
                 border-collapse: collapse;
             }
-
-            .data-table th,
-            .data-table td {
+            .data-table th, .data-table td {
                 padding: 12px;
                 text-align: left;
                 border-bottom: 1px solid #eee;
             }
-
             .data-table th {
                 background: #f5f5f5;
                 font-weight: 600;
             }
-
             .btn {
                 padding: 8px 16px;
                 border-radius: 8px;
@@ -348,30 +341,19 @@ if ($record_id === 0) {
                 gap: 8px;
                 font-size: 0.8rem;
             }
-
             .btn-primary {
                 background: var(--primary-color);
                 color: white;
             }
-
             @media (min-width: 768px) {
-                .main-content {
-                    margin-left: var(--sidebar-width);
-                }
+                .main-content { margin-left: var(--sidebar-width); }
             }
-
             @media (max-width: 767px) {
-                .main-content {
-                    padding-top: 70px;
-                }
-
-                .data-table {
-                    font-size: 12px;
-                }
+                .main-content { padding-top: 70px; }
+                .data-table { font-size: 12px; }
             }
         </style>
     </head>
-
     <body>
         <button class="mobile-menu-btn" id="mobileMenuBtn" style="position:fixed;top:16px;left:16px;z-index:1001;width:44px;height:44px;background:var(--primary-color);color:white;border:none;border-radius:10px;font-size:20px;cursor:pointer;">
             <i class="fas fa-bars"></i>
@@ -387,7 +369,7 @@ if ($record_id === 0) {
                     <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
                 </div>
             </div>
-
+            
             <div class="card">
                 <div class="card-header">
                     <h3><i class="fas fa-list"></i> Available Exam Records</h3>
@@ -413,7 +395,7 @@ if ($record_id === 0) {
                             <?php foreach ($available_records as $record): ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($record['record_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($record['class']); ?></td>
+                                    <td><?php echo htmlspecialchars($record['display_class_name'] ?? $record['class']); ?></td>
                                     <td><?php echo htmlspecialchars($record['session']); ?> - <?php echo htmlspecialchars($record['term']); ?> Term</td>
                                     <td>
                                         <span class="status-badge" style="padding:3px 10px;border-radius:20px;font-size:0.7rem;background:<?php echo $record['status'] === 'active' ? '#d4edda' : '#fef5e7'; ?>;color:<?php echo $record['status'] === 'active' ? '#155724' : '#856404'; ?>;">
@@ -450,9 +432,8 @@ if ($record_id === 0) {
             }
         </script>
     </body>
-
     </html>
-<?php
+    <?php
     exit();
 }
 
@@ -471,9 +452,32 @@ if (!$record || ($record['status'] ?? 'draft') === 'archived') {
     exit();
 }
 
-// Verify staff has access to this class
-$stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? AND class = ?");
-$stmt->execute([$staff_id_string, $school_id, $record['class']]);
+// Get class_id from record (use class_id if available, otherwise look up by class name)
+$class_id_from_record = $record['class_id'] ?? 0;
+$class_name = $record['class'];
+
+if ($class_id_from_record > 0) {
+    $class_id = $class_id_from_record;
+    // Get class name for display
+    $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id = ? AND school_id = ?");
+    $stmt->execute([$class_id, $school_id]);
+    $class_row = $stmt->fetch();
+    $display_class_name = $class_row ? $class_row['class_name'] : $class_name;
+} else {
+    // Fallback: look up class_id from class name
+    $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class_name, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
+    $display_class_name = $class_row ? $class_row['class_name'] : $class_name;
+}
+
+// Verify staff has access to this class (using class_id)
+$stmt = $pdo->prepare("
+    SELECT sc.class_id FROM staff_classes sc
+    WHERE sc.staff_id = ? AND sc.school_id = ? AND sc.class_id = ?
+");
+$stmt->execute([$staff_id_string, $school_id, $class_id]);
 if (!$stmt->fetch()) {
     header("Location: staff_score_entry.php");
     exit();
@@ -494,28 +498,21 @@ if (empty($grading_scale)) {
     ];
 }
 
-$class_name = $record['class'];
 $session = $record['session'];
 $term    = $record['term'];
 
-// Get class_id from class name
-$stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
-$stmt->execute([$class_name, $school_id]);
-$class_row = $stmt->fetch();
-$class_id = $class_row ? $class_row['id'] : 0;
-
-// ── Get subjects assigned to this staff for this class ────────────────────────
+// ── Get subjects assigned to this staff for this class (using class_id) ────────
 $subjects = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name
-          FROM subjects s
-          JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
-          JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-         WHERE ss.staff_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-         ORDER BY s.subject_name ASC
+        SELECT DISTINCT s.id, s.subject_name
+        FROM subjects s
+        JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
+        JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ? AND sc.class_id = ?
+        WHERE ss.staff_id = ? AND (s.school_id = ? OR s.is_central = 1)
+        ORDER BY s.subject_name ASC
     ");
-    $stmt->execute([$school_id, $school_id, $staff_id_string, $class_name, $school_id]);
+    $stmt->execute([$school_id, $school_id, $class_id, $staff_id_string, $school_id]);
     $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("staff_score_entry subjects: " . $e->getMessage());
@@ -534,9 +531,9 @@ if ($class_id > 0) {
     try {
         $stmt = $pdo->prepare("
             SELECT id, full_name, admission_number, gender
-              FROM students
-             WHERE school_id = ? AND class_id = ? AND status = 'active'
-             ORDER BY full_name ASC
+            FROM students
+            WHERE school_id = ? AND class_id = ? AND status = 'active'
+            ORDER BY full_name ASC
         ");
         $stmt->execute([$school_id, $class_id]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -544,25 +541,10 @@ if ($class_id > 0) {
         error_log("staff_score_entry students: " . $e->getMessage());
         $students = [];
     }
-} else {
-    // Fallback to class name if class_id not found
-    try {
-        $stmt = $pdo->prepare("
-            SELECT id, full_name, admission_number, gender
-              FROM students
-             WHERE school_id = ? AND class = ? AND status = 'active'
-             ORDER BY full_name ASC
-        ");
-        $stmt->execute([$school_id, $class_name]);
-        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        error_log("staff_score_entry students fallback: " . $e->getMessage());
-    }
 }
 
 // ── Helper function ──────────────────────────────────────────────────────────
-function getGradeInfoStaffDisplay($total, $scale)
-{
+function getGradeInfoStaffDisplay($total, $scale) {
     foreach ($scale as $row) {
         if ($total >= (float)$row['min'] && $total <= (float)$row['max'])
             return ['grade' => $row['grade'], 'remark' => $row['remark']];
@@ -574,26 +556,14 @@ function getGradeInfoStaffDisplay($total, $scale)
 $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
-        // Use class_id if available
-        if ($class_id > 0) {
-            $stmt = $pdo->prepare("
-                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-                  FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-                   AND st.class_id=?
-            ");
-            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-                  FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-                   AND st.class=?
-            ");
-            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_name]);
-        }
+        $stmt = $pdo->prepare("
+            SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+            FROM student_scores ss
+            JOIN students st ON ss.student_id = st.id
+            WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+              AND st.class_id=?
+        ");
+        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -609,26 +579,15 @@ if (!empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-        if ($class_id > 0) {
-            $stmt = $pdo->prepare("
-                SELECT DISTINCT ss.subject_id FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-                   AND st.class_id=? AND ss.subject_id IN ($ph)
-            ");
-            $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT DISTINCT ss.subject_id FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-                   AND st.class=? AND ss.subject_id IN ($ph)
-            ");
-            $stmt->execute(array_merge([$school_id, $session, $term, $class_name], $sub_ids));
-        }
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT ss.subject_id FROM student_scores ss
+            JOIN students st ON ss.student_id = st.id
+            WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+              AND st.class_id=? AND ss.subject_id IN ($ph)
+        ");
+        $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
-    } catch (Exception $e) { /* non-fatal */
-    }
+    } catch (Exception $e) { /* non-fatal */ }
 }
 
 // Stats
@@ -677,18 +636,8 @@ unset($_SESSION['flash_error']);
             --radius-sm: 8px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #f5f6fa;
-            color: #333;
-            min-height: 100vh;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: #f5f6fa; color: #333; min-height: 100vh; }
 
         .main-content {
             margin-left: 0;
@@ -716,15 +665,8 @@ unset($_SESSION['flash_error']);
             margin-bottom: 5px;
             font-weight: 700;
         }
-
-        .header-title h1 i {
-            margin-right: 10px;
-        }
-
-        .header-title p {
-            color: #666;
-            font-size: 0.8rem;
-        }
+        .header-title h1 i { margin-right: 10px; }
+        .header-title p { color: #666; font-size: 0.8rem; }
 
         .info-item {
             background: var(--light-color);
@@ -749,34 +691,17 @@ unset($_SESSION['flash_error']);
             box-shadow: var(--shadow-sm);
             border-top: 3px solid var(--primary-color);
         }
-
-        .stat-card.green {
-            border-top-color: var(--success-color);
-        }
-
-        .stat-card.amber {
-            border-top-color: var(--warning-color);
-        }
+        .stat-card.green { border-top-color: var(--success-color); }
+        .stat-card.amber { border-top-color: var(--warning-color); }
 
         .stat-value {
             font-size: 1.8rem;
             font-weight: 700;
             color: var(--primary-color);
         }
-
-        .stat-card.green .stat-value {
-            color: var(--success-color);
-        }
-
-        .stat-card.amber .stat-value {
-            color: var(--warning-color);
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: #777;
-            margin-top: 4px;
-        }
+        .stat-card.green .stat-value { color: var(--success-color); }
+        .stat-card.amber .stat-value { color: var(--warning-color); }
+        .stat-label { font-size: 0.75rem; color: #777; margin-top: 4px; }
 
         .progress-wrap {
             background: white;
@@ -785,21 +710,18 @@ unset($_SESSION['flash_error']);
             margin-bottom: 20px;
             box-shadow: var(--shadow-sm);
         }
-
         .progress-label {
             display: flex;
             justify-content: space-between;
             font-size: 0.8rem;
             margin-bottom: 8px;
         }
-
         .progress-bar {
             height: 6px;
             background: var(--light-color);
             border-radius: 20px;
             overflow: hidden;
         }
-
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
@@ -824,37 +746,19 @@ unset($_SESSION['flash_error']);
             border: 1px solid var(--light-color);
             transition: all 0.2s;
         }
-
         .subject-card:hover {
             border-color: var(--primary-color);
             transform: translateY(-2px);
         }
-
         .subject-card.active {
             background: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
         }
-
-        .subject-name {
-            font-weight: 500;
-            font-size: 0.85rem;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        .status-done {
-            background: var(--success-color);
-        }
-
-        .status-pending {
-            background: var(--light-color);
-            border: 1px solid #ccc;
-        }
+        .subject-name { font-weight: 500; font-size: 0.85rem; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .status-done { background: var(--success-color); }
+        .status-pending { background: var(--light-color); border: 1px solid #ccc; }
 
         .score-card {
             background: white;
@@ -862,30 +766,15 @@ unset($_SESSION['flash_error']);
             overflow: hidden;
             box-shadow: var(--shadow-sm);
         }
-
         .score-header {
             background: var(--primary-color);
             color: white;
             padding: 14px 20px;
         }
+        .score-header h2 { font-size: 1rem; font-weight: 600; }
+        .score-header .meta { font-size: 0.7rem; opacity: 0.8; margin-top: 4px; }
 
-        .score-header h2 {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .score-header .meta {
-            font-size: 0.7rem;
-            opacity: 0.8;
-            margin-top: 4px;
-        }
-
-        .score-list {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
+        .score-list { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 
         .student-score-row {
             background: #f9f9f9;
@@ -916,19 +805,9 @@ unset($_SESSION['flash_error']);
             font-size: 0.9rem;
         }
 
-        .student-details {
-            flex: 1;
-        }
-
-        .student-name {
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-
-        .student-adm {
-            font-size: 0.7rem;
-            color: #888;
-        }
+        .student-details { flex: 1; }
+        .student-name { font-weight: 600; font-size: 0.85rem; }
+        .student-adm { font-size: 0.7rem; color: #888; }
 
         .score-fields {
             display: flex;
@@ -936,19 +815,8 @@ unset($_SESSION['flash_error']);
             gap: 12px;
             margin-bottom: 10px;
         }
-
-        .score-field {
-            flex: 1;
-            min-width: 80px;
-        }
-
-        .score-field label {
-            display: block;
-            font-size: 0.7rem;
-            color: #666;
-            margin-bottom: 4px;
-        }
-
+        .score-field { flex: 1; min-width: 80px; }
+        .score-field label { display: block; font-size: 0.7rem; color: #666; margin-bottom: 4px; }
         .score-input {
             width: 100%;
             padding: 8px;
@@ -958,11 +826,7 @@ unset($_SESSION['flash_error']);
             font-family: 'Poppins', sans-serif;
             font-size: 0.85rem;
         }
-
-        .score-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
+        .score-input:focus { outline: none; border-color: var(--primary-color); }
 
         .result-row {
             display: flex;
@@ -971,13 +835,7 @@ unset($_SESSION['flash_error']);
             padding-top: 8px;
             border-top: 1px solid var(--light-color);
         }
-
-        .total-score {
-            font-weight: 700;
-            font-size: 1rem;
-            color: var(--primary-color);
-        }
-
+        .total-score { font-weight: 700; font-size: 1rem; color: var(--primary-color); }
         .grade-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -985,31 +843,11 @@ unset($_SESSION['flash_error']);
             font-size: 0.7rem;
             font-weight: 600;
         }
-
-        .grade-A {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .grade-B {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .grade-C {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .grade-D {
-            background: #ffe5cc;
-            color: #7d4000;
-        }
-
-        .grade-F {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .grade-A { background: #d4edda; color: #155724; }
+        .grade-B { background: #cce5ff; color: #004085; }
+        .grade-C { background: #fff3cd; color: #856404; }
+        .grade-D { background: #ffe5cc; color: #7d4000; }
+        .grade-F { background: #f8d7da; color: #721c24; }
 
         .footer-buttons {
             padding: 16px 20px;
@@ -1032,18 +870,8 @@ unset($_SESSION['flash_error']);
             gap: 8px;
             text-decoration: none;
         }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: white;
-            color: var(--primary-color);
-            border: 1.5px solid var(--primary-color);
-        }
-
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-secondary { background: white; color: var(--primary-color); border: 1.5px solid var(--primary-color); }
         .alert {
             padding: 12px 16px;
             border-radius: var(--radius-sm);
@@ -1053,63 +881,21 @@ unset($_SESSION['flash_error']);
             gap: 10px;
             font-size: 0.85rem;
         }
-
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border-left: 4px solid var(--success-color);
-        }
-
-        .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid var(--danger-color);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-
-        .empty-state i {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.3;
-        }
+        .alert-success { background: #d4edda; color: #155724; border-left: 4px solid var(--success-color); }
+        .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid var(--danger-color); }
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
 
         @media (min-width: 768px) {
-            .main-content {
-                margin-left: var(--sidebar-width);
-            }
+            .main-content { margin-left: var(--sidebar-width); }
         }
-
         @media (max-width: 767px) {
-            .main-content {
-                padding-top: 70px;
-            }
-
-            .top-header {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .subject-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .score-fields {
-                flex-direction: column;
-            }
-
-            .footer-buttons {
-                flex-direction: column;
-            }
-
-            .footer-buttons .btn {
-                width: 100%;
-                justify-content: center;
-            }
+            .main-content { padding-top: 70px; }
+            .top-header { flex-direction: column; text-align: center; }
+            .subject-grid { grid-template-columns: 1fr; }
+            .score-fields { flex-direction: column; }
+            .footer-buttons { flex-direction: column; }
+            .footer-buttons .btn { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -1125,7 +911,7 @@ unset($_SESSION['flash_error']);
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-pencil-alt"></i> Enter Scores</h1>
-                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class_name); ?></p>
+                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($display_class_name); ?></p>
             </div>
             <div>
                 <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
@@ -1140,22 +926,10 @@ unset($_SESSION['flash_error']);
         <?php endif; ?>
 
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value"><?php echo $total_subjects; ?></div>
-                <div class="stat-label">My Subjects</div>
-            </div>
-            <div class="stat-card green">
-                <div class="stat-value"><?php echo $completed_subjects; ?></div>
-                <div class="stat-label">Completed</div>
-            </div>
-            <div class="stat-card amber">
-                <div class="stat-value"><?php echo $total_subjects - $completed_subjects; ?></div>
-                <div class="stat-label">Pending</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value"><?php echo $total_students; ?></div>
-                <div class="stat-label">Students</div>
-            </div>
+            <div class="stat-card"><div class="stat-value"><?php echo $total_subjects; ?></div><div class="stat-label">My Subjects</div></div>
+            <div class="stat-card green"><div class="stat-value"><?php echo $completed_subjects; ?></div><div class="stat-label">Completed</div></div>
+            <div class="stat-card amber"><div class="stat-value"><?php echo $total_subjects - $completed_subjects; ?></div><div class="stat-label">Pending</div></div>
+            <div class="stat-card"><div class="stat-value"><?php echo $total_students; ?></div><div class="stat-label">Students</div></div>
         </div>
 
         <div class="progress-wrap">
@@ -1179,7 +953,7 @@ unset($_SESSION['flash_error']);
             <div class="empty-state">
                 <i class="fas fa-user-graduate"></i>
                 <h3>No students found</h3>
-                <p>No active students found in <?php echo htmlspecialchars($class_name); ?>.</p>
+                <p>No active students found in <?php echo htmlspecialchars($display_class_name); ?>.</p>
                 <p style="margin-top: 8px;">Please ensure students have the correct class assigned.</p>
             </div>
         <?php else: ?>
@@ -1190,8 +964,8 @@ unset($_SESSION['flash_error']);
                     $is_done = isset($subjects_with_scores[(int)$sub['id']]);
                     $is_active = (int)$sub['id'] === $active_subject_id;
                 ?>
-                    <a href="staff_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>"
-                        class="subject-card <?php echo $is_active ? 'active' : ''; ?>">
+                    <a href="staff_score_entry.php?record_id=<?php echo $record_id; ?>&subject_id=<?php echo $sub['id']; ?>" 
+                       class="subject-card <?php echo $is_active ? 'active' : ''; ?>">
                         <span class="subject-name"><?php echo htmlspecialchars($sub['subject_name']); ?></span>
                         <span class="status-dot <?php echo $is_done ? 'status-done' : 'status-pending'; ?>"></span>
                     </a>
@@ -1208,7 +982,7 @@ unset($_SESSION['flash_error']);
                         <div class="score-header">
                             <h2><i class="fas fa-chalkboard-teacher"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
                             <div class="meta">
-                                <?php echo htmlspecialchars($class_name); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
+                                <?php echo htmlspecialchars($display_class_name); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
                                 · Total: <?php echo (int)$record['max_score']; ?> marks
                                 (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
                             </div>
@@ -1239,14 +1013,14 @@ unset($_SESSION['flash_error']);
                                         ?>
                                             <div class="score-field">
                                                 <label><?php echo htmlspecialchars($lbl); ?> / <?php echo $maxVal; ?></label>
-                                                <input type="number"
-                                                    name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
-                                                    class="score-input"
-                                                    value="<?php echo htmlspecialchars((string)$val); ?>"
-                                                    min="0" max="<?php echo $maxVal; ?>" step="0.5"
-                                                    data-student="<?php echo $stu_id; ?>"
-                                                    data-max="<?php echo $maxVal; ?>"
-                                                    oninput="recalcRow(this, <?php echo $stu_id; ?>)">
+                                                <input type="number" 
+                                                       name="scores[<?php echo $stu_id; ?>][<?php echo htmlspecialchars($lbl); ?>]"
+                                                       class="score-input"
+                                                       value="<?php echo htmlspecialchars((string)$val); ?>"
+                                                       min="0" max="<?php echo $maxVal; ?>" step="0.5"
+                                                       data-student="<?php echo $stu_id; ?>"
+                                                       data-max="<?php echo $maxVal; ?>"
+                                                       oninput="recalcRow(this, <?php echo $stu_id; ?>)">
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
@@ -1306,17 +1080,14 @@ unset($_SESSION['flash_error']);
         function getGrade(total) {
             for (const r of GRADE_SCALE)
                 if (total >= r.min && total <= r.max) return r;
-            return {
-                grade: 'F',
-                remark: 'Fail'
-            };
+            return { grade: 'F', remark: 'Fail' };
         }
 
         function recalcRow(input, studentId) {
             const inputs = document.querySelectorAll(`input[data-student="${studentId}"]`);
             let total = 0;
             let hasAny = false;
-
+            
             inputs.forEach(i => {
                 const val = parseFloat(i.value);
                 if (!isNaN(val)) {

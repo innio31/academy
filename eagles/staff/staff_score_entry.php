@@ -67,14 +67,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
     }
     
     $class_name = $record_data['class'];
+    $class_id_record = $record_data['class_id'] ?? 0;  // Use class_id from record if available
     $session = $record_data['session'];
     $term = $record_data['term'];
     
-    // Get class_id from class name
-    $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
-    $stmt->execute([$class_name, $school_id]);
-    $class_row = $stmt->fetch();
-    $class_id = $class_row ? $class_row['id'] : 0;
+    // Get class_id from class name if not already present
+    $class_id = $class_id_record;
+    if ($class_id == 0) {
+        $stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
+        $stmt->execute([$class_name, $school_id]);
+        $class_row = $stmt->fetch();
+        $class_id = $class_row ? $class_row['id'] : 0;
+    }
     
     // Get subject name
     $subj_name_val = '';
@@ -221,22 +225,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scores'])) {
 if ($record_id === 0) {
     // Get all active exam records for classes the staff is assigned to
     try {
-        // Get staff's assigned classes
-        $stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ?");
+        // Get staff's assigned classes (with class_id now)
+        $stmt = $pdo->prepare("
+            SELECT sc.class_id, c.class_name 
+            FROM staff_classes sc
+            JOIN classes c ON sc.class_id = c.id
+            WHERE sc.staff_id = ? AND sc.school_id = ?
+        ");
         $stmt->execute([$staff_id_string, $school_id]);
-        $assigned_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $assigned_classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $assigned_class_ids = array_column($assigned_classes, 'class_id');
         
-        if (!empty($assigned_classes)) {
-            $placeholders = str_repeat('?,', count($assigned_classes) - 1) . '?';
+        if (!empty($assigned_class_ids)) {
+            $placeholders = str_repeat('?,', count($assigned_class_ids) - 1) . '?';
             $stmt = $pdo->prepare("
-                SELECT rcs.id, rcs.record_name, rcs.class, rcs.session, rcs.term, rcs.status
+                SELECT rcs.id, rcs.record_name, rcs.class, rcs.session, rcs.term, rcs.status, c.class_name as display_class_name
                 FROM report_card_settings rcs
+                JOIN classes c ON rcs.class_id = c.id
                 WHERE rcs.school_id = ? 
-                AND rcs.class IN ($placeholders)
+                AND rcs.class_id IN ($placeholders)
                 AND rcs.status != 'archived'
                 ORDER BY rcs.created_at DESC
             ");
-            $stmt->execute(array_merge([$school_id], $assigned_classes));
+            $stmt->execute(array_merge([$school_id], $assigned_class_ids));
             $available_records = $stmt->fetchAll();
         } else {
             $available_records = [];
@@ -384,7 +395,7 @@ if ($record_id === 0) {
                             <?php foreach ($available_records as $record): ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($record['record_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($record['class']); ?></td>
+                                    <td><?php echo htmlspecialchars($record['display_class_name'] ?? $record['class']); ?></td>
                                     <td><?php echo htmlspecialchars($record['session']); ?> - <?php echo htmlspecialchars($record['term']); ?> Term</td>
                                     <td>
                                         <span class="status-badge" style="padding:3px 10px;border-radius:20px;font-size:0.7rem;background:<?php echo $record['status'] === 'active' ? '#d4edda' : '#fef5e7'; ?>;color:<?php echo $record['status'] === 'active' ? '#155724' : '#856404'; ?>;">
@@ -441,9 +452,32 @@ if (!$record || ($record['status'] ?? 'draft') === 'archived') {
     exit();
 }
 
-// Verify staff has access to this class
-$stmt = $pdo->prepare("SELECT class FROM staff_classes WHERE staff_id = ? AND school_id = ? AND class = ?");
-$stmt->execute([$staff_id_string, $school_id, $record['class']]);
+// Get class_id from record (use class_id if available, otherwise look up by class name)
+$class_id_from_record = $record['class_id'] ?? 0;
+$class_name = $record['class'];
+
+if ($class_id_from_record > 0) {
+    $class_id = $class_id_from_record;
+    // Get class name for display
+    $stmt = $pdo->prepare("SELECT class_name FROM classes WHERE id = ? AND school_id = ?");
+    $stmt->execute([$class_id, $school_id]);
+    $class_row = $stmt->fetch();
+    $display_class_name = $class_row ? $class_row['class_name'] : $class_name;
+} else {
+    // Fallback: look up class_id from class name
+    $stmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE class_name = ? AND school_id = ?");
+    $stmt->execute([$class_name, $school_id]);
+    $class_row = $stmt->fetch();
+    $class_id = $class_row ? $class_row['id'] : 0;
+    $display_class_name = $class_row ? $class_row['class_name'] : $class_name;
+}
+
+// Verify staff has access to this class (using class_id)
+$stmt = $pdo->prepare("
+    SELECT sc.class_id FROM staff_classes sc
+    WHERE sc.staff_id = ? AND sc.school_id = ? AND sc.class_id = ?
+");
+$stmt->execute([$staff_id_string, $school_id, $class_id]);
 if (!$stmt->fetch()) {
     header("Location: staff_score_entry.php");
     exit();
@@ -464,28 +498,21 @@ if (empty($grading_scale)) {
     ];
 }
 
-$class_name = $record['class'];
 $session = $record['session'];
 $term    = $record['term'];
 
-// Get class_id from class name
-$stmt = $pdo->prepare("SELECT id FROM classes WHERE class_name = ? AND school_id = ?");
-$stmt->execute([$class_name, $school_id]);
-$class_row = $stmt->fetch();
-$class_id = $class_row ? $class_row['id'] : 0;
-
-// ── Get subjects assigned to this staff for this class ────────────────────────
+// ── Get subjects assigned to this staff for this class (using class_id) ────────
 $subjects = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT s.id, s.subject_name
-          FROM subjects s
-          JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
-          JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ?
-         WHERE ss.staff_id = ? AND sc.class = ? AND (s.school_id = ? OR s.is_central = 1)
-         ORDER BY s.subject_name ASC
+        SELECT DISTINCT s.id, s.subject_name
+        FROM subjects s
+        JOIN staff_subjects ss ON ss.subject_id = s.id AND ss.school_id = ?
+        JOIN subject_classes sc ON sc.subject_id = s.id AND sc.school_id = ? AND sc.class_id = ?
+        WHERE ss.staff_id = ? AND (s.school_id = ? OR s.is_central = 1)
+        ORDER BY s.subject_name ASC
     ");
-    $stmt->execute([$school_id, $school_id, $staff_id_string, $class_name, $school_id]);
+    $stmt->execute([$school_id, $school_id, $class_id, $staff_id_string, $school_id]);
     $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("staff_score_entry subjects: " . $e->getMessage());
@@ -504,29 +531,15 @@ if ($class_id > 0) {
     try {
         $stmt = $pdo->prepare("
             SELECT id, full_name, admission_number, gender
-              FROM students
-             WHERE school_id = ? AND class_id = ? AND status = 'active'
-             ORDER BY full_name ASC
+            FROM students
+            WHERE school_id = ? AND class_id = ? AND status = 'active'
+            ORDER BY full_name ASC
         ");
         $stmt->execute([$school_id, $class_id]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("staff_score_entry students: " . $e->getMessage());
         $students = [];
-    }
-} else {
-    // Fallback to class name if class_id not found
-    try {
-        $stmt = $pdo->prepare("
-            SELECT id, full_name, admission_number, gender
-              FROM students
-             WHERE school_id = ? AND class = ? AND status = 'active'
-             ORDER BY full_name ASC
-        ");
-        $stmt->execute([$school_id, $class_name]);
-        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        error_log("staff_score_entry students fallback: " . $e->getMessage());
     }
 }
 
@@ -543,26 +556,14 @@ function getGradeInfoStaffDisplay($total, $scale) {
 $existing_scores = [];
 if ($active_subject_id > 0 && !empty($students)) {
     try {
-        // Use class_id if available
-        if ($class_id > 0) {
-            $stmt = $pdo->prepare("
-                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-                  FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-                   AND st.class_id=?
-            ");
-            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
-                  FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
-                   AND st.class=?
-            ");
-            $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_name]);
-        }
+        $stmt = $pdo->prepare("
+            SELECT ss.student_id, ss.score_data, ss.total_score, ss.grade, ss.subject_position
+            FROM student_scores ss
+            JOIN students st ON ss.student_id = st.id
+            WHERE ss.school_id=? AND ss.subject_id=? AND ss.session=? AND ss.term=?
+              AND st.class_id=?
+        ");
+        $stmt->execute([$school_id, $active_subject_id, $session, $term, $class_id]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $row['score_data'] = json_decode($row['score_data'] ?? '[]', true) ?: [];
             $existing_scores[(int)$row['student_id']] = $row;
@@ -578,23 +579,13 @@ if (!empty($subjects)) {
     try {
         $sub_ids = array_column($subjects, 'id');
         $ph = implode(',', array_fill(0, count($sub_ids), '?'));
-        if ($class_id > 0) {
-            $stmt = $pdo->prepare("
-                SELECT DISTINCT ss.subject_id FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-                   AND st.class_id=? AND ss.subject_id IN ($ph)
-            ");
-            $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT DISTINCT ss.subject_id FROM student_scores ss
-                  JOIN students st ON ss.student_id = st.id
-                 WHERE ss.school_id=? AND ss.session=? AND ss.term=?
-                   AND st.class=? AND ss.subject_id IN ($ph)
-            ");
-            $stmt->execute(array_merge([$school_id, $session, $term, $class_name], $sub_ids));
-        }
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT ss.subject_id FROM student_scores ss
+            JOIN students st ON ss.student_id = st.id
+            WHERE ss.school_id=? AND ss.session=? AND ss.term=?
+              AND st.class_id=? AND ss.subject_id IN ($ph)
+        ");
+        $stmt->execute(array_merge([$school_id, $session, $term, $class_id], $sub_ids));
         $subjects_with_scores = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (Exception $e) { /* non-fatal */ }
 }
@@ -920,7 +911,7 @@ unset($_SESSION['flash_error']);
         <div class="top-header">
             <div class="header-title">
                 <h1><i class="fas fa-pencil-alt"></i> Enter Scores</h1>
-                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($class_name); ?></p>
+                <p><i class="fas fa-chevron-right"></i> <?php echo htmlspecialchars($record['record_name'] ?? "{$session} {$term} Term"); ?> · <?php echo htmlspecialchars($display_class_name); ?></p>
             </div>
             <div>
                 <span class="info-item"><i class="fas fa-calendar-alt"></i> <?php echo date('l, F j, Y'); ?></span>
@@ -962,7 +953,7 @@ unset($_SESSION['flash_error']);
             <div class="empty-state">
                 <i class="fas fa-user-graduate"></i>
                 <h3>No students found</h3>
-                <p>No active students found in <?php echo htmlspecialchars($class_name); ?>.</p>
+                <p>No active students found in <?php echo htmlspecialchars($display_class_name); ?>.</p>
                 <p style="margin-top: 8px;">Please ensure students have the correct class assigned.</p>
             </div>
         <?php else: ?>
@@ -991,7 +982,7 @@ unset($_SESSION['flash_error']);
                         <div class="score-header">
                             <h2><i class="fas fa-chalkboard-teacher"></i> <?php echo htmlspecialchars($active_subject_name); ?></h2>
                             <div class="meta">
-                                <?php echo htmlspecialchars($class_name); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
+                                <?php echo htmlspecialchars($display_class_name); ?> · <?php echo htmlspecialchars($term); ?> Term · <?php echo htmlspecialchars($session); ?>
                                 · Total: <?php echo (int)$record['max_score']; ?> marks
                                 (<?php echo implode(' + ', array_map(fn($s) => htmlspecialchars($s['label']) . '/' . (int)$s['max'], $score_types)); ?>)
                             </div>

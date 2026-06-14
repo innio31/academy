@@ -1,5 +1,5 @@
 <?php
-// msv/admin/finance_bill_types.php - Manage Bill Templates with Auto Account Creation
+// msv/admin/finance_bill_types.php - Manage Bill Templates (Backend Logic Only)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -32,45 +32,12 @@ $secondary_color = SCHOOL_SECONDARY;
 $current_session = date('Y') . '/' . (date('Y') + 1);
 
 // ──────────────────────────────────────────────────────────────
-// HELPER FUNCTION: Auto-create account for bill type
-// ──────────────────────────────────────────────────────────────
-function createIncomeAccountForBillType($pdo, $school_id, $bill_type_name, $category_name = null) {
-    try {
-        // Create account name based on bill type
-        $account_name = $bill_type_name . ' Income';
-        
-        // Check if account already exists
-        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name = ? AND account_type = 'income'");
-        $stmt->execute([$school_id, $account_name]);
-        $existing = $stmt->fetch();
-        
-        if ($existing) {
-            return $existing['id'];
-        }
-        
-        // Create new income account
-        $description = "Income from " . $bill_type_name . ($category_name ? " (" . $category_name . ")" : "");
-        $stmt = $pdo->prepare("
-            INSERT INTO fin_accounts (school_id, account_name, account_type, description, opening_balance, current_balance, is_active, created_at)
-            VALUES (?, ?, 'income', ?, 0, 0, 1, NOW())
-        ");
-        $stmt->execute([$school_id, $account_name, $description]);
-        $account_id = $pdo->lastInsertId();
-        
-        error_log("Auto-created income account: $account_name (ID: $account_id) for school $school_id");
-        return $account_id;
-        
-    } catch (Exception $e) {
-        error_log("Failed to create income account: " . $e->getMessage());
-        return null;
-    }
-}
-
-// ──────────────────────────────────────────────────────────────
-// HELPER FUNCTION: Create or Get Category
+// HELPER FUNCTION: Create or Get Category in fin_categories
 // ──────────────────────────────────────────────────────────────
 function createOrGetCategory($pdo, $school_id, $category_name, $type = 'income') {
-    if (empty($category_name)) return null;
+    if (empty($category_name)) {
+        return ['success' => false, 'message' => 'Category name is required'];
+    }
     
     try {
         // Check if category exists
@@ -79,7 +46,7 @@ function createOrGetCategory($pdo, $school_id, $category_name, $type = 'income')
         $existing = $stmt->fetch();
         
         if ($existing) {
-            return $existing['id'];
+            return ['success' => true, 'category_id' => $existing['id'], 'message' => 'Category already exists'];
         }
         
         // Create new category
@@ -90,306 +57,390 @@ function createOrGetCategory($pdo, $school_id, $category_name, $type = 'income')
         $stmt->execute([$school_id, $category_name, $type]);
         $category_id = $pdo->lastInsertId();
         
-        error_log("Auto-created category: $category_name (ID: $category_id) for school $school_id");
-        return $category_id;
+        return ['success' => true, 'category_id' => $category_id, 'message' => 'Category created successfully'];
         
     } catch (Exception $e) {
         error_log("Failed to create category: " . $e->getMessage());
-        return null;
+        return ['success' => false, 'message' => $e->getMessage()];
     }
 }
 
-// Ensure fin_categories table exists
-try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `fin_categories` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `school_id` int(11) NOT NULL,
-            `name` varchar(100) NOT NULL,
-            `type` enum('income','expenditure','both') NOT NULL DEFAULT 'income',
-            `description` text DEFAULT NULL,
-            `is_active` tinyint(1) NOT NULL DEFAULT 1,
-            `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-            PRIMARY KEY (`id`),
-            KEY `idx_fin_categories_school` (`school_id`),
-            CONSTRAINT `fk_fincat_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ");
-
-    // Insert default categories if none exist
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_categories WHERE school_id = ?");
-    $stmt->execute([$school_id]);
-    if ($stmt->fetchColumn() == 0) {
-        $default_categories = [
-            ['School Fees', 'income', 'Student tuition and fees'],
-            ['Examination Fees', 'income', 'Exam registration fees'],
-            ['Library Fees', 'income', 'Library fees'],
-            ['Sports Fees', 'income', 'Sports and extracurricular fees'],
-            ['PTA Levies', 'income', 'PTA contributions'],
-            ['Donations', 'income', 'Donations and grants'],
-            ['Salaries', 'expenditure', 'Staff salaries and wages'],
-            ['Maintenance', 'expenditure', 'School maintenance costs'],
-            ['Stationery', 'expenditure', 'Office and school supplies'],
-            ['Utilities', 'expenditure', 'Electricity, water, internet'],
-        ];
-
-        $stmt = $pdo->prepare("INSERT INTO fin_categories (school_id, name, type, description) VALUES (?, ?, ?, ?)");
-        foreach ($default_categories as $cat) {
-            $stmt->execute([$school_id, $cat[0], $cat[1], $cat[2]]);
+// ──────────────────────────────────────────────────────────────
+// HELPER FUNCTION: Create account in fin_accounts AND fin_ledger
+// ──────────────────────────────────────────────────────────────
+function createBillTypeAccount($pdo, $school_id, $bill_type_name, $default_amount, $category_name = null) {
+    try {
+        // Sanitize account name
+        $account_name = preg_replace('/[^a-zA-Z0-9\s\-]/', '', $bill_type_name) . ' Income';
+        
+        // Check if account already exists
+        $stmt = $pdo->prepare("SELECT id FROM fin_accounts WHERE school_id = ? AND account_name = ? AND account_type = 'income'");
+        $stmt->execute([$school_id, $account_name]);
+        $existing = $stmt->fetch();
+        
+        if ($existing) {
+            return ['success' => true, 'account_id' => $existing['id'], 'message' => 'Account already exists'];
         }
+        
+        // STEP 1: Insert into fin_accounts
+        $description = "Income from " . $bill_type_name . ($category_name ? " (" . $category_name . ")" : "");
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_accounts (
+                school_id, 
+                account_name, 
+                account_type, 
+                description, 
+                opening_balance, 
+                current_balance, 
+                is_active, 
+                created_at
+            ) VALUES (?, ?, 'income', ?, 0, 0, 1, NOW())
+        ");
+        $stmt->execute([$school_id, $account_name, $description]);
+        $account_id = $pdo->lastInsertId();
+        
+        // STEP 2: Insert into fin_ledger (opening entry for this account)
+        $stmt = $pdo->prepare("
+            INSERT INTO fin_ledger (
+                school_id, 
+                account_id, 
+                entry_date, 
+                entry_type, 
+                amount, 
+                balance, 
+                description, 
+                ref_type, 
+                ref_id, 
+                created_at
+            ) VALUES (?, ?, CURDATE(), 'credit', 0, 0, ?, 'account_setup', ?, NOW())
+        ");
+        $stmt->execute([$school_id, $account_id, "Account created for: " . $bill_type_name, $account_id]);
+        
+        return [
+            'success' => true, 
+            'account_id' => $account_id, 
+            'account_name' => $account_name,
+            'message' => 'Account created in fin_accounts and fin_ledger'
+        ];
+        
+    } catch (Exception $e) {
+        error_log("Failed to create account: " . $e->getMessage());
+        return ['success' => false, 'message' => $e->getMessage()];
     }
-} catch (Exception $e) {
-    error_log("Error creating fin_categories: " . $e->getMessage());
 }
 
-// Handle actions
+// ──────────────────────────────────────────────────────────────
+// HELPER FUNCTION: Generate bills for students
+// ──────────────────────────────────────────────────────────────
+function generateBillsForClass($pdo, $school_id, $bill_type_id, $target_class, $admin_id) {
+    try {
+        // Get bill type details
+        $stmt = $pdo->prepare("SELECT * FROM fin_bill_types WHERE id = ? AND school_id = ?");
+        $stmt->execute([$bill_type_id, $school_id]);
+        $bill_type = $stmt->fetch();
+        
+        if (!$bill_type) {
+            return ['success' => false, 'message' => 'Bill template not found'];
+        }
+        
+        // Get students in the class
+        $stmt = $pdo->prepare("
+            SELECT id, full_name, admission_number, class 
+            FROM students 
+            WHERE school_id = ? AND class = ? AND status = 'active'
+        ");
+        $stmt->execute([$school_id, $target_class]);
+        $students = $stmt->fetchAll();
+        
+        if (empty($students)) {
+            return ['success' => false, 'message' => "No active students found in class: $target_class"];
+        }
+        
+        $generated = 0;
+        $skipped = 0;
+        
+        foreach ($students as $student) {
+            // Check if bill already exists for this student, session, term, and bill type
+            $stmt = $pdo->prepare("
+                SELECT id FROM fin_bills 
+                WHERE school_id = ? AND student_id = ? AND bill_type_id = ? AND session = ? AND term = ?
+            ");
+            $stmt->execute([$school_id, $student['id'], $bill_type_id, $bill_type['session'], $bill_type['term']]);
+            
+            if (!$stmt->fetch()) {
+                // Create bill for student
+                $stmt = $pdo->prepare("
+                    INSERT INTO fin_bills (
+                        school_id, bill_type_id, student_id, class, session, term, 
+                        description, amount, due_date, status, created_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
+                ");
+                $stmt->execute([
+                    $school_id,
+                    $bill_type_id,
+                    $student['id'],
+                    $student['class'],
+                    $bill_type['session'],
+                    $bill_type['term'],
+                    $bill_type['name'] . ' - ' . $student['full_name'],
+                    $bill_type['default_amount'],
+                    $bill_type['due_date'],
+                    $admin_id
+                ]);
+                $generated++;
+            } else {
+                $skipped++;
+            }
+        }
+        
+        return [
+            'success' => true, 
+            'generated' => $generated, 
+            'skipped' => $skipped,
+            'message' => "Generated $generated bills for class $target_class. Skipped $skipped (already exist)."
+        ];
+        
+    } catch (Exception $e) {
+        error_log("Error generating bills: " . $e->getMessage());
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+
+// ──────────────────────────────────────────────────────────────
+// PROCESS POST ACTIONS
+// ──────────────────────────────────────────────────────────────
 $message = '';
 $message_type = '';
+$redirect_after_action = false;
 
-// Process form submission for create/edit
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    
+    // ── CREATE NEW BILL TYPE (with auto account creation) ──
+    if ($_POST['action'] === 'create') {
+        $name = trim($_POST['name'] ?? '');
+        $new_category_name = trim($_POST['new_category_name'] ?? '');
+        $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
+        $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
+        $session = trim($_POST['session'] ?? $current_session);
+        $term = trim($_POST['term'] ?? 'First');
+        $default_amount = floatval($_POST['default_amount'] ?? 0);
+        $is_recurring = isset($_POST['is_recurring']) ? 1 : 0;
+        $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
+        $description = trim($_POST['description'] ?? '');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $auto_create_account = isset($_POST['auto_create_account']) ? 1 : 0;
         
-        // Create new bill type (with auto account and category creation)
-        if ($_POST['action'] === 'create') {
-            $name = trim($_POST['name'] ?? '');
-            $new_category_name = trim($_POST['new_category_name'] ?? '');
-            $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
-            $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
-            $session = trim($_POST['session'] ?? $current_session);
-            $term = trim($_POST['term'] ?? 'First');
-            $default_amount = floatval($_POST['default_amount'] ?? 0);
-            $is_recurring = isset($_POST['is_recurring']) ? 1 : 0;
-            $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
-            $description = trim($_POST['description'] ?? '');
-            $is_active = isset($_POST['is_active']) ? 1 : 0;
-            $auto_create_account = isset($_POST['auto_create_account']) ? 1 : 0;
-
-            if (empty($name) || $default_amount <= 0) {
-                $message = "Please fill in all required fields (Name and Amount)";
-                $message_type = "error";
-            } else {
-                try {
-                    // Handle category creation if new category name provided
-                    if (!empty($new_category_name)) {
-                        $category_id = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
-                        if ($category_id) {
-                            $message_add = "Category '$new_category_name' created. ";
-                        }
-                    }
-                    
-                    // Insert bill type
-                    $stmt = $pdo->prepare("
-                        INSERT INTO fin_bill_types (school_id, name, category_id, applies_to_class, session, term, default_amount, is_recurring, due_date, description, is_active, created_by, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([$school_id, $name, $category_id, $applies_to_class, $session, $term, $default_amount, $is_recurring, $due_date, $description, $is_active, $admin_id]);
-                    
-                    $bill_type_id = $pdo->lastInsertId();
-                    
-                    // Auto-create income account if requested
-                    $account_created = false;
-                    if ($auto_create_account) {
-                        $category_name = null;
-                        if ($category_id) {
-                            $stmt = $pdo->prepare("SELECT name FROM fin_categories WHERE id = ?");
-                            $stmt->execute([$category_id]);
-                            $cat = $stmt->fetch();
-                            $category_name = $cat ? $cat['name'] : null;
-                        }
-                        $account_id = createIncomeAccountForBillType($pdo, $school_id, $name, $category_name);
-                        if ($account_id) {
-                            $account_created = true;
-                        }
-                    }
-                    
-                    $message = ($message_add ?? '') . "Bill template created successfully!";
-                    if ($account_created) {
-                        $message .= " Income account '$name Income' was also created.";
-                    }
-                    $message_type = "success";
-
-                    header("Location: finance_bill_types.php?success=1");
-                    exit();
-                } catch (Exception $e) {
-                    $message = "Error creating bill template: " . $e->getMessage();
-                    $message_type = "error";
-                }
-            }
-        }
-
-        // Update bill type
-        elseif ($_POST['action'] === 'update') {
-            $bill_type_id = intval($_POST['bill_type_id']);
-            $name = trim($_POST['name'] ?? '');
-            $new_category_name = trim($_POST['new_category_name'] ?? '');
-            $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
-            $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
-            $session = trim($_POST['session'] ?? $current_session);
-            $term = trim($_POST['term'] ?? 'First');
-            $default_amount = floatval($_POST['default_amount'] ?? 0);
-            $is_recurring = isset($_POST['is_recurring']) ? 1 : 0;
-            $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
-            $description = trim($_POST['description'] ?? '');
-            $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-            if (empty($name) || $default_amount <= 0) {
-                $message = "Please fill in all required fields (Name and Amount)";
-                $message_type = "error";
-            } else {
-                try {
-                    // Handle category creation if new category name provided
-                    if (!empty($new_category_name)) {
-                        $category_id = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
-                        if ($category_id) {
-                            $message = "Category '$new_category_name' created. ";
-                        }
-                    }
-                    
-                    $stmt = $pdo->prepare("
-                        UPDATE fin_bill_types 
-                        SET name = ?, category_id = ?, applies_to_class = ?, session = ?, term = ?, default_amount = ?, is_recurring = ?, due_date = ?, description = ?, is_active = ?
-                        WHERE id = ? AND school_id = ?
-                    ");
-                    $stmt->execute([$name, $category_id, $applies_to_class, $session, $term, $default_amount, $is_recurring, $due_date, $description, $is_active, $bill_type_id, $school_id]);
-
-                    $message = ($message ?? '') . "Bill template updated successfully!";
-                    $message_type = "success";
-
-                    header("Location: finance_bill_types.php?updated=1");
-                    exit();
-                } catch (Exception $e) {
-                    $message = "Error updating bill template: " . $e->getMessage();
-                    $message_type = "error";
-                }
-            }
-        }
-
-        // Generate bills from template
-        elseif ($_POST['action'] === 'generate_bills') {
-            $bill_type_id = intval($_POST['bill_type_id']);
-            $target_class = $_POST['target_class'] ?? null;
-
+        if (empty($name) || $default_amount <= 0) {
+            $_SESSION['flash_message'] = "Please fill in all required fields (Name and Amount)";
+            $_SESSION['flash_type'] = "error";
+        } else {
             try {
-                // Get bill type details
-                $stmt = $pdo->prepare("SELECT * FROM fin_bill_types WHERE id = ? AND school_id = ?");
-                $stmt->execute([$bill_type_id, $school_id]);
-                $bill_type = $stmt->fetch();
-
-                if (!$bill_type) {
-                    throw new Exception("Bill template not found");
-                }
-
-                // Determine which class to generate for
-                $class_filter = $target_class ?: $bill_type['applies_to_class'];
-                if (!$class_filter) {
-                    throw new Exception("No class specified for bill generation");
-                }
-
-                // Get students in the class
-                $stmt = $pdo->prepare("
-                    SELECT id, full_name, admission_number, class 
-                    FROM students 
-                    WHERE school_id = ? AND class = ? AND status = 'active'
-                ");
-                $stmt->execute([$school_id, $class_filter]);
-                $students = $stmt->fetchAll();
-
-                if (empty($students)) {
-                    throw new Exception("No active students found in class: $class_filter");
-                }
-
-                $generated = 0;
-                $skipped = 0;
-
-                foreach ($students as $student) {
-                    // Check if bill already exists
-                    $stmt = $pdo->prepare("
-                        SELECT id FROM fin_bills 
-                        WHERE school_id = ? AND student_id = ? AND bill_type_id = ? AND session = ? AND term = ?
-                    ");
-                    $stmt->execute([$school_id, $student['id'], $bill_type_id, $bill_type['session'], $bill_type['term']]);
-
-                    if (!$stmt->fetch()) {
-                        $stmt = $pdo->prepare("
-                            INSERT INTO fin_bills (school_id, bill_type_id, student_id, class, session, term, description, amount, due_date, status, created_by, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
-                        ");
-                        $stmt->execute([
-                            $school_id,
-                            $bill_type_id,
-                            $student['id'],
-                            $student['class'],
-                            $bill_type['session'],
-                            $bill_type['term'],
-                            $bill_type['name'] . ' - ' . $student['full_name'],
-                            $bill_type['default_amount'],
-                            $bill_type['due_date'],
-                            $admin_id
-                        ]);
-                        $generated++;
-                    } else {
-                        $skipped++;
+                // Handle category creation if new category name provided
+                $message_add = '';
+                if (!empty($new_category_name)) {
+                    $category_result = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
+                    if ($category_result['success']) {
+                        $category_id = $category_result['category_id'];
+                        $message_add = "Category '" . htmlspecialchars($new_category_name) . "' created. ";
                     }
                 }
-
-                $message = "Generated $generated bills for class $class_filter. Skipped $skipped (already exist).";
-                $message_type = "success";
+                
+                // Insert bill type into fin_bill_types
+                $stmt = $pdo->prepare("
+                    INSERT INTO fin_bill_types (
+                        school_id, name, category_id, applies_to_class, session, term, 
+                        default_amount, is_recurring, due_date, description, is_active, created_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ");
+                $stmt->execute([
+                    $school_id, $name, $category_id, $applies_to_class, $session, $term, 
+                    $default_amount, $is_recurring, $due_date, $description, $is_active, $admin_id
+                ]);
+                
+                $bill_type_id = $pdo->lastInsertId();
+                
+                // Auto-create accounts in fin_accounts and fin_ledger if requested
+                $account_created = false;
+                $account_message = '';
+                if ($auto_create_account) {
+                    $category_name = null;
+                    if ($category_id) {
+                        $stmt = $pdo->prepare("SELECT name FROM fin_categories WHERE id = ?");
+                        $stmt->execute([$category_id]);
+                        $cat = $stmt->fetch();
+                        $category_name = $cat ? $cat['name'] : null;
+                    }
+                    $account_result = createBillTypeAccount($pdo, $school_id, $name, $default_amount, $category_name);
+                    if ($account_result['success']) {
+                        $account_created = true;
+                        $account_message = " Account '{$account_result['account_name']}' created in fin_accounts and fin_ledger.";
+                    } else {
+                        $account_message = " Warning: " . $account_result['message'];
+                    }
+                }
+                
+                $_SESSION['flash_message'] = $message_add . "Bill template created successfully!" . $account_message;
+                $_SESSION['flash_type'] = "success";
+                $redirect_after_action = true;
+                
             } catch (Exception $e) {
-                $message = "Error generating bills: " . $e->getMessage();
-                $message_type = "error";
+                $_SESSION['flash_message'] = "Error creating bill template: " . $e->getMessage();
+                $_SESSION['flash_type'] = "error";
+                error_log("Error creating bill template: " . $e->getMessage());
             }
         }
     }
+    
+    // ── UPDATE BILL TYPE ──
+    elseif ($_POST['action'] === 'update') {
+        $bill_type_id = intval($_POST['bill_type_id']);
+        $name = trim($_POST['name'] ?? '');
+        $new_category_name = trim($_POST['new_category_name'] ?? '');
+        $category_id = !empty($_POST['category_id']) ? intval($_POST['category_id']) : null;
+        $applies_to_class = !empty($_POST['applies_to_class']) ? trim($_POST['applies_to_class']) : null;
+        $session = trim($_POST['session'] ?? $current_session);
+        $term = trim($_POST['term'] ?? 'First');
+        $default_amount = floatval($_POST['default_amount'] ?? 0);
+        $is_recurring = isset($_POST['is_recurring']) ? 1 : 0;
+        $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
+        $description = trim($_POST['description'] ?? '');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        
+        if (empty($name) || $default_amount <= 0) {
+            $_SESSION['flash_message'] = "Please fill in all required fields (Name and Amount)";
+            $_SESSION['flash_type'] = "error";
+        } else {
+            try {
+                // Handle category creation if new category name provided
+                if (!empty($new_category_name)) {
+                    $category_result = createOrGetCategory($pdo, $school_id, $new_category_name, 'income');
+                    if ($category_result['success']) {
+                        $category_id = $category_result['category_id'];
+                        $_SESSION['flash_message'] = "Category '" . htmlspecialchars($new_category_name) . "' created. ";
+                    }
+                }
+                
+                $stmt = $pdo->prepare("
+                    UPDATE fin_bill_types 
+                    SET name = ?, category_id = ?, applies_to_class = ?, session = ?, term = ?, 
+                        default_amount = ?, is_recurring = ?, due_date = ?, description = ?, is_active = ?
+                    WHERE id = ? AND school_id = ?
+                ");
+                $stmt->execute([
+                    $name, $category_id, $applies_to_class, $session, $term, 
+                    $default_amount, $is_recurring, $due_date, $description, $is_active, 
+                    $bill_type_id, $school_id
+                ]);
+                
+                $_SESSION['flash_message'] = ($_SESSION['flash_message'] ?? '') . "Bill template updated successfully!";
+                $_SESSION['flash_type'] = "success";
+                $redirect_after_action = true;
+                
+            } catch (Exception $e) {
+                $_SESSION['flash_message'] = "Error updating bill template: " . $e->getMessage();
+                $_SESSION['flash_type'] = "error";
+                error_log("Error updating bill template: " . $e->getMessage());
+            }
+        }
+    }
+    
+    // ── GENERATE BILLS FROM TEMPLATE ──
+    elseif ($_POST['action'] === 'generate_bills') {
+        $bill_type_id = intval($_POST['bill_type_id']);
+        $target_class = $_POST['target_class'] ?? null;
+        
+        if (!$bill_type_id || !$target_class) {
+            $_SESSION['flash_message'] = "Please select a class to generate bills for";
+            $_SESSION['flash_type'] = "error";
+        } else {
+            $result = generateBillsForClass($pdo, $school_id, $bill_type_id, $target_class, $admin_id);
+            $_SESSION['flash_message'] = $result['message'];
+            $_SESSION['flash_type'] = $result['success'] ? "success" : "error";
+            $redirect_after_action = true;
+        }
+    }
+    
+    // Redirect after successful POST to prevent form resubmission
+    if ($redirect_after_action) {
+        header("Location: finance_bill_types.php");
+        exit();
+    }
 }
 
-// Handle GET actions
-if (isset($_GET['action'])) {
-    // Delete bill type
+// ──────────────────────────────────────────────────────────────
+// PROCESS GET ACTIONS (Delete, Toggle Status)
+// ──────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
+    
+    // ── DELETE BILL TYPE ──
     if ($_GET['action'] === 'delete' && isset($_GET['id'])) {
         $bill_type_id = intval($_GET['id']);
-
+        
         try {
+            // Check if bills exist using this template
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM fin_bills WHERE bill_type_id = ? AND school_id = ?");
             $stmt->execute([$bill_type_id, $school_id]);
             $bill_count = $stmt->fetchColumn();
-
+            
             if ($bill_count > 0) {
-                $message = "Cannot delete this template as it has $bill_count associated bills. Consider deactivating it instead.";
-                $message_type = "error";
+                $_SESSION['flash_message'] = "Cannot delete this template as it has $bill_count associated bills. Consider deactivating it instead.";
+                $_SESSION['flash_type'] = "error";
             } else {
                 $stmt = $pdo->prepare("DELETE FROM fin_bill_types WHERE id = ? AND school_id = ?");
                 $stmt->execute([$bill_type_id, $school_id]);
-                $message = "Bill template deleted successfully!";
-                $message_type = "success";
+                $_SESSION['flash_message'] = "Bill template deleted successfully!";
+                $_SESSION['flash_type'] = "success";
             }
         } catch (Exception $e) {
-            $message = "Error deleting bill template: " . $e->getMessage();
-            $message_type = "error";
+            $_SESSION['flash_message'] = "Error deleting bill template: " . $e->getMessage();
+            $_SESSION['flash_type'] = "error";
+            error_log("Error deleting bill template: " . $e->getMessage());
         }
+        
+        header("Location: finance_bill_types.php");
+        exit();
     }
-
-    // Toggle status
+    
+    // ── TOGGLE STATUS (Active/Inactive) ──
     if ($_GET['action'] === 'toggle_status' && isset($_GET['id'])) {
         $bill_type_id = intval($_GET['id']);
-
+        
         try {
             $stmt = $pdo->prepare("SELECT is_active FROM fin_bill_types WHERE id = ? AND school_id = ?");
             $stmt->execute([$bill_type_id, $school_id]);
             $current = $stmt->fetch();
-
-            $new_status = $current['is_active'] ? 0 : 1;
-            $stmt = $pdo->prepare("UPDATE fin_bill_types SET is_active = ? WHERE id = ? AND school_id = ?");
-            $stmt->execute([$new_status, $bill_type_id, $school_id]);
-
-            $message = "Bill template " . ($new_status ? "activated" : "deactivated") . " successfully!";
-            $message_type = "success";
+            
+            if ($current) {
+                $new_status = $current['is_active'] ? 0 : 1;
+                $stmt = $pdo->prepare("UPDATE fin_bill_types SET is_active = ? WHERE id = ? AND school_id = ?");
+                $stmt->execute([$new_status, $bill_type_id, $school_id]);
+                
+                $_SESSION['flash_message'] = "Bill template " . ($new_status ? "activated" : "deactivated") . " successfully!";
+                $_SESSION['flash_type'] = "success";
+            } else {
+                $_SESSION['flash_message'] = "Bill template not found";
+                $_SESSION['flash_type'] = "error";
+            }
         } catch (Exception $e) {
-            $message = "Error toggling status: " . $e->getMessage();
-            $message_type = "error";
+            $_SESSION['flash_message'] = "Error toggling status: " . $e->getMessage();
+            $_SESSION['flash_type'] = "error";
+            error_log("Error toggling status: " . $e->getMessage());
         }
+        
+        header("Location: finance_bill_types.php");
+        exit();
     }
 }
+
+// ──────────────────────────────────────────────────────────────
+// FETCH DATA FOR DISPLAY (No HTML output, just data preparation)
+// ──────────────────────────────────────────────────────────────
+
+// Get flash messages from session
+$flash_message = $_SESSION['flash_message'] ?? '';
+$flash_type = $_SESSION['flash_type'] ?? '';
+unset($_SESSION['flash_message']);
+unset($_SESSION['flash_type']);
 
 // Pagination
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
@@ -401,7 +452,7 @@ $filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $filter_term = isset($_GET['term']) ? $_GET['term'] : 'all';
 $filter_class = isset($_GET['class']) ? $_GET['class'] : 'all';
 
-// Build query
+// Build WHERE clause
 $where_clauses = ["bt.school_id = ?"];
 $params = [$school_id];
 
@@ -428,7 +479,7 @@ $stmt->execute($params);
 $total_records = $stmt->fetchColumn();
 $total_pages = $total_records > 0 ? ceil($total_records / $per_page) : 1;
 
-// Get bill types
+// Get bill types with category names
 $stmt = $pdo->prepare("
     SELECT bt.*, c.name as category_name
     FROM fin_bill_types bt
@@ -457,6 +508,23 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $stmt->execute([$_GET['edit'], $school_id]);
     $edit_data = $stmt->fetch();
 }
+
+// Get stats for dashboard display
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(*) as total_templates,
+        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_templates,
+        COUNT(DISTINCT category_id) as total_categories
+    FROM fin_bill_types 
+    WHERE school_id = ?
+");
+$stmt->execute([$school_id]);
+$stats = $stmt->fetch();
+
+// ──────────────────────────────────────────────────────────────
+// At this point, data is ready for the HTML view
+// You would now include your HTML template here
+// ──────────────────────────────────────────────────────────────
 ?>
 <!DOCTYPE html>
 <html lang="en">

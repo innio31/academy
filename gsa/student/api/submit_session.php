@@ -1,5 +1,5 @@
 <?php
-// msv/student/api/submit_session.php
+// gsa/student/api/submit_session.php
 session_start();
 header('Content-Type: application/json');
 

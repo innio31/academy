@@ -26,7 +26,7 @@ $stmt->execute([$student_id, $school_id]);
 $student = $stmt->fetch();
 
 // Set class from database
-$student_class = $student['class'] ?? '';
+$student_class_id = $student['class_id'] ?? null;
 $admission_number = $student['admission_number'] ?? '';
 
 // Get profile picture path
@@ -92,7 +92,7 @@ $stmt = $pdo->prepare("
     FROM assignments a
     JOIN subjects s ON a.subject_id = s.id
     WHERE a.school_id = ? 
-    AND a.class = ? 
+    AND a.class_id = ? 
     AND a.deadline >= CURDATE()
     AND a.id NOT IN (
         SELECT assignment_id FROM assignment_submissions 
@@ -101,7 +101,7 @@ $stmt = $pdo->prepare("
     ORDER BY a.deadline ASC
     LIMIT 5
 ");
-$stmt->execute([$school_id, $student_class, $student_id]);
+$stmt->execute([$school_id, $student_class_id, $student_id]);
 $pending_assignments = $stmt->fetchAll();
 
 // Get statistics

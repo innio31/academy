@@ -155,7 +155,8 @@ $stmt->execute([$school_id, $student_class, $student_class]);
 $stats = $stmt->fetch();
 
 // Helper functions
-function getFileIcon($file_type) {
+function getFileIcon($file_type)
+{
     $ext = strtolower(pathinfo($file_type, PATHINFO_EXTENSION));
     $icons = [
         'pdf' => '📕',
@@ -180,7 +181,8 @@ function getFileIcon($file_type) {
     return $icons[$ext] ?? '📁';
 }
 
-function getFileBadgeColor($file_type) {
+function getFileBadgeColor($file_type)
+{
     $ext = strtolower(pathinfo($file_type, PATHINFO_EXTENSION));
     $colors = [
         'pdf' => '#e74c3c',
@@ -199,7 +201,8 @@ function getFileBadgeColor($file_type) {
     return $colors[$ext] ?? '#7f8c8d';
 }
 
-function timeAgo($datetime) {
+function timeAgo($datetime)
+{
     $time = strtotime($datetime);
     $diff = time() - $time;
     if ($diff < 60) return 'just now';
@@ -691,24 +694,24 @@ function timeAgo($datetime) {
             <form method="GET" class="filter-bar">
                 <div class="filter-group">
                     <label><i class="fas fa-search"></i> Search</label>
-                    <input type="text" name="search" class="form-control" 
-                           placeholder="Search by title or subject..." 
-                           value="<?php echo htmlspecialchars($search_query); ?>">
+                    <input type="text" name="search" class="form-control"
+                        placeholder="Search by title or subject..."
+                        value="<?php echo htmlspecialchars($search_query); ?>">
                 </div>
-                
+
                 <div class="filter-group">
                     <label><i class="fas fa-book"></i> Subject</label>
                     <select name="subject" class="form-select">
                         <option value="all">All Subjects</option>
                         <?php foreach ($available_subjects as $subject): ?>
-                            <option value="<?php echo htmlspecialchars($subject); ?>" 
-                                    <?php echo $subject_filter === $subject ? 'selected' : ''; ?>>
+                            <option value="<?php echo htmlspecialchars($subject); ?>"
+                                <?php echo $subject_filter === $subject ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($subject); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                
+
                 <div class="filter-group">
                     <label><i class="fas fa-file-alt"></i> File Type</label>
                     <select name="type" class="form-select">
@@ -721,7 +724,7 @@ function timeAgo($datetime) {
                         <option value="AUDIO" <?php echo $type_filter === 'AUDIO' ? 'selected' : ''; ?>>Audio</option>
                     </select>
                 </div>
-                
+
                 <div class="filter-group">
                     <label><i class="fas fa-sort"></i> Sort By</label>
                     <select name="sort" class="form-select">
@@ -731,7 +734,7 @@ function timeAgo($datetime) {
                         <option value="title_desc" <?php echo $sort_by === 'title_desc' ? 'selected' : ''; ?>>Title Z-A</option>
                     </select>
                 </div>
-                
+
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search"></i> Apply
@@ -744,14 +747,14 @@ function timeAgo($datetime) {
         <div class="content-card">
             <div class="card-header">
                 <h3>
-                    <i class="fas fa-list"></i> 
-                    Available Resources 
+                    <i class="fas fa-list"></i>
+                    Available Resources
                     <span class="badge" style="background: var(--light); color: var(--dark);">
                         <?php echo count($resources); ?> items
                     </span>
                 </h3>
             </div>
-            
+
             <?php if (empty($resources)): ?>
                 <div class="empty-state">
                     <i class="fas fa-book-open"></i>
@@ -768,7 +771,7 @@ function timeAgo($datetime) {
                             <div class="file-icon"><?php echo getFileIcon($resource['file_type']); ?></div>
                             <div class="resource-details">
                                 <div class="resource-title"><?php echo htmlspecialchars($resource['title']); ?></div>
-                                
+
                                 <div class="resource-meta">
                                     <span class="badge badge-subject">
                                         <i class="fas fa-book"></i> <?php echo htmlspecialchars($resource['subject']); ?>
@@ -783,35 +786,35 @@ function timeAgo($datetime) {
                                         <i class="fas fa-calendar"></i> <?php echo timeAgo($resource['uploaded_at']); ?>
                                     </span>
                                 </div>
-                                
+
                                 <?php if (!empty($resource['description'])): ?>
                                     <div class="resource-description">
                                         <?php echo htmlspecialchars(substr($resource['description'], 0, 150)) . (strlen($resource['description']) > 150 ? '...' : ''); ?>
                                     </div>
                                 <?php endif; ?>
-                                
+
                                 <div class="uploaded-by">
                                     <i class="fas fa-user"></i> Uploaded by: <?php echo htmlspecialchars($resource['uploaded_by_name']); ?>
                                 </div>
-                                
+
                                 <div class="action-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;">
-    <?php
-    // Determine correct file URL
-    $file_url = '/gsa/' . $resource['file_path'];
-    // If the path already starts with /gsa, don't add it again
-    if (strpos($resource['file_path'], '/gsa/') === 0) {
-        $file_url = $resource['file_path'];
-    } elseif (strpos($resource['file_path'], 'uploads/') === 0) {
-        $file_url = '/gsa/' . $resource['file_path'];
-    }
-    ?>
-    <a href="<?php echo $file_url; ?>" target="_blank" class="btn btn-primary btn-sm">
-        <i class="fas fa-eye"></i> View Online
-    </a>
-    <a href="download-resource.php?id=<?php echo $resource['id']; ?>" class="btn btn-success btn-sm">
-        <i class="fas fa-download"></i> Download
-    </a>
-</div>
+                                    <?php
+                                    // Determine correct file URL
+                                    $file_url = '/gsa/' . $resource['file_path'];
+                                    // If the path already starts with /gsa, don't add it again
+                                    if (strpos($resource['file_path'], '/gsa/') === 0) {
+                                        $file_url = $resource['file_path'];
+                                    } elseif (strpos($resource['file_path'], 'uploads/') === 0) {
+                                        $file_url = '/gsa/' . $resource['file_path'];
+                                    }
+                                    ?>
+                                    <a href="<?php echo $file_url; ?>" target="_blank" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-eye"></i> View Online
+                                    </a>
+                                    <a href="download-resource.php?id=<?php echo $resource['id']; ?>" class="btn btn-success btn-sm">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -828,7 +831,7 @@ function timeAgo($datetime) {
         // Mobile sidebar toggle
         const mobileBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('studentSidebar');
-        
+
         if (mobileBtn && sidebar) {
             mobileBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -842,8 +845,8 @@ function timeAgo($datetime) {
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && sidebar && 
-                !sidebar.contains(e.target) && 
+            if (window.innerWidth <= 768 && sidebar &&
+                !sidebar.contains(e.target) &&
                 !mobileBtn.contains(e.target)) {
                 sidebar.classList.remove('active');
                 const overlay = document.getElementById('sidebarOverlay');

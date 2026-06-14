@@ -1,10 +1,10 @@
 <?php
-// msv/student/waec-practice.php - Complete Fixed Version with Calculator
+// eagles/student/waec-practice.php - Complete Fixed Version with Calculator
 session_start();
 require_once '../includes/config.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'student') {
-  header("Location: /msv/login.php");
+  header("Location: /eagles/login.php");
   exit();
 }
 

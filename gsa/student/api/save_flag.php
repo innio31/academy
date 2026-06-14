@@ -1,5 +1,5 @@
 <?php
-// msv/student/api/save_flag.php
+// gsa/student/api/save_flag.php
 session_start();
 header('Content-Type: application/json');
 

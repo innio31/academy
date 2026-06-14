@@ -1,6 +1,6 @@
 <?php
 // gsa/student/report-card.php — Student Report Card Viewer
-// FIXED: Respects all exam settings, single page layout
+// UPDATED: Full cumulative average support with proper term ordering
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -145,20 +145,32 @@ function getGradeInfo($total, $scale)
     return ['grade' => 'F', 'remark' => 'Fail'];
 }
 
+// Helper to get term order for sorting
+function getTermOrder($term) {
+    $order = ['First' => 1, 'Second' => 2, 'Third' => 3];
+    return $order[$term] ?? 99;
+}
+
 // ── Load Card Data (only when a published record is found) ────────────────────
 $subjects = $s_scores = $s_pos = $s_comm = $s_af = $s_pm = [];
 $grading_scale = $score_types = [];
 $highest_avg = $lowest_avg = 0;
 $total_students = 0;
 
+// Cumulative data storage
+$cumulative_scores = []; // [subject_id][term] = total_score
+$cumulative_terms = [];   // Sorted list of terms that have data
+$all_term_scores = [];     // [subject_id][term] = total_score for averaging
+
 if ($record) {
     $session = $record['session'];
     $term    = $record['term'];
-    
+
     // Get display settings
     $show_class_position   = (int)($record['show_class_position'] ?? 1);
     $show_subject_position = (int)($record['show_subject_position'] ?? 1);
     $show_lowest_highest_avg = (int)($record['show_lowest_highest_avg'] ?? 1);
+    $show_cumulative_avg   = (int)($record['show_cumulative_avg'] ?? 0);
     $show_attendance       = (int)($record['show_attendance'] ?? 1);
     $show_affective_traits = (int)($record['show_affective_traits'] ?? 1);
     $show_psychomotor      = (int)($record['show_psychomotor'] ?? 1);
@@ -201,7 +213,7 @@ if ($record) {
         error_log("Failed to load subjects: " . $e->getMessage());
     }
 
-    // This student's scores
+    // This student's scores for current term
     if (!empty($subjects)) {
         try {
             $sub_ids = array_column($subjects, 'id');
@@ -219,6 +231,51 @@ if ($record) {
             }
         } catch (Exception $e) {
             error_log("Failed to load scores: " . $e->getMessage());
+        }
+    }
+
+    // ── LOAD CUMULATIVE SCORES FOR ALL TERMS ──────────────────────────────────
+    if ($show_cumulative_avg && !empty($subjects)) {
+        try {
+            $sub_ids = array_column($subjects, 'id');
+            $ph = implode(',', array_fill(0, count($sub_ids), '?'));
+            
+            // Get all scores for this student across all terms in the same session
+            $stmt = $pdo->prepare(
+                "SELECT subject_id, term, total_score
+                 FROM student_scores
+                 WHERE school_id=? AND student_id=? AND session=?
+                 AND subject_id IN ($ph)
+                 ORDER BY FIELD(term, 'First', 'Second', 'Third')"
+            );
+            $stmt->execute(array_merge([$school_id, $student_id, $session], $sub_ids));
+            
+            $all_scores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Organize by subject and term
+            foreach ($all_scores as $score_row) {
+                $subj_id = (int)$score_row['subject_id'];
+                $term_name = $score_row['term'];
+                $total = (float)$score_row['total_score'];
+                
+                if (!isset($cumulative_scores[$subj_id])) {
+                    $cumulative_scores[$subj_id] = [];
+                }
+                $cumulative_scores[$subj_id][$term_name] = $total;
+                
+                // Track unique terms that have data
+                if (!in_array($term_name, $cumulative_terms)) {
+                    $cumulative_terms[] = $term_name;
+                }
+            }
+            
+            // Sort terms in proper order (First, Second, Third)
+            usort($cumulative_terms, function($a, $b) {
+                return getTermOrder($a) - getTermOrder($b);
+            });
+            
+        } catch (Exception $e) {
+            error_log("Failed to load cumulative scores: " . $e->getMessage());
         }
     }
 
@@ -632,14 +689,14 @@ $psychomotor_fields = [
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
         }
-        
+
         .rc-student-name h2 {
             font-size: 0.95rem;
             font-weight: 600;
             margin: 0;
             text-transform: uppercase;
         }
-        
+
         .rc-student-name p {
             font-size: 0.6rem;
             opacity: 0.9;
@@ -656,19 +713,19 @@ $psychomotor_fields = [
             gap: 5px;
             font-size: 0.6rem;
         }
-        
+
         .rc-student-details .detail-item {
             display: inline-flex;
             align-items: baseline;
             gap: 4px;
             justify-content: center;
         }
-        
+
         .detail-label {
             font-weight: 600;
             color: #666;
         }
-        
+
         .detail-value {
             font-weight: 500;
             color: #222;
@@ -726,6 +783,27 @@ $psychomotor_fields = [
             color: var(--primary);
         }
 
+        /* Cumulative column styling */
+        .rc-table th.cum-col {
+            background: #e8f4f8;
+            color: #155a72;
+        }
+
+        .rc-table td.cum-col {
+            color: #1a6680;
+            font-weight: 500;
+        }
+
+        .rc-table th.cum-avg {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .rc-table td.cum-avg {
+            color: #155724;
+            font-weight: 700;
+        }
+
         /* Grade badges */
         .g-badge {
             display: inline-block;
@@ -735,11 +813,30 @@ $psychomotor_fields = [
             font-weight: 700;
         }
 
-        .g-a { background: #d4edda; color: #155724; }
-        .g-b { background: #cce5ff; color: #004085; }
-        .g-c { background: #fff3cd; color: #856404; }
-        .g-d { background: #fce4ec; color: #880e4f; }
-        .g-f { background: #f8d7da; color: #721c24; }
+        .g-a {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .g-b {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .g-c {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .g-d {
+            background: #fce4ec;
+            color: #880e4f;
+        }
+
+        .g-f {
+            background: #f8d7da;
+            color: #721c24;
+        }
 
         /* Summary stats */
         .rc-summary {
@@ -814,12 +911,35 @@ $psychomotor_fields = [
             font-weight: 600;
         }
 
-        .tv-a { background: #d4edda; color: #155724; }
-        .tv-b { background: #cce5ff; color: #004085; }
-        .tv-c { background: #fff3cd; color: #856404; }
-        .tv-d { background: #ffe0b2; color: #e65100; }
-        .tv-e { background: #f8d7da; color: #721c24; }
-        .tv-null { background: #f0f0f0; color: #999; }
+        .tv-a {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .tv-b {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .tv-c {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .tv-d {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+
+        .tv-e {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .tv-null {
+            background: #f0f0f0;
+            color: #999;
+        }
 
         /* Comments - Compact */
         .comments-row {
@@ -882,10 +1002,12 @@ $psychomotor_fields = [
                 size: A4 portrait;
                 margin: 3mm;
             }
+
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+
             .no-print,
             .mobile-toggle,
             .top-bar,
@@ -896,10 +1018,12 @@ $psychomotor_fields = [
             .sidebar-overlay {
                 display: none !important;
             }
+
             .content-area {
                 margin-left: 0 !important;
                 padding: 0 !important;
             }
+
             .rc-card {
                 box-shadow: none;
                 border-radius: 0;
@@ -986,7 +1110,7 @@ $psychomotor_fields = [
                 $promoted_to  = $s_pos['promoted_to'] ?? '';
                 $resumption   = $record['next_resumption_date'] ?? '';
 
-                // Compute totals
+                // Compute totals for current term
                 $total_sum    = 0;
                 $scored_count = 0;
                 foreach ($subjects as $sub) {
@@ -1004,7 +1128,7 @@ $psychomotor_fields = [
                     <!-- Header -->
                     <div class="rc-header">
                         <?php if (!empty($school_logo)): ?>
-                            <?php 
+                            <?php
                             $logo_displayed = false;
                             $logo_paths_to_try = [
                                 $school_logo,
@@ -1084,18 +1208,24 @@ $psychomotor_fields = [
                     <table class="rc-table">
                         <thead>
                             <tr>
-                                <th style="width:35%">SUBJECT</th>
+                                <th style="width:30%">SUBJECT</th>
                                 <?php foreach ($score_types as $st): ?>
                                     <th><?php echo htmlspecialchars(substr($st['label'] ?? $st['name'] ?? 'CA', 0, 8)); ?></th>
                                 <?php endforeach; ?>
                                 <th>TOTAL</th>
                                 <th>GRADE</th>
                                 <?php if ($show_subject_position): ?><th>POS</th><?php endif; ?>
+                                <?php if ($show_cumulative_avg && !empty($cumulative_terms)): ?>
+                                    <?php foreach ($cumulative_terms as $ct): ?>
+                                        <th class="cum-col"><?php echo htmlspecialchars(substr($ct, 0, 3)); ?> TERM</th>
+                                    <?php endforeach; ?>
+                                    <th class="cum-avg">CUM AVG</th>
+                                <?php endif; ?>
                                 <th>REMARK</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
+                            <?php
                             $total_sum = 0;
                             $scored_count = 0;
                             foreach ($subjects as $sub):
@@ -1108,6 +1238,21 @@ $psychomotor_fields = [
                                 $total_sum += $total_sc;
                                 $scored_count++;
                                 $subject_pos = $row['subject_position'] ?? 0;
+                                
+                                // Calculate cumulative average for this subject
+                                $cum_avg = null;
+                                if ($show_cumulative_avg && !empty($cumulative_terms)) {
+                                    $term_totals = [];
+                                    foreach ($cumulative_terms as $ct) {
+                                        $term_score = $cumulative_scores[$sub_id][$ct] ?? null;
+                                        if ($term_score !== null) {
+                                            $term_totals[] = $term_score;
+                                        }
+                                    }
+                                    if (!empty($term_totals)) {
+                                        $cum_avg = array_sum($term_totals) / count($term_totals);
+                                    }
+                                }
                             ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($sub['subject_name']); ?></strong></td>
@@ -1122,6 +1267,19 @@ $psychomotor_fields = [
                                     <?php if ($show_subject_position): ?>
                                         <td><?php echo $subject_pos > 0 ? ordinal($subject_pos) : '—'; ?></td>
                                     <?php endif; ?>
+                                    <?php if ($show_cumulative_avg && !empty($cumulative_terms)): ?>
+                                        <?php foreach ($cumulative_terms as $ct): ?>
+                                            <td class="cum-col">
+                                                <?php 
+                                                $term_score = $cumulative_scores[$sub_id][$ct] ?? null;
+                                                echo $term_score !== null ? number_format($term_score, 0) : '—';
+                                                ?>
+                                            </td>
+                                        <?php endforeach; ?>
+                                        <td class="cum-avg">
+                                            <?php echo $cum_avg !== null ? number_format($cum_avg, 1) : '—'; ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td><?php echo htmlspecialchars($grade_info['remark']); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1130,15 +1288,33 @@ $psychomotor_fields = [
 
                     <!-- Summary stats -->
                     <div class="rc-summary">
-                        <div class="summary-item"><div class="value"><?php echo $scored_count; ?></div><div class="label">Subjects</div></div>
-                        <div class="summary-item"><div class="value"><?php echo number_format($total_sum, 0); ?></div><div class="label">Total Marks</div></div>
-                        <div class="summary-item"><div class="value"><?php echo number_format($avg, 1); ?>%</div><div class="label">Average</div></div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo $scored_count; ?></div>
+                            <div class="label">Subjects</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo number_format($total_sum, 0); ?></div>
+                            <div class="label">Total Marks</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="value"><?php echo number_format($avg, 1); ?>%</div>
+                            <div class="label">Average</div>
+                        </div>
                         <?php if ($show_class_position): ?>
-                            <div class="summary-item"><div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div><div class="label">Class Position</div></div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo $class_pos ? ordinal($class_pos) : '—'; ?></div>
+                                <div class="label">Class Position</div>
+                            </div>
                         <?php endif; ?>
                         <?php if ($show_lowest_highest_avg && $total_students > 0): ?>
-                            <div class="summary-item"><div class="value"><?php echo number_format($highest_avg, 1); ?>%</div><div class="label">Highest in Class</div></div>
-                            <div class="summary-item"><div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div><div class="label">Lowest in Class</div></div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo number_format($highest_avg, 1); ?>%</div>
+                                <div class="label">Highest in Class</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="value"><?php echo number_format($lowest_avg, 1); ?>%</div>
+                                <div class="label">Lowest in Class</div>
+                            </div>
                         <?php endif; ?>
                     </div>
 
@@ -1344,12 +1520,12 @@ $psychomotor_fields = [
                     unit: 'mm',
                     format: 'a4'
                 });
-                
+
                 const pdfW = pdf.internal.pageSize.getWidth();
                 const pdfH = pdf.internal.pageSize.getHeight();
                 const imgW = pdfW - 10;
                 const imgH = (canvas.height * imgW) / canvas.width;
-                
+
                 // Calculate if content fits on one page
                 if (imgH <= pdfH - 10) {
                     // Fits on one page

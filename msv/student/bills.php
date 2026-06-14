@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
         $notes = trim($_POST['notes'] ?? '');
 
-        // Handle file upload
+        // Handle file upload (optional)
         $proof_path = '';
         if (isset($_FILES['proof_payment']) && $_FILES['proof_payment']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = $_SERVER['DOCUMENT_ROOT'] . '/msv/uploads/payments/';
@@ -70,32 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $file_ext = strtolower(pathinfo($_FILES['proof_payment']['name'], PATHINFO_EXTENSION));
             $allowed_ext = ['jpg', 'jpeg', 'png', 'pdf'];
-            if (!in_array($file_ext, $allowed_ext)) {
-                $message = "Only JPG, PNG, and PDF files are allowed";
-                $message_type = "error";
-            } else {
+            if (in_array($file_ext, $allowed_ext)) {
                 $file_name = 'payment_' . $student_id . '_' . time() . '.' . $file_ext;
                 $file_path = '/msv/uploads/payments/' . $file_name;
                 
                 if (move_uploaded_file($_FILES['proof_payment']['tmp_name'], $upload_dir . $file_name)) {
                     $proof_path = $file_path;
-                } else {
-                    $message = "Failed to upload payment proof";
-                    $message_type = "error";
                 }
             }
-        } elseif (!isset($_FILES['proof_payment']) || $_FILES['proof_payment']['error'] !== UPLOAD_ERR_OK) {
-            $message = "Please upload payment proof";
-            $message_type = "error";
         }
 
-        if (empty($message) && $amount_paid <= 0) {
+        if ($amount_paid <= 0) {
             $message = "Please enter a valid amount";
             $message_type = "error";
-        } elseif (empty($message) && empty($reference_number)) {
-            $message = "Please enter a reference/transaction number";
-            $message_type = "error";
-        } elseif (empty($message)) {
+        } else {
             try {
                 // Get bill details if bill_id is provided
                 if ($bill_id > 0) {
@@ -140,19 +128,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $amount_paid, 
                     $payment_date, 
                     $payment_method, 
-                    $reference_number, 
+                    $reference_number ?: null, 
                     $notes, 
-                    $proof_path
+                    $proof_path ?: null
                 ]);
 
-                $message = "Payment uploaded successfully! Our finance team will verify it shortly.";
+                $message = "Payment submitted successfully! Our finance team will verify it shortly.";
                 $message_type = "success";
                 
                 // Redirect to refresh the page after successful upload
                 header("Location: bills.php?success=1");
                 exit();
             } catch (Exception $e) {
-                $message = "Error uploading payment: " . $e->getMessage();
+                $message = "Error submitting payment: " . $e->getMessage();
                 $message_type = "error";
             }
         }
@@ -205,7 +193,7 @@ $pending_count = count($pending_payments);
 
 // Check for success message from redirect
 if (isset($_GET['success'])) {
-    $message = "Payment uploaded successfully! Our finance team will verify it shortly.";
+    $message = "Payment submitted successfully! Our finance team will verify it shortly.";
     $message_type = "success";
 }
 ?>
@@ -362,6 +350,12 @@ if (isset($_GET['success'])) {
             background: #f8d7da;
             color: var(--danger-color);
             border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: var(--info-color);
+            border-left: 4px solid var(--info-color);
         }
 
         .section-card {
@@ -562,6 +556,12 @@ if (isset($_GET['success'])) {
             color: #555;
         }
 
+        .form-group label .optional {
+            font-weight: 400;
+            color: #888;
+            font-size: 0.7rem;
+        }
+
         .form-group input, .form-group select, .form-group textarea {
             width: 100%;
             padding: 10px;
@@ -646,6 +646,11 @@ if (isset($_GET['success'])) {
             margin-left: 8px;
         }
 
+        .required-field::after {
+            content: " *";
+            color: var(--danger-color);
+        }
+
         @media (max-width: 768px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -687,7 +692,7 @@ if (isset($_GET['success'])) {
 
         <?php if ($message): ?>
             <div class="alert alert-<?php echo $message_type; ?>">
-                <i class="fas <?php echo $message_type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
+                <i class="fas <?php echo $message_type === 'success' ? 'fa-check-circle' : ($message_type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'); ?>"></i>
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
@@ -795,7 +800,9 @@ if (isset($_GET['success'])) {
                             <div class="bill-details">
                                 <span><i class="fas fa-calendar"></i> Date: <?php echo date('d M Y', strtotime($payment['payment_date'])); ?></span>
                                 <span><i class="fas fa-money-bill"></i> Method: <?php echo ucfirst(str_replace('_', ' ', $payment['payment_method'])); ?></span>
-                                <span><i class="fas fa-hashtag"></i> Ref: <?php echo htmlspecialchars($payment['reference_number'] ?? 'N/A'); ?></span>
+                                <?php if (!empty($payment['reference_number'])): ?>
+                                    <span><i class="fas fa-hashtag"></i> Ref: <?php echo htmlspecialchars($payment['reference_number']); ?></span>
+                                <?php endif; ?>
                             </div>
                             
                             <?php if ($payment['status'] === 'verified' && !empty($payment['receipt_number'])): ?>
@@ -876,7 +883,7 @@ if (isset($_GET['success'])) {
                     </div>
                     
                     <div class="form-group">
-                        <label>Amount Paid (₦) *</label>
+                        <label class="required-field">Amount Paid (₦) *</label>
                         <input type="number" name="amount_paid" id="modal_amount_paid" step="0.01" required placeholder="Enter amount">
                     </div>
                     
@@ -892,8 +899,8 @@ if (isset($_GET['success'])) {
                     </div>
                     
                     <div class="form-group">
-                        <label>Reference/Transaction Number *</label>
-                        <input type="text" name="reference_number" required placeholder="Enter transaction reference or slip number">
+                        <label>Reference/Transaction Number <span class="optional">(Optional)</span></label>
+                        <input type="text" name="reference_number" placeholder="Enter transaction reference or slip number (if available)">
                     </div>
                     
                     <div class="form-group">
@@ -902,19 +909,19 @@ if (isset($_GET['success'])) {
                     </div>
                     
                     <div class="form-group">
-                        <label>Upload Payment Proof (Receipt/Screenshot) *</label>
-                        <input type="file" name="proof_payment" accept="image/*,.pdf" required>
-                        <small style="color: #888;">Upload a clear image or PDF of your payment receipt/transfer confirmation.</small>
+                        <label>Upload Payment Proof <span class="optional">(Optional - Screenshot/Receipt)</span></label>
+                        <input type="file" name="proof_payment" accept="image/*,.pdf">
+                        <small style="color: #888;">Optional: Upload a clear image or PDF of your payment receipt/transfer confirmation.</small>
                     </div>
                     
                     <div class="form-group">
-                        <label>Additional Notes</label>
+                        <label>Additional Notes <span class="optional">(Optional)</span></label>
                         <textarea name="notes" rows="3" placeholder="Any additional information about this payment..."></textarea>
                     </div>
                     
                     <div class="alert alert-info" style="background: #e3f2fd; color: #1565c0; border-left-color: #1565c0; font-size: 0.75rem;">
                         <i class="fas fa-info-circle"></i>
-                        Your payment will be pending verification by our finance team. You'll receive a receipt once verified.
+                        <strong>Note:</strong> Reference number and payment proof are optional but recommended. They help our finance team verify your payment faster.
                     </div>
                 </div>
                 
@@ -957,17 +964,21 @@ if (isset($_GET['success'])) {
         }
 
         // Auto-fill amount when bill is selected
-        document.getElementById('modal_bill_select').addEventListener('change', function() {
-            const selected = this.options[this.selectedIndex];
-            const amount = selected.dataset.amount;
-            if (amount) {
-                document.getElementById('modal_amount_paid').value = amount;
-                document.getElementById('modal_amount_paid').max = amount;
-            } else {
-                document.getElementById('modal_amount_paid').value = '';
-                document.getElementById('modal_amount_paid').max = '';
-            }
-        });
+        const billSelect = document.getElementById('modal_bill_select');
+        if (billSelect) {
+            billSelect.addEventListener('change', function() {
+                const selected = this.options[this.selectedIndex];
+                const amount = selected.dataset.amount;
+                const amountInput = document.getElementById('modal_amount_paid');
+                if (amount && amount > 0) {
+                    amountInput.value = amount;
+                    amountInput.max = amount;
+                } else {
+                    amountInput.value = '';
+                    amountInput.max = '';
+                }
+            });
+        }
 
         // Close modal on outside click
         window.onclick = function(event) {
@@ -980,6 +991,8 @@ if (isset($_GET['success'])) {
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(function() {
                 alert('Copied to clipboard: ' + text);
+            }).catch(function() {
+                alert('Could not copy text. Please select and copy manually.');
             });
         }
     </script>
